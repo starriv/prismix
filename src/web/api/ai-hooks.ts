@@ -8,6 +8,7 @@ import {
   API_ADMIN_GATEWAY_STATUS,
   API_AI_DEFAULT_MARKUP,
   API_AI_KEYS,
+  API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
   API_AI_REQUEST_LOGGING,
   API_AI_USAGE_BY_KEY,
@@ -65,6 +66,7 @@ interface CreateAiProviderBody {
   authType: string;
   enabled?: boolean;
   loadBalanceStrategy?: string;
+  authConfig?: Record<string, unknown>;
 }
 
 export function useCreateAiProvider() {
@@ -240,6 +242,17 @@ export function useDeleteAiModel() {
   return useMutation({
     mutationFn: ({ id, providerId: _pid }: { id: number; providerId: number }) =>
       del(apiAiModelDetail(id), z.object({ success: z.boolean() })),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+    },
+  });
+}
+
+export function useBatchDeleteAiModels() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, providerId: _pid }: { ids: number[]; providerId: number }) =>
+      post(API_AI_MODELS_BATCH_DELETE, { ids }, z.object({ deleted: z.number() })),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
     },

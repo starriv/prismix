@@ -61,6 +61,8 @@ const PROVIDER_MAP: Record<string, string> = {
   groq: "groq",
   mistral: "mistral",
   xai: "xai",
+  bedrock: "bedrock",
+  bedrock_converse: "bedrock",
 };
 
 /**

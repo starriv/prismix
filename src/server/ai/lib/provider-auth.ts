@@ -80,8 +80,8 @@ export function buildProviderAuth(
       // Unknown auth type — no auth headers
     });
 
-  // -- Anthropic requires version header --
-  if (provider.apiFormat === "anthropic") {
+  // -- Anthropic requires version header (Bedrock Claude models also need it) --
+  if (provider.apiFormat === "anthropic" || provider.apiFormat === "bedrock") {
     headers["anthropic-version"] = "2023-06-01";
   }
 

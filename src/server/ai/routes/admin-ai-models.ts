@@ -63,6 +63,11 @@ router.get("/providers/:id/discover-models", async (c) => {
   const base = provider.baseUrl.replace(/\/+$/, "");
   // Gemini and Anthropic have their own model list endpoints; OpenAI-compatible use /v1/models
   const modelsUrl = match(provider.apiFormat)
+    .with("bedrock", () => {
+      // ListFoundationModels is on the control plane (bedrock.region), not runtime (bedrock-runtime.region)
+      const controlPlaneBase = base.replace("bedrock-runtime.", "bedrock.");
+      return `${controlPlaneBase}/foundation-models`;
+    })
     .with("gemini", () => `${base}/models`)
     .with("anthropic", () => `${base}/models`)
     .otherwise(() => (base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`));
@@ -70,7 +75,7 @@ router.get("/providers/:id/discover-models", async (c) => {
 
   try {
     const res = await fetch(finalUrl, {
-      headers: { ...authHeaders },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       signal: AbortSignal.timeout(15_000),
     });
 
@@ -86,6 +91,15 @@ router.get("/providers/:id/discover-models", async (c) => {
 
     // Parse model list — different providers return different shapes
     const rawModels = match(provider.apiFormat)
+      .with("bedrock", () => {
+        // Bedrock ListFoundationModels: { modelSummaries: [{modelId, modelName, providerName}] }
+        const arr = upstream.modelSummaries as Array<Record<string, unknown>> | undefined;
+        return (arr ?? []).map((m) => ({
+          modelId: m.modelId as string,
+          name: (m.modelName as string) ?? (m.modelId as string),
+          ownedBy: m.providerName as string | undefined,
+        }));
+      })
       .with("gemini", () => {
         // Gemini: { models: [{ name: "models/gemini-pro", displayName: "..." }] }
         const arr = upstream.models as Array<Record<string, unknown>> | undefined;
@@ -315,6 +329,23 @@ router.put("/models/:id", async (c) => {
 
   const updated = await aiModelRepo.update(id, updates);
   return ok(c, formatModel(updated!));
+});
+
+// POST /models/batch-delete — batch delete models by IDs
+router.post("/models/batch-delete", async (c) => {
+  getAdminSession(c);
+  const body = await c.req.json<{ ids?: number[] }>();
+  const ids = body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json({ error: "ids must be a non-empty array of numbers" }, 400);
+  }
+  if (ids.some((id) => typeof id !== "number" || !Number.isInteger(id))) {
+    return c.json({ error: "All ids must be integers" }, 400);
+  }
+
+  const deleted = await aiModelRepo.batchDelete(ids);
+  log.auth.info({ ids, deleted }, "AI models batch deleted");
+  return ok(c, { deleted });
 });
 
 router.delete("/models/:id", async (c) => {

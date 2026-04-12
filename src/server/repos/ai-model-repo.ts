@@ -1,7 +1,7 @@
 /**
  * AI Model repository — CRUD for `ai_models` table.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import {
   type AiModel,
@@ -128,5 +128,11 @@ export const aiModelRepo = {
 
   async delete(id: number): Promise<void> {
     await exec(db.delete(aiModels).where(eq(aiModels.id, id)));
+  },
+
+  async batchDelete(ids: number[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    await exec(db.delete(aiModels).where(inArray(aiModels.id, ids)));
+    return ids.length;
   },
 };

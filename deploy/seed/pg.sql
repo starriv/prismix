@@ -88,7 +88,7 @@ ON CONFLICT (key) DO NOTHING;
 INSERT INTO global_settings (key, value, updated_at, created_at)
 VALUES (
   'ai_provider_catalog',
-  '[{"providerId":"openai","name":"OpenAI","baseUrl":"https://api.openai.com/v1","apiFormat":"openai","authType":"bearer"},{"providerId":"anthropic","name":"Anthropic","baseUrl":"https://api.anthropic.com/v1","apiFormat":"anthropic","authType":"api-key","authConfig":{"headerName":"x-api-key"}},{"providerId":"google","name":"Google AI","baseUrl":"https://generativelanguage.googleapis.com/v1beta","apiFormat":"gemini","authType":"bearer"},{"providerId":"deepseek","name":"DeepSeek","baseUrl":"https://api.deepseek.com","apiFormat":"openai","authType":"bearer"},{"providerId":"groq","name":"Groq","baseUrl":"https://api.groq.com/openai/v1","apiFormat":"openai","authType":"bearer"}]',
+  '[{"providerId":"openai","name":"OpenAI","baseUrl":"https://api.openai.com/v1","apiFormat":"openai","authType":"bearer"},{"providerId":"anthropic","name":"Anthropic","baseUrl":"https://api.anthropic.com/v1","apiFormat":"anthropic","authType":"api-key","authConfig":{"headerName":"x-api-key"}},{"providerId":"google","name":"Google AI","baseUrl":"https://generativelanguage.googleapis.com/v1beta","apiFormat":"gemini","authType":"bearer"},{"providerId":"deepseek","name":"DeepSeek","baseUrl":"https://api.deepseek.com","apiFormat":"openai","authType":"bearer"},{"providerId":"groq","name":"Groq","baseUrl":"https://api.groq.com/openai/v1","apiFormat":"openai","authType":"bearer"},{"providerId":"bedrock","name":"AWS Bedrock","baseUrl":"https://bedrock-runtime.us-east-1.amazonaws.com","apiFormat":"bedrock","authType":"sigv4","authConfig":{"region":"us-east-1","service":"bedrock","accessKeyId":""}}]',
   NOW(),
   NOW()
 )

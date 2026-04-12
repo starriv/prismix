@@ -2329,6 +2329,9 @@
       "api-key": "API Key",
       "api-key-ph": "sk-...",
       "api-key-hint": "Your key will be encrypted and stored securely",
+      "secret-access-key": "AWS Secret Access Key",
+      "secret-access-key-ph": "Enter your AWS secret access key",
+      "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",
       "owner": "Key Provider (optional)",
       "owner-ph": "Select a key provider",
       "owner-none": "Platform-owned (no provider)",
@@ -2373,7 +2376,13 @@
       "base-url": "Base URL",
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API Format",
-      "auth-type": "Auth Type"
+      "auth-type": "Auth Type",
+      "sigv4-region": "AWS Region",
+      "sigv4-region-ph": "us-east-1",
+      "sigv4-region-hint": "The AWS region for your Bedrock endpoint",
+      "sigv4-access-key-id": "AWS Access Key ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "sigv4-access-key-id-hint": "Your IAM access key ID for Bedrock API access"
     },
     "dialog": {
       "add-title": "Add Provider",
@@ -2400,7 +2409,9 @@
       "new": "Add Model",
       "create": "Create Model",
       "add-selected": "Add {{count}} Models",
-      "sync-prices": "Sync Prices"
+      "sync-prices": "Sync Prices",
+      "delete-selected": "Delete {{count}} Models",
+      "clean-zero-price": "Clean Invalid Pricing"
     },
     "th": {
       "model-id": "Model ID",
@@ -2434,7 +2445,11 @@
       "add-title": "Add Model",
       "edit-title": "Edit Model",
       "delete-title": "Delete Model",
-      "delete-body": "Delete \"{{name}}\"?"
+      "delete-body": "Delete \"{{name}}\"?",
+      "batch-delete-title": "Batch Delete Models",
+      "batch-delete-body": "Delete {{count}} selected models? This cannot be undone.",
+      "clean-zero-title": "Clean Invalid Pricing",
+      "clean-zero-body": "Delete {{count}} models with $0 pricing? Models without valid pricing cannot be billed and may be abused."
     },
     "sync": {
       "title": "Sync Prices",
@@ -2451,6 +2466,7 @@
       "created": "Model created",
       "updated": "Model updated",
       "deleted": "Model deleted",
+      "batch-deleted": "{{count}} models deleted",
       "batch-created": "{{count}} models added",
       "prices-synced": "{{count}} model prices updated",
       "prices-no-diff": "All prices are up to date",

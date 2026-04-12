@@ -81,6 +81,10 @@ export function AddKeyDialog({
     }
   }, [open, defaultProviderId, form]);
 
+  const watchedProviderId = form.watch("providerId");
+  const selectedProvider = providers.find((p) => p.id === watchedProviderId);
+  const isSigV4 = selectedProvider?.authType === "sigv4";
+
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
       await createKey.mutateAsync(data);
@@ -146,11 +150,20 @@ export function AddKeyDialog({
                 name="apiKey"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai.form.api-key")}</FormLabel>
+                    <FormLabel>
+                      {isSigV4 ? t("ai.form.secret-access-key") : t("ai.form.api-key")}
+                    </FormLabel>
                     <FormControl>
-                      <SecretInput placeholder={t("ai.form.api-key-ph")} {...field} />
+                      <SecretInput
+                        placeholder={
+                          isSigV4 ? t("ai.form.secret-access-key-ph") : t("ai.form.api-key-ph")
+                        }
+                        {...field}
+                      />
                     </FormControl>
-                    <p className="text-[11px] text-muted-foreground">{t("ai.form.api-key-hint")}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {isSigV4 ? t("ai.form.secret-access-key-hint") : t("ai.form.api-key-hint")}
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

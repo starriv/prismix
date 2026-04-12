@@ -1,10 +1,17 @@
 /**
- * Bedrock adapter + SigV4 auth — Phase 3 Feature 1 unit tests.
+ * Bedrock adapter + SigV4 auth — unit tests.
+ *
+ * Covers: URL construction, multi-vendor dispatch, SigV4 signing,
+ * buildProviderAuth integration, and anthropic-version header injection.
  */
 import { describe, expect, it } from "vitest";
 
 import { buildProviderAuth, signSigV4 } from "@/server/ai/lib/provider-auth";
-import { bedrockAdapter } from "@/server/ai/providers/bedrock";
+import {
+  bedrockAdapter,
+  ensureInferenceProfile,
+  getVendorPrefix,
+} from "@/server/ai/providers/bedrock";
 
 // ── Bedrock Adapter ─────────────────────────────────────────────────────
 
@@ -12,28 +19,56 @@ describe("bedrock adapter", () => {
   describe("buildUrl", () => {
     const base = "https://bedrock-runtime.us-east-1.amazonaws.com";
 
-    it("builds non-streaming invoke URL", () => {
+    it("auto-prefixes model ID with region geography", () => {
       expect(
         bedrockAdapter.buildUrl(base, {
           model: "anthropic.claude-3-sonnet-20240229-v1:0",
           stream: false,
         }),
-      ).toBe(`${base}/model/anthropic.claude-3-sonnet-20240229-v1:0/invoke`);
+      ).toBe(`${base}/model/us.anthropic.claude-3-sonnet-20240229-v1:0/invoke`);
     });
 
-    it("builds streaming invoke-with-response-stream URL", () => {
+    it("preserves existing geography prefix", () => {
+      expect(
+        bedrockAdapter.buildUrl(base, {
+          model: "us.anthropic.claude-sonnet-4-6",
+          stream: false,
+        }),
+      ).toBe(`${base}/model/us.anthropic.claude-sonnet-4-6/invoke`);
+    });
+
+    it("builds streaming URL with auto-prefix", () => {
       expect(
         bedrockAdapter.buildUrl(base, {
           model: "anthropic.claude-3-sonnet-20240229-v1:0",
           stream: true,
         }),
-      ).toBe(`${base}/model/anthropic.claude-3-sonnet-20240229-v1:0/invoke-with-response-stream`);
+      ).toBe(
+        `${base}/model/us.anthropic.claude-3-sonnet-20240229-v1:0/invoke-with-response-stream`,
+      );
     });
 
     it("strips trailing slash", () => {
-      expect(bedrockAdapter.buildUrl(`${base}/`, { model: "model-id", stream: false })).toBe(
-        `${base}/model/model-id/invoke`,
-      );
+      expect(
+        bedrockAdapter.buildUrl(`${base}/`, {
+          model: "us.anthropic.claude-sonnet-4-6",
+          stream: false,
+        }),
+      ).toBe(`${base}/model/us.anthropic.claude-sonnet-4-6/invoke`);
+    });
+
+    it("uses eu prefix for eu regions", () => {
+      const euBase = "https://bedrock-runtime.eu-central-1.amazonaws.com";
+      expect(
+        bedrockAdapter.buildUrl(euBase, { model: "anthropic.claude-sonnet-4-6", stream: false }),
+      ).toBe(`${euBase}/model/eu.anthropic.claude-sonnet-4-6/invoke`);
+    });
+
+    it("uses ap prefix for ap regions", () => {
+      const apBase = "https://bedrock-runtime.ap-northeast-1.amazonaws.com";
+      expect(
+        bedrockAdapter.buildUrl(apBase, { model: "minimax.minimax-m2.1", stream: false }),
+      ).toBe(`${apBase}/model/ap.minimax.minimax-m2.1/invoke`);
     });
   });
 
@@ -41,8 +76,8 @@ describe("bedrock adapter", () => {
     expect(bedrockAdapter.format).toBe("bedrock");
   });
 
-  it("delegates extractUsage to anthropic adapter", () => {
-    const body = { usage: { input_tokens: 10, output_tokens: 20 } };
+  it("delegates extractUsage to anthropic adapter for Anthropic response", () => {
+    const body = { type: "message", usage: { input_tokens: 10, output_tokens: 20 } };
     expect(bedrockAdapter.extractUsage(body)).toEqual({
       inputTokens: 10,
       outputTokens: 20,
@@ -63,6 +98,209 @@ describe("bedrock adapter", () => {
     const messages = result.messages as Array<Record<string, unknown>>;
     expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe("user");
+  });
+});
+
+// ── Inference profile auto-prefix ────────────────────────────────────────
+
+describe("ensureInferenceProfile", () => {
+  const usBase = "https://bedrock-runtime.us-east-1.amazonaws.com";
+  const euBase = "https://bedrock-runtime.eu-central-1.amazonaws.com";
+  const apBase = "https://bedrock-runtime.ap-northeast-1.amazonaws.com";
+
+  it("adds us prefix for US region", () => {
+    expect(ensureInferenceProfile("anthropic.claude-sonnet-4-6", usBase)).toBe(
+      "us.anthropic.claude-sonnet-4-6",
+    );
+  });
+
+  it("adds eu prefix for EU region", () => {
+    expect(ensureInferenceProfile("anthropic.claude-sonnet-4-6", euBase)).toBe(
+      "eu.anthropic.claude-sonnet-4-6",
+    );
+  });
+
+  it("adds ap prefix for AP region", () => {
+    expect(ensureInferenceProfile("minimax.minimax-m2.1", apBase)).toBe("ap.minimax.minimax-m2.1");
+  });
+
+  it("preserves existing geography prefix", () => {
+    expect(ensureInferenceProfile("us.anthropic.claude-sonnet-4-6", usBase)).toBe(
+      "us.anthropic.claude-sonnet-4-6",
+    );
+    expect(ensureInferenceProfile("eu.meta.llama3-2-1b-instruct-v1:0", euBase)).toBe(
+      "eu.meta.llama3-2-1b-instruct-v1:0",
+    );
+  });
+
+  it("returns model as-is when baseUrl has no region", () => {
+    expect(
+      ensureInferenceProfile("anthropic.claude-sonnet-4-6", "https://custom.endpoint.com"),
+    ).toBe("anthropic.claude-sonnet-4-6");
+  });
+});
+
+// ── Multi-vendor dispatch ────────────────────────────────────────────────
+
+describe("bedrock adapter — multi-vendor dispatch", () => {
+  describe("getVendorPrefix", () => {
+    it("extracts vendor from standard model ID", () => {
+      expect(getVendorPrefix("anthropic.claude-opus-4-6-v1")).toBe("anthropic");
+      expect(getVendorPrefix("minimax.minimax-m2.1")).toBe("minimax");
+      expect(getVendorPrefix("moonshot.kimi-k2.5")).toBe("moonshot");
+      expect(getVendorPrefix("openai.gpt-oss-120b")).toBe("openai");
+    });
+
+    it("skips cross-region prefix", () => {
+      expect(getVendorPrefix("us.anthropic.claude-sonnet-4-6")).toBe("anthropic");
+      expect(getVendorPrefix("eu.meta.llama3-2-1b-instruct-v1:0")).toBe("meta");
+      expect(getVendorPrefix("ap.minimax.minimax-m2.1")).toBe("minimax");
+      expect(getVendorPrefix("global.anthropic.claude-opus-4-6-v1")).toBe("anthropic");
+    });
+
+    it("returns full string for single-segment model ID", () => {
+      expect(getVendorPrefix("some-model")).toBe("some-model");
+    });
+  });
+
+  describe("transformRequest", () => {
+    it("uses Anthropic format for anthropic.* models", () => {
+      const result = bedrockAdapter.transformRequest({
+        model: "anthropic.claude-opus-4-6-v1",
+        messages: [
+          { role: "system", content: "Be helpful." },
+          { role: "user", content: "Hi" },
+        ],
+      }) as Record<string, unknown>;
+
+      // Anthropic adapter extracts system messages
+      expect(result.system).toBe("Be helpful.");
+      expect((result.messages as unknown[]).length).toBe(1);
+      expect(result.max_tokens).toBeDefined();
+    });
+
+    it("uses Anthropic format for cross-region anthropic models", () => {
+      const result = bedrockAdapter.transformRequest({
+        model: "us.anthropic.claude-sonnet-4-6",
+        messages: [
+          { role: "system", content: "System prompt." },
+          { role: "user", content: "Hello" },
+        ],
+      }) as Record<string, unknown>;
+
+      expect(result.system).toBe("System prompt.");
+    });
+
+    it("uses OpenAI format for minimax.* models", () => {
+      const result = bedrockAdapter.transformRequest({
+        model: "minimax.minimax-m2.1",
+        messages: [
+          { role: "system", content: "Be helpful." },
+          { role: "user", content: "Hi" },
+        ],
+      }) as Record<string, unknown>;
+
+      // OpenAI passthrough: system messages stay in messages array
+      const messages = result.messages as Array<Record<string, unknown>>;
+      expect(messages).toHaveLength(2);
+      expect(messages[0].role).toBe("system");
+      expect(result.system).toBeUndefined();
+    });
+
+    it("uses OpenAI format for moonshot.* models", () => {
+      const result = bedrockAdapter.transformRequest({
+        model: "moonshot.kimi-k2.5",
+        messages: [{ role: "user", content: "Hi" }],
+      }) as Record<string, unknown>;
+
+      const messages = result.messages as Array<Record<string, unknown>>;
+      expect(messages).toHaveLength(1);
+      expect(result.system).toBeUndefined();
+    });
+  });
+
+  describe("transformResponse", () => {
+    it("handles Anthropic response shape (type=message)", () => {
+      const anthropicBody = {
+        id: "msg_123",
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "Hello!" }],
+        model: "claude-opus-4-6",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 5 },
+      };
+
+      const result = bedrockAdapter.transformResponse(anthropicBody);
+      expect(result.object).toBe("chat.completion");
+      expect(result.choices[0].message.content).toBe("Hello!");
+      expect(result.choices[0].finish_reason).toBe("stop");
+    });
+
+    it("handles OpenAI response shape (choices array)", () => {
+      const openaiBody = {
+        id: "chatcmpl-123",
+        object: "chat.completion",
+        created: 1700000000,
+        model: "minimax-m2.1",
+        choices: [
+          { index: 0, message: { role: "assistant", content: "Hi!" }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+      };
+
+      const result = bedrockAdapter.transformResponse(openaiBody);
+      expect(result.choices[0].message.content).toBe("Hi!");
+    });
+  });
+
+  describe("extractUsage", () => {
+    it("extracts from Anthropic format (input_tokens/output_tokens)", () => {
+      const body = { type: "message", usage: { input_tokens: 100, output_tokens: 50 } };
+      expect(bedrockAdapter.extractUsage(body)).toEqual({
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150,
+      });
+    });
+
+    it("extracts from OpenAI format (prompt_tokens/completion_tokens)", () => {
+      const body = { usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 } };
+      expect(bedrockAdapter.extractUsage(body)).toEqual({
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150,
+      });
+    });
+  });
+
+  describe("isStreamDone", () => {
+    it("detects OpenAI [DONE] signal", () => {
+      expect(bedrockAdapter.isStreamDone("[DONE]")).toBe(true);
+    });
+
+    it("detects Anthropic message_stop signal", () => {
+      expect(bedrockAdapter.isStreamDone('{"type":"message_stop"}')).toBe(true);
+    });
+
+    it("returns false for regular events", () => {
+      expect(bedrockAdapter.isStreamDone('{"type":"content_block_delta"}')).toBe(false);
+    });
+  });
+});
+
+// ── anthropic-version header injection ──────────────────────────────────
+
+describe("buildProviderAuth anthropic-version for bedrock", () => {
+  it("injects anthropic-version header for bedrock apiFormat", () => {
+    const provider = {
+      authType: "bearer",
+      authConfig: "{}",
+      apiFormat: "bedrock",
+    };
+
+    const result = buildProviderAuth(provider, "test-key", "https://example.com/invoke");
+    expect(result.headers["anthropic-version"]).toBe("2023-06-01");
   });
 });
 

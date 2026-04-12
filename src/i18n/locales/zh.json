@@ -2329,6 +2329,9 @@
       "api-key": "API 密钥",
       "api-key-ph": "sk-...",
       "api-key-hint": "您的密钥将被加密存储",
+      "secret-access-key": "AWS 秘密访问密钥",
+      "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
+      "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
       "owner": "号池供应商（可选）",
       "owner-ph": "选择号池供应商",
       "owner-none": "平台自有（无供应商）",
@@ -2373,7 +2376,13 @@
       "base-url": "基础 URL",
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API 格式",
-      "auth-type": "认证类型"
+      "auth-type": "认证类型",
+      "sigv4-region": "AWS 区域",
+      "sigv4-region-ph": "us-east-1",
+      "sigv4-region-hint": "Bedrock 端点所在的 AWS 区域",
+      "sigv4-access-key-id": "AWS 访问密钥 ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "sigv4-access-key-id-hint": "用于访问 Bedrock API 的 IAM 访问密钥 ID"
     },
     "dialog": {
       "add-title": "添加供应商",
@@ -2400,7 +2409,9 @@
       "new": "添加模型",
       "create": "创建模型",
       "add-selected": "添加 {{count}} 个模型",
-      "sync-prices": "同步价格"
+      "sync-prices": "同步价格",
+      "delete-selected": "删除 {{count}} 个模型",
+      "clean-zero-price": "清理无效定价"
     },
     "th": {
       "model-id": "模型 ID",
@@ -2434,7 +2445,11 @@
       "add-title": "添加模型",
       "edit-title": "编辑模型",
       "delete-title": "删除模型",
-      "delete-body": "删除「{{name}}」？"
+      "delete-body": "删除「{{name}}」？",
+      "batch-delete-title": "批量删除模型",
+      "batch-delete-body": "删除 {{count}} 个已选模型？此操作不可撤销。",
+      "clean-zero-title": "清理无效定价",
+      "clean-zero-body": "删除 {{count}} 个价格为 $0 的模型？无有效定价的模型无法计费，存在被滥用的风险。"
     },
     "sync": {
       "title": "同步价格",
@@ -2451,6 +2466,7 @@
       "created": "模型已创建",
       "updated": "模型已更新",
       "deleted": "模型已删除",
+      "batch-deleted": "已删除 {{count}} 个模型",
       "batch-created": "已添加 {{count}} 个模型",
       "prices-synced": "已更新 {{count}} 个模型价格",
       "prices-no-diff": "所有价格已是最新",

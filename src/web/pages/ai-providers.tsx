@@ -53,16 +53,54 @@ import {
   TableRow,
 } from "@/web/components/ui/table";
 
+// ── AWS Bedrock regions (runtime endpoints) ─────────────────────────
+
+const BEDROCK_REGIONS = [
+  { code: "us-east-1", label: "US East (N. Virginia)" },
+  { code: "us-east-2", label: "US East (Ohio)" },
+  { code: "us-west-2", label: "US West (Oregon)" },
+  { code: "ap-south-1", label: "Asia Pacific (Mumbai)" },
+  { code: "ap-south-2", label: "Asia Pacific (Hyderabad)" },
+  { code: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+  { code: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
+  { code: "ap-northeast-3", label: "Asia Pacific (Osaka)" },
+  { code: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
+  { code: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
+  { code: "ca-central-1", label: "Canada (Central)" },
+  { code: "eu-central-1", label: "Europe (Frankfurt)" },
+  { code: "eu-central-2", label: "Europe (Zurich)" },
+  { code: "eu-west-1", label: "Europe (Ireland)" },
+  { code: "eu-west-2", label: "Europe (London)" },
+  { code: "eu-west-3", label: "Europe (Paris)" },
+  { code: "eu-south-1", label: "Europe (Milan)" },
+  { code: "eu-south-2", label: "Europe (Spain)" },
+  { code: "eu-north-1", label: "Europe (Stockholm)" },
+  { code: "sa-east-1", label: "South America (São Paulo)" },
+  { code: "us-gov-east-1", label: "AWS GovCloud (US-East)" },
+  { code: "us-gov-west-1", label: "AWS GovCloud (US-West)" },
+] as const;
+
 // ── Form schema ──────────────────────────────────────────────────────
 
-const providerFormSchema = z.object({
-  providerId: z.string().min(1, "common.valid.required"),
-  name: z.string().min(1, "common.valid.name-required"),
-  baseUrl: z.string().url("common.valid.invalid-url"),
-  apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
-  authType: z.enum(["bearer", "api-key", "sigv4"]),
-  enabled: z.boolean(),
-});
+const providerFormSchema = z
+  .object({
+    providerId: z.string().min(1, "common.valid.required"),
+    name: z.string().min(1, "common.valid.name-required"),
+    baseUrl: z.string().url("common.valid.invalid-url"),
+    apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
+    authType: z.enum(["bearer", "api-key", "sigv4"]),
+    enabled: z.boolean(),
+    sigv4Region: z.string().optional(),
+    sigv4AccessKeyId: z.string().optional(),
+  })
+  .refine((d) => d.apiFormat !== "bedrock" || !!d.sigv4Region, {
+    message: "common.valid.required",
+    path: ["sigv4Region"],
+  })
+  .refine((d) => d.authType !== "sigv4" || !!d.sigv4AccessKeyId, {
+    message: "common.valid.required",
+    path: ["sigv4AccessKeyId"],
+  });
 type ProviderFormValues = z.infer<typeof providerFormSchema>;
 
 // ── Page ─────────────────────────────────────────────────────────────
@@ -258,11 +296,14 @@ function ProviderFormDialog({
       apiFormat: "openai",
       authType: "bearer",
       enabled: true,
+      sigv4Region: "",
+      sigv4AccessKeyId: "",
     },
   });
 
   useEffect(() => {
     if (open && provider) {
+      const ac = (provider.authConfig ?? {}) as Record<string, unknown>;
       form.reset({
         providerId: provider.providerId,
         name: provider.name,
@@ -270,6 +311,8 @@ function ProviderFormDialog({
         apiFormat: provider.apiFormat as ProviderFormValues["apiFormat"],
         authType: provider.authType as ProviderFormValues["authType"],
         enabled: provider.enabled,
+        sigv4Region: (ac.region as string) ?? "",
+        sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
       });
     } else if (open) {
       form.reset({
@@ -279,17 +322,48 @@ function ProviderFormDialog({
         apiFormat: "openai",
         authType: "bearer",
         enabled: true,
+        sigv4Region: "",
+        sigv4AccessKeyId: "",
       });
     }
   }, [open, provider, form]);
 
+  // Auto-link: Bedrock apiFormat → default region + baseUrl
+  const watchedApiFormat = form.watch("apiFormat");
+  const watchedRegion = form.watch("sigv4Region");
+
+  useEffect(() => {
+    if (watchedApiFormat === "bedrock" && !form.getValues("sigv4Region")) {
+      form.setValue("sigv4Region", "us-east-1");
+    }
+  }, [watchedApiFormat, form]);
+
+  useEffect(() => {
+    if (watchedApiFormat === "bedrock" && watchedRegion) {
+      form.setValue("baseUrl", `https://bedrock-runtime.${watchedRegion}.amazonaws.com`);
+    }
+  }, [watchedApiFormat, watchedRegion, form]);
+
   const handleSubmit = form.handleSubmit(async (data) => {
+    const { sigv4Region, sigv4AccessKeyId, ...rest } = data;
+
+    let authConfig: Record<string, unknown> | undefined;
+    if (data.authType === "sigv4" && sigv4Region) {
+      authConfig = {
+        region: sigv4Region,
+        service: "bedrock",
+        ...(sigv4AccessKeyId ? { accessKeyId: sigv4AccessKeyId } : {}),
+      };
+    } else if (data.apiFormat === "bedrock" && sigv4Region) {
+      authConfig = { region: sigv4Region };
+    }
+
     try {
       if (isEdit) {
-        await updateProvider.mutateAsync({ id: provider.id, ...data });
+        await updateProvider.mutateAsync({ id: provider.id, ...rest, authConfig });
         toast.success(t("ai-providers.toast.updated"));
       } else {
-        await createProvider.mutateAsync(data);
+        await createProvider.mutateAsync({ ...rest, authConfig });
         toast.success(t("ai-providers.toast.created"));
       }
       onOpenChange(false);
@@ -394,6 +468,54 @@ function ProviderFormDialog({
                   </FormItem>
                 )}
               />
+              {form.watch("apiFormat") === "bedrock" && (
+                <FormField
+                  control={form.control}
+                  name="sigv4Region"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.form.sigv4-region")}</FormLabel>
+                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t("ai-providers.form.sigv4-region-ph")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BEDROCK_REGIONS.map((r) => (
+                            <SelectItem key={r.code} value={r.code}>
+                              {r.code} — {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.form.sigv4-region-hint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {form.watch("authType") === "sigv4" && (
+                <FormField
+                  control={form.control}
+                  name="sigv4AccessKeyId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.form.sigv4-access-key-id")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t("ai-providers.form.sigv4-access-key-id-ph")}
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.form.sigv4-access-key-id-hint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
