@@ -166,7 +166,7 @@ describe("extractPassthroughUsage", () => {
     expect(extractPassthroughUsage(body)).toBeNull();
   });
 
-  it("handles Anthropic response with extra fields", () => {
+  it("handles Anthropic response with zero cache tokens", () => {
     const body = JSON.stringify({
       usage: {
         input_tokens: 15,
@@ -175,11 +175,28 @@ describe("extractPassthroughUsage", () => {
         cache_read_input_tokens: 0,
       },
     });
-    expect(extractPassthroughUsage(body)).toEqual({
+    expect(extractPassthroughUsage(body)).toMatchObject({
       inputTokens: 15,
       outputTokens: 8,
       totalTokens: 23,
     });
+  });
+
+  it("includes Anthropic cache tokens in inputTokens", () => {
+    const body = JSON.stringify({
+      usage: {
+        input_tokens: 12,
+        output_tokens: 50,
+        cache_creation_input_tokens: 2520,
+        cache_read_input_tokens: 800,
+      },
+    });
+    const result = extractPassthroughUsage(body)!;
+    expect(result.inputTokens).toBe(3332); // 12 + 2520 + 800
+    expect(result.outputTokens).toBe(50);
+    expect(result.totalTokens).toBe(3382);
+    expect(result.cacheCreationInputTokens).toBe(2520);
+    expect(result.cacheReadInputTokens).toBe(800);
   });
 
   it("prefers OpenAI fields when both shapes present", () => {
@@ -223,11 +240,29 @@ describe("extractStreamUsageUniversal", () => {
       type: "message_start",
       message: { usage: { input_tokens: 12, output_tokens: 0 } },
     });
-    expect(extractStreamUsageUniversal(data)).toEqual({
+    expect(extractStreamUsageUniversal(data)).toMatchObject({
       inputTokens: 12,
       outputTokens: 0,
       totalTokens: 12,
     });
+  });
+
+  it("includes Anthropic cache tokens in message_start input count", () => {
+    const data = JSON.stringify({
+      type: "message_start",
+      message: {
+        usage: {
+          input_tokens: 12,
+          cache_creation_input_tokens: 2520,
+          cache_read_input_tokens: 800,
+        },
+      },
+    });
+    const result = extractStreamUsageUniversal(data)!;
+    expect(result.inputTokens).toBe(3332); // 12 + 2520 + 800
+    expect(result.totalTokens).toBe(3332);
+    expect(result.cacheCreationInputTokens).toBe(2520);
+    expect(result.cacheReadInputTokens).toBe(800);
   });
 
   it("extracts Anthropic output_tokens from message_delta (ignores cumulative input_tokens)", () => {
@@ -368,7 +403,8 @@ describe("openaiAdapter.transformRequest", () => {
     };
     const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
     expect(result.temperature).toBe(0.7);
-    expect(result.max_tokens).toBe(100);
+    expect(result.max_completion_tokens).toBe(100);
+    expect(result.max_tokens).toBeUndefined();
     expect(result.stream_options).toEqual({ include_usage: true });
   });
 });

@@ -161,6 +161,24 @@ describe("anthropic adapter", () => {
       });
     });
 
+    it("includes cache tokens in prompt_tokens", () => {
+      const result = anthropicAdapter.transformResponse({
+        ...anthropicResponse,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          cache_creation_input_tokens: 2000,
+          cache_read_input_tokens: 500,
+        },
+      });
+
+      expect(result.usage).toEqual({
+        prompt_tokens: 2510, // 10 + 2000 + 500
+        completion_tokens: 20,
+        total_tokens: 2530,
+      });
+    });
+
     it("maps stop_reason: max_tokens → length", () => {
       const result = anthropicAdapter.transformResponse({
         ...anthropicResponse,
@@ -224,11 +242,28 @@ describe("anthropic adapter", () => {
       const body = {
         usage: { input_tokens: 15, output_tokens: 25 },
       };
-      expect(anthropicAdapter.extractUsage(body)).toEqual({
+      expect(anthropicAdapter.extractUsage(body)).toMatchObject({
         inputTokens: 15,
         outputTokens: 25,
         totalTokens: 40,
       });
+    });
+
+    it("includes cache tokens in inputTokens", () => {
+      const body = {
+        usage: {
+          input_tokens: 12,
+          output_tokens: 50,
+          cache_creation_input_tokens: 2520,
+          cache_read_input_tokens: 800,
+        },
+      };
+      const result = anthropicAdapter.extractUsage(body)!;
+      expect(result.inputTokens).toBe(3332); // 12 + 2520 + 800
+      expect(result.outputTokens).toBe(50);
+      expect(result.totalTokens).toBe(3382);
+      expect(result.cacheCreationInputTokens).toBe(2520);
+      expect(result.cacheReadInputTokens).toBe(800);
     });
 
     it("returns null when no usage", () => {
@@ -270,11 +305,27 @@ describe("anthropic adapter", () => {
         type: "message_start",
         message: { usage: { input_tokens: 42, output_tokens: 0 } },
       });
-      expect(anthropicAdapter.extractStreamUsage(event)).toEqual({
+      expect(anthropicAdapter.extractStreamUsage(event)).toMatchObject({
         inputTokens: 42,
         outputTokens: 0,
         totalTokens: 42,
       });
+    });
+
+    it("includes cache tokens in message_start input count", () => {
+      const event = JSON.stringify({
+        type: "message_start",
+        message: {
+          usage: {
+            input_tokens: 12,
+            cache_creation_input_tokens: 2520,
+            cache_read_input_tokens: 0,
+          },
+        },
+      });
+      const result = anthropicAdapter.extractStreamUsage(event)!;
+      expect(result.inputTokens).toBe(2532); // 12 + 2520
+      expect(result.cacheCreationInputTokens).toBe(2520);
     });
 
     it("extracts output_tokens from message_delta event", () => {

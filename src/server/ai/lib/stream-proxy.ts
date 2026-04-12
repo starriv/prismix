@@ -410,13 +410,7 @@ export function forwardStream(
           const frameUsage =
             adapter.extractStreamUsage(dataLine) ?? extractStreamUsageUniversal(dataLine);
           if (frameUsage) {
-            usage = usage
-              ? {
-                  inputTokens: usage.inputTokens + frameUsage.inputTokens,
-                  outputTokens: usage.outputTokens + frameUsage.outputTokens,
-                  totalTokens: usage.totalTokens + frameUsage.totalTokens,
-                }
-              : frameUsage;
+            usage = usage ? mergeUsage(usage, frameUsage) : frameUsage;
           }
 
           const transformed = adapter.transformStreamEvent(dataLine);
@@ -672,13 +666,7 @@ export function forwardPassthroughStream(
             }
             const frameUsage = extractStreamUsageUniversal(dataLine);
             if (frameUsage) {
-              usage = usage
-                ? {
-                    inputTokens: usage.inputTokens + frameUsage.inputTokens,
-                    outputTokens: usage.outputTokens + frameUsage.outputTokens,
-                    totalTokens: usage.totalTokens + frameUsage.totalTokens,
-                  }
-                : frameUsage;
+              usage = usage ? mergeUsage(usage, frameUsage) : frameUsage;
             }
           }
 
@@ -760,6 +748,19 @@ export function forwardPassthroughStream(
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
+/** Merge two TokenUsage objects, summing all fields including optional cache tokens. */
+function mergeUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+    cacheCreationInputTokens:
+      (a.cacheCreationInputTokens ?? 0) + (b.cacheCreationInputTokens ?? 0) || undefined,
+    cacheReadInputTokens:
+      (a.cacheReadInputTokens ?? 0) + (b.cacheReadInputTokens ?? 0) || undefined,
+  };
+}
+
 /** Retryable upstream status codes for fallback. */
 export const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
@@ -790,11 +791,23 @@ export function extractPassthroughUsage(text: string): TokenUsage | null {
     const input = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
     const output = typeof usage.output_tokens === "number" ? usage.output_tokens : 0;
 
-    const inputTokens = prompt || input;
+    // Anthropic cache tokens (separate from input_tokens, must be summed)
+    const cacheCreation =
+      typeof usage.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0;
+    const cacheRead =
+      typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0;
+
+    const inputTokens = (prompt || input) + cacheCreation + cacheRead;
     const outputTokens = completion || output;
 
     if (inputTokens === 0 && outputTokens === 0) return null;
-    return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      cacheCreationInputTokens: cacheCreation || undefined,
+      cacheReadInputTokens: cacheRead || undefined,
+    };
   } catch {
     return null;
   }
@@ -821,8 +834,23 @@ export function extractStreamUsageUniversal(dataLine: string): TokenUsage | null
       const message = obj.message as Record<string, unknown> | undefined;
       const usage = message?.usage as Record<string, unknown> | undefined;
       if (!usage) return null;
-      const inputTokens = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
-      return inputTokens > 0 ? { inputTokens, outputTokens: 0, totalTokens: inputTokens } : null;
+      const baseInput = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
+      const cacheCreation =
+        typeof usage.cache_creation_input_tokens === "number"
+          ? usage.cache_creation_input_tokens
+          : 0;
+      const cacheRead =
+        typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0;
+      const inputTokens = baseInput + cacheCreation + cacheRead;
+      return inputTokens > 0
+        ? {
+            inputTokens,
+            outputTokens: 0,
+            totalTokens: inputTokens,
+            cacheCreationInputTokens: cacheCreation || undefined,
+            cacheReadInputTokens: cacheRead || undefined,
+          }
+        : null;
     }
     if (eventType === "message_delta") {
       const usage = obj.usage as Record<string, unknown> | undefined;
@@ -922,6 +950,8 @@ function enqueueUsageLog(
     inputTokens: usage?.inputTokens ?? 0,
     outputTokens: usage?.outputTokens ?? 0,
     totalTokens: usage?.totalTokens ?? 0,
+    cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
+    cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
     estimatedCost: estimatedCost ?? null,
     latencyMs,
     statusCode,

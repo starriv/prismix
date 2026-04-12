@@ -81,7 +81,7 @@ describe("bedrock adapter", () => {
 
   it("delegates extractUsage to anthropic adapter for Anthropic response", () => {
     const body = { type: "message", usage: { input_tokens: 10, output_tokens: 20 } };
-    expect(bedrockAdapter.extractUsage(body)).toEqual({
+    expect(bedrockAdapter.extractUsage(body)).toMatchObject({
       inputTokens: 10,
       outputTokens: 20,
       totalTokens: 30,
@@ -254,7 +254,7 @@ describe("bedrock adapter — multi-vendor dispatch", () => {
   describe("extractUsage", () => {
     it("extracts from Anthropic format (input_tokens/output_tokens)", () => {
       const body = { type: "message", usage: { input_tokens: 100, output_tokens: 50 } };
-      expect(bedrockAdapter.extractUsage(body)).toEqual({
+      expect(bedrockAdapter.extractUsage(body)).toMatchObject({
         inputTokens: 100,
         outputTokens: 50,
         totalTokens: 150,

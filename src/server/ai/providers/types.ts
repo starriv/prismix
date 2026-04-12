@@ -11,6 +11,10 @@ export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  /** Anthropic: tokens written to prompt cache (billed at 1.25× input rate). */
+  cacheCreationInputTokens?: number;
+  /** Anthropic: tokens read from prompt cache (billed at 0.1× input rate). */
+  cacheReadInputTokens?: number;
 }
 
 // ── OpenAI-compatible shapes ─────────────────────────────────────────

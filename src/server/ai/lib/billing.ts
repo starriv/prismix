@@ -129,6 +129,8 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
     inputTokens: p.usage?.inputTokens ?? 0,
     outputTokens: p.usage?.outputTokens ?? 0,
     totalTokens: p.usage?.totalTokens ?? 0,
+    cacheCreationInputTokens: p.usage?.cacheCreationInputTokens ?? 0,
+    cacheReadInputTokens: p.usage?.cacheReadInputTokens ?? 0,
     estimatedCost: costStr,
     upstreamCost: removeTailingZero(upstreamCost, 6),
     markupPercent: p.consumer.markupPercent,

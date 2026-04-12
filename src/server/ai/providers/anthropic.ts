@@ -42,7 +42,12 @@ interface AnthropicResponse {
   content: Array<{ type: string; text?: string; [key: string]: unknown }>;
   model: string;
   stop_reason: string | null;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
   [key: string]: unknown;
 }
 
@@ -120,9 +125,16 @@ export const anthropicAdapter: ProviderAdapter = {
       ],
       usage: res.usage
         ? {
-            prompt_tokens: res.usage.input_tokens,
+            prompt_tokens:
+              res.usage.input_tokens +
+              (res.usage.cache_creation_input_tokens ?? 0) +
+              (res.usage.cache_read_input_tokens ?? 0),
             completion_tokens: res.usage.output_tokens,
-            total_tokens: res.usage.input_tokens + res.usage.output_tokens,
+            total_tokens:
+              res.usage.input_tokens +
+              (res.usage.cache_creation_input_tokens ?? 0) +
+              (res.usage.cache_read_input_tokens ?? 0) +
+              res.usage.output_tokens,
           }
         : undefined,
     };
@@ -132,13 +144,18 @@ export const anthropicAdapter: ProviderAdapter = {
     const res = body as AnthropicResponse | null;
     if (!res?.usage) return null;
 
-    const inputTokens = res.usage.input_tokens ?? 0;
+    const baseInput = res.usage.input_tokens ?? 0;
+    const cacheCreation = res.usage.cache_creation_input_tokens ?? 0;
+    const cacheRead = res.usage.cache_read_input_tokens ?? 0;
     const outputTokens = res.usage.output_tokens ?? 0;
+    const inputTokens = baseInput + cacheCreation + cacheRead;
 
     return {
       inputTokens,
       outputTokens,
       totalTokens: inputTokens + outputTokens,
+      cacheCreationInputTokens: cacheCreation,
+      cacheReadInputTokens: cacheRead,
     };
   },
 
@@ -251,14 +268,27 @@ export const anthropicAdapter: ProviderAdapter = {
 
     return match(event.type)
       .with("message_start", () => {
-        // message_start contains input_tokens in message.usage
+        // message_start contains input_tokens + cache token fields in message.usage
         const message = (event as Record<string, unknown>).message as
           | Record<string, unknown>
           | undefined;
         const usage = message?.usage as Record<string, unknown> | undefined;
         if (!usage) return null;
-        const inputTokens = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
-        return { inputTokens, outputTokens: 0, totalTokens: inputTokens } as TokenUsage;
+        const baseInput = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
+        const cacheCreation =
+          typeof usage.cache_creation_input_tokens === "number"
+            ? usage.cache_creation_input_tokens
+            : 0;
+        const cacheRead =
+          typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0;
+        const inputTokens = baseInput + cacheCreation + cacheRead;
+        return {
+          inputTokens,
+          outputTokens: 0,
+          totalTokens: inputTokens,
+          cacheCreationInputTokens: cacheCreation,
+          cacheReadInputTokens: cacheRead,
+        } as TokenUsage;
       })
       .with("message_delta", () => {
         // message_delta contains output_tokens in usage

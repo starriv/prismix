@@ -604,6 +604,8 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
     inputTokens: usage?.inputTokens ?? 0,
     outputTokens: usage?.outputTokens ?? 0,
     totalTokens: usage?.totalTokens ?? 0,
+    cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
+    cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
     estimatedCost: costStr,
     upstreamCost: removeTailingZero(upstreamCost, 6),
     markupPercent: consumer.markupPercent,
