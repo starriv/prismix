@@ -431,7 +431,7 @@ export function useCreateRelayKey() {
     }) => post(API_RELAY_KEYS, body, relayConsumerKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
 }
@@ -468,7 +468,7 @@ export function useDeleteRelayKey() {
     mutationFn: (id: number) => del(apiRelayKeyDetail(id), deleteRelayKeyResponseSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
 }

@@ -1,7 +1,7 @@
 /**
  * Pay Agent repository — CRUD + balance operations for the `pay_agents` table.
  */
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
 
 import {
   db,
@@ -14,11 +14,16 @@ import {
   returningOne,
 } from "@/server/db";
 
+const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
+
 export const payAgentRepo = {
-  async findAll(limit = 200, offset = 0): Promise<PayAgent[]> {
-    return queryAll(
-      db.select().from(payAgents).orderBy(desc(payAgents.createdAt)).limit(limit).offset(offset),
-    );
+  async findAll(limit = 200, offset = 0, filters?: { address?: string }): Promise<PayAgent[]> {
+    const conditions = [];
+    if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
+
+    const qb = db.select().from(payAgents);
+    if (conditions.length) qb.where(and(...conditions));
+    return queryAll(qb.orderBy(desc(payAgents.createdAt)).limit(limit).offset(offset));
   },
 
   async findById(id: number): Promise<PayAgent | undefined> {

@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
-import { usePayAgents } from "@/web/api/hooks";
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
+import { usePayAgentsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
+import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -17,7 +19,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/web/components/ui/dialog";
+import { Input } from "@/web/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
+import { Skeleton } from "@/web/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -41,7 +45,20 @@ export default function PayAgentsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const { data: agents = [] } = usePayAgents();
+  // Draft filter state (UI controls)
+  const [draftUser, setDraftUser] = useState("");
+  const [draftAddress, setDraftAddress] = useState("");
+
+  // Applied filter state (drives query)
+  const [appliedUser, setAppliedUser] = useState("");
+  const [appliedAddress, setAppliedAddress] = useState("");
+  const [page, setPage] = useState(0);
+
+  const { data: agents = [], isLoading } = usePayAgentsList({
+    userName: appliedUser || undefined,
+    address: appliedAddress || undefined,
+    page,
+  });
 
   const agentStatusMap = useMemo(
     () =>
@@ -58,6 +75,39 @@ export default function PayAgentsPage() {
   const editing = useMemo(
     () => (editingId ? (agents.find((a) => a.id === editingId) ?? null) : null),
     [editingId, agents],
+  );
+
+  const hasFilters =
+    draftUser !== "" || draftAddress !== "" || appliedUser !== "" || appliedAddress !== "";
+
+  const applyFilters = useCallback(() => {
+    setAppliedUser(draftUser.trim());
+    setAppliedAddress(draftAddress.trim());
+    setPage(0);
+  }, [draftUser, draftAddress]);
+
+  const resetFilters = useCallback(() => {
+    setDraftUser("");
+    setDraftAddress("");
+    setAppliedUser("");
+    setAppliedAddress("");
+    setPage(0);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") applyFilters();
+    },
+    [applyFilters],
+  );
+
+  const handleUserChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftUser(e.target.value),
+    [],
+  );
+  const handleAddressChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftAddress(e.target.value),
+    [],
   );
 
   return (
@@ -89,11 +139,48 @@ export default function PayAgentsPage() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>{t("agents.card-title")}</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("agents.card-title")}</CardTitle>
           </CardHeader>
-          <CardContent>
-            {agents.length === 0 ? (
+          <CardContent className="space-y-4">
+            {/* Filter bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                placeholder={t("agents.filter-user-ph")}
+                value={draftUser}
+                onChange={handleUserChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[180px]"
+              />
+              <Input
+                placeholder={t("agents.filter-address-ph")}
+                value={draftAddress}
+                onChange={handleAddressChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[200px]"
+              />
+
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters}>
+                  <Search className="mr-1 h-3.5 w-3.5" />
+                  {t("common.btn.search")}
+                </Button>
+                {hasFilters && (
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("common.btn.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : agents.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">{t("agents.empty")}</p>
             ) : (
               <Table>
@@ -118,7 +205,7 @@ export default function PayAgentsPage() {
                       <TableCell className="text-xs">{agent.id}</TableCell>
                       <TableCell className="font-medium">{agent.name}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {agent.userId ? `#${agent.userId} ${agent.userName ?? ""}` : "—"}
+                        {agent.userId ? `#${agent.userId} ${agent.userName ?? ""}` : "\u2014"}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {agent.address
@@ -139,6 +226,14 @@ export default function PayAgentsPage() {
                 </TableBody>
               </Table>
             )}
+
+            {/* Pagination */}
+            <Pagination
+              page={page}
+              onPageChange={setPage}
+              currentCount={agents.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>
