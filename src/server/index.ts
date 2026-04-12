@@ -57,6 +57,7 @@ app.use("*", httpLogger());
 // ── CORS ─────────────────────────────────────────────────────────────
 // AI Gateway: open to all origins (consumer key is the access control).
 app.use("/api/gateway/*", cors({ origin: "*" }));
+app.use("/api/health/*", cors());
 app.use("/api/health", cors());
 app.use("/api/prometheus", cors());
 
@@ -66,7 +67,9 @@ const DASHBOARD_ORIGIN =
   process.env.CORS_ORIGIN ||
   (process.env.NODE_ENV === "production"
     ? undefined // same-origin only (no CORS header = browser blocks cross-origin)
-    : env.VITE_DEV_PORT ? `http://localhost:${env.VITE_DEV_PORT}` : undefined);
+    : env.VITE_DEV_PORT
+      ? `http://localhost:${env.VITE_DEV_PORT}`
+      : undefined);
 app.use(
   "/api/*",
   cors({
@@ -126,7 +129,9 @@ function printBanner(p: number) {
   if (!isProd && env.VITE_DEV_PORT) {
     lines.push(`  Web (dev) → http://localhost:${env.VITE_DEV_PORT}`);
   }
-  lines.push(`  Docs      → ${isProd || !env.VITE_DEV_PORT ? base : `http://localhost:${env.VITE_DEV_PORT}`}/docs`);
+  lines.push(
+    `  Docs      → ${isProd || !env.VITE_DEV_PORT ? base : `http://localhost:${env.VITE_DEV_PORT}`}/docs`,
+  );
 
   const maxLen = Math.max(...lines.map((l) => l.length));
   const pad = (s: string) => s + " ".repeat(maxLen - s.length);

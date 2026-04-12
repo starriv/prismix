@@ -17,10 +17,19 @@ import { userRepo } from "../repos";
 
 const health = new Hono();
 
-// ── GET /health — lightweight health check ───────────────────────────
+// ── GET /health — liveness probe (no external deps) ─────────────────
+// Returns 200 as long as the process is alive and listening.
+// Used by Railway / Docker HEALTHCHECK to detect crashed containers.
 
-health.get("/health", async (c) => {
-  // DB connectivity — count users
+health.get("/health", (c) => {
+  return c.json({ status: "ok", uptime: Math.floor(process.uptime()) }, 200);
+});
+
+// ── GET /health/ready — readiness probe (checks DB) ─────────────────
+// Returns 200 only when the app can serve real traffic (DB reachable).
+// Use for load-balancer routing decisions, not container restarts.
+
+health.get("/health/ready", async (c) => {
   let dbOk = false;
   try {
     await userRepo.count();
@@ -29,11 +38,9 @@ health.get("/health", async (c) => {
     dbOk = false;
   }
 
-  const uptimeSeconds = Math.floor(process.uptime());
-
   const checks = {
     db: dbOk ? "ok" : "fail",
-    uptime: uptimeSeconds,
+    uptime: Math.floor(process.uptime()),
   };
 
   if (!dbOk) {

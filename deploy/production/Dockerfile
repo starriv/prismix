@@ -41,9 +41,9 @@ USER node
 ENV NODE_ENV=production
 ENV PORT=3403
 
-EXPOSE 3403
+EXPOSE ${PORT}
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3403/api/health || exit 1
+  CMD wget -qO- http://localhost:${PORT}/api/health || exit 1
 
 CMD ["pnpm", "preview"]
