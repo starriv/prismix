@@ -5,8 +5,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { z } from "zod";
 
 import {
+  API_USER_ANNOUNCEMENTS,
   API_USER_KEYS,
   API_USER_LOGS,
+  API_USER_MODELS,
   API_USER_PROFILE,
   API_USER_USAGE_DAILY,
   API_USER_USAGE_SUMMARY,
@@ -25,6 +27,7 @@ import {
   aiRequestLogSchema,
   aiUsageRecordSchema,
   aiUsageSummarySchema,
+  announcementSchema,
   depositInfoSchema,
   userKeySchema,
   userPortalInfoSchema,
@@ -35,6 +38,45 @@ import {
 } from "./schemas";
 import type { CreateWithdrawBody, VerifyDepositBody } from "./schemas";
 import { userGet, userPost } from "./user-client";
+
+// ── Model Catalog ─────────────────────────────────────────────
+
+const userModelSchema = z.object({
+  modelId: z.string(),
+  name: z.string(),
+  inputPrice: z.string(),
+  outputPrice: z.string(),
+  consumerInputPrice: z.string(),
+  consumerOutputPrice: z.string(),
+  capabilities: z.array(z.string()),
+  contextWindow: z.number().nullable(),
+});
+
+const userModelProviderSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  iconUrl: z.string().nullable(),
+  apiFormat: z.string(),
+  models: z.array(userModelSchema),
+});
+
+const userModelCatalogSchema = z.object({
+  providers: z.array(userModelProviderSchema),
+  markupPercent: z.number(),
+});
+
+export type UserModelProvider = z.infer<typeof userModelProviderSchema>;
+export type UserModel = z.infer<typeof userModelSchema>;
+export type UserModelCatalog = z.infer<typeof userModelCatalogSchema>;
+
+export function useUserModels() {
+  return useQuery({
+    queryKey: queryKeys.userModels(),
+    queryFn: () => userGet(API_USER_MODELS, userModelCatalogSchema),
+  });
+}
+
+// ── Profile ───────────────────────────────────────────────────
 
 export function useUserProfile() {
   return useQuery({
@@ -135,6 +177,15 @@ export function useUserRequestLog(requestId: string | null) {
     queryKey: queryKeys.userRequestLog(requestId ?? ""),
     queryFn: () => userGet(apiUserRequestLog(requestId!), aiRequestLogSchema),
     enabled: !!requestId,
+  });
+}
+
+// ── Announcements ────────────────────────────────────────────────
+
+export function useUserAnnouncements() {
+  return useQuery({
+    queryKey: queryKeys.userAnnouncements(),
+    queryFn: () => userGet(API_USER_ANNOUNCEMENTS, z.array(announcementSchema)),
   });
 }
 

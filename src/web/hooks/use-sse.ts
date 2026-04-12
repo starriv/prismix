@@ -8,10 +8,11 @@ type SseEventHandler = (data: unknown) => void;
  * Reusable SSE hook — connects to `/api/events?token=<jwt>` and
  * dispatches named server-sent events to subscribers.
  *
+ * Pass a custom `getToken` to use a different auth token (e.g. user portal).
  * EventSource auto-reconnects on connection loss (browser-native).
  */
-export function useSse(options: { enabled: boolean }) {
-  const { enabled } = options;
+export function useSse(options: { enabled: boolean; getToken?: () => string | null }) {
+  const { enabled, getToken = getAuthToken } = options;
   const [isConnected, setIsConnected] = useState(false);
 
   // subscriber registry: eventType → Set<handler>
@@ -35,7 +36,7 @@ export function useSse(options: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return;
-    const token = getAuthToken();
+    const token = getToken();
     if (!token) return;
 
     const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
@@ -61,7 +62,7 @@ export function useSse(options: { enabled: boolean }) {
       registeredTypesRef.current.clear();
       setIsConnected(false);
     };
-  }, [enabled]);
+  }, [enabled, getToken]);
 
   const subscribe = useCallback((eventType: string, handler: SseEventHandler): (() => void) => {
     const subs = subscribersRef.current;

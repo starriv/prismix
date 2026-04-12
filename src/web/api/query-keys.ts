@@ -69,8 +69,15 @@ export const queryKeys = {
 
   // ── Admin (real admin / back-office) ─────────────────────────
   adminAdmins: () => ["admin", "admins"] as const,
-  adminUsers: (params?: { search?: string; page?: number }) =>
-    ["admin", "users", params?.search ?? "", params?.page ?? 0] as const,
+  adminUsers: (params?: { name?: string; email?: string; address?: string; page?: number }) =>
+    [
+      "admin",
+      "users",
+      params?.name ?? "",
+      params?.email ?? "",
+      params?.address ?? "",
+      params?.page ?? 0,
+    ] as const,
   adminAllowedTokens: () => ["admin", "allowed-tokens"] as const,
   adminKnownTokens: () => ["admin", "known-tokens"] as const,
   adminNetworks: () => ["admin", "networks"] as const,
