@@ -15,7 +15,7 @@
     "build:web": "vite build",
     "build:analyze": "ANALYZE=true vite build",
     "build:server": "tsup",
-    "preview": "node dist/server/index.js",
+    "preview": "node --env-file=.env.local dist/server/index.js",
     "lint": "eslint src/",
     "test": "vitest run",
     "test:unit": "vitest run src/__tests__/unit",

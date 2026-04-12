@@ -15,8 +15,8 @@ buildCommand = "pnpm build"
 watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
 
 [deploy]
-# Start command — runs the pre-compiled Hono server (serves API + static SPA)
-startCommand = "pnpm preview"
+# Start command — runs the pre-compiled server (env vars injected by Railway)
+startCommand = "node dist/server/index.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
