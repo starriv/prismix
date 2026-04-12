@@ -27,8 +27,6 @@ import { getRequestId } from "./middleware/request-id";
 import { requestId } from "./middleware/request-id";
 import { registerRoutes } from "./routes/index";
 
-await bootstrap();
-
 const app = new Hono();
 
 app.use("*", requestId());
@@ -111,8 +109,11 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = env.PORT;
 
-const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
+const server = serve({ fetch: app.fetch, port: PORT }, async (info) => {
   printBanner(info.port);
+  // Bootstrap AFTER port is bound — health check is reachable while services init
+  await bootstrap();
+  log.bootstrap.info("All services ready");
 });
 
 // ── Startup banner ──────────────────────────────────────────────────

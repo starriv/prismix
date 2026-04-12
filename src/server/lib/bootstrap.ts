@@ -1,5 +1,6 @@
 import { initBlockchainConfig } from "@/blockchain/config";
 import { initAiRelay } from "@/server/ai";
+import { initDb } from "@/server/db";
 import { initLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
 import { initDepositScanQueue } from "@/server/jobs/scan-topup-deposit";
 import { initWebhookRetryJob } from "@/server/messaging/jobs/retry-webhook-deliveries";
@@ -100,6 +101,9 @@ function initWebhookDeliveryHandler(): void {
 }
 
 export async function bootstrap() {
+  // Initialize database (lazy — creates PG pool + runs first-deploy migrations)
+  await initDb();
+
   // Initialize JWT secret (must be before any auth operation)
   initJwtSecret();
 

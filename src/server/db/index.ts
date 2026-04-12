@@ -9,32 +9,50 @@
  */
 import type { DbAdapter } from "./adapter";
 import { PgAdapter } from "./pg-adapter";
+import * as schema from "./schemas/pg";
 
-// ── Adapter initialisation ──────────────────────────────────────────
+// ── Adapter initialisation (lazy — created on first access) ─────────
+// PgAdapter construction connects to PG, so we defer it to avoid
+// crashing the process at module-load time when the DB is unreachable.
 
-const _adapter: DbAdapter = new PgAdapter();
-await _adapter.init?.();
+let _adapter: DbAdapter | null = null;
+
+function getAdapter(): DbAdapter {
+  if (!_adapter) {
+    _adapter = new PgAdapter();
+  }
+  return _adapter;
+}
+
+/** Called from bootstrap() — runs first-deploy migrations + seed. */
+export async function initDb(): Promise<void> {
+  await getAdapter().init?.();
+}
 
 // ── Core exports ────────────────────────────────────────────────────
 
 /** The Drizzle ORM instance (PostgreSQL). */
-export const db = _adapter.db;
+export const db = new Proxy({} as DbAdapter["db"], {
+  get(_, prop) {
+    return getAdapter().db[prop];
+  },
+});
 
 /** Graceful shutdown — release database connections. */
-export const closeDb = () => _adapter.close();
+export const closeDb = () => (_adapter ? _adapter.close() : Promise.resolve());
 
 // ── Query helpers (delegated to active adapter) ─────────────────────
 
-export const queryOne = <T>(qb: unknown) => _adapter.queryOne<T>(qb);
-export const queryAll = <T>(qb: unknown) => _adapter.queryAll<T>(qb);
-export const exec = (qb: unknown) => _adapter.exec(qb);
-export const returningOne = <T>(qb: unknown) => _adapter.returningOne<T>(qb);
-export const execWithChanges = (qb: unknown) => _adapter.execWithChanges(qb);
-export const transaction = <T>(fn: (tx: unknown) => Promise<T>) => _adapter.transaction(fn);
+export const queryOne = <T>(qb: unknown) => getAdapter().queryOne<T>(qb);
+export const queryAll = <T>(qb: unknown) => getAdapter().queryAll<T>(qb);
+export const exec = (qb: unknown) => getAdapter().exec(qb);
+export const returningOne = <T>(qb: unknown) => getAdapter().returningOne<T>(qb);
+export const execWithChanges = (qb: unknown) => getAdapter().execWithChanges(qb);
+export const transaction = <T>(fn: (tx: unknown) => Promise<T>) => getAdapter().transaction(fn);
 
 // ── Schema table re-exports ─────────────────────────────────────────
 
-const s = _adapter.schema;
+const s = schema;
 export const users = s.users;
 export const payAgents = s.payAgents;
 export const payAgentTransactions = s.payAgentTransactions;
