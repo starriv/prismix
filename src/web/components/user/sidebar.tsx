@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Brain,
   FileText,
   Key,
   LayoutDashboard,
@@ -32,6 +33,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/user/dashboard", labelKey: "user.nav.overview", icon: LayoutDashboard },
   { href: "/user/endpoint", labelKey: "user.nav.endpoint", icon: Zap },
+  { href: "/user/models", labelKey: "user.nav.models", icon: Brain },
   { href: "/user/wallet", labelKey: "user.nav.wallet", icon: Wallet },
   { href: "/user/keys", labelKey: "user.nav.keys", icon: Key },
   { href: "/user/usage", labelKey: "user.nav.usage", icon: BarChart3 },
