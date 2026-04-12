@@ -54,6 +54,8 @@ function mapFinishReason(reason: string | undefined): string | null {
 
 // ── Role mapping ─────────────────────────────────────────────────────
 
+const INSTRUCTION_ROLES = new Set(["system", "developer"]);
+
 function toGeminiRole(role: string): string {
   return match(role)
     .with("assistant", () => "model")
@@ -74,9 +76,9 @@ export const geminiAdapter: ProviderAdapter = {
   },
 
   transformRequest(body: OpenAIChatBody): unknown {
-    // Extract system messages → systemInstruction
-    const systemMessages = body.messages.filter((m) => m.role === "system");
-    const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
+    // Extract system/developer messages → systemInstruction
+    const systemMessages = body.messages.filter((m) => INSTRUCTION_ROLES.has(m.role));
+    const nonSystemMessages = body.messages.filter((m) => !INSTRUCTION_ROLES.has(m.role));
 
     const systemText = systemMessages
       .map((m) => (typeof m.content === "string" ? m.content : ""))

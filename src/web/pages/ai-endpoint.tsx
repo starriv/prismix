@@ -249,7 +249,10 @@ const client = new OpenAI({
 
 const res = await client.chat.completions.create({
   model: "gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }],
+  messages: [
+    { role: "developer", content: "You are a helpful assistant." },
+    { role: "user", content: "Hello!" },
+  ],
 });`;
 }
 

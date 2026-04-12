@@ -68,6 +68,20 @@ describe("gemini adapter", () => {
       expect(contents[0]).toEqual({ role: "user", parts: [{ text: "Hi" }] });
     });
 
+    it("treats developer messages as systemInstruction", () => {
+      const result = geminiAdapter.transformRequest({
+        model: "gemini-2.5-flash",
+        messages: [
+          { role: "developer", content: "Follow product policy." },
+          { role: "user", content: "Hi" },
+        ],
+      }) as Record<string, unknown>;
+
+      expect(result.systemInstruction).toEqual({ parts: [{ text: "Follow product policy." }] });
+      const contents = result.contents as Array<Record<string, unknown>>;
+      expect(contents).toEqual([{ role: "user", parts: [{ text: "Hi" }] }]);
+    });
+
     it("omits systemInstruction when no system messages", () => {
       const result = geminiAdapter.transformRequest({
         model: "gemini-2.5-flash",

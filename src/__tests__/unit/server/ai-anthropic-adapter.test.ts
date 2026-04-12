@@ -60,6 +60,19 @@ describe("anthropic adapter", () => {
       expect(result.system).toBe("Be helpful.\n\nBe concise.");
     });
 
+    it("treats developer messages as system instructions", () => {
+      const result = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [
+          { role: "developer", content: "Follow product policy." },
+          { role: "user", content: "Hello" },
+        ],
+      }) as Record<string, unknown>;
+
+      expect(result.system).toBe("Follow product policy.");
+      expect(result.messages).toEqual([{ role: "user", content: "Hello" }]);
+    });
+
     it("omits system field when no system messages", () => {
       const result = anthropicAdapter.transformRequest({
         model: "claude-sonnet-4-20250514",

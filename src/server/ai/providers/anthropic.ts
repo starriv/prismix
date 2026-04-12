@@ -19,6 +19,7 @@ import type {
 
 /** Default max_tokens if not specified (Anthropic requires it). */
 const DEFAULT_MAX_TOKENS = 4096;
+const INSTRUCTION_ROLES = new Set(["system", "developer"]);
 
 // ── Stop reason mapping ──────────────────────────────────────────────
 
@@ -60,9 +61,9 @@ export const anthropicAdapter: ProviderAdapter = {
   },
 
   transformRequest(body: OpenAIChatBody): unknown {
-    // Extract system messages → top-level `system` field
-    const systemMessages = body.messages.filter((m) => m.role === "system");
-    const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
+    // Extract system/developer messages → top-level `system` field
+    const systemMessages = body.messages.filter((m) => INSTRUCTION_ROLES.has(m.role));
+    const nonSystemMessages = body.messages.filter((m) => !INSTRUCTION_ROLES.has(m.role));
 
     const systemText = systemMessages
       .map((m) => (typeof m.content === "string" ? m.content : ""))

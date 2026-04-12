@@ -17,7 +17,7 @@ export interface TokenUsage {
 
 /** Minimal OpenAI chat message shape (passthrough extra fields). */
 export interface OpenAIChatMessage {
-  role: "system" | "user" | "assistant" | "tool";
+  role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string | unknown[] | null;
   [key: string]: unknown;
 }

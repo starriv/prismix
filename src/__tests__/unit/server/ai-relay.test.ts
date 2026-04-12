@@ -246,6 +246,17 @@ describe("aiRelayChatBody", () => {
     }
   });
 
+  it("accepts developer role messages", () => {
+    const result = aiRelayChatBody.safeParse({
+      model: "gpt-5.4",
+      messages: [
+        { role: "developer", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects missing model", () => {
     const result = aiRelayChatBody.safeParse({ messages: [{ role: "user", content: "hi" }] });
     expect(result.success).toBe(false);
