@@ -10,6 +10,7 @@ import { getRateLimiterStats, getRateLimiterWindowCount } from "@/server/middlew
 
 import { getJwtStats } from "../lib/jwt";
 import { metricsRegistry } from "../lib/metrics";
+import { getRedis } from "../lib/redis";
 import { getListenerCount } from "../lib/sse";
 import { getWriteQueueStats } from "../lib/write-queue";
 import { adminAuthMiddleware } from "../middleware/auth";
@@ -17,33 +18,35 @@ import { userRepo } from "../repos";
 
 const health = new Hono();
 
-// ── GET /health — liveness probe (no external deps) ─────────────────
-// Returns 200 as long as the process is alive and listening.
-// Used by Railway / Docker HEALTHCHECK to detect crashed containers.
+// ── GET /health — combined liveness + readiness ─────────────────────
+// Returns 200 when DB and Redis are reachable, 503 otherwise.
+// Used by Railway healthcheckPath / Docker HEALTHCHECK.
 
-health.get("/health", (c) => {
-  return c.json({ status: "ok", uptime: Math.floor(process.uptime()) }, 200);
-});
-
-// ── GET /health/ready — readiness probe (checks DB) ─────────────────
-// Returns 200 only when the app can serve real traffic (DB reachable).
-// Use for load-balancer routing decisions, not container restarts.
-
-health.get("/health/ready", async (c) => {
+health.get("/health", async (c) => {
   let dbOk = false;
+  let redisOk = false;
+
   try {
     await userRepo.count();
     dbOk = true;
   } catch {
-    dbOk = false;
+    /* db unreachable */
+  }
+
+  try {
+    const pong = await getRedis().ping();
+    redisOk = pong === "PONG";
+  } catch {
+    /* redis unreachable */
   }
 
   const checks = {
     db: dbOk ? "ok" : "fail",
+    redis: redisOk ? "ok" : "fail",
     uptime: Math.floor(process.uptime()),
   };
 
-  if (!dbOk) {
+  if (!dbOk || !redisOk) {
     return c.json({ status: "unhealthy", checks }, 503);
   }
   return c.json({ status: "ok", checks }, 200);
