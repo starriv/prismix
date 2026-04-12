@@ -24,8 +24,9 @@ export class GithubAuthStrategy implements AuthStrategy {
 
   private get callbackUrl(): string {
     const origin =
-      process.env.CORS_ORIGIN ||
-      (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : "http://localhost:5189");
+      process.env.CORS_ORIGIN || (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : undefined);
+    if (!origin)
+      throw new AuthError("CORS_ORIGIN or DOMAIN env var is required", "provider_error", 500);
     return `${origin}/api/auth/callback/github`;
   }
 

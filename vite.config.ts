@@ -6,8 +6,11 @@ import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 
-const API_PORT = Number(process.env.PORT || 3403);
-const DEV_PORT = Number(process.env.VITE_DEV_PORT || 5189);
+if (!process.env.PORT) throw new Error("PORT env var is required");
+if (!process.env.VITE_DEV_PORT) throw new Error("VITE_DEV_PORT env var is required");
+
+const API_PORT = Number(process.env.PORT);
+const DEV_PORT = Number(process.env.VITE_DEV_PORT);
 
 // Inject git remote URL at build time (empty string if not available)
 function getGitRepoUrl(): string {

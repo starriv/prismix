@@ -12,7 +12,7 @@ import { closeDb } from "@/server/db";
 import { closeEventBus } from "@/server/events";
 import { createRateLimiterMiddleware } from "@/server/middleware/rate-limiter";
 
-import "./env";
+import { env } from "./env";
 import { stopTopupExpiryJob } from "./jobs/expire-topup-orders";
 import { stopLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "./jobs/scan-topup-deposit";
@@ -66,7 +66,7 @@ const DASHBOARD_ORIGIN =
   process.env.CORS_ORIGIN ||
   (process.env.NODE_ENV === "production"
     ? undefined // same-origin only (no CORS header = browser blocks cross-origin)
-    : `http://localhost:${process.env.VITE_DEV_PORT || 5189}`);
+    : `http://localhost:${env.VITE_DEV_PORT}`);
 app.use(
   "/api/*",
   cors({
@@ -106,8 +106,8 @@ if (process.env.NODE_ENV === "production") {
   app.get("*", serveStatic({ root: "./dist/web", path: "index.html" }));
 }
 
-const PORT = Number(process.env.PORT || 3403);
-const VITE_DEV_PORT = Number(process.env.VITE_DEV_PORT || 5189);
+const PORT = env.PORT;
+const VITE_DEV_PORT = env.VITE_DEV_PORT;
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   printBanner(info.port);

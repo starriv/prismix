@@ -190,7 +190,11 @@ auth.get("/callback/:provider", async (c) => {
   const state = c.req.query("state");
   const error = c.req.query("error");
 
-  const frontendOrigin = process.env.CORS_ORIGIN || "http://localhost:5189";
+  const frontendOrigin = process.env.CORS_ORIGIN;
+  if (!frontendOrigin) {
+    log.auth.error("CORS_ORIGIN env var is required for OAuth callbacks");
+    return c.json({ error: "Server misconfiguration: CORS_ORIGIN not set" }, 500);
+  }
 
   if (error) {
     return c.redirect(`${frontendOrigin}/auth/callback?error=${encodeURIComponent(error)}`);
@@ -268,7 +272,11 @@ auth.get("/saml/metadata", (c) => {
 
 // POST /callback/saml — SAML ACS (IdP posts SAMLResponse via browser form)
 auth.post("/callback/saml", async (c) => {
-  const frontendOrigin = process.env.CORS_ORIGIN || "http://localhost:5189";
+  const frontendOrigin = process.env.CORS_ORIGIN;
+  if (!frontendOrigin) {
+    log.auth.error("CORS_ORIGIN env var is required for SAML callbacks");
+    return c.json({ error: "Server misconfiguration: CORS_ORIGIN not set" }, 500);
+  }
 
   try {
     const body = await c.req.parseBody();

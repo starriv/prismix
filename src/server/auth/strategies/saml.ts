@@ -40,10 +40,11 @@ const samlRequestCache: CacheProvider = {
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function getOrigin(): string {
-  return (
-    process.env.CORS_ORIGIN ||
-    (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : "http://localhost:5189")
-  );
+  const origin =
+    process.env.CORS_ORIGIN || (process.env.DOMAIN ? `https://${process.env.DOMAIN}` : undefined);
+  if (!origin)
+    throw new AuthError("CORS_ORIGIN or DOMAIN env var is required", "provider_error", 500);
+  return origin;
 }
 
 function getSpEntityId(): string {

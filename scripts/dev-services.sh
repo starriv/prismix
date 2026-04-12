@@ -11,7 +11,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-APP_PORT="${PORT:-3403}"
+APP_PORT="${PORT:?ERROR: PORT env var is required (e.g. export PORT=3403)}"
 ACTION="${1:-start}"
 
 # ── Helpers ──────────────────────────────────────────────────────────

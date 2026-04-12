@@ -16,10 +16,15 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required (PostgreSQL connection string)"),
   REDIS_URL: z.string().min(1, "REDIS_URL is required (Redis connection string)"),
 
+  // Ports — required, no fallback
+  PORT: z.coerce.number().int().positive({ message: "PORT is required (e.g. PORT=3403)" }),
+  VITE_DEV_PORT: z.coerce
+    .number()
+    .int()
+    .positive({ message: "VITE_DEV_PORT is required (e.g. VITE_DEV_PORT=5189)" }),
+
   // Optional — have sensible defaults
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3403),
-  VITE_DEV_PORT: z.coerce.number().int().positive().default(5189),
   LOG_LEVEL: z.string().optional(),
   CORS_ORIGIN: z.string().optional(),
   DOMAIN: z.string().optional(),
