@@ -41,7 +41,7 @@ if (!isBuild && (!API_PORT || !DEV_PORT)) {
 // Inject git remote URL at build time (empty string if not available)
 function getGitRepoUrl(): string {
   try {
-    const raw = execSync("git remote get-url origin", { encoding: "utf8" }).trim();
+    const raw = execSync("git remote get-url origin 2>/dev/null", { encoding: "utf8" }).trim();
     // Convert SSH URLs to HTTPS and strip .git suffix
     return raw.replace(/^git@([^:]+):(.+)$/, "https://$1/$2").replace(/\.git$/, "");
   } catch {

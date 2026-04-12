@@ -366,7 +366,7 @@ function AddTokenDialog({
             {!noNetworks && (
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                  {t("res.btn.cancel")}
+                  {t("common.btn.cancel")}
                 </Button>
                 <Button
                   type="submit"
