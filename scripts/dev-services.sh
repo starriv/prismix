@@ -12,14 +12,17 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
 
-# Read PORT from env, .env.local, or .env.example
-if [ -z "${PORT:-}" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
-  PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.local" | cut -d= -f2)
-fi
-if [ -z "${PORT:-}" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
-  PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.example" | cut -d= -f2)
-fi
+# Read PORT and VITE_DEV_PORT from env, .env.local, or .env.example
+for VAR in PORT VITE_DEV_PORT; do
+  if [ -z "$(eval echo "\${${VAR}:-}")" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
+    eval "$VAR=$(grep -m1 "^${VAR}=" "$PROJECT_ROOT/.env.local" | cut -d= -f2)"
+  fi
+  if [ -z "$(eval echo "\${${VAR}:-}")" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+    eval "$VAR=$(grep -m1 "^${VAR}=" "$PROJECT_ROOT/.env.example" | cut -d= -f2)"
+  fi
+done
 APP_PORT="${PORT:?ERROR: PORT not found in env, .env.local, or .env.example}"
+DEV_PORT="${VITE_DEV_PORT:-}"
 ACTION="${1:-start}"
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -56,9 +59,12 @@ case "$ACTION" in
     echo "Volumes removed."
     ;;
   start)
-    # 1. Kill stale app process on APP_PORT (e.g. leftover tsx from previous dev session)
+    # 1. Kill stale processes on APP_PORT and DEV_PORT (e.g. leftover tsx/vite from previous dev session)
     if ! port_free "$APP_PORT"; then
       kill_port "$APP_PORT"
+    fi
+    if [ -n "$DEV_PORT" ] && ! port_free "$DEV_PORT"; then
+      kill_port "$DEV_PORT"
     fi
 
     # 2. Start PG + Redis via docker compose (--wait blocks until healthy)
@@ -66,8 +72,8 @@ case "$ACTION" in
 
     # 3. Verify all dependent ports are reachable
     FAILED=""
-    port_free 15432 && FAILED="${FAILED} PG:15432"
-    port_free 16379 && FAILED="${FAILED} Redis:16379"
+    port_free 15433 && FAILED="${FAILED} PG:15433"
+    port_free 16378 && FAILED="${FAILED} Redis:16378"
 
     if [ -n "$FAILED" ]; then
       echo "ERROR: Services not listening:$FAILED"
@@ -76,8 +82,8 @@ case "$ACTION" in
 
     echo ""
     echo "  All services healthy and ports verified."
-    echo "  DATABASE_URL=postgresql://prismix:prismix@localhost:15432/prismix"
-    echo "  REDIS_URL=redis://localhost:16379"
+    echo "  DATABASE_URL=postgresql://prismix:prismix@localhost:15433/prismix"
+    echo "  REDIS_URL=redis://localhost:16378"
     echo ""
     ;;
   *)
