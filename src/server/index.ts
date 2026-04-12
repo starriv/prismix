@@ -66,7 +66,7 @@ const DASHBOARD_ORIGIN =
   process.env.CORS_ORIGIN ||
   (process.env.NODE_ENV === "production"
     ? undefined // same-origin only (no CORS header = browser blocks cross-origin)
-    : `http://localhost:${env.VITE_DEV_PORT}`);
+    : env.VITE_DEV_PORT ? `http://localhost:${env.VITE_DEV_PORT}` : undefined);
 app.use(
   "/api/*",
   cors({
@@ -107,7 +107,6 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PORT = env.PORT;
-const VITE_DEV_PORT = env.VITE_DEV_PORT;
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   printBanner(info.port);
@@ -124,10 +123,10 @@ function printBanner(p: number) {
     `  Health    → ${base}/api/health`,
     `  AI Relay  → ${base}/api/gateway/ai/*`,
   ];
-  if (!isProd) {
-    lines.push(`  Web (dev) → http://localhost:${VITE_DEV_PORT}`);
+  if (!isProd && env.VITE_DEV_PORT) {
+    lines.push(`  Web (dev) → http://localhost:${env.VITE_DEV_PORT}`);
   }
-  lines.push(`  Docs      → ${isProd ? base : `http://localhost:${VITE_DEV_PORT}`}/docs`);
+  lines.push(`  Docs      → ${isProd || !env.VITE_DEV_PORT ? base : `http://localhost:${env.VITE_DEV_PORT}`}/docs`);
 
   const maxLen = Math.max(...lines.map((l) => l.length));
   const pad = (s: string) => s + " ".repeat(maxLen - s.length);
