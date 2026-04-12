@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- Homepage -->
+  <url>
+    <loc>https://prismix.live/en/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://prismix.live/" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://prismix.live/" />
+  </url>
+
+  <!-- Docs: Overview -->
+  <url>
+    <loc>https://prismix.live/en/docs</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/docs</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs" />
+  </url>
+
+  <!-- Docs: Deploy Production -->
+  <url>
+    <loc>https://prismix.live/en/docs/deploy-production</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/deploy-production" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/deploy-production" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/docs/deploy-production</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/deploy-production" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/deploy-production" />
+  </url>
+
+  <!-- Docs: Database -->
+  <url>
+    <loc>https://prismix.live/en/docs/database</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/database" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/database" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/docs/database</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/database" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/database" />
+  </url>
+
+  <!-- Docs: Architecture -->
+  <url>
+    <loc>https://prismix.live/en/docs/architecture</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/architecture" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/architecture" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/docs/architecture</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/architecture" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/architecture" />
+  </url>
+
+  <!-- Docs: Security -->
+  <url>
+    <loc>https://prismix.live/en/docs/security</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/security" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/security" />
+  </url>
+  <url>
+    <loc>https://prismix.live/zh/docs/security</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://prismix.live/en/docs/security" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/docs/security" />
+  </url>
+</urlset>

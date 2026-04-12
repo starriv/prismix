@@ -1,0 +1,24 @@
+# ── x402 Gateway — Railway Configuration ────────────────────────────
+#
+# Uses Railpack (Railway's default builder) — no Dockerfile needed.
+# Railpack auto-detects pnpm, installs deps, runs build, starts server.
+#
+# Place at project root for Railway to auto-detect:
+#   cp deploy/railway/railway.toml railway.toml
+#
+# Reference: https://docs.railway.com/reference/config-as-code
+
+[build]
+builder = "RAILPACK"
+# Override build script — default "build" runs build:server which starts the server.
+# We only need the Vite frontend build; the server runs TypeScript via tsx at runtime.
+buildCommand = "pnpm build:web"
+watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
+
+[deploy]
+# Start command — runs the Hono server via tsx (serves API + static SPA)
+startCommand = "pnpm preview"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

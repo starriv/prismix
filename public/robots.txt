@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /en/admin/
+Disallow: /zh/admin/
+Disallow: /en/user/
+Disallow: /zh/user/
+Disallow: /admin/
+Disallow: /user/
+
+# Sitemap
+Sitemap: https://prismix.live/sitemap.xml

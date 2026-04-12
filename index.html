@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta -->
+    <title>Prismix — Unified AI Gateway for LLM Providers</title>
+    <meta
+      name="description"
+      content="Prismix is a unified AI gateway that routes requests to OpenAI, Anthropic, Gemini, Azure, and Bedrock through a single endpoint. Load balancing, consumer billing, usage analytics, and content guardrails — all from one dashboard."
+    />
+    <meta
+      name="keywords"
+      content="AI gateway, LLM proxy, OpenAI, Anthropic, Gemini, Azure OpenAI, AWS Bedrock, API relay, model routing, usage tracking, load balancing, AI billing"
+    />
+    <meta name="author" content="Prismix" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Hreflang — language alternates for SEO -->
+    <link rel="alternate" hreflang="en" href="https://prismix.live/en/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://prismix.live/zh/" />
+    <link rel="alternate" hreflang="x-default" href="https://prismix.live/" />
+    <meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Prismix" />
+    <meta property="og:title" content="Prismix — Unified AI Gateway for LLM Providers" />
+    <meta
+      property="og:description"
+      content="One base URL for all AI providers. Route OpenAI, Anthropic, and Gemini requests through a unified gateway with load balancing, billing, and analytics."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Prismix — Unified AI Gateway" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Prismix — Unified AI Gateway for LLM Providers" />
+    <meta
+      name="twitter:description"
+      content="One endpoint for all AI providers. Unified gateway with load balancing, consumer billing, and usage analytics."
+    />
+    <meta name="twitter:image" content="/og.png" />
+    <meta name="twitter:image:alt" content="Prismix — Unified AI Gateway" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Structured Data: SoftwareApplication -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Prismix",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web",
+        "description": "A unified AI gateway that routes requests to multiple LLM providers through a single endpoint with load balancing, consumer billing, and usage analytics.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Unified OpenAI-compatible endpoint for all providers",
+          "Weighted load balancing and automatic failover",
+          "Consumer key billing and usage tracking",
+          "Content guardrails and input filtering",
+          "Real-time usage analytics and cost monitoring",
+          "Support for OpenAI, Anthropic, Gemini, Azure, Bedrock"
+        ]
+      }
+    </script>
+
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Prismix"
+      }
+    </script>
+
+    <!-- Structured Data: FAQPage -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I deploy Prismix?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Clone the repo and start with Docker or bare metal — one command to launch. Prismix runs as a single Node.js process with PostgreSQL and Redis."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which AI providers does Prismix support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Prismix supports OpenAI, Anthropic, Google Gemini, Azure OpenAI, and AWS Bedrock. All providers are accessed through a single OpenAI-compatible endpoint."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does consumer billing work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Issue consumer keys with balance limits. Prismix tracks token usage per request, calculates costs using model pricing, and deducts from the consumer's balance automatically."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to change my application code?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Point any OpenAI-compatible SDK at the Prismix endpoint with a consumer key. The gateway handles provider routing, key rotation, and billing transparently."
+            }
+          }
+        ]
+      }
+    </script>
+
+    <!-- Google Font: Plus Jakarta Sans (wordmark only, ExtraBold 800) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" />
+
+    <script>
+      // Prevent FOUC: apply theme class before first paint
+      (function () {
+        var t = localStorage.getItem("prismix-theme") || "dark";
+        var d = t === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : t;
+        if (d === "dark") document.documentElement.classList.add("dark");
+        document.documentElement.style.colorScheme = d;
+      })();
+    </script>
+  </head>
+  <body class="antialiased">
+    <!-- No-JS fallback for crawlers that don't execute JavaScript -->
+    <noscript>
+      <div style="padding:2rem;text-align:center;font-family:system-ui">
+        <h1>Prismix — Unified AI Gateway for LLM Providers</h1>
+        <p>One endpoint for all AI providers. Unified gateway with load balancing, consumer billing, and usage analytics.</p>
+        <p>Supports: OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock.</p>
+      </div>
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/web/main.tsx"></script>
+  </body>
+</html>

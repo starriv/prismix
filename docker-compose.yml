@@ -1,0 +1,51 @@
+# ── Prismix — Development Services ─────────────────────────────
+#
+# PostgreSQL + Redis for local development.
+# Ports offset to 154xx/163xx to avoid conflicts with local installs.
+#
+# Usage:
+#   docker compose up -d          # start
+#   docker compose down           # stop (data persists in volumes)
+#   docker compose down -v        # stop + wipe all data
+#   docker compose ps             # status
+#   docker compose logs -f pg     # tail PG logs
+#
+# Connection strings (matching .env.local):
+#   DATABASE_URL=postgresql://prismix:prismix@localhost:15432/prismix
+#   REDIS_URL=redis://localhost:16379
+
+services:
+  pg:
+    image: postgres:17-alpine
+    container_name: prismix-pg
+    ports:
+      - "15433:5432"
+    environment:
+      POSTGRES_USER: prismix
+      POSTGRES_PASSWORD: prismix
+      POSTGRES_DB: prismix
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prismix"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: prismix-redis
+    ports:
+      - "16378:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pg-data:
+  redis-data:

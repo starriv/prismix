@@ -1,0 +1,33 @@
+# ── Prismix — Caddy Reverse Proxy ────────────────────────────────────
+#
+# Replace {$DOMAIN} with your domain, or set it as an environment variable.
+# Caddy automatically provisions HTTPS certificates via Let's Encrypt.
+#
+# For local testing without a domain, replace the first line with:
+#   :80
+
+{$DOMAIN:localhost} {
+	reverse_proxy prismix:3403 {
+		# Pass true client IP to the backend (trusted single-hop proxy)
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Compression
+	encode gzip zstd
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Cache static assets (Vite hashed filenames)
+	@static path /assets/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	# SPA fallback is handled by the Node.js server, not Caddy
+}

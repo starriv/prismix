@@ -1,0 +1,108 @@
+# ── x402 Gateway — Production Mode (PostgreSQL + Redis) ─────────────────
+#
+# Full production stack with persistent database and distributed cache.
+# Supports multi-instance horizontal scaling via Redis Pub/Sub.
+#
+# Services:
+#   postgres  — PostgreSQL 17 persistent database
+#   redis     — Redis 7 cache + cross-instance invalidation
+#   prismix  — Node.js app (API + SPA)
+#   caddy     — Reverse proxy with automatic HTTPS
+#
+# Usage:
+#   1. Copy env template to project root:
+#      cp .env.example .env.local
+#   2. Edit .env.local — fill in JWT_SECRET, DOMAIN, and other required values
+#   3. Start services:
+#      docker compose -f deploy/production/docker-compose.yml up -d
+#
+# Note: env_file references .env.local at the project root (three levels up from this file).
+# Required env vars: JWT_SECRET, DOMAIN (for HTTPS)
+# Optional: POSTGRES_PASSWORD (default: prismix)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: prismix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: prismix
+      POSTGRES_USER: prismix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prismix}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prismix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: prismix-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-prismix}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-prismix}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prismix:
+    build:
+      context: ../../..
+      dockerfile: deploy/production/Dockerfile
+    container_name: prismix
+    restart: unless-stopped
+    ports:
+      - "3403:3403"
+    env_file:
+      - ../../../.env.local
+    environment:
+      - NODE_ENV=production
+      - PORT=3403
+      - DATABASE_URL=postgresql://prismix:${POSTGRES_PASSWORD:-prismix}@postgres:5432/prismix
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-prismix}@redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3403/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: prismix-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      prismix:
+        condition: service_healthy
+
+volumes:
+  pg-data:
+    driver: local
+  redis-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local

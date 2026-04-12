@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="7" fill="#111113"/>
+  <!-- Prism triangle -->
+  <polygon
+    points="14,9.5 8.4,19.5 19.6,19.5"
+    fill="none"
+    stroke="#fff"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+    opacity="0.9"
+  />
+  <!-- Three refraction rays -->
+  <g stroke="#fff" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.6">
+    <line x1="16.2" y1="12.2" x2="24.3" y2="9.4"/>
+    <line x1="17.3" y1="14.2" x2="24.5" y2="14.2"/>
+    <line x1="18.4" y1="16.2" x2="24.3" y2="19.6"/>
+  </g>
+</svg>

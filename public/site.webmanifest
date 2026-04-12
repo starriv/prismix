@@ -1,0 +1,21 @@
+{
+  "name": "Prismix",
+  "short_name": "Prismix",
+  "description": "Unified AI gateway for LLM providers. Route OpenAI, Anthropic, Gemini requests through a single endpoint.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/favicon.ico",
+      "type": "image/x-icon",
+      "sizes": "16x16 32x32 48x48"
+    }
+  ]
+}

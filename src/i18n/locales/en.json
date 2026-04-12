@@ -1,0 +1,2742 @@
+{
+  "common": {
+    "testnet": "Testnet",
+    "mainnet": "Mainnet",
+    "connect-wallet": "Connect Wallet",
+    "not-connected": "Not Connected",
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "Auto"
+    },
+    "error-boundary": {
+      "title": "Something went wrong",
+      "desc": "An unexpected error occurred. Please try reloading the page.",
+      "reload": "Reload Page"
+    },
+    "status": {
+      "pending": "Pending",
+      "failed": "Failed",
+      "active": "Active",
+      "disabled": "Disabled",
+      "suspended": "Suspended"
+    },
+    "th": {
+      "id": "ID",
+      "type": "Type",
+      "resource": "Resource",
+      "amount": "Amount",
+      "status": "Status",
+      "time": "Time",
+      "name": "Name",
+      "method": "Method",
+      "source": "Source",
+      "network": "Network",
+      "token": "Token"
+    },
+    "btn": {
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "clear": "Clear",
+      "search": "Search",
+      "reset": "Reset",
+      "select-all": "Select All",
+      "clear-all": "Clear All",
+      "done": "Done",
+      "save": "Save",
+      "saving": "Saving...",
+      "creating": "Creating...",
+      "close": "Close",
+      "delete": "Delete",
+      "copy": "Copy",
+      "edit": "Edit"
+    },
+    "no-results": "No results found",
+    "copied": "Copied",
+    "wallet": {
+      "wrong-network": "Wrong Network"
+    },
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}"
+    },
+    "mobile": {
+      "open-menu": "Open menu"
+    },
+    "a11y": {
+      "skip-to-content": "Skip to content",
+      "toggle-lang": "Toggle language",
+      "copy": "Copy to clipboard",
+      "external-link": "Open in new tab",
+      "refresh": "Refresh",
+      "send": "Send",
+      "test": "Test",
+      "toggle-visibility": "Toggle visibility",
+      "try-playground": "Try in playground",
+      "actions": "Actions",
+      "no-results": "No results found",
+      "results-count": "{{count}} results"
+    },
+    "valid": {
+      "required": "This field is required",
+      "name-required": "Name is required",
+      "amount-required": "Amount is required",
+      "network-required": "Network is required",
+      "invalid-email": "Invalid email address",
+      "invalid-url": "Invalid URL",
+      "range": "Must be between {{min}} and {{max}}"
+    }
+  },
+  "nav": {
+    "subtitle": "AI Payment Gateway",
+    "dashboard": "Dashboard",
+    "pay-agents": "Pay Agents",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "topup-orders": "Top-up Orders",
+    "ledger": "Transactions",
+    "withdraw-orders": "Withdrawals",
+    "fiat-configs": "Payment Methods",
+    "webhooks": "Webhooks",
+    "ai-gateway": "AI Gateway",
+    "ai-providers": "Providers",
+    "ai-models": "Models",
+    "ai-keys": "Provider Keys",
+    "ai-relay": "Unified Endpoint",
+    "ai-usage": "Usage",
+    "ai-logs": "Logs",
+    "consumer-keys": "Consumer Keys",
+    "key-providers": "Key Providers",
+    "billing": "Payments",
+    "system-settings": "System Settings",
+    "notification-configs": "Notification Configs",
+    "notification-providers": "Providers"
+  },
+  "dash": {
+    "title": "Dashboard",
+    "desc": "Overview of your Prismix AI gateway",
+    "announce": {
+      "dismiss": "Dismiss",
+      "dismiss-all": "Dismiss All",
+      "more-count": "{{count}} more announcement(s)",
+      "view-detail": "View Details",
+      "open-link": "Open Link"
+    },
+    "ai": {
+      "requests": "AI Requests",
+      "tokens": "Total Tokens",
+      "cost": "Estimated Cost",
+      "error-rate": "Error Rate",
+      "all-time": "all time",
+      "daily-title": "Daily Trend (7 Days)",
+      "top-models": "Top Models",
+      "recent-title": "Recent AI Requests",
+      "recent-empty": "No AI requests yet",
+      "recent-empty-hint": "Send a request through the AI relay to see activity here.",
+      "view-full": "View Full Report",
+      "volume-title": "Request Volume",
+      "volume-desc": "Daily requests and token usage over the last 30 days",
+      "volume-requests": "Requests",
+      "volume-tokens": "Tokens"
+    }
+  },
+  "agents": {
+    "title": "Pay Agent Management",
+    "desc": "Manage your pay agents and ledger balances",
+    "card-title": "Pay Agents",
+    "empty": "No agents yet. Create a pay agent to automate payments.",
+    "dialog-title": "Create Pay Agent",
+    "edit-title": "Agent Details",
+    "delete-confirm": "Are you sure you want to delete this agent? This action cannot be undone.",
+    "th": {
+      "name": "Name",
+      "user": "Owner",
+      "type": "Type",
+      "address": "Address",
+      "status": "Status",
+      "balance": "Balance",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "toast": {
+      "created": "Agent created",
+      "updated": "Agent updated",
+      "deleted": "Agent deleted",
+      "topup-success": "Top-up successful",
+      "create-error": "Failed to create agent",
+      "update-error": "Failed to update agent",
+      "delete-error": "Failed to delete agent",
+      "topup-error": "Failed to top up agent",
+      "manual-topup": "Manual top-up successful",
+      "manual-topup-error": "Manual top-up failed",
+      "manual-debit": "Balance deducted successfully",
+      "manual-debit-error": "Failed to deduct balance"
+    },
+    "btn": {
+      "create": "Create Pay Agent",
+      "save": "Save Changes",
+      "delete": "Delete Pay Agent",
+      "copy": "Copy",
+      "manual-topup": "Manual Top-up",
+      "manual-debit": "Deduct Balance"
+    },
+    "form": {
+      "name": "Name",
+      "name-ph": "Payout Agent",
+      "description": "Description",
+      "per-pay-limit": "Per-Payment Limit",
+      "per-pay-limit-ph": "e.g. 1.00 (empty = unlimited)",
+      "daily-limit": "Daily Limit",
+      "daily-limit-ph": "e.g. 10.00 (empty = unlimited)",
+      "monthly-limit": "Monthly Limit",
+      "monthly-limit-ph": "e.g. 100.00 (empty = unlimited)",
+      "default-markup": "Default Markup",
+      "default-markup-ph": "inherited from global",
+      "default-markup-hint": "Leave empty to inherit global default. Set 0 for no markup.",
+      "global-badge": "Global",
+      "type": "Agent Type"
+    },
+    "type": {
+      "standard": "Standard",
+      "ledger": "Ledger"
+    },
+    "type-tooltip": "Standard: has a blockchain wallet for on-chain USDC topup. Ledger: balance managed manually, no wallet — ideal for AI billing.",
+    "ledger-hint": "Ledger-only — no blockchain wallet.",
+    "wallet": {
+      "enable": "Enable Wallet",
+      "disable": "Disable Wallet",
+      "enable-confirm": "Generate a blockchain wallet for this agent? This enables on-chain USDC topup.",
+      "disable-confirm": "Remove the blockchain wallet? The agent will switch to ledger-only mode. On-chain topup will no longer work.",
+      "enabled": "Wallet enabled",
+      "disabled": "Wallet disabled"
+    },
+    "detail": {
+      "limits": "Spending Limits",
+      "limits-hint": "Leave empty for unlimited. Limits apply to all transactions (payments + AI usage).",
+      "spending": "Spending Stats",
+      "spent-today": "Spent Today",
+      "spent-month": "Spent This Month",
+      "allowed-resources": "Allowed Resources",
+      "no-resources": "No accessible resources"
+    },
+    "topup": {
+      "title": "Top Up Balance",
+      "amount-label": "Amount (USDC)",
+      "amount-ph": "0.00",
+      "network-label": "Network",
+      "network-ph": "Select network",
+      "recipient": "Recipient (Agent Address)",
+      "btn-send": "Send USDC",
+      "btn-confirming-wallet": "Confirm in Wallet...",
+      "btn-confirming-chain": "Confirming on Chain...",
+      "btn-verifying": "Verifying...",
+      "no-usdc-error": "No USDC token configured for this network",
+      "no-wallet-error": "Please connect your wallet first"
+    },
+    "manual-topup": {
+      "title": "Manual Top-up",
+      "desc": "Manually credit this agent's balance (for offline payments)",
+      "amount": "Amount (USDC)",
+      "amount-ph": "e.g. 20.00",
+      "note": "Note (optional)",
+      "note-ph": "e.g. Faucet top-up confirmed"
+    },
+    "manual-debit": {
+      "title": "Deduct Balance",
+      "desc": "Deduct USDC from this wallet's balance",
+      "amount": "Amount (USDC)",
+      "amount-ph": "e.g. 10.00",
+      "note": "Reason (optional)",
+      "note-ph": "e.g. Refund adjustment"
+    },
+    "txn": {
+      "title": "Transaction History",
+      "page-title": "Agent Transactions",
+      "page-desc": "View all pay agent transaction records with filters",
+      "empty": "No transactions found",
+      "type": {
+        "top_up": "Top Up",
+        "payment": "Payment",
+        "ai_usage": "AI Usage",
+        "withdraw": "Withdrawal",
+        "admin_debit": "Admin Debit"
+      },
+      "th": {
+        "type": "Type",
+        "amount": "Amount",
+        "balance-after": "Balance After",
+        "description": "Description",
+        "time": "Time"
+      },
+      "source": {
+        "platform": "Platform",
+        "on-chain": "On-chain"
+      },
+      "filter": {
+        "agent-ph": "Select agent",
+        "type-ph": "Select type",
+        "all-agents": "All Agents",
+        "all-types": "All Types",
+        "source-ph": "Select source",
+        "all-sources": "All Sources"
+      },
+      "btn-sync-all": "Sync On-chain",
+      "sync-success": "{{count}} agents synced successfully",
+      "sync-partial": "{{failed}} agents failed to sync",
+      "sync-error": "Failed to sync agents",
+      "detail": {
+        "model": "Model",
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "view-usage": "View Usage"
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "desc": "Manage your account and wallet",
+    "admin": {
+      "title": "Account",
+      "desc": "Your registered identity",
+      "name": "Name"
+    },
+    "config": {
+      "title": "Gateway Configuration",
+      "desc": "Settings stored in the database. Environment variables override DB values when set.",
+      "saved": "Settings saved",
+      "save-error": "Failed to save settings",
+      "save-btn": "Save Settings",
+      "restart-note": "Takes effect after server restart"
+    },
+    "wallet": {
+      "title": "Connected Wallet",
+      "desc": "Your browser wallet connection status",
+      "address": "Address",
+      "chain": "Chain",
+      "balance": "Balance"
+    },
+    "ai": {
+      "title": "AI Gateway",
+      "desc": "Settings for AI relay and request logging",
+      "request-logging": "Request Logging",
+      "request-logging-desc": "Store full request/response bodies in Redis (7-day TTL). Useful for debugging and auditing AI usage.",
+      "default-markup": "Global Default Markup",
+      "default-markup-desc": "Markup % for agents that don't set their own. Consumer keys inherit from their agent, which inherits from this global default.",
+      "default-markup-saved": "Default markup updated"
+    },
+    "tab": {
+      "general": "General",
+      "api-keys": "API Keys"
+    },
+    "api-keys": {
+      "title": "API Keys",
+      "desc": "Manage API keys for programmatic access to your account",
+      "btn": {
+        "create": "Create Key"
+      },
+      "table-empty": "No API keys yet. Create one to get started.",
+      "th": {
+        "name": "Name",
+        "client-id": "Client ID",
+        "last-used": "Last Used",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Key Name",
+        "name-ph": "e.g. Production Server",
+        "expiration": "Expiration",
+        "exp-never": "Never",
+        "exp-30d": "30 days",
+        "exp-90d": "90 days",
+        "exp-1y": "1 year"
+      },
+      "created": {
+        "title": "API Key Created",
+        "warn": "Copy your secret now — it won't be shown again.",
+        "client-id": "Client ID",
+        "secret": "Secret",
+        "usage": "Usage Example",
+        "btn-saved": "I've saved it"
+      },
+      "action": {
+        "copy-id": "Copy Client ID",
+        "rotate": "Rotate Secret",
+        "revoke": "Revoke",
+        "delete": "Delete"
+      },
+      "confirm-revoke": {
+        "title": "Revoke API Key",
+        "desc": "This will permanently revoke this API key. Any applications using it will lose access immediately. This action cannot be undone."
+      },
+      "confirm-rotate": {
+        "title": "Rotate Secret",
+        "desc": "This will generate a new secret and immediately invalidate the old one. Any applications using the current secret will need to be updated."
+      },
+      "confirm-delete": {
+        "title": "Delete API Key",
+        "desc": "This will permanently delete this API key. This action cannot be undone."
+      },
+      "toast": {
+        "created": "API key created",
+        "updated": "API key updated",
+        "revoked": "API key revoked",
+        "rotated": "API key secret rotated",
+        "deleted": "API key deleted",
+        "copied": "Client ID copied"
+      },
+      "never-used": "Never",
+      "auth-guide": {
+        "title": "Authentication Methods",
+        "desc": "Three ways to authenticate API requests — use whichever fits your client best",
+        "th": {
+          "method": "Method",
+          "header": "Header Format",
+          "example": "Example"
+        },
+        "priority": "Priority: X-API-Key > Basic > Bearer. When multiple headers are present, the highest-priority method is used."
+      }
+    }
+  },
+  "admin": {
+    "login-title": "Admin Panel",
+    "login-desc": "Connect your wallet and sign in to access the admin panel",
+    "sign-in-btn": "Sign In as Admin",
+    "not-admin": "This account is not registered as an admin. Please contact the system administrator.",
+    "back": "Back to login",
+    "footer-note": "Admin access is restricted to registered admin wallets only.",
+    "step": {
+      "sign": "Sign"
+    },
+    "nav": {
+      "subtitle": "Admin Panel",
+      "users": "Users",
+      "admins": "Admin Members",
+      "login-strategies": "Login Strategies",
+      "notifications": "Notifications",
+      "networks": "Networks",
+      "tokens": "Tokens",
+      "announcements": "Announcements",
+      "logout": "Logout"
+    },
+    "key-providers": {
+      "title": "Key Providers",
+      "desc": "Manage third-party AI key providers and revenue sharing",
+      "table-empty": "No key providers yet",
+      "th": {
+        "share": "Revenue Share",
+        "balance": "Balance",
+        "keys": "Keys"
+      },
+      "btn": {
+        "create": "Add Provider"
+      },
+      "form": {
+        "name-ph": "Provider name",
+        "email": "Email",
+        "email-ph": "Enter email address",
+        "share": "Revenue Share %",
+        "contact": "Contact Info"
+      },
+      "detail": {
+        "balance": "Pending Balance",
+        "info": "Provider Info",
+        "txns": "Revenue History",
+        "no-txns": "No revenue records yet",
+        "view-all": "View All ({{count}})",
+        "collapse": "Collapse"
+      },
+      "txn-type": {
+        "revenue_share": "Revenue Share",
+        "withdraw": "Withdrawal",
+        "adjustment": "Adjustment"
+      },
+      "toast": {
+        "created": "Key provider created",
+        "create-error": "Failed to create key provider",
+        "updated": "Key provider updated",
+        "update-error": "Failed to update key provider",
+        "deleted": "Key provider deleted",
+        "delete-error": "Failed to delete key provider"
+      }
+    },
+    "announce": {
+      "title": "System Announcements",
+      "desc": "Compose and broadcast announcements to all users",
+      "count": "{{count}} announcement(s)",
+      "btn": {
+        "compose": "Compose",
+        "send": "Send",
+        "delete": "Delete"
+      },
+      "th": {
+        "title": "Title",
+        "status": "Status",
+        "created-by": "Created By",
+        "created-at": "Created",
+        "sent-at": "Sent At",
+        "actions": "Actions"
+      },
+      "status": {
+        "draft": "Draft",
+        "sent": "Sent"
+      },
+      "table-empty": "No announcements yet",
+      "compose-title": "Compose Announcement",
+      "edit-title": "Edit Announcement",
+      "form": {
+        "title": "Title",
+        "title-ph": "Enter announcement title",
+        "body": "Body",
+        "body-ph": "Enter announcement content...",
+        "body-hint": "Supports Markdown: **bold**, [links](url), - lists",
+        "tab-edit": "Edit",
+        "tab-preview": "Preview",
+        "link": "Link (optional)",
+        "link-ph": "https://example.com/announcement"
+      },
+      "send-confirm-title": "Send Announcement",
+      "send-confirm-desc": "This will broadcast the announcement to all users who subscribed to system announcements. This action cannot be undone.",
+      "delete-confirm-title": "Delete Announcement",
+      "delete-confirm-desc": "Are you sure you want to delete this announcement?",
+      "toast": {
+        "created": "Announcement created",
+        "updated": "Announcement updated",
+        "sent": "Announcement sent to all users",
+        "deleted": "Announcement deleted",
+        "create-error": "Failed to create announcement",
+        "update-error": "Failed to update announcement",
+        "send-error": "Failed to send announcement",
+        "delete-error": "Failed to delete announcement"
+      }
+    },
+    "admins": {
+      "title": "Admin Members",
+      "desc": "Manage admin accounts who can access this panel",
+      "add": "Add Admin",
+      "empty": "No admin members yet",
+      "name": "Name",
+      "provider": "Login Method",
+      "account": "Account ID",
+      "delete": "Remove",
+      "delete-confirm": "Remove this admin? This cannot be undone.",
+      "delete-title": "Remove Admin",
+      "toast": {
+        "created": "Admin member added",
+        "deleted": "Admin member removed",
+        "create-error": "Failed to add admin",
+        "delete-error": "Failed to remove admin"
+      },
+      "form": {
+        "name-ph": "Admin name",
+        "account-ph": "Wallet address or email",
+        "address-hint": "For wallet login, enter the ETH address (0x...)",
+        "email-hint": "For email login, enter the email address"
+      }
+    },
+    "withdraw": {
+      "title": "Withdrawal Orders",
+      "desc": "Review and manage user withdrawal requests",
+      "card-title": "Orders",
+      "empty": "No withdrawal orders",
+      "th": {
+        "user": "User",
+        "amount": "Amount",
+        "address": "Address",
+        "status": "Status",
+        "time": "Time",
+        "actions": "Actions"
+      },
+      "filter": {
+        "all": "All statuses",
+        "pending": "Pending",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "status": {
+        "pending": "Pending",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "btn": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "approving": "Approving...",
+        "rejecting": "Rejecting..."
+      },
+      "approve-title": "Approve Withdrawal",
+      "approve-confirm": "Send {{amount}} USDC to {{address}}?",
+      "reject-title": "Reject Withdrawal",
+      "reject-confirm": "Reject withdrawal of {{amount}} USDC?",
+      "reject-reason-ph": "Reason for rejection (optional)",
+      "toast": {
+        "approved": "Withdrawal approved",
+        "rejected": "Withdrawal rejected",
+        "approve-error": "Failed to approve withdrawal",
+        "reject-error": "Failed to reject withdrawal"
+      }
+    },
+    "login-strategies": {
+      "title": "Login Strategies",
+      "desc": "Configure which authentication methods are available to users",
+      "save": "Save Changes",
+      "always-on": "Always On",
+      "confirm-clear-title": "{{provider}} disabled",
+      "confirm-clear-desc": "Clear the saved credentials (Client ID & Secret)?",
+      "confirm-clear-btn": "Clear credentials",
+      "toast": {
+        "saved": "Login strategies updated",
+        "save-error": "Failed to update login strategies"
+      },
+      "siwe": {
+        "title": "Wallet (SIWE)",
+        "desc": "Web3 wallet signature login — always enabled as the default authentication method."
+      },
+      "credentials": {
+        "title": "Email & Password",
+        "desc": "Traditional email and password authentication with argon2 hashing.",
+        "hint": "No additional configuration needed. Users can register with email and password on the login page."
+      },
+      "google": {
+        "desc": "Allow users to sign in with their Google account.",
+        "hint": "Get credentials at console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0 Client IDs"
+      },
+      "github": {
+        "desc": "Allow users to sign in with their GitHub account.",
+        "hint": "Get credentials at github.com → Settings → Developer settings → OAuth Apps"
+      },
+      "oidc": {
+        "title": "OpenID Connect (SSO)",
+        "desc": "Enterprise SSO via OIDC — supports Okta, Azure AD, Keycloak, Auth0, etc.",
+        "issuer-label": "Issuer URL",
+        "issuer-ph": "https://company.okta.com",
+        "display-name-label": "Button Text",
+        "display-name-ph": "Company SSO",
+        "scopes-label": "Additional Scopes",
+        "scopes-ph": "groups, roles (optional, comma-separated)",
+        "hint": "Enter the OpenID Connect issuer URL from your IdP. Discovery endpoint is auto-derived: {issuer}/.well-known/openid-configuration"
+      },
+      "saml": {
+        "title": "SAML 2.0 (SSO)",
+        "desc": "Enterprise SSO via SAML — supports ADFS, Shibboleth, PingFederate, etc.",
+        "display-name-label": "Button Text",
+        "display-name-ph": "Enterprise SSO",
+        "metadata-url-label": "IdP Metadata URL",
+        "metadata-url-ph": "https://adfs.company.com/metadata.xml",
+        "discover-btn": "Auto-Discover",
+        "discover-success": "Metadata discovered successfully",
+        "discover-error": "Failed to discover metadata",
+        "entity-id-label": "Entity ID",
+        "entity-id-ph": "https://adfs.company.com/adfs/services/trust",
+        "sso-url-label": "SSO Login URL",
+        "sso-url-ph": "https://adfs.company.com/adfs/ls/",
+        "certificate-label": "X.509 Certificate",
+        "certificate-ph": "Paste IdP signing certificate (PEM or base64)",
+        "sp-metadata-label": "SP Metadata URL",
+        "sp-metadata-hint": "Share this URL with your IdP administrator",
+        "hint": "Enter the IdP metadata URL to auto-discover settings, or configure manually below."
+      },
+      "oauth": {
+        "client-id": "Client ID",
+        "client-secret": "Client Secret"
+      },
+      "validation": {
+        "google-id": "Should end with .apps.googleusercontent.com",
+        "google-secret": "Should start with GOCSPX-",
+        "github-id": "Expected format: Iv1.xxx, Ov23xxx, or 20-char hex",
+        "github-secret": "Expected 40-character hex string",
+        "missing-google": "Google: Client ID and Client Secret are required",
+        "missing-github": "GitHub: Client ID and Client Secret are required",
+        "missing-oidc": "OIDC: Issuer URL, Client ID and Client Secret are required",
+        "oidc-issuer": "Issuer URL must start with https://",
+        "missing-saml": "SAML: Entity ID, SSO URL and Certificate are required",
+        "saml-sso-url": "SSO URL must start with https://"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "desc": "Manage all registered users",
+      "th": {
+        "id": "ID",
+        "name": "Name",
+        "email": "Email",
+        "address": "Address",
+        "balance": "Balance",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "empty": "No users registered yet",
+      "delete-confirm": "Are you sure you want to delete this user? All their keys, transactions, and data will be permanently deleted.",
+      "delete-title": "Delete User",
+      "disable-title": "Disable User",
+      "disable-confirm": "Are you sure you want to disable this user? Their consumer keys will be suspended.",
+      "enable-title": "Enable User",
+      "enable-confirm": "Are you sure you want to re-enable this user?",
+      "edit-title": "Edit User",
+      "credit-title": "Credit Wallet",
+      "credit-desc": "Add funds to this user's wallet balance",
+      "form": {
+        "name": "Name",
+        "name-ph": "Enter user name",
+        "email": "Email",
+        "email-ph": "Enter email address",
+        "amount": "Amount (USDC)",
+        "amount-ph": "0.00",
+        "description": "Description",
+        "description-ph": "Reason for credit (optional)",
+        "agent": "Pay Agent",
+        "agent-ph": "Select a pay agent",
+        "no-agent": "No agent"
+      },
+      "btn": {
+        "create-agent": "Create New Agent"
+      },
+      "no-wallet": "No wallet",
+      "toast": {
+        "updated": "User updated",
+        "update-error": "Failed to update user",
+        "deleted": "User deleted",
+        "delete-error": "Failed to delete user",
+        "disabled": "User disabled",
+        "disable-error": "Failed to disable user",
+        "enabled": "User enabled",
+        "enable-error": "Failed to enable user",
+        "credited": "Wallet credited successfully",
+        "credit-error": "Failed to credit wallet",
+        "agent-created": "Agent created",
+        "agent-create-error": "Failed to create agent"
+      },
+      "detail": {
+        "info": "User Info",
+        "auth": "Auth Methods",
+        "wallet": "Wallet",
+        "danger": "Danger Zone"
+      }
+    },
+    "settings": {
+      "title": "System Configuration",
+      "desc": "Manage networks, tokens, and facilitator settings"
+    },
+    "notif": {
+      "title": "Notification Providers",
+      "desc": "Configure platform-level notification channels",
+      "email-title": "Email",
+      "email-desc": "Send notifications via SMTP or Resend API",
+      "telegram-title": "Telegram",
+      "telegram-desc": "Send notifications via Telegram Bot",
+      "webhook-title": "Webhook",
+      "webhook-desc": "Users configure their own webhook URLs",
+      "whatsapp-title": "WhatsApp",
+      "whatsapp-desc": "Send notifications via WhatsApp Business API",
+      "form": {
+        "provider": "Provider",
+        "smtp-host": "SMTP Host",
+        "smtp-port": "SMTP Port",
+        "smtp-user": "SMTP Username",
+        "smtp-pass": "SMTP Password",
+        "resend-key": "Resend API Key",
+        "from-address": "From Address",
+        "from-name": "From Name",
+        "bot-token": "Bot Token",
+        "api-token": "API Token",
+        "phone-id": "Phone Number ID"
+      },
+      "save": "Save Changes",
+      "webhook-hint": "No platform credentials needed — users configure their own webhook endpoints.",
+      "confirm-clear-title": "{{channel}} disabled",
+      "confirm-clear-desc": "Clear the saved credentials for this channel? You can keep them if you plan to re-enable later.",
+      "confirm-clear-btn": "Clear credentials",
+      "validation": {
+        "smtp-host-invalid": "SMTP host must be a valid hostname (e.g. smtp.gmail.com)",
+        "smtp-port-invalid": "SMTP port must be 25, 465, 587, or 2525",
+        "smtp-user-required": "SMTP username is required",
+        "smtp-pass-required": "SMTP password is required",
+        "resend-key-invalid": "Resend API key must start with re_ (e.g. re_xxxx...)",
+        "from-address-invalid": "From address must be a valid email",
+        "telegram-token-invalid": "Bot token format: 123456789:ABCdef... (numeric ID + 35-char secret)",
+        "whatsapp-token-invalid": "WhatsApp API token must start with EAA",
+        "whatsapp-phone-id-invalid": "Phone Number ID must be a 9-20 digit number"
+      },
+      "toast": {
+        "saved": "Notification provider config saved",
+        "save-error": "Failed to save config"
+      }
+    },
+    "networks": {
+      "title": "Network Management",
+      "desc": "Manage supported blockchain networks and RPC endpoints",
+      "empty": "No networks configured yet. Add your first network to get started.",
+      "hint": "Networks are shared across all merchants. Token configuration is managed separately.",
+      "rpc-url-ph": "Enter RPC URL",
+      "delete-confirm": "This will remove the network and all associated token configurations. This action cannot be undone.",
+      "add-title": "Add Networks",
+      "all-added": "All available networks have already been added.",
+      "btn": {
+        "add": "Add Network",
+        "remove": "Remove Network",
+        "confirm-delete": "Confirm Remove",
+        "clear": "Clear Selection",
+        "confirm-add": "Add {{count}} Network(s)"
+      },
+      "toast": {
+        "rpc-updated": "RPC URL updated",
+        "rpc-error": "Failed to update RPC URL",
+        "enabled": "Network enabled",
+        "disabled": "Network disabled",
+        "toggle-error": "Failed to toggle network",
+        "removed": "Network removed",
+        "remove-error": "Failed to remove network",
+        "batch-added": "{{count}} network(s) added successfully",
+        "add-error": "Failed to add network"
+      }
+    }
+  },
+  "auth": {
+    "login-title": "Welcome back",
+    "login-desc": "Connect your wallet and sign to access the dashboard.",
+    "sign-in-btn": "Sign In",
+    "signing": "Signing...",
+    "verifying": "Verifying...",
+    "logout": "Logout",
+    "loading": "Loading...",
+    "footer-note": "By signing in you agree that this is a self-hosted instance and you control your own keys.",
+    "step": {
+      "sign": "Sign"
+    },
+    "brand": {
+      "back": "Back to home",
+      "badge": "AI Gateway · Multi-Provider · Unified API",
+      "title-1": "All your AI,",
+      "title-2": "one endpoint.",
+      "desc": "Route requests to any provider through a single OpenAI-compatible API. Load balancing, failover, and usage tracking — all from one dashboard.",
+      "protocol": "OpenAI-compatible · Multi-Provider · Usage Tracking",
+      "feat": {
+        "fast": {
+          "title": "Multi-provider relay",
+          "desc": "One endpoint for OpenAI, Anthropic, Gemini, Azure, and Bedrock. Automatic format translation."
+        },
+        "secure": {
+          "title": "Smart load balancing",
+          "desc": "Weighted key rotation with automatic failover. Zero downtime when a key hits rate limits."
+        },
+        "track": {
+          "title": "Usage metering",
+          "desc": "Per-request token counting with cost breakdowns by model, provider, and consumer key."
+        }
+      }
+    },
+    "or-sign-in-with-account": "or sign in with account",
+    "email-label": "Email",
+    "email-ph": "you@example.com",
+    "password-ph": "Enter your password",
+    "confirm-password-ph": "Confirm your password",
+    "password-mismatch": "Passwords do not match",
+    "sign-in-btn-email": "Sign In with Email",
+    "continue-with-google": "Continue with Google",
+    "continue-with-github": "Continue with GitHub",
+    "continue-with-sso": "Enterprise SSO",
+    "continue-with-saml": "SAML SSO",
+    "name-label": "Name",
+    "name-ph": "Your name",
+    "callback": {
+      "loading": "Completing sign-in...",
+      "error": "Authentication failed. Please try again.",
+      "back-to-login": "Back to sign in"
+    },
+    "error": {
+      "no-wallet": "Please connect your wallet first",
+      "not-registered": "This wallet is not registered",
+      "not_registered": "Account not found. Please register first.",
+      "user-rejected": "Signature request was rejected",
+      "login-failed": "Login failed. Please try again.",
+      "verify-failed": "Signature verification failed",
+      "register-failed": "Registration failed. Please try again.",
+      "account-exists": "An account with this email already exists",
+      "invalid-credentials": "Invalid email or password",
+      "password-too-weak": "Password must be at least 10 characters with uppercase, lowercase, and a digit",
+      "oauth-failed": "OAuth authentication failed. Please try again.",
+      "account-disabled": "Your account has been disabled. Please contact the administrator."
+    },
+    "strength": {
+      "weak": "Weak",
+      "fair": "Fair",
+      "good": "Good",
+      "strong": "Strong",
+      "rule-length": "At least 10 characters",
+      "rule-upper": "One uppercase letter",
+      "rule-lower": "One lowercase letter",
+      "rule-digit": "One digit"
+    }
+  },
+  "notif": {
+    "title": "Notifications",
+    "desc": "Configure notification channels and view delivery logs",
+    "tab": {
+      "configs": "Channels",
+      "logs": "Logs"
+    },
+    "table-empty": "No notification channels configured yet.",
+    "logs-empty": "No notification logs yet.",
+    "dialog-title-create": "Add Notification Channel",
+    "dialog-title-edit": "Edit Notification Channel",
+    "delete-title": "Delete Channel",
+    "delete-confirm": "Are you sure you want to delete this notification channel? This action cannot be undone.",
+    "th": {
+      "label": "Label",
+      "channel": "Channel",
+      "target": "Target",
+      "events": "Events",
+      "enabled": "Enabled",
+      "actions": "Actions"
+    },
+    "logs-th": {
+      "event": "Event",
+      "channel": "Channel",
+      "target": "Target",
+      "status": "Status",
+      "time": "Time"
+    },
+    "log-status": {
+      "pending": "Pending",
+      "sent": "Sent",
+      "failed": "Failed"
+    },
+    "btn": {
+      "add": "Add Channel",
+      "create": "Create",
+      "save": "Save Changes",
+      "delete": "Delete"
+    },
+    "form": {
+      "channel": "Channel",
+      "channel-ph": "Select channel",
+      "label": "Label",
+      "label-ph": "My notification",
+      "target": "Target",
+      "target-ph-email": "user@example.com",
+      "target-ph-telegram": "Chat ID or @username",
+      "target-ph-webhook": "https://example.com/webhook",
+      "target-ph-whatsapp": "+1234567890",
+      "secret": "Signing Secret",
+      "secret-ph": "Webhook signing secret (optional)",
+      "events": "Events",
+      "enabled": "Enabled"
+    },
+    "group": {
+      "topup": "Top-up",
+      "tx": "Transactions",
+      "alert": "Alerts",
+      "system": "System"
+    },
+    "event": {
+      "topup-requested": "Top-up requested",
+      "topup-confirmed": "Top-up confirmed",
+      "topup-rejected": "Top-up rejected",
+      "topup-expired": "Top-up expired",
+      "tx-large-amount": "Large transaction",
+      "tx-daily-summary": "Daily summary",
+      "alert-circuit-breaker": "Circuit breaker triggered",
+      "alert-upstream-timeout": "Upstream timeout",
+      "alert-error-spike": "Error rate spike",
+      "alert-resource-down": "Resource down",
+      "system-announcement": "System announcement"
+    },
+    "toast": {
+      "created": "Notification channel created",
+      "updated": "Notification channel updated",
+      "deleted": "Notification channel deleted",
+      "create-error": "Failed to create notification channel",
+      "update-error": "Failed to update notification channel",
+      "delete-error": "Failed to delete notification channel",
+      "test-ok": "Test notification sent successfully",
+      "test-fail": "Test notification failed"
+    },
+    "channel": {
+      "email": "Email",
+      "telegram": "Telegram",
+      "webhook": "Webhook",
+      "whatsapp": "WhatsApp"
+    },
+    "valid": {
+      "channel-required": "Please select a channel",
+      "target-required": "Target is required",
+      "events-required": "Select at least one event"
+    }
+  },
+  "webhook": {
+    "title": "Webhooks",
+    "desc": "Manage webhook endpoints for event-driven integrations",
+    "table-empty": "No webhook endpoints configured yet.",
+    "btn": {
+      "add": "Add Endpoint",
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete",
+      "test": "Test",
+      "retry": "Retry",
+      "rotate": "Rotate Secret"
+    },
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "disabled": "Disabled"
+    },
+    "card": {
+      "events": "Events",
+      "status": "Status",
+      "failure-count": "Failures",
+      "success-rate": "Success Rate",
+      "last-delivery": "Last delivery"
+    },
+    "dialog-title-create": "Add Webhook Endpoint",
+    "dialog-title-edit": "Edit Webhook Endpoint",
+    "delete-title": "Delete Endpoint",
+    "delete-confirm": "Are you sure you want to delete this webhook endpoint? All delivery history will also be removed.",
+    "form": {
+      "url": "Endpoint URL",
+      "url-ph": "https://api.example.com/webhooks",
+      "description": "Description",
+      "description-ph": "Production order handler",
+      "events": "Events to subscribe"
+    },
+    "secret": {
+      "title": "Webhook Signing Secret",
+      "warn": "Save this secret now — it won't be shown again.",
+      "label": "Secret",
+      "btn-saved": "I've saved it"
+    },
+    "rotate": {
+      "title": "Rotate Secret",
+      "desc": "Generate a new signing secret. The old secret will stop working immediately."
+    },
+    "deliveries": {
+      "title": "Delivery Log",
+      "empty": "No deliveries yet.",
+      "th": {
+        "time": "Time",
+        "event": "Event",
+        "status": "Status",
+        "latency": "Latency",
+        "attempts": "Attempts",
+        "actions": "Actions"
+      },
+      "status": {
+        "pending": "Pending",
+        "success": "Success",
+        "failed": "Failed"
+      }
+    },
+    "event": {
+      "tx-settled": "Payment settled",
+      "tx-settle-failed": "Settlement failed",
+      "tx-verified": "Payment verified",
+      "tx-verify-failed": "Verification failed",
+      "gateway-upstream-timeout": "Upstream timeout",
+      "gateway-upstream-error": "Upstream error",
+      "gateway-circuit-open": "Circuit breaker opened",
+      "gateway-circuit-close": "Circuit breaker closed",
+      "resource-created": "Resource created",
+      "resource-updated": "Resource updated",
+      "resource-deleted": "Resource deleted",
+      "agent-created": "Agent created",
+      "agent-suspended": "Agent suspended",
+      "topup-requested": "Top-up requested",
+      "topup-confirmed": "Top-up confirmed",
+      "topup-rejected": "Top-up rejected",
+      "topup-expired": "Top-up expired",
+      "system-announcement": "System announcement"
+    },
+    "group": {
+      "tx": "Transactions",
+      "gateway": "Gateway",
+      "resource": "Resources",
+      "agent": "Agents",
+      "topup": "Top-ups",
+      "system": "System"
+    },
+    "toast": {
+      "created": "Webhook endpoint created",
+      "updated": "Webhook endpoint updated",
+      "deleted": "Webhook endpoint deleted",
+      "create-error": "Failed to create webhook endpoint",
+      "update-error": "Failed to update webhook endpoint",
+      "delete-error": "Failed to delete webhook endpoint",
+      "test-ok": "Test webhook sent",
+      "test-fail": "Failed to send test webhook",
+      "rotated": "Secret rotated successfully",
+      "rotate-error": "Failed to rotate secret",
+      "retry-ok": "Delivery retry queued",
+      "retry-fail": "Failed to retry delivery",
+      "copied": "Copied to clipboard"
+    }
+  },
+  "home": {
+    "nav": {
+      "launch": "Launch App"
+    },
+    "hero": {
+      "ai-badge": "OpenAI-Compatible Relay",
+      "ai-title-1": "Unified AI Gateway",
+      "ai-title-2": "One Endpoint, All Models",
+      "ai-tagline": "Multi-provider relay · Load balancing · Real-time billing",
+      "ai-desc": "Route to any provider with load balancing, automatic failover, and per-token billing. One OpenAI-compatible API for all your AI workloads.",
+      "cta-primary": "Get Started",
+      "cta-secondary": "Read the Docs"
+    },
+    "hero-chat": {
+      "q1": "Summarize Q4 results in 3 bullet points",
+      "a1": "Here are the Q4 highlights:\n\n1. Revenue grew 23% YoY to $4.2M\n2. Customer retention improved to 94%\n3. Operating margin expanded by 340bps",
+      "q2": "Write a Python merge sort helper",
+      "a2": "def merge_sorted(a, b):\n    result, i, j = [], 0, 0\n    while i < len(a) and j < len(b):\n        if a[i] <= b[j]:\n            result.append(a[i]); i += 1\n        else:\n            result.append(b[j]); j += 1\n    return result + a[i:] + b[j:]",
+      "q3": "Translate to Japanese: The meeting is at 3pm",
+      "a3": "会議は午後3時です。\n(Kaigi wa gogo san-ji desu.)\n\nThis is polite, business-appropriate Japanese suitable for email or formal communication.",
+      "q4": "REST vs GraphQL — key differences?",
+      "a4": "Key differences:\n\n- REST returns fixed structures; GraphQL lets clients pick fields\n- REST uses multiple URLs; GraphQL uses one endpoint\n- REST often over-fetches; GraphQL eliminates this\n- REST needs URL versioning; GraphQL evolves via schema",
+      "q5": "Explain the CAP theorem simply",
+      "a5": "A distributed system can guarantee only 2 of 3:\n\n- Consistency: reads return the latest write\n- Availability: every request gets a response\n- Partition tolerance: survives network splits\n\nSince partitions are unavoidable, you choose CP or AP."
+    },
+    "features": {
+      "title": "Everything you need",
+      "desc": "A complete infrastructure for AI relay and API monetization",
+      "pay-agents": {
+        "title": "Agent Wallet System",
+        "desc": "Managed crypto wallets for every pay agent. On-chain USDC top-up, fiat bridge with admin approval, automatic balance tracking and spending history."
+      },
+      "monitoring": {
+        "title": "Real-Time Monitoring",
+        "desc": "SSE live events, circuit breaker dashboards, and multi-channel notifications — email, Telegram, webhook. Know the moment something happens."
+      }
+    },
+    "cta": {
+      "ai-title": "Start using all AI models today",
+      "ai-desc": "Add your provider keys, issue access credentials, and start inference through one endpoint.",
+      "ai-btn": "Open Dashboard"
+    },
+    "footer": {
+      "docs": "Docs"
+    },
+    "ai": {
+      "intro": {
+        "label": "AI Relay Gateway",
+        "title": "One endpoint, every model",
+        "desc": "A single OpenAI-compatible API that routes to any provider — with load balancing, failover, and usage tracking built in",
+        "unified": {
+          "title": "Unified Endpoint",
+          "desc": "Single OpenAI-compatible API for all providers. OpenAI, Anthropic, Gemini, Azure OpenAI, AWS Bedrock — one base URL, one format."
+        },
+        "keypool": {
+          "title": "Smart Load Balancer",
+          "desc": "Weighted load balancing across API keys with automatic failover. Track health per key, zero downtime on quota limits."
+        },
+        "metering": {
+          "title": "Usage Metering",
+          "desc": "Per-request token counting and cost estimation. Breakdowns by day, model, provider, and consumer key — all in the dashboard."
+        }
+      },
+      "flow": {
+        "consumer": "Consumer",
+        "gateway": "Gateway",
+        "key-pool": "Load Balancer"
+      },
+      "features": {
+        "title": "Built for production AI workloads",
+        "desc": "Everything you need to run a multi-provider AI gateway",
+        "relay": {
+          "title": "Multi-Provider Relay",
+          "desc": "Route requests to 5+ providers through one endpoint. Model-level fallback chains, automatic format translation between providers."
+        },
+        "rotation": {
+          "title": "Weighted Load Balancing",
+          "desc": "Distribute requests across multiple API keys with configurable weights. Automatic failover when a key hits rate limits or errors."
+        },
+        "consumer": {
+          "title": "API Key Access Control",
+          "desc": "Issue scoped API keys with per-key model allowlists, rate limits, and daily/monthly budget caps. Auto-suspend when limits are hit."
+        },
+        "billing": {
+          "title": "Usage Tracking & Billing",
+          "desc": "Per-request token counting with cost breakdowns by model, provider, and API key. Real-time balance deduction and full transaction history."
+        },
+        "logging": {
+          "title": "Request Logging",
+          "desc": "Opt-in request and response body capture with configurable retention. Full audit trail with collapsible JSON viewer."
+        },
+        "wallet": {
+          "title": "USDC Wallet Payments",
+          "desc": "Deposit USDC from any supported EVM chain. On-chain transfer verification, automatic balance credit, and per-request deduction — no credit card required."
+        }
+      },
+      "how": {
+        "desc": "No provider SDK. No API key management. Just one gateway and your AI workloads.",
+        "title": "From setup to inference in 3 minutes",
+        "step1": {
+          "title": "Add Provider",
+          "desc": "Configure provider credentials in the dashboard. Auto-discover available models from upstream."
+        },
+        "step2": {
+          "title": "Create Key",
+          "desc": "Issue a consumer API key with budget limits, model access control, and rate limits."
+        },
+        "step3": {
+          "title": "Send Request",
+          "desc": "Point any OpenAI-compatible SDK at your gateway endpoint. Works with LangChain, Vercel AI SDK, or raw fetch."
+        },
+        "step4": {
+          "title": "Monitor",
+          "desc": "Track token usage, costs, and error rates in real time. Drill down by model, provider, or consumer."
+        }
+      }
+    }
+  },
+  "docs": {
+    "nav": {
+      "subtitle": "Documentation",
+      "deploy": "Deployment",
+      "production": "Production Deploy",
+      "guide": "User Guide",
+      "guide-overview": "Overview",
+      "security": "Security",
+      "architecture": "Architecture",
+      "system-arch": "System Architecture",
+      "database": "Database & Upgrades",
+      "brand": "Brand Guidelines"
+    },
+    "hub": {
+      "title": "Prismix Documentation",
+      "desc": "Guides, deployment options, and security architecture for your AI gateway.",
+      "deploy": "Standalone Deployment",
+      "security": "Security Architecture",
+      "security-desc": "Multi-layered defense-in-depth design protecting the gateway, credentials, and upstream APIs.",
+      "architecture": "System Architecture",
+      "architecture-desc": "Strategy pattern, request flow, signing engines, gateway hot path, and project structure."
+    },
+    "overview": {
+      "title": "Deployment Guide",
+      "desc": "Choose a deployment method that fits your needs",
+      "th": {
+        "method": "Method",
+        "database": "Database",
+        "cost": "Monthly Cost"
+      },
+      "docker": {
+        "label": "Standalone"
+      },
+      "val": {
+        "caddy": "Caddy (Let's Encrypt)"
+      }
+    },
+    "production": {
+      "title": "Production Deployment",
+      "desc": "Full production stack with persistent database, distributed cache, and multi-instance scaling support.",
+      "arch": {
+        "title": "Architecture",
+        "prismix": "Node.js app serving both the API and the React SPA",
+        "caddy": "Reverse proxy with automatic Let's Encrypt HTTPS certificates",
+        "postgres": "Production database with full ACID compliance",
+        "redis": "WriteThroughCache store + cross-instance event invalidation via Pub/Sub"
+      },
+      "requirements": {
+        "title": "Requirements",
+        "linux": "A Linux server (Ubuntu 22.04+, Debian 12+, or similar)",
+        "docker": "Docker Engine 24+ and Docker Compose v2",
+        "domain": "A domain name pointing to your server (for HTTPS)",
+        "ports": "Ports 80 and 443 open",
+        "ram": "Minimum 1 GB RAM (PostgreSQL + Redis + Node.js)"
+      },
+      "quick-start": {
+        "title": "Quick Start",
+        "step1": {
+          "title": "1. Clone and configure",
+          "set-minimum": "Set at minimum:",
+          "domain": "your domain (e.g. gateway.example.com)",
+          "jwt": "generate with: openssl rand -hex 32",
+          "pg-password": "database password (default: prismix)"
+        },
+        "step2": {
+          "title": "2. Deploy"
+        },
+        "step3": {
+          "title": "3. Verify"
+        }
+      },
+      "ops": {
+        "title": "Operations",
+        "logs": "View logs",
+        "restart": "Restart app (keeps DB + Redis running)",
+        "update": "Update",
+        "backup": "Backup database (PostgreSQL)",
+        "restore": "Restore database",
+        "redis-flush": "Flush Redis cache (safe — app repopulates)"
+      },
+      "config": {
+        "title": "Configuration",
+        "external-db": {
+          "title": "External PostgreSQL / Redis",
+          "desc": "To use managed database or Redis: remove the postgres/redis services from docker-compose.yml, set DATABASE_URL and/or REDIS_URL in .env.local, and remove corresponding depends_on entries."
+        },
+        "behind-proxy": {
+          "title": "Behind existing reverse proxy (Nginx/Traefik)",
+          "desc": "Remove the caddy service from docker-compose.yml and point your existing proxy to localhost:3403."
+        }
+      },
+      "troubleshooting": {
+        "title": "Troubleshooting",
+        "th": {
+          "symptom": "Symptom",
+          "cause": "Cause",
+          "fix": "Fix"
+        },
+        "rows": {
+          "eacces": {
+            "symptom": "EACCES on port 80/443",
+            "cause": "Ports in use",
+            "fix": "Stop existing web server, or use custom port"
+          },
+          "https": {
+            "symptom": "HTTPS not working",
+            "cause": "DNS not pointing to server",
+            "fix": "Check dig your-domain.com resolves to your IP"
+          },
+          "pg-refused": {
+            "symptom": "PostgreSQL connection refused",
+            "cause": "PG not ready",
+            "fix": "Wait for health check; check docker compose logs postgres"
+          },
+          "redis-refused": {
+            "symptom": "Redis connection refused",
+            "cause": "Redis not ready",
+            "fix": "Check docker compose logs redis"
+          },
+          "health": {
+            "symptom": "/api/health returns 503",
+            "cause": "DB or Redis issue",
+            "fix": "Check all service logs"
+          },
+          "pg-auth": {
+            "symptom": "FATAL: password authentication failed",
+            "cause": "Wrong PG password",
+            "fix": "Ensure POSTGRES_PASSWORD matches in .env.local"
+          },
+          "memory": {
+            "symptom": "High memory usage",
+            "cause": "Default pool too large",
+            "fix": "Reduce DB_POOL_MAX in .env.local (default: 20)"
+          }
+        }
+      }
+    },
+    "security": {
+      "title": "Security Architecture",
+      "desc": "Multi-layered security design protecting the AI gateway, upstream APIs, and user credentials.",
+      "arch": {
+        "title": "Defense-in-Depth Architecture",
+        "desc": "Every request passes through multiple security layers before reaching the upstream API. Each layer is independent — a bypass of one layer does not compromise the others.",
+        "l1": "Global Rate Limiting (IP / Token / Global)",
+        "t1": "rate-limiter",
+        "l2": "CORS Policy (gateway: open / dashboard: same-origin)",
+        "t2": "cors",
+        "l3": "Per-Resource CORS (OPTIONS preflight before payment)",
+        "t3": "cors",
+        "l4": "API Key Authentication",
+        "t4": "payment",
+        "l5": "Per-Resource Rate Limiting (resource × IP)",
+        "t5": "rate-limiter",
+        "l6": "Header Security (hop-by-hop stripping, proxy forwarding)",
+        "t6": "headers",
+        "l7": "Signing Engine (encrypted credentials / WASM sandbox)",
+        "t7": "crypto",
+        "l8": "Upstream Request (timeout + circuit breaker)",
+        "t8": "resilience"
+      },
+      "authn": {
+        "title": "Authentication",
+        "login": "Wallet Login",
+        "login-desc": "SIWE (Sign-In with Ethereum) — users prove wallet ownership by signing a server-issued nonce.",
+        "nonce": "Nonce Protection",
+        "nonce-desc": "Cryptographic nonces (128-bit, single-use, 5-minute TTL) with scope isolation between user and admin flows.",
+        "access": "Access Tokens",
+        "access-desc": "JWT (HS256) with 15-minute expiry, enforced issuer/audience claims, and role-based access control.",
+        "refresh": "Refresh Tokens",
+        "refresh-desc": "256-bit opaque tokens stored as SHA-256 hashes in the database — a DB breach does not expose usable tokens.",
+        "scope": "Role Isolation",
+        "scope-desc": "User and admin authentication use separate middleware, nonce scopes, and token roles. Cross-role escalation is structurally prevented."
+      },
+      "encryption": {
+        "title": "Credential Encryption",
+        "aes": "All signing engine credentials are encrypted at rest using AES-256-GCM with authenticated encryption.",
+        "pbkdf2": "Encryption keys are derived via PBKDF2-SHA256 (100,000 iterations) with per-domain key derivation.",
+        "mask": "API responses return masked credential values (e.g., sk-a***xyz) — raw secrets are never exposed to the frontend.",
+        "log": "Gateway logs mask sensitive headers (Authorization, X-API-Key, X-Signature) before writing to the database."
+      },
+      "sandbox": {
+        "title": "Custom Script Sandbox",
+        "desc": "User-provided signing scripts run in a QuickJS WebAssembly sandbox — completely isolated from the host system.",
+        "wasm": "WASM Isolation",
+        "wasm-desc": "Scripts execute in WebAssembly memory space with no access to host filesystem, network, or process.",
+        "memory": "Memory Limit",
+        "memory-desc": "8 MB per runtime — prevents memory exhaustion attacks.",
+        "cpu": "Execution Timeout",
+        "cpu-desc": "Configurable timeout (default 100ms, max 5s) enforced via interrupt handler — stops infinite loops.",
+        "context": "Context Isolation",
+        "context-desc": "Fresh execution context per invocation — no state leaks between script runs.",
+        "size": "Script Size Limit",
+        "size-desc": "64 KB maximum script size — prevents storage abuse.",
+        "output": "Output Validation",
+        "output-desc": "Script output headers are validated against RFC 7230 — forbidden transport-level headers are blocked.",
+        "error": "Error Containment",
+        "error-desc": "Script error messages are truncated to 200 characters — prevents information leakage."
+      },
+      "network": {
+        "title": "Network Security",
+        "rate-limit": "Multi-dimensional rate limiting: per-IP, per-token, per-resource, and global — all configurable via admin dashboard.",
+        "circuit-breaker": "Circuit breaker pattern prevents cascading failures when upstream services are unhealthy.",
+        "timeout": "Configurable upstream request timeouts with AbortController-based cancellation.",
+        "hop-by-hop": "Hop-by-hop header stripping per RFC 7230 §6.1 — prevents HTTP request smuggling.",
+        "cors": "Per-resource CORS policies with preflight handling before payment verification — browser-side access control.",
+        "proxy-headers": "Standard proxy forwarding headers (X-Forwarded-For/Proto/Host, X-Request-ID) for traceability."
+      },
+      "validation": {
+        "title": "Input Validation",
+        "headers": "Custom headers validated against RFC 7230 — name format, value encoding, control character rejection.",
+        "cors": "CORS configuration validated at save time — origin URL format, HTTP method whitelist, max-age bounds.",
+        "auth-profile": "Signing engine configurations validated by each engine's validateConfig before database write.",
+        "forbidden": "11 HTTP transport-level headers (Host, Content-Length, Transfer-Encoding, Connection, etc.) are blocked from user configuration."
+      },
+      "errors": {
+        "title": "Error Handling",
+        "prod": "Production error responses return generic messages — no stack traces, internal paths, or system details exposed.",
+        "script": "Custom script errors are truncated and sanitized before returning to the caller.",
+        "upstream": "Upstream connection failures return standardized error responses without leaking internal network topology."
+      }
+    },
+    "arch": {
+      "title": "System Architecture",
+      "desc": "Gateway pipeline, authentication, multi-tenancy, signing engines, and performance.",
+      "flow": {
+        "title": "Gateway Pipeline",
+        "desc": "One HTTP round-trip: 402 → pay → verified → forwarded → done. The hot path never blocks on database I/O. All writes are async."
+      },
+      "auth": {
+        "title": "Authentication",
+        "desc": "Pluggable auth strategy system supporting 4 login methods: SIWE (wallet-based), credentials (email/password), Google OAuth, and GitHub OAuth. JWT access tokens (15min) + single-use refresh tokens (7d). User and admin auth are fully isolated — separate scopes, separate middleware, separate context. The identities table maps auth providers to user accounts."
+      },
+      "tenant": {
+        "title": "Multi-Tenancy",
+        "desc": "All data entities are system-level. Resources, auth profiles, agents, and settings are globally managed by the admin. SSE events use scope-based filtering for admin and user isolation."
+      },
+      "chain": {
+        "title": "Blockchain",
+        "desc": "Multi-chain support via viem. Chains and tokens are DB-driven and admin-managed. Optional on-chain settlement uses ERC-3009 USDC authorization. Settlement is async — response is delivered before on-chain confirmation."
+      },
+      "engines": {
+        "title": "Signing Engines",
+        "desc": "5 built-in engines authenticate requests to upstream APIs. Configs encrypted at rest with AES-256-GCM.",
+        "th-engine": "Engine",
+        "th-headers": "Upstream Headers",
+        "th-notes": "Notes",
+        "api-key": "Static header, configurable name",
+        "bearer": "Static token",
+        "hmac": "Deterministic, payload = method+path+timestamp+SHA256(body)",
+        "oauth2": "Client credentials, token cache + auto-refresh",
+        "custom": "QuickJS WASM sandbox (ES5, 8MB, 5s timeout)",
+        "custom-headers": "User-defined",
+        "encryption": "All engine configs encrypted with AES-256-GCM using per-domain PBKDF2 key derivation."
+      },
+      "hotpath": {
+        "title": "Gateway Hot Path",
+        "th-component": "Component",
+        "th-mechanism": "Mechanism",
+        "th-latency": "Latency",
+        "cache": "Resource lookup",
+        "cache-mech": "TTL cache (memory or Redis write-through)",
+        "limiter": "Rate limiter",
+        "limiter-mech": "Sliding window, per-resource per-IP",
+        "breaker": "Circuit breaker",
+        "breaker-mech": "CLOSED/OPEN/HALF_OPEN state machine",
+        "signing": "Signing",
+        "signing-mech": "PBKDF2-cached key → AES decrypt → engine.sign()",
+        "writes": "DB writes",
+        "writes-mech": "Job queue (BullMQ/Redis or in-memory, async)"
+      },
+      "structure": {
+        "title": "Project Structure"
+      }
+    },
+    "db": {
+      "title": "Database & Upgrades",
+      "desc": "Schema management, migration workflow, and upgrade procedures.",
+      "supported": {
+        "title": "Supported Databases",
+        "th": {
+          "driver": "Driver",
+          "engine": "Engine",
+          "use-case": "Use Case",
+          "env": "Env Var"
+        },
+        "rows": {
+          "pg": {
+            "driver": "pg",
+            "engine": "node-postgres",
+            "use-case": "Production Docker",
+            "env": "DATABASE_URL"
+          }
+        },
+        "switch-note": "PostgreSQL is the only supported database engine. Set DATABASE_URL to connect."
+      },
+      "migration": {
+        "title": "Migration System",
+        "intro": "Migrations are generated by drizzle-kit from the TypeScript schema. Seed data lives separately in deploy/seed/. The schema files in src/server/db/schemas/ are the single source of truth."
+      },
+      "startup": {
+        "title": "Startup Behaviour",
+        "th": {
+          "scenario": "Scenario",
+          "behaviour": "Behaviour",
+          "who": "Responsibility"
+        },
+        "rows": {
+          "first-deploy": {
+            "scenario": "First deploy (empty DB)",
+            "behaviour": "Auto-run all migrations + seed data",
+            "who": "Automatic"
+          },
+          "restart": {
+            "scenario": "Normal restart",
+            "behaviour": "Nothing — skip initialisation",
+            "who": "Automatic"
+          },
+          "upgrade": {
+            "scenario": "Version upgrade",
+            "behaviour": "User runs pnpm db:migrate before restarting",
+            "who": "Manual"
+          }
+        },
+        "safety-note": "Existing databases are never modified automatically. This protects production data — operators always have a chance to back up before applying schema changes."
+      },
+      "upgrade": {
+        "title": "Upgrade Procedure",
+        "pg": {
+          "title": "Docker Production (PostgreSQL)"
+        }
+      },
+      "commands": {
+        "title": "Commands",
+        "th": {
+          "cmd": "Command",
+          "what": "What It Does",
+          "when": "When to Use"
+        },
+        "rows": {
+          "generate": {
+            "cmd": "pnpm db:generate",
+            "what": "Compare schema → generate migration SQL",
+            "when": "After editing schema files"
+          },
+          "migrate": {
+            "cmd": "pnpm db:migrate",
+            "what": "Execute pending migrations against the database",
+            "when": "Before restarting after upgrade"
+          },
+          "reset": {
+            "cmd": "pnpm db:reset",
+            "what": "Wipe DB + regenerate migrations from scratch",
+            "when": "Development only"
+          },
+          "push": {
+            "cmd": "pnpm db:push",
+            "what": "Push schema directly to DB (no migration file)",
+            "when": "Quick dev iteration"
+          },
+          "studio": {
+            "cmd": "pnpm db:studio",
+            "what": "Open Drizzle Studio GUI",
+            "when": "Inspect data"
+          }
+        }
+      },
+      "rules": {
+        "title": "Important Rules",
+        "th": {
+          "rule": "Rule",
+          "reason": "Reason"
+        },
+        "rows": {
+          "no-delete": {
+            "rule": "Never delete migration files after release",
+            "reason": "Breaks hash tracking in user databases — migrate() will fail"
+          },
+          "no-modify": {
+            "rule": "Never modify existing migration files",
+            "reason": "drizzle-orm skips already-applied hashes — schema will drift silently"
+          },
+          "sync-schemas": {
+            "rule": "Always edit pg.ts schema first",
+            "reason": "Both dialects must define identical tables and columns"
+          },
+          "backup-first": {
+            "rule": "Always back up before running db:migrate",
+            "reason": "Schema changes may be irreversible — a backup is your safety net"
+          },
+          "generate-both": {
+            "rule": "Always run db:generate for both dialects",
+            "reason": "pnpm db:generate"
+          }
+        }
+      },
+      "workflow": {
+        "title": "Developer Workflow",
+        "pre-release": {
+          "title": "Pre-release (before v1.0)",
+          "desc": "Migrations are disposable. Reset freely. db:reset deletes database files, clears generated migration SQL, and runs drizzle-kit generate to produce a single clean init migration."
+        },
+        "post-release": {
+          "title": "Post-release (v1.0+)",
+          "desc": "Existing migration files are immutable. Never delete or modify them — users' databases depend on them. Generate incremental migrations with db:generate, test locally, then ship."
+        }
+      },
+      "seed": {
+        "title": "Seed Data",
+        "desc": "Default networks and tokens are defined in deploy/seed/<dialect>.sql. These files are only executed on first deploy — not on restarts or upgrades.",
+        "existing": "To add new default data for existing deployments, include INSERT statements in the incremental migration SQL (generated by db:generate), or document manual INSERT commands in the release notes."
+      },
+      "troubleshooting": {
+        "title": "Troubleshooting",
+        "th": {
+          "symptom": "Symptom",
+          "fix": "Fix"
+        },
+        "rows": {
+          "migration-fail": {
+            "symptom": "\"migration failed\" on first startup",
+            "fix": "Check migration SQL for syntax errors. Run pnpm db:reset to regenerate."
+          },
+          "schema-drift": {
+            "symptom": "Schema drift after manual DB edits",
+            "fix": "Use pnpm db:push to force-sync, or generate a migration that accounts for the current state."
+          },
+          "bad-migration": {
+            "symptom": "Bad migration applied to production",
+            "fix": "Restore from backup, fix the migration SQL, ship a patch release, then re-run db:migrate."
+          }
+        }
+      }
+    },
+    "brand": {
+      "title": "Brand Guidelines",
+      "desc": "Logo, colors, typography, and design system conventions.",
+      "overview": {
+        "title": "Brand Overview",
+        "desc": "Prismix is a self-hosted AI gateway with unified multi-provider API access. Monochrome design, developer-first, infrastructure-native.",
+        "th": {
+          "attr": "Attribute",
+          "desc": "Description"
+        },
+        "rows": {
+          "trustworthy": {
+            "attr": "Trustworthy",
+            "desc": "Secure on-chain settlement, self-hosted infrastructure"
+          },
+          "minimal": {
+            "attr": "Minimal",
+            "desc": "Zero-config, no-code dashboard, clean interfaces"
+          },
+          "technical": {
+            "attr": "Technical",
+            "desc": "Built for developers, protocol-native, open standards"
+          },
+          "modern": {
+            "attr": "Modern",
+            "desc": "Monochrome aesthetic, geometric precision, flat design"
+          }
+        }
+      },
+      "logo": {
+        "title": "Logo",
+        "desc": "The Prismix icon is composed of three layered elements: corner brackets (the \"Gate\" frame), a C arc ring (the \"Coin\" + gateway opening), and a center dot (the transaction origin).",
+        "variants-title": "Icon Variants",
+        "th": {
+          "variant": "Variant",
+          "file": "File",
+          "used-when": "Used When"
+        },
+        "dark": "Dark",
+        "dark-when": "Light mode — high contrast on light backgrounds",
+        "light": "Light",
+        "light-when": "Dark mode — high contrast on dark backgrounds",
+        "wordmark-title": "Wordmark",
+        "wordmark-desc": "The wordmark is \"prismix\" in all lowercase. It inherits currentColor for automatic light/dark adaptation.",
+        "component-title": "Logo Component",
+        "favicon-title": "Favicon",
+        "favicon-desc": "Simplified icon for small sizes (16–48px). Only the C ring + center dot — corner brackets are omitted for clarity at small scale.",
+        "meaning-title": "Meaning",
+        "meaning-coin": "The C ring and center dot form an abstract coin.",
+        "meaning-gate": "The C ring's opening is the passage; the corner brackets are the frame.",
+        "meaning-together": "Together they read as Prismix: a coin passing through a gate.",
+        "lockup-title": "Logo Lockup",
+        "lockup-desc": "The full logo lockup combines the icon (28px) and wordmark (15px) horizontally, vertically centered, with an 8px gap. Optional subtitle appears below the wordmark in 10px muted text."
+      },
+      "colors": {
+        "title": "Color System",
+        "desc": "Monochrome design system with achromatic tokens. Accent colors (green, blue, red) are reserved for status indicators only — never in the logo or brand materials.",
+        "th": {
+          "name": "Name",
+          "hex": "Hex",
+          "usage": "Usage"
+        },
+        "rows": {
+          "black": {
+            "name": "Black",
+            "hex": "#08080A",
+            "usage": "Dark icon background, primary surfaces (dark mode)"
+          },
+          "charcoal": {
+            "name": "Charcoal",
+            "hex": "#1A1A1C",
+            "usage": "Dark icon background gradient start"
+          },
+          "white": {
+            "name": "White",
+            "hex": "#FFFFFF",
+            "usage": "Light icon background, text (dark mode)"
+          },
+          "grey-500": {
+            "name": "Grey 500",
+            "hex": "#888888",
+            "usage": "Dark icon foreground gradient end"
+          },
+          "grey-800": {
+            "name": "Grey 800",
+            "hex": "#111113",
+            "usage": "Light icon foreground gradient start"
+          },
+          "near-black": {
+            "name": "Near Black",
+            "hex": "#0A0A0A",
+            "usage": "Page background (dark mode)"
+          },
+          "near-white": {
+            "name": "Near White",
+            "hex": "#FAFAFA",
+            "usage": "Page background (light mode)"
+          }
+        },
+        "accent-note": "Accent colors (Emerald #10B981, Blue #3B82F6, Red #EF4444) are functional only — used for status indicators and data visualization, never in logo or brand materials."
+      },
+      "typography": {
+        "title": "Typography",
+        "th": {
+          "role": "Role",
+          "typeface": "Typeface",
+          "weight": "Weight"
+        },
+        "rows": {
+          "wordmark": {
+            "role": "Wordmark",
+            "typeface": "Plus Jakarta Sans",
+            "weight": "ExtraBold (800)"
+          },
+          "headings": {
+            "role": "Headings",
+            "typeface": "Plus Jakarta Sans",
+            "weight": "Bold (700)"
+          },
+          "body-en": {
+            "role": "Body (EN)",
+            "typeface": "Plus Jakarta Sans",
+            "weight": "Medium (500) / Regular (400)"
+          },
+          "body-zh": {
+            "role": "Body (ZH)",
+            "typeface": "Noto Sans SC",
+            "weight": "Regular (400) / Medium (500)"
+          },
+          "code": {
+            "role": "Code / Data",
+            "typeface": "System monospace",
+            "weight": "Regular (400)"
+          }
+        }
+      },
+      "usage": {
+        "title": "Logo Usage Rules",
+        "approved": "Dark icon on light backgrounds, light icon on dark backgrounds. Icon + wordmark horizontal lockup. Icon standalone at favicon size. Wordmark in currentColor.",
+        "th": {
+          "rule": "Do Not",
+          "reason": "Reason"
+        },
+        "rows": {
+          "no-rotate": {
+            "rule": "Rotate or skew the icon",
+            "reason": "Breaks geometric precision"
+          },
+          "no-color": {
+            "rule": "Add color to the icon",
+            "reason": "Brand is monochrome"
+          },
+          "no-shadow": {
+            "rule": "Add shadows or outer glow",
+            "reason": "Flat design only"
+          },
+          "no-stretch": {
+            "rule": "Stretch or distort",
+            "reason": "Always maintain 1:1 aspect ratio"
+          },
+          "no-dark-on-dark": {
+            "rule": "Use dark icon on dark backgrounds",
+            "reason": "Use the light variant for contrast"
+          },
+          "no-capitalize": {
+            "rule": "Capitalize the wordmark",
+            "reason": "\"prismix\" is always all lowercase"
+          },
+          "no-arc-angle": {
+            "rule": "Change the arc's opening angle",
+            "reason": "60° is part of the brand identity"
+          },
+          "no-busy-bg": {
+            "rule": "Place on busy backgrounds",
+            "reason": "Minimum contrast ratio of 3:1 required"
+          },
+          "no-outline": {
+            "rule": "Add outlines or borders around the icon",
+            "reason": "The rounded-rect background is the boundary"
+          },
+          "no-raster": {
+            "rule": "Recreate in raster format",
+            "reason": "Always use the source SVG"
+          },
+          "no-combine": {
+            "rule": "Combine with other logos without clear space",
+            "reason": "Maintain independent brand presence"
+          },
+          "no-font-change": {
+            "rule": "Change the wordmark font or weight",
+            "reason": "Plus Jakarta Sans ExtraBold is fixed"
+          }
+        }
+      },
+      "components": {
+        "title": "Component Library & Icons",
+        "desc": "UI components follow the shadcn/ui architecture with Radix UI primitives. Icons from Lucide React.",
+        "th": {
+          "property": "Property",
+          "value": "Value"
+        },
+        "rows": {
+          "primitives": {
+            "property": "Primitive layer",
+            "value": "Radix UI (@radix-ui/*)"
+          },
+          "styling": {
+            "property": "Styling",
+            "value": "Tailwind CSS v4, CVA variants"
+          },
+          "radius": {
+            "property": "Border radius",
+            "value": "--radius: 0.625rem (10px)"
+          },
+          "icons": {
+            "property": "Icon library",
+            "value": "Lucide React (lucide-react)"
+          },
+          "icon-size": {
+            "property": "Default icon size",
+            "value": "h-4 w-4 (16px), stroke-width: 2"
+          }
+        }
+      },
+      "voice": {
+        "title": "Voice & Tone",
+        "th": {
+          "attr": "Attribute",
+          "guideline": "Guideline"
+        },
+        "rows": {
+          "technical": {
+            "attr": "Technical",
+            "guideline": "Precise terminology — \"AI gateway\", \"unified API\", \"multi-provider\""
+          },
+          "concise": {
+            "attr": "Concise",
+            "guideline": "Short sentences, no marketing fluff"
+          },
+          "developer": {
+            "attr": "Developer-first",
+            "guideline": "Lead with how it works, not why it's great"
+          },
+          "neutral": {
+            "attr": "Neutral",
+            "guideline": "No exclamation marks, no hype language"
+          }
+        }
+      },
+      "assets": {
+        "title": "Asset Files",
+        "th": {
+          "asset": "Asset",
+          "location": "Location"
+        },
+        "rows": {
+          "logo-dark": {
+            "asset": "Logo dark variant (SVG)",
+            "location": "public/logo.svg"
+          },
+          "logo-light": {
+            "asset": "Logo light variant (SVG)",
+            "location": "public/logo-light.svg"
+          },
+          "favicon-svg": {
+            "asset": "Favicon (SVG)",
+            "location": "public/favicon.svg"
+          },
+          "favicon-ico": {
+            "asset": "Favicon (ICO)",
+            "location": "public/favicon.ico"
+          },
+          "apple-touch": {
+            "asset": "Apple touch icon",
+            "location": "public/apple-touch-icon.png"
+          },
+          "og-image": {
+            "asset": "OG image (1200x630)",
+            "location": "public/og.png"
+          },
+          "manifest": {
+            "asset": "Web manifest",
+            "location": "public/site.webmanifest"
+          },
+          "logo-component": {
+            "asset": "Logo React component",
+            "location": "src/web/components/ui/logo.tsx"
+          },
+          "robots": {
+            "asset": "Robots.txt",
+            "location": "public/robots.txt"
+          },
+          "sitemap": {
+            "asset": "Sitemap (XML)",
+            "location": "public/sitemap.xml"
+          }
+        }
+      },
+      "clear-space": {
+        "title": "Clear Space & Minimum Size",
+        "desc": "Minimum clear space around the logo equals 25% of the icon height on all sides.",
+        "th": {
+          "context": "Context",
+          "min-size": "Minimum Icon Size"
+        },
+        "rows": {
+          "favicon": {
+            "context": "Web favicon / sidebar",
+            "min-size": "20 x 20 px"
+          },
+          "header": {
+            "context": "Web header / navigation",
+            "min-size": "28 x 28 px"
+          },
+          "print": {
+            "context": "Print / marketing",
+            "min-size": "12 x 12 mm"
+          },
+          "app-icon": {
+            "context": "App icon (source)",
+            "min-size": "1024 x 1024 px"
+          }
+        },
+        "small-note": "Below 24px the corner brackets may be omitted — the C ring + center dot alone is sufficient for recognition."
+      },
+      "surfaces": {
+        "title": "Backgrounds & Surfaces",
+        "desc": "Dark mode is the default for marketing materials. Light mode for dashboards and documentation.",
+        "dark-title": "Dark Mode",
+        "light-title": "Light Mode"
+      },
+      "motion": {
+        "title": "Motion & Animation",
+        "th": {
+          "property": "Property",
+          "value": "Value"
+        },
+        "rows": {
+          "transition": {
+            "property": "Default transition",
+            "value": "duration-300, ease-out"
+          },
+          "hover": {
+            "property": "Hover effects",
+            "value": "Subtle lift (-translate-y-1) + shadow"
+          },
+          "page": {
+            "property": "Page transitions",
+            "value": "Fade-in-up with stagger"
+          },
+          "reduced": {
+            "property": "Reduced motion",
+            "value": "Respects prefers-reduced-motion: reduce"
+          },
+          "scrollbar": {
+            "property": "Scrollbar stability",
+            "value": "scrollbar-gutter: stable on <html>"
+          }
+        }
+      },
+      "seo": {
+        "title": "SEO & Social",
+        "desc": "Meta tags, structured data, and social sharing configuration.",
+        "th": {
+          "tag": "Tag",
+          "content": "Content"
+        },
+        "rows": {
+          "title-tag": {
+            "tag": "<title>",
+            "content": "Prismix — Self-Hosted AI Gateway for Unified API Access"
+          },
+          "og-image": {
+            "tag": "og:image",
+            "content": "/og.png (1200x630)"
+          },
+          "twitter": {
+            "tag": "twitter:card",
+            "content": "summary_large_image"
+          },
+          "canonical": {
+            "tag": "Canonical",
+            "content": "https://prismix.app"
+          },
+          "hreflang": {
+            "tag": "Hreflang",
+            "content": "en, zh, x-default"
+          }
+        },
+        "structured-title": "Structured Data",
+        "structured-desc": "JSON-LD for SoftwareApplication, Organization, and FAQPage — enables rich snippets in search results.",
+        "files-title": "SEO Files",
+        "files-desc": "robots.txt (allow homepage, block private routes), sitemap.xml (XML with hreflang), site.webmanifest (PWA manifest)."
+      }
+    }
+  },
+  "error": {
+    "403": {
+      "title": "Access Denied",
+      "desc": "You don't have permission to view this page."
+    },
+    "404": {
+      "title": "Page Not Found",
+      "desc": "The page you're looking for doesn't exist or has been moved."
+    },
+    "btn": {
+      "back": "Go Back",
+      "home": "Back to Home",
+      "login": "Sign In"
+    }
+  },
+  "topup": {
+    "title": "Top-up Orders",
+    "desc": "Manage fiat top-up orders for your agents",
+    "table-empty": "No top-up orders found",
+    "th": {
+      "id": "ID",
+      "agent": "Agent",
+      "amount": "Amount",
+      "fiat-amount": "Fiat Amount",
+      "status": "Status",
+      "method": "Payment Method",
+      "time": "Time",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "filter": {
+      "all": "All Statuses",
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "btn": {
+      "confirm": "Confirm",
+      "reject": "Reject"
+    },
+    "confirm": {
+      "title": "Confirm Top-up Order",
+      "fiat-amount": "Fiat Amount (optional)",
+      "note": "Note (optional)"
+    },
+    "reject": {
+      "title": "Reject Top-up Order",
+      "note": "Reason (optional)"
+    },
+    "toast": {
+      "confirmed": "Order confirmed successfully",
+      "rejected": "Order rejected",
+      "confirm-error": "Failed to confirm order",
+      "reject-error": "Failed to reject order"
+    },
+    "detail": {
+      "title": "Order Details",
+      "currency": "Fiat Currency",
+      "proof": "Payment Proof",
+      "note": "Admin Note",
+      "confirmed-at": "Confirmed At",
+      "expired-at": "Expired At",
+      "updated-at": "Updated At"
+    }
+  },
+  "ledger": {
+    "title": "Transaction Ledger",
+    "desc": "All wallet transactions — deposits, withdrawals, AI charges, and refunds",
+    "table-title": "Transactions",
+    "empty": "No transactions yet",
+    "filter": {
+      "type": "Type",
+      "source": "Source",
+      "agent": "Wallet",
+      "all-types": "All types",
+      "all-sources": "All sources",
+      "all-agents": "All wallets"
+    },
+    "type": {
+      "top_up": "Deposit",
+      "ai_usage": "AI Usage",
+      "withdraw": "Withdrawal",
+      "payment": "Payment",
+      "admin_debit": "Admin Debit"
+    },
+    "source": {
+      "platform": "Platform",
+      "on_chain": "On-chain"
+    },
+    "th": {
+      "balance": "Balance Change",
+      "wallet": "Wallet",
+      "detail": "Detail"
+    }
+  },
+  "fiat": {
+    "title": "Payment Methods",
+    "desc": "Configure fiat payment methods for agent top-ups",
+    "btn": {
+      "add": "Add Payment Method",
+      "create": "Create",
+      "save": "Save Changes",
+      "delete": "Delete"
+    },
+    "table-empty": "No payment methods configured yet",
+    "th": {
+      "display-name": "Display Name",
+      "method": "Method",
+      "enabled": "Enabled",
+      "actions": "Actions"
+    },
+    "method": {
+      "bank_transfer": "Bank Transfer",
+      "alipay": "Alipay",
+      "wechat": "WeChat Pay",
+      "paypal": "PayPal"
+    },
+    "form": {
+      "method": "Payment Method",
+      "display-name": "Display Name",
+      "display-name-ph": "e.g. Alipay - John",
+      "bank-name": "Bank Name",
+      "bank-name-ph": "e.g. Bank of China",
+      "account-name": "Account Name",
+      "account-name-ph": "e.g. John Doe",
+      "account-number": "Account Number",
+      "account-number-ph": "e.g. 6222 **** **** 1234",
+      "account-id": "Account ID",
+      "account-id-ph": "e.g. user@example.com",
+      "qr-code-url": "QR Code URL (optional)",
+      "qr-code-url-ph": "https://...",
+      "email": "Email",
+      "email-ph": "e.g. user@paypal.com",
+      "note": "Note",
+      "note-ph": "Additional instructions for payer",
+      "enabled": "Enabled"
+    },
+    "dialog-title-create": "Add Payment Method",
+    "dialog-title-edit": "Edit Payment Method",
+    "delete-title": "Delete Payment Method",
+    "delete-confirm": "Are you sure you want to delete this payment method? This action cannot be undone.",
+    "toast": {
+      "created": "Payment method created",
+      "updated": "Payment method updated",
+      "deleted": "Payment method deleted",
+      "create-error": "Failed to create payment method",
+      "update-error": "Failed to update payment method",
+      "delete-error": "Failed to delete payment method"
+    },
+    "valid": {
+      "display-name-required": "Display name is required"
+    }
+  },
+  "ai": {
+    "title": "AI API Keys",
+    "desc": "Manage your API keys for AI providers",
+    "empty": "No API keys configured yet",
+    "empty-hint": "Add API keys to your providers to start using the AI relay",
+    "never": "Never",
+    "test": "Test",
+    "testing": "Testing...",
+    "unknown-provider": "Unknown Provider",
+    "tag": {
+      "platform": "Platform"
+    },
+    "btn": {
+      "new": "Add Key",
+      "create": "Create Key"
+    },
+    "pool": {
+      "count": "{{enabled}}/{{total}} active",
+      "lru": "Round-robin",
+      "next": "Next in rotation",
+      "add": "Add Key",
+      "weight-hint": "Weight — higher value means more traffic share",
+      "weight-down": "Decrease weight",
+      "weight-up": "Increase weight",
+      "strategy": {
+        "round-robin": "Round-robin",
+        "random": "Random"
+      }
+    },
+    "th": {
+      "provider": "Provider",
+      "name": "Key Name",
+      "key-prefix": "Key Prefix",
+      "enabled": "Enabled",
+      "last-used": "Last Used"
+    },
+    "form": {
+      "provider": "Provider",
+      "provider-ph": "Select a provider",
+      "name": "Key Name",
+      "name-ph": "Give your key a name",
+      "api-key": "API Key",
+      "api-key-ph": "sk-...",
+      "api-key-hint": "Your key will be encrypted and stored securely",
+      "owner": "Key Provider (optional)",
+      "owner-ph": "Select a key provider",
+      "owner-none": "Platform-owned (no provider)",
+      "owner-hint": "Assign this key to a third-party provider for revenue sharing"
+    },
+    "dialog": {
+      "add-title": "Add API Key",
+      "delete-title": "Delete API Key",
+      "delete-body": "Delete this API key? This cannot be undone."
+    },
+    "toast": {
+      "created": "API key created",
+      "updated": "API key updated",
+      "deleted": "API key deleted",
+      "create-error": "Failed to create API key",
+      "update-error": "Failed to update API key",
+      "delete-error": "Failed to delete API key",
+      "test-ok": "Connection successful ({{ms}}ms)",
+      "test-error": "Connection failed: {{error}}"
+    }
+  },
+  "ai-providers": {
+    "title": "AI Providers",
+    "desc": "Manage your AI provider connections",
+    "empty": "No providers configured yet",
+    "btn": {
+      "new": "Add Provider",
+      "create": "Create Provider"
+    },
+    "th": {
+      "name": "Name",
+      "provider-id": "Provider ID",
+      "api-format": "API Format",
+      "auth-type": "Auth Type",
+      "enabled": "Enabled"
+    },
+    "form": {
+      "provider-id": "Provider ID",
+      "provider-id-ph": "Enter provider ID",
+      "name": "Name",
+      "name-ph": "Enter provider name",
+      "base-url": "Base URL",
+      "base-url-ph": "https://api.example.com/v1",
+      "api-format": "API Format",
+      "auth-type": "Auth Type"
+    },
+    "dialog": {
+      "add-title": "Add Provider",
+      "edit-title": "Edit Provider",
+      "delete-title": "Delete Provider",
+      "delete-body": "Delete \"{{name}}\"? All models and keys will also be deleted."
+    },
+    "toast": {
+      "created": "Provider created",
+      "updated": "Provider updated",
+      "deleted": "Provider deleted",
+      "create-error": "Failed to create provider",
+      "update-error": "Failed to update provider",
+      "delete-error": "Failed to delete provider"
+    }
+  },
+  "ai-models": {
+    "title": "AI Models",
+    "desc": "Manage model catalog per provider",
+    "empty": "No models for this provider",
+    "select-provider": "Select a provider",
+    "no-providers": "No providers configured",
+    "btn": {
+      "new": "Add Model",
+      "create": "Create Model",
+      "add-selected": "Add {{count}} Models",
+      "sync-prices": "Sync Prices"
+    },
+    "th": {
+      "model-id": "Model ID",
+      "name": "Name",
+      "input-price": "Input Price",
+      "output-price": "Output Price",
+      "capabilities": "Capabilities",
+      "enabled": "Enabled"
+    },
+    "form": {
+      "model-id": "Model ID",
+      "model-id-ph": "model-name",
+      "name": "Name",
+      "name-ph": "Model Display Name",
+      "input-price": "Input Price (/1M tokens)",
+      "output-price": "Output Price (/1M tokens)",
+      "price-ph": "0.00",
+      "capabilities": "Capabilities",
+      "capabilities-ph": "chat, vision, tools, streaming",
+      "enabled": "Enabled"
+    },
+    "discover": {
+      "toggle": "Discover from provider",
+      "loading": "Fetching models from provider…",
+      "no-key": "No API key configured for this provider. Add a key first to discover models.",
+      "models": "Models",
+      "select-all": "All",
+      "select-none": "None"
+    },
+    "dialog": {
+      "add-title": "Add Model",
+      "edit-title": "Edit Model",
+      "delete-title": "Delete Model",
+      "delete-body": "Delete \"{{name}}\"?"
+    },
+    "sync": {
+      "title": "Sync Prices",
+      "desc": "Compare current prices with LiteLLM catalog. Select models to update.",
+      "th-model": "Model",
+      "th-input-price": "Input Price",
+      "th-output-price": "Output Price",
+      "old": "Current",
+      "new": "LiteLLM",
+      "no-diff": "All prices are up to date with LiteLLM catalog.",
+      "apply": "Update {{count}} Models"
+    },
+    "toast": {
+      "created": "Model created",
+      "updated": "Model updated",
+      "deleted": "Model deleted",
+      "batch-created": "{{count}} models added",
+      "prices-synced": "{{count}} model prices updated",
+      "prices-no-diff": "All prices are up to date",
+      "sync-error": "Failed to sync prices",
+      "create-error": "Failed to create model",
+      "update-error": "Failed to update model",
+      "delete-error": "Failed to delete model"
+    }
+  },
+  "ai-relay": {
+    "title": "Unified Endpoint",
+    "desc": "One base URL for all AI providers — route OpenAI, Anthropic, and Gemini requests through Prismix",
+    "intro": {
+      "title": "What is the Unified Endpoint?",
+      "body": "The Unified Endpoint lets you access multiple AI providers (OpenAI, Anthropic, Gemini, etc.) through a single base URL. Simply point any compatible SDK at this endpoint with a consumer key — Prismix handles provider routing, billing, and usage tracking behind the scenes.",
+      "benefits": "One URL, all models | Per-key billing & rate limits | Zero SDK changes needed"
+    },
+    "endpoint": {
+      "title": "Base URL",
+      "hint-before": "Use this base URL with your ",
+      "hint-link": "consumer key (ska_)",
+      "hint-after": ". Compatible with OpenAI, Anthropic, and Gemini SDKs."
+    },
+    "providers": {
+      "title": "Provider Status",
+      "manage-keys": "Manage Keys",
+      "ready": "Ready",
+      "no-key": "No Key",
+      "empty": "No providers available"
+    },
+    "toast": {
+      "copied": "Copied to clipboard"
+    }
+  },
+  "ai-usage": {
+    "title": "AI Usage",
+    "desc": "Token consumption and request statistics",
+    "stats": {
+      "requests": "Total Requests",
+      "input-tokens": "Input Tokens",
+      "output-tokens": "Output Tokens",
+      "total-tokens": "Total Tokens",
+      "est-cost": "Est. Cost",
+      "error-rate": "Error Rate"
+    },
+    "by-provider": {
+      "title": "By Provider"
+    },
+    "by-model": {
+      "title": "By Model"
+    },
+    "recent": {
+      "title": "Recent Requests",
+      "empty": "No usage data yet. Send a request through the relay to see stats.",
+      "show-all": "Show all {{count}} requests",
+      "collapse": "Show less"
+    },
+    "th": {
+      "provider": "Provider",
+      "model": "Model",
+      "requests": "Requests",
+      "input": "Input Tokens",
+      "output": "Output Tokens",
+      "total": "Total Tokens",
+      "tokens": "Tokens",
+      "cost": "Est. Cost",
+      "latency": "Latency",
+      "status": "Status",
+      "time": "Time",
+      "key-name": "Key Name"
+    },
+    "by-key": {
+      "title": "By Consumer Key"
+    },
+    "detail": {
+      "title": "Usage: {{name}}",
+      "back": "Back to Usage Overview",
+      "daily-title": "Daily Usage (Last 30 Days)",
+      "daily-empty": "No daily data yet",
+      "th-date": "Date",
+      "not-found": "Consumer key not found"
+    },
+    "chart": {
+      "daily-title": "Daily Trend (Last 30 Days)",
+      "model-title": "Token Distribution by Model"
+    },
+    "request-log": {
+      "request": "Request Body",
+      "response": "Response Body",
+      "not-found": "Request log not available — logging may be disabled or the record has expired."
+    }
+  },
+  "ai-logs": {
+    "title": "AI Gateway Logs",
+    "desc": "Request-level logs for AI model relay",
+    "card-title": "Request Logs",
+    "live": "Live",
+    "table-empty": "No AI logs found",
+    "th": {
+      "model": "Model",
+      "provider": "Provider",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "latency": "Latency",
+      "status": "Status",
+      "time": "Time"
+    },
+    "filter": {
+      "all-models": "All Models",
+      "all-keys": "All Consumer Keys",
+      "all-status": "All Status"
+    },
+    "detail": {
+      "title": "Request #{{id}}",
+      "overview": "Overview",
+      "request-id": "Request ID",
+      "model": "Model",
+      "provider": "Provider",
+      "consumer-key": "Consumer Key",
+      "input-tokens": "Input Tokens",
+      "output-tokens": "Output Tokens",
+      "total-tokens": "Total Tokens",
+      "cost": "Cost",
+      "latency": "Latency",
+      "status": "Status",
+      "time": "Time",
+      "error": "Error",
+      "req-body": "Request Body",
+      "res-body": "Response Body",
+      "no-body": "Request logging is not enabled or log has expired"
+    }
+  },
+  "consumer-keys": {
+    "title": "Consumer Keys",
+    "desc": "Issue API keys to your end users — billing is managed by the linked pay-agent",
+    "empty": "No consumer keys created yet",
+    "never": "Never",
+    "btn": {
+      "new": "Create Key",
+      "create": "Create"
+    },
+    "th": {
+      "name": "Name",
+      "prefix": "Key Prefix",
+      "agent": "Pay Agent",
+      "status": "Status",
+      "last-used": "Last Used"
+    },
+    "form": {
+      "name": "Key Name",
+      "name-ph": "Enter key name",
+      "initial-balance": "Initial Balance (USDC)",
+      "initial-balance-ph": "0.00",
+      "initial-balance-hint": "Optional — credits the linked pay agent on creation",
+      "markup": "Markup",
+      "markup-ph": "Inherit from agent",
+      "markup-hint": "Leave empty to use the agent's default markup"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "dialog": {
+      "create-title": "Create Consumer Key",
+      "created-title": "Key Created",
+      "created-hint": "Copy your consumer key now. You can also copy it later from the table.",
+      "delete-title": "Delete Consumer Key",
+      "delete-body": "Delete this consumer key? The user will lose access immediately.",
+      "suspend-agent-title": "Suspend Linked Agent?",
+      "suspend-agent-body": "The agent \"{{name}}\" has a balance of ${{balance}} USDC. Would you like to suspend it? Suspended agents cannot process payments. You can reactivate or delete it from the Pay Agents page.",
+      "suspend": "Suspend Agent",
+      "keep-active": "Keep Active"
+    },
+    "toast": {
+      "created": "Consumer key created",
+      "create-error": "Failed to create consumer key",
+      "deleted": "Consumer key deleted",
+      "delete-error": "Failed to delete consumer key",
+      "copied": "API key copied to clipboard",
+      "copy-error": "Failed to copy API key",
+      "agent-suspended": "Pay agent suspended",
+      "agent-suspend-error": "Failed to suspend pay agent"
+    }
+  },
+  "user": {
+    "nav": {
+      "subtitle": "User Portal",
+      "overview": "Overview",
+      "endpoint": "API Endpoint",
+      "keys": "Keys",
+      "usage": "Usage",
+      "logs": "Logs",
+      "settings": "Settings",
+      "wallet": "Wallet",
+      "logout": "Sign Out"
+    },
+    "login": {
+      "title": "Sign in to your account",
+      "desc": "Access your API keys and usage dashboard",
+      "sign-in-btn": "Sign in with Wallet",
+      "register-btn": "Create Account",
+      "have-account": "Already have an account? Sign in",
+      "no-account": "Don't have an account? Register",
+      "back": "Back to home",
+      "footer-note": "By signing in, you agree to the Terms of Service."
+    },
+    "overview": {
+      "title": "Overview",
+      "desc": "Your API usage at a glance",
+      "total-balance": "Total Balance",
+      "total-keys": "Active Keys",
+      "total-requests": "Total Requests",
+      "total-spend": "Total Spend"
+    },
+    "dash": {
+      "title": "Dashboard",
+      "desc": "Overview of your API usage and wallet",
+      "requests": "Total Requests",
+      "tokens": "Total Tokens",
+      "spend": "Total Spend",
+      "balance": "Wallet Balance",
+      "keys": "Active Keys",
+      "all-time": "All time",
+      "daily-title": "Daily Usage (Last 7 Days)",
+      "volume-title": "Request Volume",
+      "volume-desc": "Last 30 days",
+      "volume-requests": "Requests",
+      "volume-tokens": "Tokens",
+      "recent-title": "Recent Requests",
+      "recent-empty": "No requests yet",
+      "recent-empty-hint": "Usage will appear here after your first API call",
+      "view-full": "View Full Report"
+    },
+    "keys": {
+      "title": "My API Keys",
+      "desc": "Manage your consumer API keys",
+      "empty": "No API keys yet. Create one to get started.",
+      "create": "Create Key",
+      "create-title": "Create API Key",
+      "name-label": "Key Name",
+      "name-ph": "My API Key",
+      "created-notice": "API Key Created",
+      "created-warning": "Please store this key securely.",
+      "dismiss": "Done",
+      "copied": "API key copied to clipboard",
+      "toast": {
+        "created": "API key created",
+        "create-error": "Failed to create API key",
+        "copy-error": "Failed to copy API key"
+      },
+      "th": {
+        "name": "Name",
+        "prefix": "Key Prefix",
+        "balance": "Balance",
+        "status": "Status",
+        "created": "Created"
+      },
+      "status": {
+        "active": "Active",
+        "revoked": "Revoked"
+      }
+    },
+    "usage": {
+      "title": "Usage",
+      "desc": "View your API usage statistics",
+      "total-requests": "Total Requests",
+      "total-tokens": "Total Tokens",
+      "total-spend": "Total Spend",
+      "daily-title": "Daily Usage (Last 30 Days)",
+      "no-data": "No usage data yet",
+      "th": {
+        "date": "Date",
+        "requests": "Requests",
+        "tokens": "Tokens",
+        "spend": "Spend"
+      }
+    },
+    "logs": {
+      "title": "Request Logs",
+      "desc": "View your recent API request logs",
+      "empty": "No request logs yet",
+      "total": "{{count}} total records",
+      "th": {
+        "model": "Model",
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "status": "Status",
+        "latency": "Latency",
+        "time": "Time"
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "desc": "Manage your profile",
+      "profile-title": "Profile",
+      "name-label": "Name",
+      "email-label": "Email",
+      "save": "Save Changes",
+      "toast": {
+        "updated": "Profile updated"
+      }
+    },
+    "endpoint": {
+      "title": "API Endpoint",
+      "desc": "Connect any OpenAI-compatible SDK to the Prismix AI gateway",
+      "copied": "Copied to clipboard",
+      "intro-title": "Unified AI Endpoint",
+      "intro-body": "Point any OpenAI-compatible SDK at this base URL with your API key. Prismix routes your requests to the appropriate AI provider, tracks usage, and handles billing automatically.",
+      "url-title": "Base URL",
+      "url-hint": "Use this URL as the base URL in your SDK configuration along with your consumer API key.",
+      "keys-title": "My API Keys",
+      "manage-keys": "Manage Keys",
+      "no-keys": "You don't have any API keys yet. Create one to get started."
+    },
+    "wallet": {
+      "title": "Wallet",
+      "desc": "Manage your USDC balance, deposits, and withdrawals",
+      "balance": "Available Balance",
+      "deposit": "Deposit",
+      "withdraw": "Withdraw",
+      "deposit-title": "Deposit USDC",
+      "deposit-desc": "Send USDC to the address below on a supported network",
+      "deposit-address": "Deposit Address",
+      "deposit-network": "Network",
+      "deposit-copy": "Copy Address",
+      "deposit-copied": "Address copied!",
+      "deposit-manual": "Verify by Transaction Hash",
+      "deposit-manual-desc": "Already sent? Paste your transaction hash for instant verification",
+      "deposit-txhash-ph": "0x...",
+      "deposit-verify": "Verify Deposit",
+      "deposit-verified": "Deposit verified! {{amount}} USDC credited.",
+      "deposit-failed": "Verification failed",
+      "deposit-already": "This transaction has already been verified",
+      "deposit-not-found": "No USDC transfer found for this address",
+      "withdraw-title": "Withdraw USDC",
+      "withdraw-desc": "Send USDC from your wallet to an external address",
+      "withdraw-address": "Recipient Address",
+      "withdraw-address-ph": "0x...",
+      "withdraw-amount": "Amount",
+      "withdraw-amount-ph": "0.00",
+      "withdraw-network": "Network",
+      "withdraw-max": "Max",
+      "withdraw-confirm": "Confirm Withdrawal",
+      "withdraw-success": "Withdrawal submitted, pending admin review",
+      "withdraw-failed": "Withdrawal failed",
+      "withdraw-insufficient": "Insufficient balance",
+      "withdraw-unavailable": "Withdrawals are currently unavailable",
+      "pending-title": "Pending Withdrawals",
+      "pending-th": {
+        "amount": "Amount",
+        "address": "To Address",
+        "network": "Network",
+        "status": "Status",
+        "remark": "Remark",
+        "time": "Submitted"
+      },
+      "pending-status": {
+        "pending": "Pending Review",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Rejected"
+      },
+      "transactions": "Transaction History",
+      "tx-type": {
+        "top_up": "Deposit",
+        "withdraw": "Withdrawal",
+        "payment": "Payment",
+        "ai_usage": "AI Usage",
+        "admin_debit": "Admin Debit"
+      },
+      "tx-empty": "No transactions yet",
+      "filter": {
+        "all-types": "All Types"
+      },
+      "th": {
+        "balance": "Balance",
+        "detail": "Detail"
+      },
+      "source": {
+        "platform": "Platform",
+        "on_chain": "On-chain"
+      }
+    }
+  }
+}
