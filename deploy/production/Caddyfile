@@ -14,8 +14,15 @@
 		header_up X-Forwarded-Proto {scheme}
 	}
 
-	# Compression
-	encode gzip zstd
+	# Compression — exclude AI streaming paths.
+	# gzip/zstd are buffered compression: the encoder accumulates data before
+	# flushing, which delays SSE frames and breaks real-time streaming for
+	# Claude Code and other AI clients. Caddy auto-flushes text/event-stream
+	# at the proxy level, but compression re-buffers the already-flushed data.
+	@not-stream {
+		not path /api/gateway/ai/* /api/admin/ai/* /api/events
+	}
+	encode @not-stream gzip zstd
 
 	# Security headers
 	header {

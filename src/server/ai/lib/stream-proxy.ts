@@ -21,8 +21,24 @@ import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/
 
 import type { ProviderAdapter, TokenUsage } from "../providers/types";
 
-/** Default upstream timeout: 5 minutes. */
-const STREAM_TIMEOUT_MS = 5 * 60 * 1000;
+/**
+ * Idle timeout: abort if no data received from upstream for this long.
+ * Anthropic sends `ping` events during extended thinking, so 5 min of true
+ * silence means the connection is dead.
+ */
+export const STREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * Hard cap: abort unconditionally after this duration regardless of activity.
+ * Protects against infinite streams. 30 min covers the longest Claude Code sessions.
+ */
+export const STREAM_MAX_DURATION_MS = 30 * 60 * 1000;
+
+/**
+ * SSE heartbeat interval. Sends a `: heartbeat` comment to keep intermediate
+ * proxies (Nginx, Cloudflare, ALB) from closing idle TCP connections.
+ */
+export const HEARTBEAT_INTERVAL_MS = 15_000;
 
 /** Maximum SSE buffer size before aborting (1 MB). */
 const MAX_BUFFER_SIZE = 1_048_576;
@@ -60,7 +76,7 @@ export async function fetchUpstream(
   url: string,
   headers: Record<string, string>,
   body: string,
-  timeoutMs = STREAM_TIMEOUT_MS,
+  timeoutMs = STREAM_MAX_DURATION_MS,
 ): Promise<Response> {
   return fetch(url, {
     method: "POST",
@@ -75,6 +91,13 @@ export async function fetchUpstream(
 /**
  * Forward a successful upstream SSE Response to the client.
  * Once called, SSE headers are committed — no further retries possible.
+ *
+ * Connection resilience:
+ * - **Idle timeout**: resets on every upstream chunk — detects dead connections.
+ * - **Max duration**: hard cap prevents infinite streams.
+ * - **Heartbeat**: SSE comments keep intermediate proxies alive.
+ * - **Reader cancel**: client disconnect or timeout cancels the upstream reader,
+ *   unblocking any pending `reader.read()`.
  */
 export function forwardStream(
   c: Context,
@@ -84,21 +107,44 @@ export function forwardStream(
   onComplete?: StreamCompleteCallback,
 ): Response {
   const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), STREAM_TIMEOUT_MS);
+  let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+  /** Abort stream + cancel the upstream reader (unblocks pending read). */
+  const cancelAll = () => {
+    abortController.abort();
+    activeReader?.cancel().catch(() => {});
+  };
+
+  const maxTimer = setTimeout(cancelAll, STREAM_MAX_DURATION_MS);
+  let idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
 
   return streamSSE(c, async (stream) => {
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+
     stream.onAbort(() => {
-      abortController.abort();
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
+      if (heartbeat) clearInterval(heartbeat);
+      cancelAll();
     });
 
     if (!upstreamRes.body) {
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
       await stream.writeSSE({ data: JSON.stringify({ error: "No response body from upstream" }) });
       return;
     }
 
     const reader = upstreamRes.body.getReader();
+    activeReader = reader;
+
+    // Start heartbeat — SSE comment keeps proxies (Nginx/Cloudflare/ALB) from closing idle TCP
+    heartbeat = setInterval(async () => {
+      if (!stream.aborted) {
+        await stream.write(": heartbeat\n\n").catch(() => {});
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
     const decoder = new TextDecoder();
     let buffer = "";
     let usage: TokenUsage | null = null;
@@ -110,6 +156,10 @@ export function forwardStream(
       while (!stream.aborted && !abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) break;
+
+        // Reset idle timer — upstream is still sending data
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
 
         buffer += decoder.decode(value, { stream: true });
 
@@ -166,7 +216,9 @@ export function forwardStream(
         );
       }
     } finally {
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
+      if (heartbeat) clearInterval(heartbeat);
       reader.releaseLock();
 
       const latencyMs = Date.now() - meta.start;
@@ -235,6 +287,7 @@ export function extractDataLine(frame: string): string | null {
  * (OpenAI / Anthropic / Gemini), then forwards the raw frame as-is.
  *
  * Used by generic `/v1/*` passthrough routes that don't know the provider format.
+ * Same resilience features as forwardStream: idle timeout, heartbeat, reader cancel.
  */
 export function forwardPassthroughStream(
   c: Context,
@@ -243,21 +296,42 @@ export function forwardPassthroughStream(
   onComplete?: StreamCompleteCallback,
 ): Response {
   const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), STREAM_TIMEOUT_MS);
+  let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+  const cancelAll = () => {
+    abortController.abort();
+    activeReader?.cancel().catch(() => {});
+  };
+
+  const maxTimer = setTimeout(cancelAll, STREAM_MAX_DURATION_MS);
+  let idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
 
   return streamSSE(c, async (stream) => {
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+
     stream.onAbort(() => {
-      abortController.abort();
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
+      if (heartbeat) clearInterval(heartbeat);
+      cancelAll();
     });
 
     if (!upstreamRes.body) {
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
       await stream.writeSSE({ data: JSON.stringify({ error: "No response body from upstream" }) });
       return;
     }
 
     const reader = upstreamRes.body.getReader();
+    activeReader = reader;
+
+    heartbeat = setInterval(async () => {
+      if (!stream.aborted) {
+        await stream.write(": heartbeat\n\n").catch(() => {});
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
     const decoder = new TextDecoder();
     let buffer = "";
     let usage: TokenUsage | null = null;
@@ -268,6 +342,10 @@ export function forwardPassthroughStream(
       while (!stream.aborted && !abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) break;
+
+        // Reset idle timer — upstream is still sending data
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
 
         buffer += decoder.decode(value, { stream: true });
 
@@ -309,7 +387,9 @@ export function forwardPassthroughStream(
         );
       }
     } finally {
-      clearTimeout(timeout);
+      clearTimeout(maxTimer);
+      clearTimeout(idleTimer);
+      if (heartbeat) clearInterval(heartbeat);
       reader.releaseLock();
 
       const latencyMs = Date.now() - meta.start;

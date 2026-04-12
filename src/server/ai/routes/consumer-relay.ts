@@ -36,12 +36,12 @@ import {
   type StreamCompleteCallback,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
+import { STREAM_MAX_DURATION_MS } from "../lib/stream-proxy";
 import { getConsumerSession } from "../middleware/consumer-key-auth";
 import { getAdapter } from "../providers/registry";
 import type { OpenAIChatBody, TokenUsage } from "../providers/types";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
-const UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
 
 const consumerRelay = new Hono();
 
@@ -254,7 +254,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: serializedBody,
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -491,7 +491,7 @@ consumerRelay.all("/v1/*", async (c) => {
       method: c.req.method,
       headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
       body: c.req.method !== "GET" ? serializedBody : undefined,
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
     });
 
     // ── Streaming passthrough — parse SSE frames for usage + billing ──

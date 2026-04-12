@@ -77,7 +77,14 @@ app.use(
 );
 
 // ── Request body size limit ──────────────────────────────────────────
-app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 })); // 1 MB
+// AI Gateway needs a higher limit: Claude Code sends full conversation history
+// (files, tool results, extended thinking) in a single request — easily 5-20 MB.
+app.use("/api/*", async (c, next) => {
+  const maxSize = c.req.path.startsWith("/api/gateway/ai/")
+    ? 20 * 1024 * 1024 // 20 MB — AI gateway (long conversations)
+    : 1 * 1024 * 1024; //  1 MB — all other API routes
+  return bodyLimit({ maxSize })(c, next);
+});
 
 // ── Global rate limiter ──────────────────────────────────────────────
 app.use("*", createRateLimiterMiddleware());
@@ -110,6 +117,15 @@ if (process.env.NODE_ENV === "production") {
 const PORT = env.PORT;
 
 const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, async (info) => {
+  // Node.js defaults: keepAliveTimeout=5s, headersTimeout=60s.
+  // With Caddy in front, a 5s keepAlive gap between requests causes ECONNRESET
+  // when Caddy reuses the connection. Set well above the longest expected gap
+  // between requests on a keep-alive connection (Caddy default is 0 = unlimited).
+  // headersTimeout must be greater than keepAliveTimeout per Node.js docs.
+  const httpServer = server as import("node:http").Server;
+  httpServer.keepAliveTimeout = 310_000; // 5min 10s — survives long inter-request gaps
+  httpServer.headersTimeout = 320_000; // slightly above keepAliveTimeout
+
   printBanner(info.port);
   // Bootstrap AFTER port is bound — health check is reachable while services init
   try {
