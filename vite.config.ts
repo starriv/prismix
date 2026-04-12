@@ -6,11 +6,15 @@ import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 
-if (!process.env.PORT) throw new Error("PORT env var is required");
-if (!process.env.VITE_DEV_PORT) throw new Error("VITE_DEV_PORT env var is required");
+const isBuild = process.argv.includes("build");
 
-const API_PORT = Number(process.env.PORT);
-const DEV_PORT = Number(process.env.VITE_DEV_PORT);
+// Dev server needs both ports; production build doesn't (DOMAIN takes precedence)
+const API_PORT = Number(process.env.PORT || 0);
+const DEV_PORT = Number(process.env.VITE_DEV_PORT || 0);
+
+if (!isBuild && (!API_PORT || !DEV_PORT)) {
+  throw new Error("PORT and VITE_DEV_PORT env vars are required for dev server");
+}
 
 // Inject git remote URL at build time (empty string if not available)
 function getGitRepoUrl(): string {
