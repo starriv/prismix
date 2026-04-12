@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   ArrowUpFromLine,
   BarChart3,
   Bell,
@@ -74,6 +75,7 @@ const AI_CHILD_PATHS = [
   "/admin/key-providers",
   "/admin/ai-usage",
   "/admin/ai-logs",
+  "/admin/gateway",
 ];
 
 const ACCOUNTS_CHILD_PATHS = [
@@ -114,6 +116,7 @@ const navTree: NavEntry[] = [
       { href: "/admin/key-providers", labelKey: "nav.key-providers", icon: HandCoins },
       { href: "/admin/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },
       { href: "/admin/ai-logs", labelKey: "nav.ai-logs", icon: FileText },
+      { href: "/admin/gateway", labelKey: "nav.gateway", icon: Activity },
     ],
   },
   {

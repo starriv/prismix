@@ -61,6 +61,7 @@ const AiUsageDetailPage = lazy(() => import("./pages/ai-usage-detail"));
 const AiLogsPage = lazy(() => import("./pages/ai-logs"));
 const ConsumerKeysPage = lazy(() => import("./pages/consumer-keys"));
 const KeyProvidersPage = lazy(() => import("./pages/admin/key-providers"));
+const AdminGatewayPage = lazy(() => import("./pages/admin/gateway"));
 
 // User portal
 const UserLayout = lazy(() => import("./layouts/user").then((m) => ({ default: m.UserLayout })));
@@ -75,6 +76,7 @@ const UserLogsPage = lazy(() => import("./pages/user/logs"));
 const UserSettingsPage = lazy(() => import("./pages/user/settings"));
 const UserWalletPage = lazy(() => import("./pages/user/wallet"));
 const UserEndpointPage = lazy(() => import("./pages/user/endpoint"));
+const UserModelsPage = lazy(() => import("./pages/user/models"));
 
 // Docs
 const DocsLayout = lazy(() => import("./layouts/docs").then((m) => ({ default: m.DocsLayout })));
@@ -162,6 +164,7 @@ export function App() {
                 <Route path="ai-logs" element={<AiLogsPage />} />
                 <Route path="consumer-keys" element={<ConsumerKeysPage />} />
                 <Route path="key-providers" element={<KeyProvidersPage />} />
+                <Route path="gateway" element={<AdminGatewayPage />} />
 
                 {/* Pay Agents */}
                 <Route path="pay-agents" element={<PayAgentsPage />} />
@@ -208,6 +211,7 @@ export function App() {
                 <Route index element={<LocaleNavigate to="/user/dashboard" replace />} />
                 <Route path="dashboard" element={<UserDashboardPage />} />
                 <Route path="endpoint" element={<UserEndpointPage />} />
+                <Route path="models" element={<UserModelsPage />} />
                 <Route path="wallet" element={<UserWalletPage />} />
                 <Route path="keys" element={<UserKeysPage />} />
                 <Route path="usage" element={<UserUsagePage />} />

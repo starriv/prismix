@@ -7,8 +7,14 @@ import {
 import {
   discoverSamlBody,
   updateAuthProvidersBody,
+  updateGatewayConfigBody,
   updateNotificationProvidersBody,
 } from "@/server/lib/body-schemas";
+import {
+  getGatewayConfigCached,
+  initGatewayConfig,
+  saveGatewayConfigSection,
+} from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
 import {
   getNotificationProviderConfigCached,
@@ -17,6 +23,8 @@ import {
 } from "@/server/lib/notification-provider-config";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
+import { getWriteQueueStats } from "@/server/lib/write-queue";
+import { getRateLimiterStats } from "@/server/middleware/rate-limiter";
 
 const router = new Hono();
 
@@ -119,6 +127,43 @@ router.post("/sso/discover-saml", async (c) => {
     log.admin.error({ err: e }, "Failed to discover SAML metadata");
     return c.json({ error: "Failed to discover SAML metadata" }, 500);
   }
+});
+
+// ── Gateway Config ───────────────────────────────────────────────
+
+// GET /gateway-config — full gateway config
+router.get("/gateway-config", (c) => {
+  return ok(c, getGatewayConfigCached());
+});
+
+// PUT /gateway-config — update one or more config sections
+router.put("/gateway-config", async (c) => {
+  try {
+    const parsed = await parseBody(c, updateGatewayConfigBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
+
+    if (body.rateLimits) await saveGatewayConfigSection("rateLimits", body.rateLimits);
+    if (body.circuitBreakers)
+      await saveGatewayConfigSection("circuitBreakers", body.circuitBreakers);
+    if (body.timeouts) await saveGatewayConfigSection("timeouts", body.timeouts);
+    if (body.queue) await saveGatewayConfigSection("queue", body.queue);
+
+    await initGatewayConfig();
+
+    return ok(c, getGatewayConfigCached());
+  } catch (e) {
+    log.admin.error({ err: e }, "Failed to save gateway config");
+    return c.json({ error: "Failed to save gateway config" }, 500);
+  }
+});
+
+// GET /gateway-status — realtime status snapshot
+router.get("/gateway-status", (c) => {
+  return ok(c, {
+    rateLimits: getRateLimiterStats(),
+    queues: getWriteQueueStats(),
+  });
 });
 
 // ── Notification Provider Config ─────────────────────────────────

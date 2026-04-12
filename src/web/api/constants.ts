@@ -137,6 +137,10 @@ export const apiAiUsageRequest = (requestId: string) => `/api/admin/ai/usage/req
 export const API_AI_REQUEST_LOGGING = "/api/admin/ai/settings/request-logging";
 export const API_AI_DEFAULT_MARKUP = "/api/admin/ai/settings/default-markup";
 
+// ── Gateway Config ───────────────────────────────────────────────
+export const API_ADMIN_GATEWAY_CONFIG = "/api/admin/gateway-config";
+export const API_ADMIN_GATEWAY_STATUS = "/api/admin/gateway-status";
+
 // ── Relay Consumer Keys ───────────────────────────────────────────
 export const API_RELAY_KEYS = "/api/admin/relay-keys";
 export const apiRelayKeyDetail = (id: number) => `/api/admin/relay-keys/${id}`;
@@ -145,6 +149,7 @@ export const apiRelayKeyRotate = (id: number) => `/api/admin/relay-keys/${id}/ro
 
 // ── User Portal ────────────────────────────────────────────────
 export const API_USER_PROFILE = "/api/user/profile";
+export const API_USER_MODELS = "/api/user/models";
 export const API_USER_KEYS = "/api/user/keys";
 export const apiUserKeyDetail = (id: number) => `/api/user/keys/${id}`;
 export const apiUserKeyUsage = (id: number) => `/api/user/keys/${id}/usage`;
@@ -152,6 +157,9 @@ export const API_USER_USAGE_SUMMARY = "/api/user/usage/summary";
 export const API_USER_USAGE_DAILY = "/api/user/usage/daily";
 export const API_USER_LOGS = "/api/user/logs";
 export const apiUserRequestLog = (requestId: string) => `/api/user/logs/request/${requestId}`;
+
+// ── User Announcements ────────────────────────────────────────
+export const API_USER_ANNOUNCEMENTS = "/api/user/announcements";
 
 // ── User Wallet ────────────────────────────────────────────────
 export const API_USER_WALLET = "/api/user/wallet";

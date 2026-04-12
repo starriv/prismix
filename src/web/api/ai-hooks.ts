@@ -1,8 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
+import type { GatewayConfig } from "./ai-schemas";
 import { del, get, post, put } from "./client";
 import {
+  API_ADMIN_GATEWAY_CONFIG,
+  API_ADMIN_GATEWAY_STATUS,
   API_AI_DEFAULT_MARKUP,
   API_AI_KEYS,
   API_AI_PROVIDERS,
@@ -38,6 +41,8 @@ import {
   aiUsageRecordSchema,
   aiUsageSummarySchema,
   discoveredModelSchema,
+  gatewayConfigSchema,
+  gatewayStatusSchema,
   priceDiffSchema,
   relayConsumerKeySchema,
   testAiKeyResultSchema,
@@ -482,5 +487,33 @@ export function useRotateRelayKey() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
     },
+  });
+}
+
+// ── Gateway Config ──────────────────────────────────────────────────
+
+export function useAdminGatewayConfig() {
+  return useQuery({
+    queryKey: queryKeys.adminGatewayConfig(),
+    queryFn: () => get(API_ADMIN_GATEWAY_CONFIG, gatewayConfigSchema),
+  });
+}
+
+export function useUpdateAdminGatewayConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<GatewayConfig>) =>
+      put(API_ADMIN_GATEWAY_CONFIG, data, gatewayConfigSchema),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.adminGatewayConfig(), data);
+    },
+  });
+}
+
+export function useAdminGatewayStatus() {
+  return useQuery({
+    queryKey: queryKeys.adminGatewayStatus(),
+    queryFn: () => get(API_ADMIN_GATEWAY_STATUS, gatewayStatusSchema),
+    refetchInterval: 5_000,
   });
 }

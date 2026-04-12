@@ -236,3 +236,46 @@ export const adjustKeyProviderBalanceBody = z.object({
   type: z.enum(["credit", "debit"]),
   description: z.string().max(500).optional(),
 });
+
+// ── Admin: Gateway Config ───────────────────────────────────────────
+
+export const updateGatewayConfigBody = z.object({
+  rateLimits: z
+    .array(
+      z
+        .object({
+          name: z.string(),
+          pathPattern: z.string(),
+          maxRequests: z.number().int().positive(),
+          windowMs: z.number().int().positive(),
+          dimension: z.enum(["ip", "token", "global"]),
+          enabled: z.boolean(),
+        })
+        .passthrough(),
+    )
+    .optional(),
+  circuitBreakers: z
+    .array(
+      z
+        .object({
+          name: z.string(),
+          failureThreshold: z.number().int().positive(),
+          resetTimeoutMs: z.number().int().positive(),
+          halfOpenRequests: z.number().int().positive(),
+          enabled: z.boolean(),
+        })
+        .passthrough(),
+    )
+    .optional(),
+  timeouts: z
+    .object({
+      upstreamFetchMs: z.number().int().positive(),
+    })
+    .optional(),
+  queue: z
+    .object({
+      maxWriteQueueDepth: z.number().int().positive(),
+      maxLogQueueDepth: z.number().int().positive(),
+    })
+    .optional(),
+});

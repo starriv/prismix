@@ -69,7 +69,8 @@ export const queryKeys = {
 
   // ── Admin (real admin / back-office) ─────────────────────────
   adminAdmins: () => ["admin", "admins"] as const,
-  adminUsers: () => ["admin", "users"] as const,
+  adminUsers: (params?: { search?: string; page?: number }) =>
+    ["admin", "users", params?.search ?? "", params?.page ?? 0] as const,
   adminAllowedTokens: () => ["admin", "allowed-tokens"] as const,
   adminKnownTokens: () => ["admin", "known-tokens"] as const,
   adminNetworks: () => ["admin", "networks"] as const,
@@ -77,6 +78,8 @@ export const queryKeys = {
   adminAuthProvidersConfig: () => ["admin", "auth-providers-config"] as const,
   adminNotificationProviders: () => ["admin", "notification-providers"] as const,
   adminAnnouncements: () => ["admin", "announcements"] as const,
+  adminGatewayConfig: () => ["admin", "gateway-config"] as const,
+  adminGatewayStatus: () => ["admin", "gateway-status"] as const,
 
   // ── Key Providers ────────────────────────────────────────────
   keyProviders: () => ["app", "key-providers"] as const,
@@ -117,12 +120,14 @@ export const queryKeys = {
   // ── User Portal ─────────────────────────────────────────────
   userAuthProviders: () => ["user-auth", "providers"] as const,
   userProfile: () => ["user", "profile"] as const,
+  userModels: () => ["user", "models"] as const,
   userKeys: () => ["user", "keys"] as const,
   userUsageSummary: () => ["user", "usage-summary"] as const,
   userUsageDaily: (days: number) => ["user", "usage-daily", days] as const,
   userLogs: (params?: { modelId?: string; page?: number }) =>
     ["user", "logs", params?.modelId, params?.page ?? 0] as const,
   userRequestLog: (requestId: string) => ["user", "request-log", requestId] as const,
+  userAnnouncements: () => ["user", "announcements"] as const,
 
   // ── User Wallet ───────────────────────────────────────────────
   userWallet: () => ["user", "wallet"] as const,

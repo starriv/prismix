@@ -180,3 +180,61 @@ export const priceDiffSchema = z.object({
   contextWindow: z.number().nullable(),
 });
 export type PriceDiff = z.infer<typeof priceDiffSchema>;
+
+// ── Gateway Config ─────────────────────────────────────────────────
+
+export const rateLimitRuleSchema = z.object({
+  name: z.string(),
+  pathPattern: z.string(),
+  maxRequests: z.number(),
+  windowMs: z.number(),
+  dimension: z.enum(["ip", "token", "global"]),
+  enabled: z.boolean(),
+});
+export type RateLimitRule = z.infer<typeof rateLimitRuleSchema>;
+
+export const circuitBreakerConfigSchema = z.object({
+  name: z.string(),
+  failureThreshold: z.number(),
+  resetTimeoutMs: z.number(),
+  halfOpenRequests: z.number(),
+  enabled: z.boolean(),
+});
+export type CircuitBreakerConfig = z.infer<typeof circuitBreakerConfigSchema>;
+
+export const timeoutConfigSchema = z.object({
+  upstreamFetchMs: z.number(),
+});
+export type TimeoutConfig = z.infer<typeof timeoutConfigSchema>;
+
+export const queueConfigSchema = z.object({
+  maxWriteQueueDepth: z.number(),
+  maxLogQueueDepth: z.number(),
+});
+export type QueueConfig = z.infer<typeof queueConfigSchema>;
+
+export const gatewayConfigSchema = z.object({
+  rateLimits: z.array(rateLimitRuleSchema),
+  circuitBreakers: z.array(circuitBreakerConfigSchema),
+  timeouts: timeoutConfigSchema,
+  queue: queueConfigSchema,
+});
+export type GatewayConfig = z.infer<typeof gatewayConfigSchema>;
+
+export const rateLimitStatusSchema = z.object({
+  name: z.string(),
+  hits: z.number(),
+  rejected: z.number(),
+});
+
+export const writeQueueStatusSchema = z.object({
+  depth: z.number(),
+  dropped: z.number(),
+  totalEnqueued: z.number(),
+});
+
+export const gatewayStatusSchema = z.object({
+  rateLimits: z.array(rateLimitStatusSchema),
+  queues: writeQueueStatusSchema,
+});
+export type GatewayStatus = z.infer<typeof gatewayStatusSchema>;
