@@ -198,7 +198,7 @@ export function useCreateUserAgent() {
     mutationFn: (userId: number) => adminPost(apiAdminUserCreateAgent(userId), {}, z.unknown()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
-      qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
 }
@@ -379,10 +379,15 @@ export function useUpdateAdminNotificationProviders() {
   });
 }
 
-export function useAdminAnnouncements() {
+export function useAdminAnnouncements(params?: { page?: number }) {
+  const page = params?.page ?? 0;
+  const qs = new URLSearchParams();
+  qs.set("limit", String(DEFAULT_PAGE_SIZE));
+  qs.set("offset", String(page * DEFAULT_PAGE_SIZE));
   return useQuery<Announcement[]>({
-    queryKey: queryKeys.adminAnnouncements(),
-    queryFn: () => adminGet(API_ADMIN_ANNOUNCEMENTS, z.array(announcementSchema)),
+    queryKey: queryKeys.adminAnnouncements(params),
+    queryFn: () => adminGet(`${API_ADMIN_ANNOUNCEMENTS}?${qs}`, z.array(announcementSchema)),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -392,7 +397,7 @@ export function useCreateAnnouncement() {
     mutationFn: (body: CreateAnnouncementBody) =>
       adminPost(API_ADMIN_ANNOUNCEMENTS, body, announcementSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminAnnouncements() });
+      qc.invalidateQueries({ queryKey: ["admin", "announcements"] });
     },
   });
 }
@@ -403,7 +408,7 @@ export function useUpdateAnnouncement() {
     mutationFn: ({ id, ...body }: UpdateAnnouncementBody & { id: string }) =>
       adminPut(apiAdminAnnouncementDetail(id), body, announcementSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminAnnouncements() });
+      qc.invalidateQueries({ queryKey: ["admin", "announcements"] });
     },
   });
 }
@@ -414,7 +419,7 @@ export function useDeleteAnnouncement() {
     mutationFn: (id: string) =>
       adminDel(`${API_ADMIN_ANNOUNCEMENTS}?id=${id}`, z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminAnnouncements() });
+      qc.invalidateQueries({ queryKey: ["admin", "announcements"] });
     },
   });
 }
@@ -424,7 +429,7 @@ export function useSendAnnouncement() {
   return useMutation({
     mutationFn: (id: string) => adminPost(apiAdminAnnouncementSend(id), {}, announcementSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminAnnouncements() });
+      qc.invalidateQueries({ queryKey: ["admin", "announcements"] });
     },
   });
 }
@@ -462,7 +467,7 @@ export function useApproveWithdraw() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminWithdrawals() });
       qc.invalidateQueries({ queryKey: queryKeys.adminWithdrawalsPendingCount() });
-      qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
 }
@@ -475,7 +480,7 @@ export function useRejectWithdraw() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminWithdrawals() });
       qc.invalidateQueries({ queryKey: queryKeys.adminWithdrawalsPendingCount() });
-      qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
 }

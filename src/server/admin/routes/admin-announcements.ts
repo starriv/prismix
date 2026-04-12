@@ -8,7 +8,7 @@ import {
 } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { announcementRepo } from "@/server/repos";
 
 const router = new Hono();
@@ -16,7 +16,9 @@ const router = new Hono();
 // ── Announcements ────────────────────────────────────────────────
 
 router.get("/announcements", async (c) => {
-  const all = await announcementRepo.findAll();
+  const limit = parsePaginationLimit(c.req.query("limit"), 50);
+  const offset = parsePaginationOffset(c.req.query("offset"));
+  const all = await announcementRepo.findAll({ limit, offset });
   return ok(c, all);
 });
 
@@ -43,7 +45,6 @@ router.put("/announcements/:id", async (c) => {
 
   const existing = await announcementRepo.findById(id);
   if (!existing) return c.json({ error: "Announcement not found" }, 404);
-  if (existing.status === "sent") return c.json({ error: "Cannot edit a sent announcement" }, 400);
 
   const parsed = await parseBody(c, updateAnnouncementBody);
   if (!parsed.ok) return parsed.response;
@@ -70,7 +71,6 @@ router.post("/announcements/:id/send", async (c) => {
 
   const existing = await announcementRepo.findById(id);
   if (!existing) return c.json({ error: "Announcement not found" }, 404);
-  if (existing.status === "sent") return c.json({ error: "Announcement already sent" }, 400);
 
   const updated = await announcementRepo.markSent(id);
   emit("system.announcement", null, {

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formatDistanceToNow } from "date-fns";
-import { Link2, Loader2, Megaphone, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Link2, Loader2, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -14,12 +14,14 @@ import {
   useSendAnnouncement,
   useUpdateAnnouncement,
 } from "@/web/api/admin-hooks";
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import type { Announcement, CreateAnnouncementBody } from "@/web/api/schemas";
 import { createAnnouncementBody } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
+import { Pagination } from "@/web/components/dashboard/pagination";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent } from "@/web/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -52,7 +54,8 @@ import { getDateLocale } from "@/web/shared/date-locale";
 
 export default function AdminAnnouncementsPage() {
   const { t, i18n } = useTranslation();
-  const { data: announcements = [], isLoading } = useAdminAnnouncements();
+  const [page, setPage] = useState(0);
+  const { data: announcements = [], isLoading } = useAdminAnnouncements({ page });
   const deleteAnnouncement = useDeleteAnnouncement();
   const sendAnnouncement = useSendAnnouncement();
 
@@ -84,26 +87,21 @@ export default function AdminAnnouncementsPage() {
   };
 
   return (
-    <>
+    <div>
       <Header title={t("admin.announce.title")} description={t("admin.announce.desc")} />
-      <div className="p-4 md:p-8 space-y-4 md:space-y-6">
-        {/* Top action bar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              {t("admin.announce.count", { count: announcements.length })}
-            </span>
-          </div>
-          <Button size="sm" onClick={() => setComposeOpen(true)} className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" />
-            {t("admin.announce.btn.compose")}
-          </Button>
-        </div>
 
-        {/* Table */}
+      <div className="p-4 md:p-8">
         <Card>
-          <CardContent className="p-0">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">{t("admin.announce.title")}</CardTitle>
+              <Button size="sm" onClick={() => setComposeOpen(true)} className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                {t("admin.announce.btn.compose")}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <span className="animate-spin">
@@ -118,12 +116,14 @@ export default function AdminAnnouncementsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("admin.announce.th.title")}</TableHead>
-                    <TableHead>{t("admin.announce.th.status")}</TableHead>
-                    <TableHead>{t("admin.announce.th.created-by")}</TableHead>
-                    <TableHead>{t("admin.announce.th.created-at")}</TableHead>
-                    <TableHead>{t("admin.announce.th.sent-at")}</TableHead>
-                    <TableHead className="text-right">{t("admin.announce.th.actions")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.announce.th.title")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.announce.th.status")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.announce.th.created-by")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.announce.th.created-at")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.announce.th.sent-at")}</TableHead>
+                    <TableHead className="text-xs text-right">
+                      {t("admin.announce.th.actions")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -163,28 +163,24 @@ export default function AdminAnnouncementsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {a.status === "draft" && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => setEditing(a)}
-                                aria-label={t("common.btn.edit")}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-primary"
-                                onClick={() => setSendTarget(a)}
-                                aria-label={t("common.a11y.send")}
-                              >
-                                <Send className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setEditing(a)}
+                            aria-label={t("common.btn.edit")}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-primary"
+                            onClick={() => setSendTarget(a)}
+                            aria-label={t("common.a11y.send")}
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -201,6 +197,13 @@ export default function AdminAnnouncementsPage() {
                 </TableBody>
               </Table>
             )}
+
+            <Pagination
+              page={page}
+              onPageChange={setPage}
+              currentCount={announcements.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>
@@ -224,7 +227,11 @@ export default function AdminAnnouncementsPage() {
             <DialogTitle>{t("admin.announce.send-confirm-title")}</DialogTitle>
           </DialogHeader>
           <DialogBody>
-            <p className="text-sm text-muted-foreground">{t("admin.announce.send-confirm-desc")}</p>
+            <p className="text-sm text-muted-foreground">
+              {sendTarget?.status === "sent"
+                ? t("admin.announce.resend-confirm-desc")
+                : t("admin.announce.send-confirm-desc")}
+            </p>
             {sendTarget && (
               <div className="mt-3 rounded-lg border bg-muted/50 p-3">
                 <p className="text-sm font-medium">{sendTarget.title}</p>
@@ -248,7 +255,9 @@ export default function AdminAnnouncementsPage() {
                 </span>
               )}
               <Send className="h-3.5 w-3.5" />
-              {t("admin.announce.btn.send")}
+              {sendTarget?.status === "sent"
+                ? t("admin.announce.btn.resend")
+                : t("admin.announce.btn.send")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -284,7 +293,7 @@ export default function AdminAnnouncementsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 

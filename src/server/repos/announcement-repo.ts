@@ -13,8 +13,11 @@ import {
 } from "@/server/db";
 
 export const announcementRepo = {
-  async findAll(): Promise<Announcement[]> {
-    return queryAll(db.select().from(announcements).orderBy(desc(announcements.createdAt)));
+  async findAll(opts?: { limit?: number; offset?: number }): Promise<Announcement[]> {
+    let q = db.select().from(announcements).orderBy(desc(announcements.createdAt)).$dynamic();
+    if (opts?.limit != null) q = q.limit(opts.limit);
+    if (opts?.offset != null) q = q.offset(opts.offset);
+    return queryAll(q);
   },
 
   async findById(id: string): Promise<Announcement | undefined> {

@@ -18,7 +18,15 @@ export const queryKeys = {
   // ── App ──────────────────────────────────────────────────────
   allowedTokens: () => ["app", "allowed-tokens"] as const,
   networks: () => ["app", "networks"] as const,
-  payAgents: () => ["app", "pay-agents"] as const,
+  payAgents: (params?: { userName?: string; address?: string; page?: number }) =>
+    [
+      "app",
+      "pay-agents",
+      params?.userName ?? "",
+      params?.address ?? "",
+      params?.page ?? 0,
+    ] as const,
+  payAgentsAll: () => ["app", "pay-agents"] as const,
   payAgentTransactions: (agentId: number) => ["app", "pay-agents", agentId, "txns"] as const,
   payAgentTxnsAll: () => ["app", "pay-agent-txns"] as const,
   payAgentTxnsList: (params?: {
@@ -84,7 +92,7 @@ export const queryKeys = {
   adminCircleNetworks: () => ["admin", "circle-networks"] as const,
   adminAuthProvidersConfig: () => ["admin", "auth-providers-config"] as const,
   adminNotificationProviders: () => ["admin", "notification-providers"] as const,
-  adminAnnouncements: () => ["admin", "announcements"] as const,
+  adminAnnouncements: (params?: { page?: number }) => ["admin", "announcements", params] as const,
   adminGatewayConfig: () => ["admin", "gateway-config"] as const,
   adminGatewayStatus: () => ["admin", "gateway-status"] as const,
 

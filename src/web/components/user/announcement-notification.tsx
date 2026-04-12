@@ -59,6 +59,11 @@ function addDismissedIds(newIds: string[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
 }
 
+function removeDismissedId(id: string): void {
+  const ids = getDismissedIds().filter((d) => d !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function UserAnnouncementNotification() {
@@ -81,7 +86,12 @@ export function UserAnnouncementNotification() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const unsub = subscribe("system.announcement", () => {
+    const unsub = subscribe("system.announcement", (raw: unknown) => {
+      const payload = raw as { id?: string } | undefined;
+      if (payload?.id) {
+        removeDismissedId(payload.id);
+        setDismissedIds((prev) => prev.filter((d) => d !== payload.id));
+      }
       qc.invalidateQueries({ queryKey: queryKeys.userAnnouncements() });
     });
     return unsub;

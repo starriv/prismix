@@ -150,6 +150,8 @@
     "dialog-title": "创建 Pay Agent",
     "edit-title": "Agent 详情",
     "delete-confirm": "确定要删除此 Agent 吗？此操作无法撤消。",
+    "filter-user-ph": "按用户筛选…",
+    "filter-address-ph": "按地址筛选…",
     "th": {
       "name": "名称",
       "user": "所属用户",
@@ -524,7 +526,8 @@
       "btn": {
         "compose": "编写",
         "send": "发送",
-        "delete": "删除"
+        "delete": "删除",
+        "resend": "重新发送"
       },
       "th": {
         "title": "标题",
@@ -565,7 +568,8 @@
         "update-error": "更新公告失败",
         "send-error": "发送公告失败",
         "delete-error": "删除公告失败"
-      }
+      },
+      "resend-confirm-desc": "将重新广播此公告。之前已忽略的用户将再次收到通知。"
     },
     "admins": {
       "title": "管理员",

@@ -34,13 +34,11 @@ test.describe("Admin Announcements page", () => {
     await expect(page.getByPlaceholder(t("admin.announce.form.body-ph"))).toBeVisible();
   });
 
-  test("draft row has more action buttons than sent row", async ({ adminPage: { page } }) => {
-    // Draft row gets edit + send + delete (3 buttons), sent row only gets delete (1 button)
+  test("all rows have edit, send, and delete action buttons", async ({ adminPage: { page } }) => {
     const rows = page.locator("tbody tr");
-    // Sent row (first) should have 1 action button (delete only)
+    // Both sent and draft rows should have 3 action buttons (edit + send + delete)
     const sentActions = rows.nth(0).locator("td:last-child button");
-    await expect(sentActions).toHaveCount(1);
-    // Draft row (second) should have 3 action buttons (edit + send + delete)
+    await expect(sentActions).toHaveCount(3);
     const draftActions = rows.nth(1).locator("td:last-child button");
     await expect(draftActions).toHaveCount(3);
   });

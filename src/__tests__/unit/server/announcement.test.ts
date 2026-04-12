@@ -209,7 +209,7 @@ describe("announcement route handlers", () => {
   // ── GET /announcements ─────────────────────────────────────────────
 
   describe("GET /api/admin/announcements", () => {
-    it("returns all announcements", async () => {
+    it("returns all announcements with default pagination", async () => {
       mockFindAll.mockResolvedValue([DRAFT_ANNOUNCEMENT, SENT_ANNOUNCEMENT]);
 
       const res = await app.request(jsonReq("GET", "/api/admin/announcements"));
@@ -217,7 +217,7 @@ describe("announcement route handlers", () => {
 
       const json = (await res.json()) as { data: unknown[] };
       expect(json.data).toHaveLength(2);
-      expect(mockFindAll).toHaveBeenCalledTimes(1);
+      expect(mockFindAll).toHaveBeenCalledWith({ limit: 50, offset: 0 });
     });
 
     it("returns empty array when no announcements exist", async () => {
@@ -228,6 +228,14 @@ describe("announcement route handlers", () => {
 
       const json = (await res.json()) as { data: unknown[] };
       expect(json.data).toHaveLength(0);
+    });
+
+    it("passes explicit limit and offset query params to repo", async () => {
+      mockFindAll.mockResolvedValue([DRAFT_ANNOUNCEMENT]);
+
+      const res = await app.request(jsonReq("GET", "/api/admin/announcements?limit=10&offset=20"));
+      expect(res.status).toBe(200);
+      expect(mockFindAll).toHaveBeenCalledWith({ limit: 10, offset: 20 });
     });
   });
 
@@ -290,17 +298,19 @@ describe("announcement route handlers", () => {
       expect(mockUpdate).toHaveBeenCalledWith("abc123", { title: "Updated title" });
     });
 
-    it("rejects updating a sent announcement", async () => {
+    it("allows updating a sent announcement", async () => {
+      const updated = { ...SENT_ANNOUNCEMENT, title: "Updated title" };
       mockFindById.mockResolvedValue(SENT_ANNOUNCEMENT);
+      mockUpdate.mockResolvedValue(updated);
 
       const res = await app.request(
-        jsonReq("PUT", "/api/admin/announcements/def456", { title: "Changed" }),
+        jsonReq("PUT", "/api/admin/announcements/def456", { title: "Updated title" }),
       );
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
 
-      const json = (await res.json()) as { error: string };
-      expect(json.error).toContain("sent");
-      expect(mockUpdate).not.toHaveBeenCalled();
+      const json = (await res.json()) as { data: typeof updated };
+      expect(json.data.title).toBe("Updated title");
+      expect(mockUpdate).toHaveBeenCalledWith("def456", { title: "Updated title" });
     });
 
     it("returns 404 for non-existent announcement", async () => {
@@ -367,16 +377,20 @@ describe("announcement route handlers", () => {
       });
     });
 
-    it("rejects sending an already-sent announcement", async () => {
+    it("allows re-sending a sent announcement", async () => {
+      const reSent = { ...SENT_ANNOUNCEMENT, sentAt: new Date() };
       mockFindById.mockResolvedValue(SENT_ANNOUNCEMENT);
+      mockMarkSent.mockResolvedValue(reSent);
 
       const res = await app.request(jsonReq("POST", "/api/admin/announcements/def456/send"));
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
 
-      const json = (await res.json()) as { error: string };
-      expect(json.error).toContain("already sent");
-      expect(mockMarkSent).not.toHaveBeenCalled();
-      expect(mockEmit).not.toHaveBeenCalled();
+      expect(mockMarkSent).toHaveBeenCalledWith("def456");
+      expect(mockEmit).toHaveBeenCalledWith("system.announcement", null, {
+        id: SENT_ANNOUNCEMENT.id,
+        title: SENT_ANNOUNCEMENT.title,
+        body: SENT_ANNOUNCEMENT.body,
+      });
     });
 
     it("returns 404 for non-existent announcement", async () => {

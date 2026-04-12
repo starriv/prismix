@@ -150,6 +150,8 @@
     "dialog-title": "Create Pay Agent",
     "edit-title": "Agent Details",
     "delete-confirm": "Are you sure you want to delete this agent? This action cannot be undone.",
+    "filter-user-ph": "Filter by owner…",
+    "filter-address-ph": "Filter by address…",
     "th": {
       "name": "Name",
       "user": "Owner",
@@ -524,7 +526,8 @@
       "btn": {
         "compose": "Compose",
         "send": "Send",
-        "delete": "Delete"
+        "delete": "Delete",
+        "resend": "Resend"
       },
       "th": {
         "title": "Title",
@@ -565,7 +568,8 @@
         "update-error": "Failed to update announcement",
         "send-error": "Failed to send announcement",
         "delete-error": "Failed to delete announcement"
-      }
+      },
+      "resend-confirm-desc": "This will re-broadcast the announcement. Users who previously dismissed it will see it again."
     },
     "admins": {
       "title": "Admin Members",
