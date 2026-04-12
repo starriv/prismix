@@ -11,7 +11,15 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
-APP_PORT="${PORT:?ERROR: PORT env var is required (e.g. export PORT=3403)}"
+
+# Read PORT from env, .env.local, or .env.example
+if [ -z "$PORT" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
+  PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.local" | cut -d= -f2)
+fi
+if [ -z "$PORT" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+  PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.example" | cut -d= -f2)
+fi
+APP_PORT="${PORT:?ERROR: PORT not found in env, .env.local, or .env.example}"
 ACTION="${1:-start}"
 
 # ── Helpers ──────────────────────────────────────────────────────────
