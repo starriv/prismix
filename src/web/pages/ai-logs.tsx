@@ -79,96 +79,100 @@ export default function AiLogsPage() {
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
 
   return (
-    <div className="space-y-6 p-8">
+    <div>
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{t("ai-logs.card-title")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Filter bar */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-            <Select value={draftModel} onValueChange={setDraftModel}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("ai-logs.filter.all-models")}</SelectItem>
-                {modelOptions.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="p-4 md:p-8 space-y-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("ai-logs.card-title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filter bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Select value={draftModel} onValueChange={setDraftModel}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ai-logs.filter.all-models")}</SelectItem>
+                  {modelOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={draftKey} onValueChange={setDraftKey}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("ai-logs.filter.all-keys")}</SelectItem>
-                {keys.map((k) => (
-                  <SelectItem key={k.id} value={String(k.id)}>
-                    {k.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={draftKey} onValueChange={setDraftKey}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ai-logs.filter.all-keys")}</SelectItem>
+                  {keys.map((k) => (
+                    <SelectItem key={k.id} value={String(k.id)}>
+                      {k.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <div className="flex gap-2">
-              <Button size="sm" onClick={applyFilters}>
-                <Search className="mr-1 h-3.5 w-3.5" />
-                {t("common.btn.search")}
-              </Button>
-              {hasFilters && (
-                <Button size="sm" variant="outline" onClick={resetFilters}>
-                  {t("common.btn.reset")}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters}>
+                  <Search className="mr-1 h-3.5 w-3.5" />
+                  {t("common.btn.search")}
                 </Button>
-              )}
+                {hasFilters && (
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("common.btn.reset")}
+                  </Button>
+                )}
+              </div>
+
+              {/* Live indicator — right-aligned */}
+              <div className="flex items-center gap-1.5 sm:ml-auto text-xs text-muted-foreground">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                </span>
+                <span>{t("ai-logs.live")}</span>
+              </div>
             </div>
 
-            {/* Live indicator — right-aligned */}
-            <div className="flex items-center gap-1.5 sm:ml-auto text-xs text-muted-foreground">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-              </span>
-              <span>{t("ai-logs.live")}</span>
-            </div>
-          </div>
+            {/* Table */}
+            <DataTable
+              columns={columns}
+              data={logs}
+              rowKey={(r) => r.id}
+              emptyText={t("ai-logs.table-empty")}
+              loading={
+                isLoading
+                  ? { initial: true, fetching: false }
+                  : { initial: false, fetching: isFetching }
+              }
+              onRowClick={setSelected}
+              page={page}
+              onPageChange={setPage}
+              pageSize={PAGE_SIZE}
+            />
+          </CardContent>
+        </Card>
 
-          {/* Table */}
-          <DataTable
-            columns={columns}
-            data={logs}
-            rowKey={(r) => r.id}
-            emptyText={t("ai-logs.table-empty")}
-            loading={
-              isLoading
-                ? { initial: true, fetching: false }
-                : { initial: false, fetching: isFetching }
-            }
-            onRowClick={setSelected}
-            page={page}
-            onPageChange={setPage}
-            pageSize={PAGE_SIZE}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Detail Sheet */}
-      <Sheet open={!!selected} onOpenChange={() => setSelected(null)}>
-        <SheetContent className="w-full sm:w-[520px]">
-          <SheetHeader>
-            <SheetTitle>
-              {selected ? t("ai-logs.detail.title", { id: selected.id }) : ""}
-            </SheetTitle>
-          </SheetHeader>
-          <SheetBody>{selected && <AdminLogDetailWrapper log={selected} keys={keys} />}</SheetBody>
-        </SheetContent>
-      </Sheet>
+        {/* Detail Sheet */}
+        <Sheet open={!!selected} onOpenChange={() => setSelected(null)}>
+          <SheetContent className="w-full sm:w-[520px]">
+            <SheetHeader>
+              <SheetTitle>
+                {selected ? t("ai-logs.detail.title", { id: selected.id }) : ""}
+              </SheetTitle>
+            </SheetHeader>
+            <SheetBody>
+              {selected && <AdminLogDetailWrapper log={selected} keys={keys} />}
+            </SheetBody>
+          </SheetContent>
+        </Sheet>
+      </div>
     </div>
   );
 }
