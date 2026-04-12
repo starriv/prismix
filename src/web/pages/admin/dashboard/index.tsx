@@ -2,12 +2,18 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatDistanceToNow } from "date-fns";
+import { Search } from "lucide-react";
 
 import { useAdminUsers } from "@/web/api/admin-hooks";
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { Header } from "@/web/components/dashboard/header";
+import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
-import { Card, CardContent } from "@/web/components/ui/card";
+import { Button } from "@/web/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { Input } from "@/web/components/ui/input";
 import { Sheet, SheetContent } from "@/web/components/ui/sheet";
+import { Skeleton } from "@/web/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -16,13 +22,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/web/components/ui/table";
+import { getDateLocale } from "@/web/shared/date-locale";
 
 import { USER_STATUS_COLORS, USER_STATUS_KEYS } from "./constants";
 import { UserDetailSheet } from "./user-detail-sheet";
 
 export default function AdminDashboardPage() {
-  const { t } = useTranslation();
-  const { data: users = [], isLoading } = useAdminUsers();
+  const { t, i18n } = useTranslation();
+
+  // Draft filter state (UI controls)
+  const [draftName, setDraftName] = useState("");
+  const [draftEmail, setDraftEmail] = useState("");
+  const [draftAddress, setDraftAddress] = useState("");
+
+  // Applied filter state (drives query)
+  const [appliedName, setAppliedName] = useState("");
+  const [appliedEmail, setAppliedEmail] = useState("");
+  const [appliedAddress, setAppliedAddress] = useState("");
+  const [page, setPage] = useState(0);
+
+  const { data: users = [], isLoading } = useAdminUsers({
+    name: appliedName || undefined,
+    email: appliedEmail || undefined,
+    address: appliedAddress || undefined,
+    page,
+  });
+
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const userStatusColorMap = useMemo(
@@ -43,17 +68,107 @@ export default function AdminDashboardPage() {
 
   const handleClose = useCallback(() => setSelectedId(null), []);
 
+  const hasFilters =
+    draftName !== "" ||
+    draftEmail !== "" ||
+    draftAddress !== "" ||
+    appliedName !== "" ||
+    appliedEmail !== "" ||
+    appliedAddress !== "";
+
+  const applyFilters = useCallback(() => {
+    setAppliedName(draftName.trim());
+    setAppliedEmail(draftEmail.trim());
+    setAppliedAddress(draftAddress.trim());
+    setPage(0);
+  }, [draftName, draftEmail, draftAddress]);
+
+  const resetFilters = useCallback(() => {
+    setDraftName("");
+    setDraftEmail("");
+    setDraftAddress("");
+    setAppliedName("");
+    setAppliedEmail("");
+    setAppliedAddress("");
+    setPage(0);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") applyFilters();
+    },
+    [applyFilters],
+  );
+
+  const handleNameChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftName(e.target.value),
+    [],
+  );
+  const handleEmailChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftEmail(e.target.value),
+    [],
+  );
+  const handleAddressChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftAddress(e.target.value),
+    [],
+  );
+
   return (
     <div>
       <Header title={t("admin.users.title")} description={t("admin.users.desc")} />
 
       <div className="p-4 md:p-8">
         <Card>
-          <CardContent className="pt-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("admin.users.title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filter bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                placeholder={t("admin.users.filter-name-ph")}
+                value={draftName}
+                onChange={handleNameChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[180px]"
+              />
+              <Input
+                placeholder={t("admin.users.filter-email-ph")}
+                value={draftEmail}
+                onChange={handleEmailChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[200px]"
+              />
+              <Input
+                placeholder={t("admin.users.filter-address-ph")}
+                value={draftAddress}
+                onChange={handleAddressChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[200px]"
+              />
+
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters}>
+                  <Search className="mr-1 h-3.5 w-3.5" />
+                  {t("common.btn.search")}
+                </Button>
+                {hasFilters && (
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("common.btn.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
             {isLoading ? (
-              <p className="text-sm text-muted-foreground py-4">{t("auth.loading")}</p>
-            ) : !users.length ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : users.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
                 {t("admin.users.empty")}
               </p>
             ) : (
@@ -88,7 +203,10 @@ export default function AdminDashboardPage() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {user.createdAt
-                          ? formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })
+                          ? formatDistanceToNow(new Date(user.createdAt), {
+                              addSuffix: true,
+                              locale: getDateLocale(i18n.language),
+                            })
                           : "---"}
                       </TableCell>
                     </TableRow>
@@ -96,6 +214,14 @@ export default function AdminDashboardPage() {
                 </TableBody>
               </Table>
             )}
+
+            {/* Pagination */}
+            <Pagination
+              page={page}
+              onPageChange={setPage}
+              currentCount={users.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>

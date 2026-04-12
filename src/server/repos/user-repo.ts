@@ -1,7 +1,7 @@
 /**
  * User repository — CRUD for the `users` table.
  */
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ilike } from "drizzle-orm";
 
 import {
   db,
@@ -27,10 +27,20 @@ export const userRepo = {
     return queryOne(db.select().from(users).where(eq(users.address, address.toLowerCase())));
   },
 
-  async findAll(limit = 50, offset = 0): Promise<User[]> {
-    return queryAll(
-      db.select().from(users).orderBy(desc(users.createdAt)).limit(limit).offset(offset),
-    );
+  async findAll(
+    limit = 50,
+    offset = 0,
+    filters?: { name?: string; email?: string; address?: string },
+  ): Promise<User[]> {
+    const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
+    const conditions = [];
+    if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
+    if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
+    if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));
+
+    const qb = db.select().from(users);
+    if (conditions.length) qb.where(and(...conditions));
+    return queryAll(qb.orderBy(desc(users.createdAt)).limit(limit).offset(offset));
   },
 
   async create(data: NewUser): Promise<User> {

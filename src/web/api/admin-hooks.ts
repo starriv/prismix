@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { adminDel, adminGet, adminPost, adminPut } from "./admin-client";
@@ -105,10 +105,24 @@ export function useDeleteAdmin() {
 
 // ── Queries ─────────────────────────────────────────────────────────
 
-export function useAdminUsers() {
+export function useAdminUsers(params?: {
+  name?: string;
+  email?: string;
+  address?: string;
+  page?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.name) qs.set("name", params.name);
+  if (params?.email) qs.set("email", params.email);
+  if (params?.address) qs.set("address", params.address);
+  const page = params?.page ?? 0;
+  qs.set("limit", String(DEFAULT_PAGE_SIZE));
+  qs.set("offset", String(page * DEFAULT_PAGE_SIZE));
+  const query = qs.toString();
   return useQuery({
-    queryKey: queryKeys.adminUsers(),
-    queryFn: () => adminGet(API_ADMIN_USERS, userListSchema),
+    queryKey: queryKeys.adminUsers(params),
+    queryFn: () => adminGet(`${API_ADMIN_USERS}?${query}`, userListSchema),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -151,7 +165,7 @@ export function useDeleteUser() {
     mutationFn: (id: number) =>
       adminDel(`${API_ADMIN_USERS}?id=${id}`, z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
@@ -173,7 +187,7 @@ export function useUpdateUser() {
       agentId?: number | null;
     }) => adminPut(apiAdminUserDetail(id), body, z.unknown()),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
@@ -183,7 +197,7 @@ export function useCreateUserAgent() {
   return useMutation({
     mutationFn: (userId: number) => adminPost(apiAdminUserCreateAgent(userId), {}, z.unknown()),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
       qc.invalidateQueries({ queryKey: queryKeys.payAgents() });
     },
   });
@@ -195,7 +209,7 @@ export function useDisableUser() {
     mutationFn: (id: number) =>
       adminPost(apiAdminUserDisable(id), {}, z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
@@ -206,7 +220,7 @@ export function useEnableUser() {
     mutationFn: (id: number) =>
       adminPost(apiAdminUserEnable(id), {}, z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }
@@ -221,7 +235,7 @@ export function useCreditUser() {
         z.object({ success: z.boolean(), balance: z.string() }),
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.adminUsers() });
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
   });
 }

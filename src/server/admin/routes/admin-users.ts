@@ -23,7 +23,10 @@ const router = new Hono();
 router.get("/users", async (c) => {
   const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
-  const all = await userRepo.findAll(limit, offset);
+  const name = c.req.query("name")?.trim() || undefined;
+  const email = c.req.query("email")?.trim() || undefined;
+  const address = c.req.query("address")?.trim() || undefined;
+  const all = await userRepo.findAll(limit, offset, { name, email, address });
   const userIds = all.map((u) => u.id);
   const identities = userIds.length ? await identityRepo.findByUserIds(userIds) : [];
   const identitiesByUserId = groupBy(identities, "userId");

@@ -729,7 +729,9 @@
         "active": "Active",
         "disabled": "Disabled"
       },
-      "search-ph": "Search by name, email, or address",
+      "filter-name-ph": "Filter by name",
+      "filter-email-ph": "Filter by email",
+      "filter-address-ph": "Filter by address",
       "empty": "No users registered yet",
       "delete-confirm": "Are you sure you want to delete this user? All their keys, transactions, and data will be permanently deleted.",
       "delete-title": "Delete User",

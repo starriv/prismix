@@ -729,7 +729,9 @@
         "active": "正常",
         "disabled": "已禁用"
       },
-      "search-ph": "按名称、邮箱或地址搜索",
+      "filter-name-ph": "按名称筛选",
+      "filter-email-ph": "按邮箱筛选",
+      "filter-address-ph": "按地址筛选",
       "empty": "暂无已注册用户",
       "delete-confirm": "确定要删除此用户吗？其所有 Key、消费记录将被永久删除。",
       "delete-title": "删除用户",
