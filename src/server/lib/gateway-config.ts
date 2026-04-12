@@ -58,9 +58,17 @@ const DEFAULT_RATE_LIMITS: RateLimitRule[] = [
   {
     name: "Global per-IP",
     pathPattern: "*",
-    maxRequests: 1000,
+    maxRequests: 10_000,
     windowMs: 60_000,
     dimension: "ip",
+    enabled: true,
+  },
+  {
+    name: "AI Gateway per-token",
+    pathPattern: "/api/gateway/ai/*",
+    maxRequests: 100_000,
+    windowMs: 60_000,
+    dimension: "token",
     enabled: true,
   },
   {
