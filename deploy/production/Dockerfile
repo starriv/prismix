@@ -13,7 +13,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build:web
+RUN pnpm build
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
@@ -25,12 +25,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 
-# Built frontend
-COPY --from=builder /app/dist/web ./dist/web
-
-# Server source (runs via tsx)
-COPY src/ ./src/
-COPY tsconfig.json ./
+# Built frontend + server
+COPY --from=builder /app/dist ./dist
 
 # PG migrations + seed
 COPY drizzle/ ./drizzle/
@@ -46,4 +42,4 @@ EXPOSE ${PORT}
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:${PORT}/api/health || exit 1
 
-CMD ["pnpm", "preview"]
+CMD ["node", "dist/server/index.js"]

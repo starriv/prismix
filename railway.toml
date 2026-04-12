@@ -10,13 +10,12 @@
 
 [build]
 builder = "RAILPACK"
-# Override build script — default "build" runs build:server which starts the server.
-# We only need the Vite frontend build; the server runs TypeScript via tsx at runtime.
-buildCommand = "pnpm build:web"
+# Build frontend (Vite) + server (tsup) — produces dist/web/ and dist/server/
+buildCommand = "pnpm build"
 watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
 
 [deploy]
-# Start command — runs the Hono server via tsx (serves API + static SPA)
+# Start command — runs the pre-compiled Hono server (serves API + static SPA)
 startCommand = "pnpm preview"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
