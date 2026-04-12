@@ -270,6 +270,8 @@ export const updateGatewayConfigBody = z.object({
   timeouts: z
     .object({
       upstreamFetchMs: z.number().int().positive(),
+      streamIdleMs: z.number().int().positive().optional(),
+      streamMaxDurationMs: z.number().int().positive().optional(),
     })
     .optional(),
   queue: z

@@ -13,6 +13,7 @@ import {
 import {
   getGatewayConfigCached,
   initGatewayConfig,
+  resolveTimeoutConfig,
   saveGatewayConfigSection,
 } from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
@@ -146,7 +147,8 @@ router.put("/gateway-config", async (c) => {
     if (body.rateLimits) await saveGatewayConfigSection("rateLimits", body.rateLimits);
     if (body.circuitBreakers)
       await saveGatewayConfigSection("circuitBreakers", body.circuitBreakers);
-    if (body.timeouts) await saveGatewayConfigSection("timeouts", body.timeouts);
+    if (body.timeouts)
+      await saveGatewayConfigSection("timeouts", resolveTimeoutConfig(body.timeouts));
     if (body.queue) await saveGatewayConfigSection("queue", body.queue);
 
     await initGatewayConfig();

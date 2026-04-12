@@ -6,7 +6,9 @@
 import { describe, expect, it } from "vitest";
 
 import { buildProviderAuth } from "@/server/ai/lib/provider-auth";
+import { extractPassthroughHeaders } from "@/server/ai/lib/request-helpers";
 import { openaiAdapter } from "@/server/ai/providers/openai";
+import { isUnsupportedStreamingCandidate } from "@/server/ai/routes/relay";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 
 // ── OpenAI Adapter ──────────────────────────────────────────────────────
@@ -202,6 +204,43 @@ describe("buildProviderAuth", () => {
 
     expect(result.headers.Authorization).toBeUndefined();
     expect(result.url).toBe(baseUrl);
+  });
+});
+
+describe("extractPassthroughHeaders", () => {
+  it("forwards Anthropic beta/version headers for adapter routes", async () => {
+    const { Hono } = await import("hono");
+    const app = new Hono();
+
+    app.get("/test", (c) => c.json(extractPassthroughHeaders(c)));
+
+    const res = await app.request("/test", {
+      headers: {
+        "anthropic-beta": "extended-thinking-2025-05-14",
+        "anthropic-version": "2023-06-01",
+        authorization: "Bearer should-not-pass",
+        "x-custom-header": "ignore-me",
+      },
+    });
+
+    expect(await res.json()).toEqual({
+      "anthropic-beta": "extended-thinking-2025-05-14",
+      "anthropic-version": "2023-06-01",
+    });
+  });
+});
+
+describe("isUnsupportedStreamingCandidate", () => {
+  it("rejects Bedrock candidates for streaming requests", () => {
+    expect(isUnsupportedStreamingCandidate(true, "bedrock")).toBe(true);
+  });
+
+  it("allows Bedrock for non-streaming requests", () => {
+    expect(isUnsupportedStreamingCandidate(false, "bedrock")).toBe(false);
+  });
+
+  it("allows non-Bedrock streaming candidates", () => {
+    expect(isUnsupportedStreamingCandidate(true, "anthropic")).toBe(false);
   });
 });
 

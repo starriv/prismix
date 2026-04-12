@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildProviderAuth, signSigV4 } from "@/server/ai/lib/provider-auth";
 import {
+  BEDROCK_STREAMING_SUPPORTED,
   bedrockAdapter,
   ensureInferenceProfile,
   getVendorPrefix,
@@ -72,6 +73,10 @@ describe("bedrock adapter", () => {
 
   it("has format bedrock", () => {
     expect(bedrockAdapter.format).toBe("bedrock");
+  });
+
+  it("explicitly marks native streaming as unsupported", () => {
+    expect(BEDROCK_STREAMING_SUPPORTED).toBe(false);
   });
 
   it("delegates extractUsage to anthropic adapter for Anthropic response", () => {

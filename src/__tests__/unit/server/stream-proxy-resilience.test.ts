@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { markKeyFailure } from "@/server/ai/lib/key-balancer";
 import {
   forwardPassthroughStream,
   forwardStream,
@@ -26,6 +27,11 @@ vi.mock("@/server/lib/write-queue", () => ({
 // Mock logger to avoid side effects
 vi.mock("@/server/lib/logger", () => ({
   log: { gateway: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
+}));
+
+vi.mock("@/server/ai/lib/key-balancer", () => ({
+  markKeyFailure: vi.fn(),
+  markKeySuccess: vi.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -106,6 +112,7 @@ describe("stream-proxy exported constants", () => {
 describe("forwardStream", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -149,7 +156,9 @@ describe("forwardStream", () => {
       forwardStream(c, upstreamRes, passthroughAdapter, makeMeta()),
     );
 
-    expect(text).toContain("No response body from upstream");
+    expect(text).toContain("event: error");
+    expect(text).toContain('"type":"upstream_missing_body"');
+    expect(markKeyFailure).toHaveBeenCalledWith(1);
   });
 
   it("calls onComplete callback after stream finishes", async () => {
@@ -213,6 +222,7 @@ describe("forwardStream", () => {
 describe("forwardPassthroughStream", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -268,7 +278,9 @@ describe("forwardPassthroughStream", () => {
       forwardPassthroughStream(c, upstreamRes, makeMeta()),
     );
 
-    expect(text).toContain("No response body from upstream");
+    expect(text).toContain("event: error");
+    expect(text).toContain('"type":"upstream_missing_body"');
+    expect(markKeyFailure).toHaveBeenCalledWith(1);
   });
 
   it("sends heartbeat comments", async () => {
@@ -310,6 +322,7 @@ describe("forwardPassthroughStream", () => {
 describe("idle timeout", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -352,6 +365,33 @@ describe("idle timeout", () => {
     const { text } = await resultPromise;
     expect(text).toContain("data: [DONE]");
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits a structured error event on idle timeout instead of [DONE]", async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"chunk":0}\n\n'));
+      },
+      cancel() {
+        return Promise.resolve();
+      },
+    });
+
+    const upstreamRes = new Response(body, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const resultPromise = captureStreamOutput((c) =>
+      forwardStream(c, upstreamRes, passthroughAdapter, makeMeta()),
+    );
+
+    await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 100);
+
+    const { text } = await resultPromise;
+    expect(text).toContain("event: error");
+    expect(text).toContain('"type":"idle_timeout"');
+    expect(text).not.toContain("data: [DONE]");
   });
 });
 
@@ -516,5 +556,8 @@ describe("buffer overflow protection", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     // The huge data should NOT be forwarded (loop breaks before processing)
     expect(text).not.toContain(hugeData);
+    expect(text).toContain("event: error");
+    expect(text).toContain('"type":"buffer_overflow"');
+    expect(text).not.toContain("data: [DONE]");
   });
 });

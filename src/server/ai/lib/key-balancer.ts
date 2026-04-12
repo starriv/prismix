@@ -29,15 +29,48 @@ interface Pool {
   strategy: BalancerStrategy;
 }
 
+interface KeyHealth {
+  consecutiveFailures: number;
+  totalFailures: number;
+  totalSuccesses: number;
+  lastFailureAt: number | null;
+  penaltyUntil: number;
+}
+
 export type BalancerStrategy = "round-robin" | "random";
 
 // ── State ────────────────────────────────────────────────────────────
 
 /** Pool cache: "providerId" → Pool */
 const pools = new Map<string, Pool>();
+const keyHealth = new Map<number, KeyHealth>();
+
+const BASE_PENALTY_MS = 30_000;
+const MAX_PENALTY_MS = 2 * 60 * 1000;
 
 function poolKey(providerId: number): string {
   return `${providerId}`;
+}
+
+function getKeyHealthState(keyId: number): KeyHealth {
+  let state = keyHealth.get(keyId);
+  if (!state) {
+    state = {
+      consecutiveFailures: 0,
+      totalFailures: 0,
+      totalSuccesses: 0,
+      lastFailureAt: null,
+      penaltyUntil: 0,
+    };
+    keyHealth.set(keyId, state);
+  }
+  return state;
+}
+
+function getEffectiveWeight(entry: PoolEntry, now = Date.now()): number {
+  const health = keyHealth.get(entry.key.id);
+  if (!health || health.penaltyUntil <= now) return entry.weight;
+  return Math.max(1, Math.floor(entry.weight / (health.consecutiveFailures + 1)));
 }
 
 // ── Pool loading ─────────────────────────────────────────────────────
@@ -89,16 +122,20 @@ function selectRoundRobin(pool: Pool): AiKey | undefined {
   if (pool.entries.length === 1) return pool.entries[0].key;
 
   let best: PoolEntry | null = null;
+  let totalEffectiveWeight = 0;
+  const now = Date.now();
 
   for (const entry of pool.entries) {
-    entry.currentWeight += entry.weight;
+    const effectiveWeight = getEffectiveWeight(entry, now);
+    totalEffectiveWeight += effectiveWeight;
+    entry.currentWeight += effectiveWeight;
     if (!best || entry.currentWeight > best.currentWeight) {
       best = entry;
     }
   }
 
   if (!best) return undefined;
-  best.currentWeight -= pool.totalWeight;
+  best.currentWeight -= totalEffectiveWeight || pool.totalWeight;
   return best.key;
 }
 
@@ -109,11 +146,17 @@ function selectRandom(pool: Pool): AiKey | undefined {
   if (pool.entries.length === 0) return undefined;
   if (pool.entries.length === 1) return pool.entries[0].key;
 
-  const rand = Math.random() * pool.totalWeight;
+  const now = Date.now();
+  const weightedEntries = pool.entries.map((entry) => ({
+    entry,
+    effectiveWeight: getEffectiveWeight(entry, now),
+  }));
+  const totalEffectiveWeight = weightedEntries.reduce((sum, item) => sum + item.effectiveWeight, 0);
+  const rand = Math.random() * totalEffectiveWeight;
   let cumulative = 0;
-  for (const entry of pool.entries) {
-    cumulative += entry.weight;
-    if (rand < cumulative) return entry.key;
+  for (const item of weightedEntries) {
+    cumulative += item.effectiveWeight;
+    if (rand < cumulative) return item.entry.key;
   }
   return pool.entries[pool.entries.length - 1].key;
 }
@@ -133,8 +176,16 @@ export async function pickKey(providerId: number): Promise<AiKey | undefined> {
   const key = pool.strategy === "random" ? selectRandom(pool) : selectRoundRobin(pool);
 
   if (key) {
+    const health = keyHealth.get(key.id);
     log.pricing.debug(
-      { keyId: key.id, keyName: key.name, strategy: pool.strategy, poolSize: pool.entries.length },
+      {
+        keyId: key.id,
+        keyName: key.name,
+        strategy: pool.strategy,
+        poolSize: pool.entries.length,
+        consecutiveFailures: health?.consecutiveFailures ?? 0,
+        penaltyUntil: health?.penaltyUntil ?? 0,
+      },
       "Key selected from pool",
     );
   }
@@ -155,6 +206,7 @@ export function invalidateKeyPool(providerId: number): void {
  */
 export function clearAllPools(): void {
   pools.clear();
+  keyHealth.clear();
 }
 
 /**
@@ -162,11 +214,47 @@ export function clearAllPools(): void {
  */
 export async function getPoolInfo(
   providerId: number,
-): Promise<{ size: number; totalWeight: number; keyIds: number[] }> {
+): Promise<{ size: number; totalWeight: number; keyIds: number[]; penalizedKeyIds: number[] }> {
   const pool = await getPool(providerId);
+  const now = Date.now();
   return {
     size: pool.entries.length,
     totalWeight: pool.totalWeight,
     keyIds: pool.entries.map((e) => e.key.id),
+    penalizedKeyIds: pool.entries
+      .filter((e) => (keyHealth.get(e.key.id)?.penaltyUntil ?? 0) > now)
+      .map((e) => e.key.id),
   };
+}
+
+export function markKeySuccess(keyId: number): void {
+  const state = getKeyHealthState(keyId);
+  state.totalSuccesses++;
+  state.consecutiveFailures = 0;
+  state.penaltyUntil = 0;
+}
+
+export function markKeyFailure(keyId: number): void {
+  const state = getKeyHealthState(keyId);
+  state.totalFailures++;
+  state.consecutiveFailures++;
+  state.lastFailureAt = Date.now();
+  const penaltyMs = Math.min(
+    BASE_PENALTY_MS * 2 ** (state.consecutiveFailures - 1),
+    MAX_PENALTY_MS,
+  );
+  state.penaltyUntil = Date.now() + penaltyMs;
+}
+
+export function getKeyHealthSnapshot(keyId: number): KeyHealth | null {
+  const state = keyHealth.get(keyId);
+  return state
+    ? {
+        consecutiveFailures: state.consecutiveFailures,
+        totalFailures: state.totalFailures,
+        totalSuccesses: state.totalSuccesses,
+        lastFailureAt: state.lastFailureAt,
+        penaltyUntil: state.penaltyUntil,
+      }
+    : null;
 }

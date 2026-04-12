@@ -9,7 +9,9 @@ import { Hono } from "hono";
 import type { AiModel, AiProvider } from "@/server/db";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
+import { getGatewayConfigCached, resolveTimeoutConfig } from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
+import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { getAdminSession } from "@/server/middleware/auth";
@@ -18,7 +20,7 @@ import { aiGuardrailConfigRepo, aiModelRepo } from "@/server/repos";
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
-import { pickKey } from "../lib/key-balancer";
+import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders } from "../lib/request-helpers";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
@@ -29,9 +31,9 @@ import {
   forwardPassthroughStream,
   forwardStream,
   RETRYABLE_STATUS,
-  STREAM_MAX_DURATION_MS,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
+import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
 import type { OpenAIChatBody, ProviderAdapter } from "../providers/types";
 
@@ -59,6 +61,7 @@ relay.post("/v1/chat/completions", async (c) => {
   getAdminSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
 
   // -- 1. Validate request body --
   const parsed = await parseBody(c, aiRelayChatBody);
@@ -98,10 +101,22 @@ relay.post("/v1/chat/completions", async (c) => {
 
   const candidates = await buildCandidateChain(primary.model, primary.provider);
 
+  if (isUnsupportedStreamingCandidate(body.stream, primary.provider.apiFormat)) {
+    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+  }
+
   // -- 3. Try each candidate (fallback loop) --
   let lastError: { status: number; message: string } | null = null;
 
   for (const candidate of candidates) {
+    if (isUnsupportedStreamingCandidate(body.stream, candidate.provider.apiFormat)) {
+      log.gateway.info(
+        { provider: candidate.provider.providerId, model: candidate.model.modelId, requestId },
+        "Skipping unsupported Bedrock streaming fallback candidate",
+      );
+      continue;
+    }
+
     // Pre-compute transformed body for this candidate (needed for SigV4 signing)
     // Inject stream_options at route level so OpenAI-compatible providers return usage in SSE chunks.
     const candidateBody = {
@@ -119,6 +134,7 @@ relay.post("/v1/chat/completions", async (c) => {
     if (!attempt) continue; // no key for this provider
 
     const { finalUrl, authHeaders, keyMeta } = attempt;
+    const passthroughHeaders = extractPassthroughHeaders(c);
 
     const meta: StreamRelayMeta = {
       keyId: keyMeta.keyId,
@@ -142,12 +158,19 @@ relay.post("/v1/chat/completions", async (c) => {
     // -- Streaming path --
     if (body.stream) {
       try {
-        const upstreamRes = await fetchUpstream(finalUrl, authHeaders, serializedBody);
+        const upstreamRes = await fetchUpstream(
+          finalUrl,
+          { ...authHeaders, ...passthroughHeaders },
+          serializedBody,
+          timeouts.upstreamFetchMs,
+          { provider: candidate.provider.providerId, route: "chat" },
+        );
         if (upstreamRes.ok) {
-          return forwardStream(c, upstreamRes, adapter, meta);
+          return forwardStream(c, upstreamRes, adapter, meta, undefined, timeouts);
         }
         // Retryable → try next candidate
         if (RETRYABLE_STATUS.has(upstreamRes.status)) {
+          markKeyFailure(keyMeta.keyId);
           const errBody = await upstreamRes.text().catch(() => "");
           log.gateway.warn(
             { provider: meta.providerId, model: meta.modelId, status: upstreamRes.status },
@@ -163,6 +186,7 @@ relay.post("/v1/chat/completions", async (c) => {
           upstreamRes.status as 400,
         );
       } catch (err) {
+        markKeyFailure(keyMeta.keyId);
         const message = err instanceof Error ? err.message : String(err);
         lastError = { status: 0, message };
         continue;
@@ -171,16 +195,22 @@ relay.post("/v1/chat/completions", async (c) => {
 
     // -- Non-streaming path --
     try {
+      const fetchStart = Date.now();
       const upstreamRes = await fetch(finalUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
         body: serializedBody,
-        signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
+        signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
       });
+      gatewayUpstreamDuration.observe(
+        { provider: candidate.provider.providerId, route: "chat", phase: "response" },
+        (Date.now() - fetchStart) / 1000,
+      );
 
       if (!upstreamRes.ok) {
         const errBody = await upstreamRes.text().catch(() => "");
         if (RETRYABLE_STATUS.has(upstreamRes.status)) {
+          markKeyFailure(keyMeta.keyId);
           log.gateway.warn(
             { provider: meta.providerId, model: meta.modelId, status: upstreamRes.status },
             "AI relay fallback: retryable error",
@@ -205,6 +235,7 @@ relay.post("/v1/chat/completions", async (c) => {
 
       const transformed = adapter.transformResponse(responseBody);
       const usage = adapter.extractUsage(responseBody);
+      markKeySuccess(keyMeta.keyId);
 
       const cost = calculateCost(usage, candidate.model);
       enqueueJob("ai-usage-log", {
@@ -231,6 +262,7 @@ relay.post("/v1/chat/completions", async (c) => {
 
       return c.json(transformed);
     } catch (err) {
+      markKeyFailure(keyMeta.keyId);
       const message = err instanceof Error ? err.message : String(err);
       log.gateway.error(
         { err, provider: meta.providerId, model: meta.modelId },
@@ -259,6 +291,7 @@ relay.all("/v1/*", async (c) => {
   getAdminSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
 
   // Parse model from body (POST/PUT/PATCH)
@@ -286,6 +319,10 @@ relay.all("/v1/*", async (c) => {
   }
 
   const { provider } = result;
+
+  if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+  }
 
   const key = await pickKey(provider.id);
   if (!key) return c.json({ error: "No API key configured for this provider" }, 403);
@@ -323,16 +360,23 @@ relay.all("/v1/*", async (c) => {
   const isStreaming = body.stream === true;
 
   try {
+    const fetchStart = Date.now();
     const upstreamRes = await fetch(finalUrl, {
       method: c.req.method,
       headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
       body: c.req.method !== "GET" ? serializedBody : undefined,
-      signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
+      signal: AbortSignal.timeout(
+        isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
+      ),
     });
+    gatewayUpstreamDuration.observe(
+      { provider: provider.providerId, route: "passthrough", phase: "response" },
+      (Date.now() - fetchStart) / 1000,
+    );
 
     // ── Streaming passthrough — parse SSE frames for usage ──
     if (isStreaming && upstreamRes.ok && upstreamRes.body) {
-      return forwardPassthroughStream(c, upstreamRes, meta);
+      return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts);
     }
 
     // ── Non-streaming passthrough — read JSON for usage ──
@@ -344,6 +388,12 @@ relay.all("/v1/*", async (c) => {
     if (isJson) {
       responseText = await upstreamRes.text();
       usage = extractPassthroughUsage(responseText);
+    }
+
+    if (upstreamRes.ok) {
+      markKeySuccess(key.id);
+    } else if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
+      markKeyFailure(key.id);
     }
 
     enqueueJob("ai-usage-log", {
@@ -372,6 +422,7 @@ relay.all("/v1/*", async (c) => {
       headers: resHeaders,
     });
   } catch (err) {
+    markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: `Upstream request failed: ${message}` }, 502);
   }
@@ -501,4 +552,11 @@ function weightedShuffle(candidates: Candidate[]): Candidate[] {
   }
 
   return result;
+}
+
+export function isUnsupportedStreamingCandidate(
+  stream: boolean | undefined,
+  apiFormat: string,
+): boolean {
+  return !!stream && apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED;
 }

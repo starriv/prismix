@@ -15,11 +15,22 @@
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 
+import { resolveTimeoutConfig, type TimeoutConfig } from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
+import {
+  aiStreamAbortTotal,
+  aiStreamActive,
+  aiStreamChunksTotal,
+  aiStreamCompletedTotal,
+  aiStreamFirstChunkLatency,
+  aiStreamStartedTotal,
+  gatewayUpstreamDuration,
+} from "@/server/lib/metrics";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import type { ProviderAdapter, TokenUsage } from "../providers/types";
+import { markKeyFailure, markKeySuccess } from "./key-balancer";
 
 /**
  * Idle timeout: abort if no data received from upstream for this long.
@@ -43,6 +54,36 @@ export const HEARTBEAT_INTERVAL_MS = 15_000;
 /** Maximum SSE buffer size before aborting (1 MB). */
 const MAX_BUFFER_SIZE = 1_048_576;
 
+export type StreamAbortReason =
+  | "completed"
+  | "client_abort"
+  | "idle_timeout"
+  | "max_duration"
+  | "buffer_overflow"
+  | "upstream_read_error"
+  | "upstream_missing_body";
+
+export interface StreamRuntimeStats {
+  started: number;
+  completed: number;
+  active: number;
+  aborts: Record<Exclude<StreamAbortReason, "completed">, number>;
+}
+
+const streamRuntimeStats: StreamRuntimeStats = {
+  started: 0,
+  completed: 0,
+  active: 0,
+  aborts: {
+    client_abort: 0,
+    idle_timeout: 0,
+    max_duration: 0,
+    buffer_overflow: 0,
+    upstream_read_error: 0,
+    upstream_missing_body: 0,
+  },
+};
+
 export interface StreamRelayMeta {
   keyId: number;
   providerId: string;
@@ -53,6 +94,7 @@ export interface StreamRelayMeta {
   outputPrice?: string;
   /** Serialized request body — passed through for request logging. */
   requestBody?: string;
+  routeType?: "chat" | "passthrough";
 }
 
 /**
@@ -66,6 +108,129 @@ export type StreamCompleteCallback = (
   rawResponse?: string,
 ) => Promise<void>;
 
+interface StreamLifecycleState {
+  routeType: "chat" | "passthrough";
+  chunkCount: number;
+  totalBytes: number;
+  pingCount: number;
+  startedAt: number;
+  firstChunkLatencyMs: number | null;
+  lastChunkAt: number | null;
+  abortReason: StreamAbortReason | null;
+}
+
+function createLifecycleState(meta: StreamRelayMeta): StreamLifecycleState {
+  return {
+    routeType: meta.routeType ?? "chat",
+    chunkCount: 0,
+    totalBytes: 0,
+    pingCount: 0,
+    startedAt: Date.now(),
+    firstChunkLatencyMs: null,
+    lastChunkAt: null,
+    abortReason: null,
+  };
+}
+
+function getRouteType(meta: StreamRelayMeta): "chat" | "passthrough" {
+  return meta.routeType ?? "chat";
+}
+
+function setAbortReason(state: StreamLifecycleState, reason: StreamAbortReason): void {
+  if (state.abortReason === null) {
+    state.abortReason = reason;
+  }
+}
+
+function recordStreamStart(meta: StreamRelayMeta): void {
+  const route = getRouteType(meta);
+  streamRuntimeStats.started++;
+  streamRuntimeStats.active++;
+  aiStreamStartedTotal.inc({ provider: meta.providerId, route });
+  aiStreamActive.inc({ provider: meta.providerId, route });
+}
+
+function recordStreamEnd(meta: StreamRelayMeta, state: StreamLifecycleState): void {
+  const route = state.routeType;
+  streamRuntimeStats.active = Math.max(0, streamRuntimeStats.active - 1);
+  aiStreamActive.dec({ provider: meta.providerId, route });
+
+  const outcome = state.abortReason ?? "completed";
+  if (outcome === "completed") {
+    streamRuntimeStats.completed++;
+  } else {
+    streamRuntimeStats.aborts[outcome]++;
+    aiStreamAbortTotal.inc({ provider: meta.providerId, route, reason: outcome });
+  }
+  aiStreamCompletedTotal.inc({ provider: meta.providerId, route, outcome });
+}
+
+function observeFirstChunk(meta: StreamRelayMeta, state: StreamLifecycleState): void {
+  if (state.firstChunkLatencyMs !== null) return;
+  state.firstChunkLatencyMs = Date.now() - meta.start;
+  aiStreamFirstChunkLatency.observe(
+    { provider: meta.providerId, route: state.routeType },
+    state.firstChunkLatencyMs / 1000,
+  );
+}
+
+function observeChunk(meta: StreamRelayMeta, state: StreamLifecycleState, bytes: number): void {
+  state.chunkCount++;
+  state.totalBytes += bytes;
+  state.lastChunkAt = Date.now();
+  observeFirstChunk(meta, state);
+  aiStreamChunksTotal.inc({ provider: meta.providerId, route: state.routeType });
+}
+
+function tryParseStreamEventType(dataLine: string): string | null {
+  try {
+    const parsed = JSON.parse(dataLine) as Record<string, unknown>;
+    return typeof parsed.type === "string" ? parsed.type : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStreamError(
+  stream: {
+    writeSSE: (payload: { event?: string; data: string }) => Promise<void>;
+    aborted: boolean;
+  },
+  reason: Exclude<StreamAbortReason, "completed" | "client_abort">,
+  meta: StreamRelayMeta,
+): Promise<void> {
+  if (stream.aborted) return;
+  const messageMap: Record<Exclude<StreamAbortReason, "completed" | "client_abort">, string> = {
+    idle_timeout: "Upstream stream was idle for too long",
+    max_duration: "Upstream stream exceeded the maximum allowed duration",
+    buffer_overflow: "Upstream stream frame exceeded the gateway safety buffer",
+    upstream_read_error: "Gateway failed while reading the upstream stream",
+    upstream_missing_body: "Upstream response body was missing",
+  };
+  await stream
+    .writeSSE({
+      event: "error",
+      data: JSON.stringify({
+        error: {
+          type: reason,
+          message: messageMap[reason],
+          provider: meta.providerId,
+          request_id: meta.requestId,
+        },
+      }),
+    })
+    .catch(() => {});
+}
+
+export function getStreamRuntimeStats(): StreamRuntimeStats {
+  return {
+    started: streamRuntimeStats.started,
+    completed: streamRuntimeStats.completed,
+    active: streamRuntimeStats.active,
+    aborts: { ...streamRuntimeStats.aborts },
+  };
+}
+
 // ── Stage 1: Fetch upstream (retryable) ─────────────────────────────
 
 /**
@@ -76,14 +241,23 @@ export async function fetchUpstream(
   url: string,
   headers: Record<string, string>,
   body: string,
-  timeoutMs = STREAM_MAX_DURATION_MS,
+  timeoutMs = resolveTimeoutConfig().upstreamFetchMs,
+  metricLabels?: { provider: string; route: "chat" | "passthrough" },
 ): Promise<Response> {
-  return fetch(url, {
+  const start = Date.now();
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body,
     signal: AbortSignal.timeout(timeoutMs),
   });
+  if (metricLabels) {
+    gatewayUpstreamDuration.observe(
+      { provider: metricLabels.provider, route: metricLabels.route, phase: "headers" },
+      (Date.now() - start) / 1000,
+    );
+  }
+  return response;
 }
 
 // ── Stage 2: Forward stream to client (non-retryable) ───────────────
@@ -105,33 +279,69 @@ export function forwardStream(
   adapter: ProviderAdapter,
   meta: StreamRelayMeta,
   onComplete?: StreamCompleteCallback,
+  timeoutConfig?: Partial<TimeoutConfig>,
 ): Response {
+  const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
   let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  const state = createLifecycleState(meta);
+  let maxTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Abort stream + cancel the upstream reader (unblocks pending read). */
-  const cancelAll = () => {
+  const cancelAll = (reason?: StreamAbortReason) => {
+    if (reason) setAbortReason(state, reason);
     abortController.abort();
     activeReader?.cancel().catch(() => {});
   };
 
-  const maxTimer = setTimeout(cancelAll, STREAM_MAX_DURATION_MS);
-  let idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
+  recordStreamStart(meta);
 
   return streamSSE(c, async (stream) => {
     let heartbeat: ReturnType<typeof setInterval> | null = null;
+    let errorSent = false;
+    const clearTimers = () => {
+      if (maxTimer) clearTimeout(maxTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+    const scheduleMaxTimer = () => {
+      maxTimer = setTimeout(async () => {
+        setAbortReason(state, "max_duration");
+        if (!errorSent) {
+          await writeStreamError(stream, "max_duration", meta);
+          errorSent = true;
+        }
+        cancelAll("max_duration");
+      }, timeouts.streamMaxDurationMs);
+    };
+    const scheduleIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(async () => {
+        setAbortReason(state, "idle_timeout");
+        if (!errorSent) {
+          await writeStreamError(stream, "idle_timeout", meta);
+          errorSent = true;
+        }
+        cancelAll("idle_timeout");
+      }, timeouts.streamIdleMs);
+    };
+
+    scheduleMaxTimer();
+    scheduleIdleTimer();
 
     stream.onAbort(() => {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
+      clearTimers();
       if (heartbeat) clearInterval(heartbeat);
-      cancelAll();
+      cancelAll("client_abort");
     });
 
     if (!upstreamRes.body) {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
-      await stream.writeSSE({ data: JSON.stringify({ error: "No response body from upstream" }) });
+      clearTimers();
+      setAbortReason(state, "upstream_missing_body");
+      markKeyFailure(meta.keyId);
+      await writeStreamError(stream, "upstream_missing_body", meta);
+      errorSent = true;
+      recordStreamEnd(meta, state);
       return;
     }
 
@@ -158,14 +368,21 @@ export function forwardStream(
         if (done) break;
 
         // Reset idle timer — upstream is still sending data
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
+        scheduleIdleTimer();
+        observeChunk(meta, state, value.byteLength);
 
         buffer += decoder.decode(value, { stream: true });
 
         // M3: Guard against unbounded buffer growth
         if (buffer.length > MAX_BUFFER_SIZE) {
-          log.gateway.error({ provider: meta.providerId }, "AI relay SSE buffer overflow");
+          setAbortReason(state, "buffer_overflow");
+          log.gateway.error(
+            { provider: meta.providerId, model: meta.modelId, requestId: meta.requestId },
+            "AI relay SSE buffer overflow",
+          );
+          cancelAll("buffer_overflow");
+          await writeStreamError(stream, "buffer_overflow", meta);
+          errorSent = true;
           break;
         }
 
@@ -178,7 +395,12 @@ export function forwardStream(
           const dataLine = extractDataLine(frame);
           if (dataLine === null) continue;
 
+          if (tryParseStreamEventType(dataLine) === "ping") {
+            state.pingCount++;
+          }
+
           if (adapter.isStreamDone(dataLine)) {
+            state.abortReason = "completed";
             await stream.writeSSE({ data: "[DONE]" });
             sentDone = true;
             break;
@@ -205,21 +427,40 @@ export function forwardStream(
       }
 
       // M6: Send synthetic [DONE] if the adapter never triggered it (e.g., Gemini)
-      if (!sentDone && !stream.aborted) {
+      if (
+        !sentDone &&
+        !stream.aborted &&
+        (state.abortReason === null || state.abortReason === "completed")
+      ) {
+        state.abortReason = "completed";
         await stream.writeSSE({ data: "[DONE]" });
       }
     } catch (err) {
+      if (
+        err instanceof Error &&
+        err.name === "AbortError" &&
+        state.abortReason &&
+        state.abortReason !== "completed" &&
+        state.abortReason !== "client_abort" &&
+        !errorSent
+      ) {
+        await writeStreamError(stream, state.abortReason, meta);
+        errorSent = true;
+      }
       if (err instanceof Error && err.name !== "AbortError") {
+        setAbortReason(state, "upstream_read_error");
         log.gateway.error(
           { err, provider: meta.providerId, model: meta.modelId },
           "AI relay stream read error",
         );
+        await writeStreamError(stream, "upstream_read_error", meta);
+        errorSent = true;
       }
     } finally {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
+      clearTimers();
       if (heartbeat) clearInterval(heartbeat);
       reader.releaseLock();
+      recordStreamEnd(meta, state);
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
@@ -245,6 +486,29 @@ export function forwardStream(
           );
         });
       }
+
+      if (state.abortReason === "completed" || state.abortReason === null) {
+        markKeySuccess(meta.keyId);
+      } else if (state.abortReason !== "client_abort") {
+        markKeyFailure(meta.keyId);
+      }
+
+      log.gateway.info(
+        {
+          provider: meta.providerId,
+          model: meta.modelId,
+          requestId: meta.requestId,
+          routeType: state.routeType,
+          abortReason: state.abortReason ?? "completed",
+          chunksSeen: state.chunkCount,
+          bytesSeen: state.totalBytes,
+          pingCount: state.pingCount,
+          firstChunkLatencyMs: state.firstChunkLatencyMs,
+          lastChunkAt: state.lastChunkAt,
+          latencyMs,
+        },
+        "AI relay stream finished",
+      );
     }
   });
 }
@@ -294,32 +558,68 @@ export function forwardPassthroughStream(
   upstreamRes: Response,
   meta: StreamRelayMeta,
   onComplete?: StreamCompleteCallback,
+  timeoutConfig?: Partial<TimeoutConfig>,
 ): Response {
+  const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
   let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  const state = createLifecycleState({ ...meta, routeType: "passthrough" });
+  let maxTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const cancelAll = () => {
+  const cancelAll = (reason?: StreamAbortReason) => {
+    if (reason) setAbortReason(state, reason);
     abortController.abort();
     activeReader?.cancel().catch(() => {});
   };
 
-  const maxTimer = setTimeout(cancelAll, STREAM_MAX_DURATION_MS);
-  let idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
+  recordStreamStart({ ...meta, routeType: "passthrough" });
 
   return streamSSE(c, async (stream) => {
     let heartbeat: ReturnType<typeof setInterval> | null = null;
+    let errorSent = false;
+    const clearTimers = () => {
+      if (maxTimer) clearTimeout(maxTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+    const scheduleMaxTimer = () => {
+      maxTimer = setTimeout(async () => {
+        setAbortReason(state, "max_duration");
+        if (!errorSent) {
+          await writeStreamError(stream, "max_duration", meta);
+          errorSent = true;
+        }
+        cancelAll("max_duration");
+      }, timeouts.streamMaxDurationMs);
+    };
+    const scheduleIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(async () => {
+        setAbortReason(state, "idle_timeout");
+        if (!errorSent) {
+          await writeStreamError(stream, "idle_timeout", meta);
+          errorSent = true;
+        }
+        cancelAll("idle_timeout");
+      }, timeouts.streamIdleMs);
+    };
+
+    scheduleMaxTimer();
+    scheduleIdleTimer();
 
     stream.onAbort(() => {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
+      clearTimers();
       if (heartbeat) clearInterval(heartbeat);
-      cancelAll();
+      cancelAll("client_abort");
     });
 
     if (!upstreamRes.body) {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
-      await stream.writeSSE({ data: JSON.stringify({ error: "No response body from upstream" }) });
+      clearTimers();
+      setAbortReason(state, "upstream_missing_body");
+      markKeyFailure(meta.keyId);
+      await writeStreamError(stream, "upstream_missing_body", meta);
+      errorSent = true;
+      recordStreamEnd({ ...meta, routeType: "passthrough" }, state);
       return;
     }
 
@@ -344,13 +644,17 @@ export function forwardPassthroughStream(
         if (done) break;
 
         // Reset idle timer — upstream is still sending data
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(cancelAll, STREAM_IDLE_TIMEOUT_MS);
+        scheduleIdleTimer();
+        observeChunk(meta, state, value.byteLength);
 
         buffer += decoder.decode(value, { stream: true });
 
         if (buffer.length > MAX_BUFFER_SIZE) {
+          setAbortReason(state, "buffer_overflow");
           log.gateway.error({ provider: meta.providerId }, "AI passthrough SSE buffer overflow");
+          cancelAll("buffer_overflow");
+          await writeStreamError(stream, "buffer_overflow", meta);
+          errorSent = true;
           break;
         }
 
@@ -363,6 +667,9 @@ export function forwardPassthroughStream(
           // Extract usage from data lines (universal: OpenAI/Anthropic/Gemini)
           const dataLine = extractDataLine(frame);
           if (dataLine !== null) {
+            if (tryParseStreamEventType(dataLine) === "ping") {
+              state.pingCount++;
+            }
             const frameUsage = extractStreamUsageUniversal(dataLine);
             if (frameUsage) {
               usage = usage
@@ -380,17 +687,31 @@ export function forwardPassthroughStream(
         }
       }
     } catch (err) {
+      if (
+        err instanceof Error &&
+        err.name === "AbortError" &&
+        state.abortReason &&
+        state.abortReason !== "completed" &&
+        state.abortReason !== "client_abort" &&
+        !errorSent
+      ) {
+        await writeStreamError(stream, state.abortReason, meta);
+        errorSent = true;
+      }
       if (err instanceof Error && err.name !== "AbortError") {
+        setAbortReason(state, "upstream_read_error");
         log.gateway.error(
           { err, provider: meta.providerId, model: meta.modelId },
           "AI passthrough stream read error",
         );
+        await writeStreamError(stream, "upstream_read_error", meta);
+        errorSent = true;
       }
     } finally {
-      clearTimeout(maxTimer);
-      clearTimeout(idleTimer);
+      clearTimers();
       if (heartbeat) clearInterval(heartbeat);
       reader.releaseLock();
+      recordStreamEnd({ ...meta, routeType: "passthrough" }, state);
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
@@ -410,6 +731,29 @@ export function forwardPassthroughStream(
           keyType: "admin",
         });
       }
+
+      if (state.abortReason === "completed" || state.abortReason === null) {
+        markKeySuccess(meta.keyId);
+      } else if (state.abortReason !== "client_abort") {
+        markKeyFailure(meta.keyId);
+      }
+
+      log.gateway.info(
+        {
+          provider: meta.providerId,
+          model: meta.modelId,
+          requestId: meta.requestId,
+          routeType: state.routeType,
+          abortReason: state.abortReason ?? "completed",
+          chunksSeen: state.chunkCount,
+          bytesSeen: state.totalBytes,
+          pingCount: state.pingCount,
+          firstChunkLatencyMs: state.firstChunkLatencyMs,
+          lastChunkAt: state.lastChunkAt,
+          latencyMs,
+        },
+        "AI passthrough stream finished",
+      );
     }
   });
 }

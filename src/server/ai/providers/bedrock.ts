@@ -18,6 +18,8 @@ import { anthropicAdapter } from "./anthropic";
 import { openaiAdapter } from "./openai";
 import type { BuildUrlOptions, OpenAIChatBody, ProviderAdapter, TokenUsage } from "./types";
 
+export const BEDROCK_STREAMING_SUPPORTED = false;
+
 // ── Vendor prefix extraction ────────────────────────────────────────
 
 /** Known Bedrock cross-region inference prefixes (2–5 chars). */

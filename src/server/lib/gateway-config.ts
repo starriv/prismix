@@ -29,6 +29,8 @@ export interface CircuitBreakerConfig {
 
 export interface TimeoutConfig {
   upstreamFetchMs: number;
+  streamIdleMs: number;
+  streamMaxDurationMs: number;
 }
 
 export interface QueueConfig {
@@ -109,6 +111,8 @@ const DEFAULT_CIRCUIT_BREAKERS: CircuitBreakerConfig[] = [
 
 const DEFAULT_TIMEOUTS: TimeoutConfig = {
   upstreamFetchMs: 30_000,
+  streamIdleMs: 5 * 60 * 1000,
+  streamMaxDurationMs: 30 * 60 * 1000,
 };
 
 const DEFAULT_QUEUE: QueueConfig = {
@@ -130,13 +134,14 @@ function parseJson<T>(raw: string | undefined, fallback: T): T {
 // ── Load / Save ──────────────────────────────────────────────────────
 
 export async function loadGatewayConfig(): Promise<GatewayConfig> {
+  const timeouts = parseJson<Partial<TimeoutConfig>>(await settingsRepo.getGlobal(GW_TIMEOUT), {});
   return {
     rateLimits: parseJson(await settingsRepo.getGlobal(GW_RATE_LIMIT), DEFAULT_RATE_LIMITS),
     circuitBreakers: parseJson(
       await settingsRepo.getGlobal(GW_CIRCUIT_BREAKER),
       DEFAULT_CIRCUIT_BREAKERS,
     ),
-    timeouts: parseJson(await settingsRepo.getGlobal(GW_TIMEOUT), DEFAULT_TIMEOUTS),
+    timeouts: resolveTimeoutConfig(timeouts),
     queue: parseJson(await settingsRepo.getGlobal(GW_QUEUE), DEFAULT_QUEUE),
   };
 }
@@ -194,4 +199,12 @@ export function invalidateGatewayConfig(): void {
       // On failure, keep stale config rather than losing it
       log.gateway.warn({ err }, "Gateway config reload failed — keeping stale config");
     });
+}
+
+export function resolveTimeoutConfig(config?: Partial<TimeoutConfig> | null): TimeoutConfig {
+  return {
+    upstreamFetchMs: config?.upstreamFetchMs ?? DEFAULT_TIMEOUTS.upstreamFetchMs,
+    streamIdleMs: config?.streamIdleMs ?? DEFAULT_TIMEOUTS.streamIdleMs,
+    streamMaxDurationMs: config?.streamMaxDurationMs ?? DEFAULT_TIMEOUTS.streamMaxDurationMs,
+  };
 }

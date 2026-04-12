@@ -95,12 +95,12 @@ function toPerMTok(costPerToken: number | null | undefined): string {
 
 // ── Capabilities derivation ──────────────────────────────────────────
 
-function deriveCapabilities(entry: LiteLLMRawEntry): string[] {
+function deriveCapabilities(entry: LiteLLMRawEntry, provider: string): string[] {
   const caps: string[] = [];
   if (entry.mode === "chat") caps.push("chat");
   if (entry.supports_vision) caps.push("vision");
   if (entry.supports_function_calling) caps.push("tools");
-  if (entry.supports_native_streaming !== false) caps.push("streaming");
+  if (provider !== "bedrock" && entry.supports_native_streaming !== false) caps.push("streaming");
   if (entry.supports_reasoning) caps.push("reasoning");
   return caps;
 }
@@ -158,7 +158,7 @@ function parseAndIndex(raw: Record<string, LiteLLMRawEntry>): {
       outputPricePerMTok: toPerMTok(entry.output_cost_per_token),
       contextWindow: entry.max_input_tokens ?? null,
       maxOutputTokens: entry.max_output_tokens ?? null,
-      capabilities: deriveCapabilities(entry),
+      capabilities: deriveCapabilities(entry, resolved.provider),
     };
 
     const lookupKey = `${resolved.provider}:${resolved.modelId}`;

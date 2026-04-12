@@ -9,7 +9,9 @@ import { Hono } from "hono";
 import { emit } from "@/server/events";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
+import { getGatewayConfigCached, resolveTimeoutConfig } from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
+import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { getRequestId } from "@/server/middleware/request-id";
@@ -23,7 +25,7 @@ import { gt, removeTailingZero, safePlus } from "@/shared/number";
 
 import { billConsumer, calculateConsumerCost } from "../lib/billing";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
-import { pickKey } from "../lib/key-balancer";
+import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { safeParseGuardrailRules } from "../lib/safe-json";
@@ -36,8 +38,8 @@ import {
   type StreamCompleteCallback,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
-import { STREAM_MAX_DURATION_MS } from "../lib/stream-proxy";
 import { getConsumerSession } from "../middleware/consumer-key-auth";
+import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
 import type { OpenAIChatBody, TokenUsage } from "../providers/types";
 
@@ -78,6 +80,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
 
   // -- 1. Validate request body --
   const parsed = await parseBody(c, aiRelayChatBody);
@@ -132,6 +135,10 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   const provider = primary.provider;
   const model = primary.model;
 
+  if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+  }
+
   const key = await pickKey(provider.id);
   if (!key) {
     return c.json({ error: `No API key configured for provider "${provider.name}"` }, 403);
@@ -170,6 +177,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
     upstreamUrl,
     serializedBody,
   );
+  const passthroughHeaders = extractPassthroughHeaders(c);
 
   // -- 7b. Check if request logging is enabled --
   const logEnabled = await isRequestLoggingEnabled();
@@ -213,8 +221,21 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   // -- 9. Streaming path --
   if (body.stream) {
     try {
-      const upstreamRes = await fetchUpstream(finalUrl, authHeaders, serializedBody);
+      const streamingHeaders = { ...authHeaders, ...passthroughHeaders };
+      const upstreamRes = await fetchUpstream(
+        finalUrl,
+        streamingHeaders,
+        serializedBody,
+        timeouts.upstreamFetchMs,
+        {
+          provider: provider.providerId,
+          route: "chat",
+        },
+      );
       if (!upstreamRes.ok) {
+        if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
+          markKeyFailure(key.id);
+        }
         const errBody = await upstreamRes.text().catch(() => "");
         return c.json(
           { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
@@ -240,8 +261,9 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
         });
       };
 
-      return forwardStream(c, upstreamRes, adapter, meta, onComplete);
+      return forwardStream(c, upstreamRes, adapter, meta, onComplete, timeouts);
     } catch (err) {
+      markKeyFailure(key.id);
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: `Upstream request failed: ${message}` }, 502);
     }
@@ -250,18 +272,27 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   // -- 9. Non-streaming path --
   let upstreamRes: Response;
   try {
+    const fetchStart = Date.now();
     upstreamRes = await fetch(finalUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
       body: serializedBody,
-      signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
+      signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
     });
+    gatewayUpstreamDuration.observe(
+      { provider: provider.providerId, route: "chat", phase: "response" },
+      (Date.now() - fetchStart) / 1000,
+    );
   } catch (err) {
+    markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: `Upstream request failed: ${message}` }, 502);
   }
 
   if (!upstreamRes.ok) {
+    if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
+      markKeyFailure(key.id);
+    }
     const errBody = await upstreamRes.text().catch(() => "");
     return c.json(
       { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
@@ -279,6 +310,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   const transformed = adapter.transformResponse(responseBody);
   const usage = adapter.extractUsage(responseBody);
   const latencyMs = Date.now() - start;
+  markKeySuccess(key.id);
 
   // -- 10. Calculate cost and debit consumer --
   const { upstreamCost, costStr } = calculateConsumerCost(
@@ -410,6 +442,7 @@ consumerRelay.all("/v1/*", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
 
   let body: Record<string, unknown> = {};
@@ -446,6 +479,10 @@ consumerRelay.all("/v1/*", async (c) => {
   }
 
   const { provider } = result;
+
+  if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+  }
 
   const key = await pickKey(provider.id);
   if (!key) return c.json({ error: "No API key configured for this provider" }, 403);
@@ -487,12 +524,19 @@ consumerRelay.all("/v1/*", async (c) => {
   const isStreaming = body.stream === true;
 
   try {
+    const fetchStart = Date.now();
     const upstreamRes = await fetch(finalUrl, {
       method: c.req.method,
       headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
       body: c.req.method !== "GET" ? serializedBody : undefined,
-      signal: AbortSignal.timeout(STREAM_MAX_DURATION_MS),
+      signal: AbortSignal.timeout(
+        isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
+      ),
     });
+    gatewayUpstreamDuration.observe(
+      { provider: provider.providerId, route: "passthrough", phase: "response" },
+      (Date.now() - fetchStart) / 1000,
+    );
 
     // ── Streaming passthrough — parse SSE frames for usage + billing ──
     if (isStreaming && upstreamRes.ok && upstreamRes.body) {
@@ -513,7 +557,7 @@ consumerRelay.all("/v1/*", async (c) => {
         });
       };
 
-      return forwardPassthroughStream(c, upstreamRes, meta, onComplete);
+      return forwardPassthroughStream(c, upstreamRes, meta, onComplete, timeouts);
     }
 
     // ── Non-streaming passthrough — read JSON for usage + billing ──
@@ -525,6 +569,12 @@ consumerRelay.all("/v1/*", async (c) => {
     if (isJson) {
       responseText = await upstreamRes.text();
       usage = extractPassthroughUsage(responseText);
+    }
+
+    if (upstreamRes.ok) {
+      markKeySuccess(key.id);
+    } else if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
+      markKeyFailure(key.id);
     }
 
     await billConsumer({
@@ -555,6 +605,7 @@ consumerRelay.all("/v1/*", async (c) => {
       headers: resHeaders,
     });
   } catch (err) {
+    markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: `Upstream request failed: ${message}` }, 502);
   }

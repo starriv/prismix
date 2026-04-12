@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { values } from "lodash-es";
 
 import { CHAIN_CONFIG } from "@/blockchain/config";
+import { getStreamRuntimeStats } from "@/server/ai/lib/stream-proxy";
 import { getRateLimiterStats, getRateLimiterWindowCount } from "@/server/middleware/rate-limiter";
 
 import { getJwtStats } from "../lib/jwt";
@@ -68,6 +69,7 @@ health.get("/metrics", adminAuthMiddleware, async (c) => {
 
   const sessions = await getJwtStats();
   const writeQueue = getWriteQueueStats();
+  const aiStreams = getStreamRuntimeStats();
   const mem = process.memoryUsage();
 
   return c.json({
@@ -76,6 +78,7 @@ health.get("/metrics", adminAuthMiddleware, async (c) => {
     },
     sessions,
     sse: { listenerCount: getListenerCount() },
+    aiStreams,
     writeQueue,
     rateLimiter: {
       windowCount: getRateLimiterWindowCount(),
