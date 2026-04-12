@@ -70,6 +70,8 @@ export function initAiRelay(): void {
           inputTokens: (data.inputTokens as number) ?? 0,
           outputTokens: (data.outputTokens as number) ?? 0,
           totalTokens: (data.totalTokens as number) ?? 0,
+          cacheCreationInputTokens: (data.cacheCreationInputTokens as number) ?? 0,
+          cacheReadInputTokens: (data.cacheReadInputTokens as number) ?? 0,
           estimatedCost: (data.estimatedCost as string) ?? null,
           upstreamCost: (data.upstreamCost as string) ?? null,
           markupPercent: (data.markupPercent as number) ?? null,
