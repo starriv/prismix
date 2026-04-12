@@ -17,5 +17,7 @@ watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
 [deploy]
 # Start command — env vars injected by Railway, no .env file needed
 startCommand = "pnpm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
