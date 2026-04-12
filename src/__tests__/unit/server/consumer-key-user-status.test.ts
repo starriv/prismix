@@ -15,9 +15,10 @@ import {
 
 // ── Hoisted mock fns ────────────────────────────────────────────────
 
-const { mockFindByHash, mockFindAgent } = vi.hoisted(() => ({
+const { mockFindByHash, mockFindAgent, mockEnqueueJob } = vi.hoisted(() => ({
   mockFindByHash: vi.fn(),
   mockFindAgent: vi.fn(),
+  mockEnqueueJob: vi.fn(),
 }));
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -29,6 +30,10 @@ vi.mock("@/server/repos", () => ({
   payAgentRepo: {
     findById: (...args: unknown[]) => mockFindAgent(...args),
   },
+}));
+
+vi.mock("@/server/lib/write-queue", () => ({
+  enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
 }));
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -130,6 +135,15 @@ describe("consumer key auth — user status gate", () => {
     expect(body.error).toBe("Account is disabled");
     // Should NOT reach agent lookup
     expect(mockFindAgent).not.toHaveBeenCalled();
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      "ai-usage-log",
+      expect.objectContaining({
+        statusCode: 403,
+        error: "Account is disabled",
+        consumerKeyId: 1,
+        userId: 10,
+      }),
+    );
   });
 
   it("orphan key (userId=null, userStatus=null) → passes through (200)", async () => {

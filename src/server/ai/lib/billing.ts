@@ -35,6 +35,7 @@ export interface BillConsumerParams {
   outputPrice: string;
   requestId: string;
   statusCode: number;
+  error?: string;
   /** Serialized request body — for request logging (if logging is enabled). */
   requestBody?: string;
   /** Raw response body — for request logging. */
@@ -134,6 +135,7 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
     latencyMs: p.latencyMs,
     statusCode: p.statusCode,
     requestId: p.requestId,
+    error: p.error ?? null,
   } as Record<string, unknown>);
   enqueueJob("consumer-key-touch", { consumerId: p.consumer.consumerId });
   enqueueJob("ai-key-touch", { keyId: p.keyId, keyType: "admin" });

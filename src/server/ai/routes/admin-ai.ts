@@ -80,6 +80,9 @@ adminAi.get("/usage/recent", async (c) => {
   const modelId = c.req.query("modelId") || undefined;
   const providerId = c.req.query("providerId") || undefined;
   const statusCode = parseIntParam(c.req.query("statusCode")) ?? undefined;
+  const rawStatusClass = c.req.query("statusClass");
+  const statusClass =
+    rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
   return ok(
     c,
     await aiUsageLogRepo.findAll(limit, offset, {
@@ -89,6 +92,7 @@ adminAi.get("/usage/recent", async (c) => {
       modelId,
       providerId,
       statusCode,
+      statusClass,
     }),
   );
 });

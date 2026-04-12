@@ -29,11 +29,16 @@ export default function AiLogsPage() {
   // Applied state — URL-persisted, drives query
   const [appliedModel, setAppliedModel] = useQueryState("model", parseAsString.withDefault("all"));
   const [appliedKey, setAppliedKey] = useQueryState("key", parseAsString.withDefault("all"));
+  const [appliedStatus, setAppliedStatus] = useQueryState(
+    "status",
+    parseAsString.withDefault("all"),
+  );
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(0));
 
   // Draft state — local UI
   const [draftModel, setDraftModel] = useState(appliedModel);
   const [draftKey, setDraftKey] = useState(appliedKey);
+  const [draftStatus, setDraftStatus] = useState(appliedStatus);
 
   // Data — auto-refresh every 5s
   const LIVE_REFETCH_MS = 5_000;
@@ -45,6 +50,7 @@ export default function AiLogsPage() {
   } = useAiLogs({
     modelId: appliedModel !== "all" ? appliedModel : undefined,
     consumerKeyId: appliedKey !== "all" ? Number(appliedKey) : undefined,
+    statusClass: appliedStatus === "4xx" || appliedStatus === "5xx" ? appliedStatus : undefined,
     page,
     refetchInterval: LIVE_REFETCH_MS,
   });
@@ -60,21 +66,32 @@ export default function AiLogsPage() {
 
   const [selected, setSelected] = useState<AiUsageRecord | null>(null);
 
-  const hasFilters = draftModel !== "all" || draftKey !== "all";
+  const hasFilters = draftModel !== "all" || draftKey !== "all" || draftStatus !== "all";
 
   const applyFilters = useCallback(() => {
     setAppliedModel(draftModel);
     setAppliedKey(draftKey);
+    setAppliedStatus(draftStatus);
     setPage(0);
-  }, [draftModel, draftKey, setAppliedModel, setAppliedKey, setPage]);
+  }, [
+    draftKey,
+    draftModel,
+    draftStatus,
+    setAppliedKey,
+    setAppliedModel,
+    setAppliedStatus,
+    setPage,
+  ]);
 
   const resetFilters = useCallback(() => {
     setDraftModel("all");
     setDraftKey("all");
+    setDraftStatus("all");
     setAppliedModel("all");
     setAppliedKey("all");
+    setAppliedStatus("all");
     setPage(0);
-  }, [setAppliedModel, setAppliedKey, setPage]);
+  }, [setAppliedKey, setAppliedModel, setAppliedStatus, setPage]);
 
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
 
@@ -115,6 +132,17 @@ export default function AiLogsPage() {
                       {k.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={draftStatus} onValueChange={setDraftStatus}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ai-logs.filter.all-status")}</SelectItem>
+                  <SelectItem value="4xx">4xx</SelectItem>
+                  <SelectItem value="5xx">5xx</SelectItem>
                 </SelectContent>
               </Select>
 

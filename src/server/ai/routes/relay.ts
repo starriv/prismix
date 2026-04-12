@@ -4,7 +4,7 @@
  * Mounted at /api/admin/ai/relay (adminAuthMiddleware applied via parent).
  * Supports: non-streaming + SSE streaming, model fallback chain, cost tracking.
  */
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 
 import type { AiModel, AiProvider } from "@/server/db";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
@@ -19,10 +19,11 @@ import { getRequestId } from "@/server/middleware/request-id";
 import { aiGuardrailConfigRepo, aiModelRepo } from "@/server/repos";
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
+import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
-import { extractPassthroughHeaders } from "../lib/request-helpers";
+import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
 import { buildCacheKey, getCachedResponse, setCachedResponse } from "../lib/semantic-cache";
 import {
@@ -40,6 +41,41 @@ import type { OpenAIChatBody, ProviderAdapter } from "../providers/types";
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
 const relay = new Hono();
+
+interface RelayErrorExtras {
+  keyId?: number | null;
+  providerId?: string | null;
+  modelId?: string | null;
+  requestBody?: string;
+  responseBody?: string;
+  estimatedCost?: string | null;
+}
+
+function respondWithRelayError(
+  c: Context,
+  requestId: string,
+  start: number,
+  statusCode: number,
+  payload: Record<string, unknown>,
+  extras?: RelayErrorExtras,
+): Response {
+  enqueueAiAccessLog({
+    requestId,
+    statusCode,
+    keyId: extras?.keyId ?? null,
+    providerId: extras?.providerId ?? null,
+    modelId: extras?.modelId ?? null,
+    estimatedCost: extras?.estimatedCost ?? null,
+    latencyMs: Date.now() - start,
+    requestBody: extras?.requestBody,
+    responseBody: extras?.responseBody ?? JSON.stringify(payload),
+    error: buildAccessLogErrorMessage(
+      typeof payload.error === "string" ? payload.error : `HTTP ${statusCode}`,
+      "detail" in payload ? payload.detail : undefined,
+    ),
+  });
+  return c.json(payload, statusCode as 400);
+}
 
 // ── GET /v1/models — OpenAI-compatible model catalog ────────────────
 
@@ -62,10 +98,11 @@ relay.post("/v1/chat/completions", async (c) => {
   const requestId = getRequestId(c);
   const start = Date.now();
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
+  const logEnabled = await isRequestLoggingEnabled();
 
   // -- 1. Validate request body --
   const parsed = await parseBody(c, aiRelayChatBody);
-  if (!parsed.ok) return parsed.response;
+  if (!parsed.ok) return respondWithRelayError(c, requestId, start, 400, { error: parsed.error });
   const body = parsed.data;
 
   // -- 1b. Input guardrails --
@@ -79,13 +116,10 @@ relay.post("/v1/chat/completions", async (c) => {
         action: gc.action as GuardrailConfig["action"],
       });
       if (!result.allowed && gc.action === "block") {
-        return c.json(
-          {
-            error: result.reason ?? "Request blocked by guardrails",
-            flagged: result.flaggedContent,
-          },
-          403,
-        );
+        return respondWithRelayError(c, requestId, start, 403, {
+          error: result.reason ?? "Request blocked by guardrails",
+          flagged: result.flaggedContent,
+        });
       }
       if (!result.allowed) {
         log.gateway.warn({ reason: result.reason }, "AI guardrail triggered");
@@ -96,13 +130,22 @@ relay.post("/v1/chat/completions", async (c) => {
   // -- 2. Build candidate chain (primary + fallbacks) --
   const primary = await aiModelRepo.findEnabledByModelId(body.model);
   if (!primary) {
-    return c.json({ error: `Model "${body.model}" not found or disabled` }, 404);
+    return respondWithRelayError(c, requestId, start, 404, {
+      error: `Model "${body.model}" not found or disabled`,
+    });
   }
 
   const candidates = await buildCandidateChain(primary.model, primary.provider);
 
   if (isUnsupportedStreamingCandidate(body.stream, primary.provider.apiFormat)) {
-    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+    return respondWithRelayError(
+      c,
+      requestId,
+      start,
+      400,
+      { error: "Bedrock streaming is not supported yet" },
+      { providerId: primary.provider.providerId, modelId: primary.model.modelId },
+    );
   }
 
   // -- 3. Try each candidate (fallback loop) --
@@ -144,6 +187,7 @@ relay.post("/v1/chat/completions", async (c) => {
       start,
       inputPrice: candidate.model.inputPrice,
       outputPrice: candidate.model.outputPrice,
+      requestBody: logEnabled ? serializedBody : undefined,
     };
 
     // -- Cache check (non-streaming only) --
@@ -181,9 +225,18 @@ relay.post("/v1/chat/completions", async (c) => {
         }
         // Non-retryable → return error immediately
         const errBody = await upstreamRes.text().catch(() => "");
-        return c.json(
+        return respondWithRelayError(
+          c,
+          requestId,
+          start,
+          upstreamRes.status,
           { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-          upstreamRes.status as 400,
+          {
+            keyId: keyMeta.keyId,
+            providerId: candidate.provider.providerId,
+            modelId: candidate.model.modelId,
+            requestBody: logEnabled ? serializedBody : undefined,
+          },
         );
       } catch (err) {
         markKeyFailure(keyMeta.keyId);
@@ -218,9 +271,18 @@ relay.post("/v1/chat/completions", async (c) => {
           lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
           continue;
         }
-        return c.json(
+        return respondWithRelayError(
+          c,
+          requestId,
+          start,
+          upstreamRes.status,
           { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-          upstreamRes.status as 400,
+          {
+            keyId: keyMeta.keyId,
+            providerId: candidate.provider.providerId,
+            modelId: candidate.model.modelId,
+            requestBody: logEnabled ? serializedBody : undefined,
+          },
         );
       }
 
@@ -230,7 +292,19 @@ relay.post("/v1/chat/completions", async (c) => {
       try {
         responseBody = await upstreamRes.json();
       } catch {
-        return c.json({ error: "Failed to parse upstream response" }, 502);
+        return respondWithRelayError(
+          c,
+          requestId,
+          start,
+          502,
+          { error: "Failed to parse upstream response" },
+          {
+            keyId: keyMeta.keyId,
+            providerId: candidate.provider.providerId,
+            modelId: candidate.model.modelId,
+            requestBody: logEnabled ? serializedBody : undefined,
+          },
+        );
       }
 
       const transformed = adapter.transformResponse(responseBody);
@@ -249,7 +323,19 @@ relay.post("/v1/chat/completions", async (c) => {
         latencyMs,
         statusCode: upstreamRes.status,
         requestId,
+        error: null,
       } as Record<string, unknown>);
+
+      if (logEnabled) {
+        enqueueJob("ai-request-log", {
+          requestId,
+          consumerKeyId: null,
+          modelId: candidate.model.modelId,
+          requestBody: serializedBody,
+          responseBody: JSON.stringify(responseBody),
+          createdAt: new Date().toISOString(),
+        } as Record<string, unknown>);
+      }
 
       enqueueJob("ai-key-touch", {
         keyId: keyMeta.keyId,
@@ -274,9 +360,13 @@ relay.post("/v1/chat/completions", async (c) => {
   }
 
   // All candidates exhausted
-  return c.json(
-    { error: "All models failed", detail: lastError?.message ?? "No suitable key found" },
+  return respondWithRelayError(
+    c,
+    requestId,
+    start,
     502,
+    { error: "All models failed", detail: lastError?.message ?? "No suitable key found" },
+    { providerId: primary.provider.providerId, modelId: primary.model.modelId },
   );
 });
 
@@ -293,6 +383,7 @@ relay.all("/v1/*", async (c) => {
   const start = Date.now();
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
+  const logEnabled = await isRequestLoggingEnabled();
 
   // Parse model from body (POST/PUT/PATCH)
   let body: Record<string, unknown> = {};
@@ -300,38 +391,67 @@ relay.all("/v1/*", async (c) => {
     try {
       const raw: unknown = await c.req.json();
       if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-        return c.json({ error: "Request body must be a JSON object" }, 400);
+        return respondWithRelayError(c, requestId, start, 400, {
+          error: "Request body must be a JSON object",
+        });
       }
       body = raw as Record<string, unknown>;
     } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+      return respondWithRelayError(c, requestId, start, 400, { error: "Invalid JSON body" });
     }
   }
 
   const modelId = body.model as string | undefined;
   if (!modelId) {
-    return c.json({ error: "Request body must contain a 'model' field" }, 400);
+    return respondWithRelayError(c, requestId, start, 400, {
+      error: "Request body must contain a 'model' field",
+    });
   }
 
   const result = await aiModelRepo.findEnabledByModelId(modelId);
   if (!result) {
-    return c.json({ error: `Model "${modelId}" not found or disabled` }, 404);
+    return respondWithRelayError(c, requestId, start, 404, {
+      error: `Model "${modelId}" not found or disabled`,
+    });
   }
 
   const { provider } = result;
 
   if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
-    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+    return respondWithRelayError(
+      c,
+      requestId,
+      start,
+      400,
+      { error: "Bedrock streaming is not supported yet" },
+      { providerId: provider.providerId, modelId },
+    );
   }
 
   const key = await pickKey(provider.id);
-  if (!key) return c.json({ error: "No API key configured for this provider" }, 403);
+  if (!key) {
+    return respondWithRelayError(
+      c,
+      requestId,
+      start,
+      403,
+      { error: "No API key configured for this provider" },
+      { providerId: provider.providerId, modelId },
+    );
+  }
 
   let plainKey: string;
   try {
     plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
   } catch {
-    return c.json({ error: "Failed to decrypt provider key" }, 500);
+    return respondWithRelayError(
+      c,
+      requestId,
+      start,
+      500,
+      { error: "Failed to decrypt provider key" },
+      { keyId: key.id, providerId: provider.providerId, modelId },
+    );
   }
 
   const base = provider.baseUrl.replace(/\/+$/, "");
@@ -355,6 +475,7 @@ relay.all("/v1/*", async (c) => {
     start,
     inputPrice: result.model.inputPrice,
     outputPrice: result.model.outputPrice,
+    requestBody: logEnabled ? serializedBody : undefined,
   };
 
   const isStreaming = body.stream === true;
@@ -406,7 +527,24 @@ relay.all("/v1/*", async (c) => {
       latencyMs,
       statusCode: upstreamRes.status,
       requestId,
+      error:
+        !upstreamRes.ok && responseText
+          ? buildAccessLogErrorMessage(`Upstream returned ${upstreamRes.status}`, responseText)
+          : !upstreamRes.ok
+            ? `Upstream returned ${upstreamRes.status}`
+            : null,
     } as Record<string, unknown>);
+
+    if (logEnabled) {
+      enqueueJob("ai-request-log", {
+        requestId,
+        consumerKeyId: null,
+        modelId,
+        requestBody: serializedBody,
+        responseBody: responseText ?? "",
+        createdAt: new Date().toISOString(),
+      } as Record<string, unknown>);
+    }
     enqueueJob("ai-key-touch", { keyId: key.id, keyType: "admin" });
 
     const resHeaders = new Headers();
@@ -424,7 +562,19 @@ relay.all("/v1/*", async (c) => {
   } catch (err) {
     markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: `Upstream request failed: ${message}` }, 502);
+    return respondWithRelayError(
+      c,
+      requestId,
+      start,
+      502,
+      { error: `Upstream request failed: ${message}` },
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId,
+        requestBody: logEnabled ? serializedBody : undefined,
+      },
+    );
   }
 });
 

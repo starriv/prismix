@@ -347,6 +347,7 @@ export function useAiLogs(opts?: {
   consumerKeyId?: number;
   modelId?: string;
   providerId?: string;
+  statusClass?: "4xx" | "5xx";
   page?: number;
   refetchInterval?: number | false;
 }) {
@@ -355,6 +356,7 @@ export function useAiLogs(opts?: {
   if (opts?.consumerKeyId != null) params.set("consumerKeyId", String(opts.consumerKeyId));
   if (opts?.modelId) params.set("modelId", opts.modelId);
   if (opts?.providerId) params.set("providerId", opts.providerId);
+  if (opts?.statusClass) params.set("statusClass", opts.statusClass);
   params.set("limit", String(DEFAULT_PAGE_SIZE));
   params.set("offset", String(page * DEFAULT_PAGE_SIZE));
   const qs = params.toString();
@@ -364,6 +366,7 @@ export function useAiLogs(opts?: {
       consumerKeyId: opts?.consumerKeyId,
       modelId: opts?.modelId,
       providerId: opts?.providerId,
+      statusClass: opts?.statusClass,
       page,
     }),
     queryFn: () => get(`${API_AI_USAGE_RECENT}?${qs}`, z.array(aiUsageRecordSchema)),

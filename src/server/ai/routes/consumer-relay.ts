@@ -4,7 +4,7 @@
  * Adds: balance gate, model ACL, post-request billing (debit + transaction record).
  * Mounted at /api/gateway/ai/endpoint (consumerKeyAuthMiddleware applied via parent).
  */
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 
 import { emit } from "@/server/events";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
@@ -23,6 +23,7 @@ import {
 } from "@/server/repos";
 import { gt, removeTailingZero, safePlus } from "@/shared/number";
 
+import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { billConsumer, calculateConsumerCost } from "../lib/billing";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
@@ -38,7 +39,7 @@ import {
   type StreamCompleteCallback,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
-import { getConsumerSession } from "../middleware/consumer-key-auth";
+import { type ConsumerSession, getConsumerSession } from "../middleware/consumer-key-auth";
 import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
 import type { OpenAIChatBody, TokenUsage } from "../providers/types";
@@ -46,6 +47,47 @@ import type { OpenAIChatBody, TokenUsage } from "../providers/types";
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
 const consumerRelay = new Hono();
+
+interface ConsumerErrorExtras {
+  keyId?: number | null;
+  providerId?: string | null;
+  modelId?: string | null;
+  requestBody?: string;
+  responseBody?: string;
+  estimatedCost?: string | null;
+  upstreamCost?: string | null;
+}
+
+function respondWithConsumerError(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+  statusCode: number,
+  payload: Record<string, unknown>,
+  extras?: ConsumerErrorExtras,
+): Response {
+  enqueueAiAccessLog({
+    requestId,
+    statusCode,
+    keyId: extras?.keyId ?? null,
+    consumerKeyId: consumer.consumerId,
+    userId: consumer.userId,
+    providerId: extras?.providerId ?? null,
+    modelId: extras?.modelId ?? null,
+    estimatedCost: extras?.estimatedCost ?? null,
+    upstreamCost: extras?.upstreamCost ?? null,
+    markupPercent: consumer.markupPercent,
+    latencyMs: Date.now() - start,
+    requestBody: extras?.requestBody,
+    responseBody: extras?.responseBody ?? JSON.stringify(payload),
+    error: buildAccessLogErrorMessage(
+      typeof payload.error === "string" ? payload.error : `HTTP ${statusCode}`,
+      "detail" in payload ? payload.detail : undefined,
+    ),
+  });
+  return c.json(payload, statusCode as 400);
+}
 
 // ── GET /v1/models — OpenAI-compatible model catalog ────────────────
 
@@ -84,7 +126,8 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
 
   // -- 1. Validate request body --
   const parsed = await parseBody(c, aiRelayChatBody);
-  if (!parsed.ok) return parsed.response;
+  if (!parsed.ok)
+    return respondWithConsumerError(c, consumer, requestId, start, 400, { error: parsed.error });
   const body = parsed.data;
 
   // -- 2. Model ACL check --
@@ -94,7 +137,9 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
       return body.model === pattern;
     });
     if (!allowed) {
-      return c.json({ error: `Model "${body.model}" is not allowed for this key` }, 403);
+      return respondWithConsumerError(c, consumer, requestId, start, 403, {
+        error: `Model "${body.model}" is not allowed for this key`,
+      });
     }
   }
 
@@ -109,7 +154,9 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
         action: gc.action as GuardrailConfig["action"],
       });
       if (!result.allowed && gc.action === "block") {
-        return c.json({ error: result.reason ?? "Blocked by guardrails" }, 403);
+        return respondWithConsumerError(c, consumer, requestId, start, 403, {
+          error: result.reason ?? "Blocked by guardrails",
+        });
       }
     }
   } catch (err) {
@@ -119,7 +166,9 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   // -- 4. Resolve model --
   const primary = await aiModelRepo.findEnabledByModelId(body.model);
   if (!primary) {
-    return c.json({ error: `Model "${body.model}" not found or disabled` }, 404);
+    return respondWithConsumerError(c, consumer, requestId, start, 404, {
+      error: `Model "${body.model}" not found or disabled`,
+    });
   }
 
   // -- 5. Cache check (non-streaming) --
@@ -136,24 +185,56 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   const model = primary.model;
 
   if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
-    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      400,
+      { error: "Bedrock streaming is not supported yet" },
+      { providerId: provider.providerId, modelId: model.modelId },
+    );
   }
 
   const key = await pickKey(provider.id);
   if (!key) {
-    return c.json({ error: `No API key configured for provider "${provider.name}"` }, 403);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `No API key configured for provider "${provider.name}"` },
+      { providerId: provider.providerId, modelId: model.modelId },
+    );
   }
 
   let plainKey: string;
   try {
     plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
   } catch {
-    return c.json({ error: "Failed to decrypt provider key" }, 500);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      500,
+      { error: "Failed to decrypt provider key" },
+      { keyId: key.id, providerId: provider.providerId, modelId: model.modelId },
+    );
   }
 
   const adapter = getAdapter(provider.apiFormat);
   if (!adapter) {
-    return c.json({ error: `Unsupported provider format: ${provider.apiFormat}` }, 500);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      500,
+      { error: `Unsupported provider format: ${provider.apiFormat}` },
+      { keyId: key.id, providerId: provider.providerId, modelId: model.modelId },
+    );
   }
 
   // -- 7. Build upstream request --
@@ -198,22 +279,32 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   if (consumer.dailyLimit) {
     const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
     if (gt(spentToday, consumer.dailyLimit)) {
-      return c.json(
-        { error: "Daily spending limit exceeded", limit: consumer.dailyLimit, spent: spentToday },
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
         429,
+        { error: "Daily spending limit exceeded", limit: consumer.dailyLimit, spent: spentToday },
+        { keyId: key.id, providerId: provider.providerId, modelId: model.modelId },
       );
     }
   }
   if (consumer.monthlyLimit) {
     const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
     if (gt(spentMonth, consumer.monthlyLimit)) {
-      return c.json(
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        429,
         {
           error: "Monthly spending limit exceeded",
           limit: consumer.monthlyLimit,
           spent: spentMonth,
         },
-        429,
+        { keyId: key.id, providerId: provider.providerId, modelId: model.modelId },
       );
     }
   }
@@ -237,9 +328,19 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
           markKeyFailure(key.id);
         }
         const errBody = await upstreamRes.text().catch(() => "");
-        return c.json(
+        return respondWithConsumerError(
+          c,
+          consumer,
+          requestId,
+          start,
+          upstreamRes.status,
           { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-          upstreamRes.status as 400,
+          {
+            keyId: key.id,
+            providerId: provider.providerId,
+            modelId: model.modelId,
+            requestBody: logEnabled ? serializedBody : undefined,
+          },
         );
       }
 
@@ -265,7 +366,20 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
     } catch (err) {
       markKeyFailure(key.id);
       const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: `Upstream request failed: ${message}` }, 502);
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        502,
+        { error: `Upstream request failed: ${message}` },
+        {
+          keyId: key.id,
+          providerId: provider.providerId,
+          modelId: model.modelId,
+          requestBody: logEnabled ? serializedBody : undefined,
+        },
+      );
     }
   }
 
@@ -286,7 +400,20 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   } catch (err) {
     markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: `Upstream request failed: ${message}` }, 502);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      502,
+      { error: `Upstream request failed: ${message}` },
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId: model.modelId,
+        requestBody: logEnabled ? serializedBody : undefined,
+      },
+    );
   }
 
   if (!upstreamRes.ok) {
@@ -294,9 +421,19 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
       markKeyFailure(key.id);
     }
     const errBody = await upstreamRes.text().catch(() => "");
-    return c.json(
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      upstreamRes.status,
       { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-      upstreamRes.status as 400,
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId: model.modelId,
+        requestBody: logEnabled ? serializedBody : undefined,
+      },
     );
   }
 
@@ -304,7 +441,20 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   try {
     responseBody = await upstreamRes.json();
   } catch {
-    return c.json({ error: "Failed to parse upstream response" }, 502);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      502,
+      { error: "Failed to parse upstream response" },
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId: model.modelId,
+        requestBody: logEnabled ? serializedBody : undefined,
+      },
+    );
   }
 
   const transformed = adapter.transformResponse(responseBody);
@@ -322,41 +472,77 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
 
   // Per-pay limit (non-streaming: reject before returning response)
   if (consumer.perPayLimit && gt(costStr, consumer.perPayLimit)) {
-    return c.json(
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      429,
       {
         error: "Request cost exceeds per-transaction limit",
         limit: consumer.perPayLimit,
         cost: costStr,
       },
-      429,
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId: model.modelId,
+        requestBody: logEnabled ? serializedBody : undefined,
+        estimatedCost: costStr,
+        upstreamCost: removeTailingZero(upstreamCost, 6),
+      },
     );
   }
   // Daily/monthly post-response check (cost may push over limit)
   if (consumer.dailyLimit) {
     const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
     if (gt(safePlus(spentToday, costStr), consumer.dailyLimit)) {
-      return c.json(
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        429,
         {
           error: "Request would exceed daily spending limit",
           limit: consumer.dailyLimit,
           spent: spentToday,
           cost: costStr,
         },
-        429,
+        {
+          keyId: key.id,
+          providerId: provider.providerId,
+          modelId: model.modelId,
+          requestBody: logEnabled ? serializedBody : undefined,
+          estimatedCost: costStr,
+          upstreamCost: removeTailingZero(upstreamCost, 6),
+        },
       );
     }
   }
   if (consumer.monthlyLimit) {
     const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
     if (gt(safePlus(spentMonth, costStr), consumer.monthlyLimit)) {
-      return c.json(
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        429,
         {
           error: "Request would exceed monthly spending limit",
           limit: consumer.monthlyLimit,
           spent: spentMonth,
           cost: costStr,
         },
-        429,
+        {
+          keyId: key.id,
+          providerId: provider.providerId,
+          modelId: model.modelId,
+          requestBody: logEnabled ? serializedBody : undefined,
+          estimatedCost: costStr,
+          upstreamCost: removeTailingZero(upstreamCost, 6),
+        },
       );
     }
   }
@@ -389,7 +575,22 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
       );
       await payAgentRepo.update(consumer.agentId, { status: "suspended" });
       emit("agent.suspended", null, { agentId: consumer.agentId });
-      return c.json({ error: "Agent balance exhausted. Please top up the pay-agent." }, 402);
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        402,
+        { error: "Agent balance exhausted. Please top up the pay-agent." },
+        {
+          keyId: key.id,
+          providerId: provider.providerId,
+          modelId: model.modelId,
+          requestBody: logEnabled ? serializedBody : undefined,
+          estimatedCost: costStr,
+          upstreamCost: removeTailingZero(upstreamCost, 6),
+        },
+      );
     }
   }
 
@@ -409,6 +610,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
     latencyMs,
     statusCode: upstreamRes.status,
     requestId,
+    error: null,
   } as Record<string, unknown>);
 
   // Request/response body logging (opt-in)
@@ -450,17 +652,23 @@ consumerRelay.all("/v1/*", async (c) => {
     try {
       const raw: unknown = await c.req.json();
       if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-        return c.json({ error: "Request body must be a JSON object" }, 400);
+        return respondWithConsumerError(c, consumer, requestId, start, 400, {
+          error: "Request body must be a JSON object",
+        });
       }
       body = raw as Record<string, unknown>;
     } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+      return respondWithConsumerError(c, consumer, requestId, start, 400, {
+        error: "Invalid JSON body",
+      });
     }
   }
 
   const modelId = body.model as string | undefined;
   if (!modelId) {
-    return c.json({ error: "Request body must contain a 'model' field" }, 400);
+    return respondWithConsumerError(c, consumer, requestId, start, 400, {
+      error: "Request body must contain a 'model' field",
+    });
   }
 
   // Model ACL
@@ -469,29 +677,59 @@ consumerRelay.all("/v1/*", async (c) => {
       pattern.endsWith("*") ? modelId.startsWith(pattern.slice(0, -1)) : modelId === pattern,
     );
     if (!allowed) {
-      return c.json({ error: `Model "${modelId}" is not allowed for this key` }, 403);
+      return respondWithConsumerError(c, consumer, requestId, start, 403, {
+        error: `Model "${modelId}" is not allowed for this key`,
+      });
     }
   }
 
   const result = await aiModelRepo.findEnabledByModelId(modelId);
   if (!result) {
-    return c.json({ error: `Model "${modelId}" not found or disabled` }, 404);
+    return respondWithConsumerError(c, consumer, requestId, start, 404, {
+      error: `Model "${modelId}" not found or disabled`,
+    });
   }
 
   const { provider } = result;
 
   if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
-    return c.json({ error: "Bedrock streaming is not supported yet" }, 400);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      400,
+      { error: "Bedrock streaming is not supported yet" },
+      { providerId: provider.providerId, modelId },
+    );
   }
 
   const key = await pickKey(provider.id);
-  if (!key) return c.json({ error: "No API key configured for this provider" }, 403);
+  if (!key) {
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: "No API key configured for this provider" },
+      { providerId: provider.providerId, modelId },
+    );
+  }
 
   let plainKey: string;
   try {
     plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
   } catch {
-    return c.json({ error: "Failed to decrypt provider key" }, 500);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      500,
+      { error: "Failed to decrypt provider key" },
+      { keyId: key.id, providerId: provider.providerId, modelId },
+    );
   }
 
   const base = provider.baseUrl.replace(/\/+$/, "");
@@ -588,6 +826,12 @@ consumerRelay.all("/v1/*", async (c) => {
       outputPrice: result.model.outputPrice,
       requestId,
       statusCode: upstreamRes.status,
+      error:
+        !upstreamRes.ok && responseText
+          ? buildAccessLogErrorMessage(`Upstream returned ${upstreamRes.status}`, responseText)
+          : !upstreamRes.ok
+            ? `Upstream returned ${upstreamRes.status}`
+            : undefined,
       requestBody: ptLogEnabled ? serializedBody : undefined,
       responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
     });
@@ -607,7 +851,20 @@ consumerRelay.all("/v1/*", async (c) => {
   } catch (err) {
     markKeyFailure(key.id);
     const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: `Upstream request failed: ${message}` }, 502);
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      502,
+      { error: `Upstream request failed: ${message}` },
+      {
+        keyId: key.id,
+        providerId: provider.providerId,
+        modelId,
+        requestBody: ptLogEnabled ? serializedBody : undefined,
+      },
+    );
   }
 });
 

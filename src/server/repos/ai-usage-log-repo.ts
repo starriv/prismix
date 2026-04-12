@@ -65,6 +65,7 @@ interface UsageFilters {
   modelId?: string;
   providerId?: string;
   statusCode?: number;
+  statusClass?: "4xx" | "5xx";
   requestId?: string;
   from?: Date;
   to?: Date;
@@ -83,7 +84,13 @@ function buildConditions(filters: UsageFilters) {
   }
   if (filters.modelId) conditions.push(eq(aiUsageLogs.modelId, filters.modelId));
   if (filters.providerId) conditions.push(eq(aiUsageLogs.providerId, filters.providerId));
-  if (filters.statusCode != null) conditions.push(eq(aiUsageLogs.statusCode, filters.statusCode));
+  if (filters.statusClass === "4xx") {
+    conditions.push(sql`(${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500)`);
+  } else if (filters.statusClass === "5xx") {
+    conditions.push(sql`(${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600)`);
+  } else if (filters.statusCode != null) {
+    conditions.push(eq(aiUsageLogs.statusCode, filters.statusCode));
+  }
   if (filters.requestId) conditions.push(eq(aiUsageLogs.requestId, filters.requestId));
   if (filters.from) conditions.push(gte(aiUsageLogs.createdAt, filters.from));
   if (filters.to) conditions.push(lte(aiUsageLogs.createdAt, filters.to));

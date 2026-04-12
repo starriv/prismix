@@ -4,7 +4,7 @@ import type { TFunction } from "i18next";
 import { removeTailingZero } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import type { DataTableColumn } from "@/web/components/dashboard/data-table";
-import { formatTokens } from "@/web/pages/ai-usage/helpers";
+import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
 import { getDateLocale } from "@/web/shared/date-locale";
 
 export function buildLogColumns(t: TFunction, language: string): DataTableColumn<AiUsageRecord>[] {
@@ -46,6 +46,11 @@ export function buildLogColumns(t: TFunction, language: string): DataTableColumn
           {r.latencyMs != null ? `${r.latencyMs}ms` : "—"}
         </span>
       ),
+    },
+    {
+      header: t("ai-logs.th.status"),
+      width: "w-[10%]",
+      cell: (r) => <StatusBadge code={r.statusCode} error={r.error} />,
     },
     {
       header: t("ai-logs.th.time"),

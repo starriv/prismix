@@ -116,6 +116,7 @@ export const queryKeys = {
     consumerKeyId?: number;
     modelId?: string;
     providerId?: string;
+    statusClass?: "4xx" | "5xx";
     page?: number;
   }) =>
     [
@@ -124,6 +125,7 @@ export const queryKeys = {
       params?.consumerKeyId ?? "all",
       params?.modelId ?? "all",
       params?.providerId ?? "all",
+      params?.statusClass ?? "all",
       params?.page ?? 0,
     ] as const,
   aiRequestLog: (requestId: string) => ["app", "ai-request-log", requestId] as const,
