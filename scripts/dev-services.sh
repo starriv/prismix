@@ -13,10 +13,10 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
 
 # Read PORT from env, .env.local, or .env.example
-if [ -z "$PORT" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
+if [ -z "${PORT:-}" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
   PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.local" | cut -d= -f2)
 fi
-if [ -z "$PORT" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+if [ -z "${PORT:-}" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
   PORT=$(grep -m1 '^PORT=' "$PROJECT_ROOT/.env.example" | cut -d= -f2)
 fi
 APP_PORT="${PORT:?ERROR: PORT not found in env, .env.local, or .env.example}"
