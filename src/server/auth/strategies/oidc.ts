@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-import { createCacheStore } from "@/server/cache";
+import { lazyCacheStore } from "@/server/cache";
 import { getProviderCredentials, getProviderFullConfig } from "@/server/lib/auth-provider-config";
 import { log } from "@/server/lib/logger";
 
@@ -37,7 +37,7 @@ interface OidcIdTokenClaims {
 // ── State cache (CSRF + nonce) ─────────────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = createCacheStore<{ scope: string; nonce: string }>("oidc-state");
+const stateCache = lazyCacheStore<{ scope: string; nonce: string }>("oidc-state");
 
 // ── Discovery cache ────────────────────────────────────────────────
 

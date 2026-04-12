@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-import { createCacheStore } from "@/server/cache";
+import { lazyCacheStore } from "@/server/cache";
 import { getProviderCredentials } from "@/server/lib/auth-provider-config";
 
 import type { AuthIdentity, AuthStrategy, InitializeResult } from "../strategy";
@@ -9,7 +9,7 @@ import { AuthError } from "../strategy";
 // ── OAuth state cache (CSRF protection) ─────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = createCacheStore<string>("google-oauth-state");
+const stateCache = lazyCacheStore<string>("google-oauth-state");
 
 export class GoogleAuthStrategy implements AuthStrategy {
   readonly name = "google" as const;

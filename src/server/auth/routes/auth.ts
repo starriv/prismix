@@ -6,7 +6,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { AuthError, getStrategy, resolveIdentity } from "@/server/auth";
 import type { AuthProviderType } from "@/server/auth";
 import { SamlStrategy } from "@/server/auth/strategies/saml";
-import { createCacheStore } from "@/server/cache";
+import { lazyCacheStore } from "@/server/cache";
 import { issueTokenPair, rotateRefreshToken } from "@/server/lib/auth-flows";
 import { isProviderEnabled, listEnabledProviders } from "@/server/lib/auth-provider-config";
 import {
@@ -29,7 +29,7 @@ import { networkRepo, userRepo } from "@/server/repos";
 // Stores token pairs keyed by a random code (30s TTL).
 // Frontend uses POST /exchange to swap the code for tokens.
 const EXCHANGE_TTL = 30 * 1000; // 30 seconds
-const exchangeCache = createCacheStore<{ token: string; refreshToken: string; userId: number }>(
+const exchangeCache = lazyCacheStore<{ token: string; refreshToken: string; userId: number }>(
   "oauth-exchange",
 );
 

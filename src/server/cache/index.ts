@@ -32,6 +32,32 @@ export function createCacheStore<T>(prefix: string, maxSize?: number): CacheStor
   return store;
 }
 
+/**
+ * Lazy cache store — returns a CacheStore<T> proxy that defers the real
+ * `createCacheStore()` call until first use. This prevents eager Redis
+ * connections during module load (before bootstrap() has connected Redis).
+ *
+ * Use this for **module-level** singletons; inside functions that only run
+ * after bootstrap, plain `createCacheStore()` is fine.
+ */
+export function lazyCacheStore<T>(prefix: string, maxSize?: number): CacheStore<T> {
+  let _inner: CacheStore<T> | null = null;
+  function inner(): CacheStore<T> {
+    if (!_inner) _inner = createCacheStore<T>(prefix, maxSize);
+    return _inner;
+  }
+  return {
+    get: (key) => inner().get(key),
+    set: (key, value, ttlMs) => inner().set(key, value, ttlMs),
+    del: (key) => inner().del(key),
+    has: (key) => inner().has(key),
+    clear: () => inner().clear(),
+    size: () => inner().size(),
+    delByPrefix: (p) => inner().delByPrefix(p),
+    delBySuffix: (s) => inner().delBySuffix(s),
+  };
+}
+
 /** Close all WriteThroughCacheStore subscriber connections. Call during shutdown. */
 export async function closeCacheStores(): Promise<void> {
   await Promise.allSettled(writeThroughInstances.map((s) => s.close()));

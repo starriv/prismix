@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { match } from "ts-pattern";
 
-import { createCacheStore } from "../cache";
+import { lazyCacheStore } from "../cache";
 import { verifyAccessToken } from "../lib/jwt";
 import { ApiKeyAuthStrategy } from "./auth-strategies/api-key";
 import { JwtAuthStrategy } from "./auth-strategies/jwt";
@@ -13,7 +13,7 @@ import type { AuthMiddlewareStrategy, AuthResult } from "./auth-strategies/strat
 // ── Nonce store ────────────────────────────────────────────────────
 
 const NONCE_TTL = 5 * 60 * 1000; // 5min
-const nonceStore = createCacheStore<string>("nonce");
+const nonceStore = lazyCacheStore<string>("nonce");
 
 /**
  * Create a nonce for an address. The `scope` parameter isolates user

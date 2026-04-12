@@ -109,11 +109,18 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = env.PORT;
 
-const server = serve({ fetch: app.fetch, port: PORT }, async (info) => {
+const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, async (info) => {
   printBanner(info.port);
   // Bootstrap AFTER port is bound — health check is reachable while services init
-  await bootstrap();
-  log.bootstrap.info("All services ready");
+  try {
+    await bootstrap();
+    log.bootstrap.info("All services ready");
+  } catch (err) {
+    log.bootstrap.fatal(
+      { err },
+      "Bootstrap failed — health check stays alive but service is degraded",
+    );
+  }
 });
 
 // ── Startup banner ──────────────────────────────────────────────────

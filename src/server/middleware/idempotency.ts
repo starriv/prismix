@@ -13,7 +13,7 @@
  */
 import type { Context, Next } from "hono";
 
-import { createCacheStore } from "@/server/cache";
+import { lazyCacheStore } from "@/server/cache";
 import { log } from "@/server/lib/logger";
 
 interface CachedResponse {
@@ -25,7 +25,7 @@ interface CachedResponse {
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const HEADER_NAME = "idempotency-key";
 
-const store = createCacheStore<CachedResponse>("idempotency");
+const store = lazyCacheStore<CachedResponse>("idempotency");
 
 /**
  * Build a namespaced cache key: idempotency:{adminId}:{idempotencyKey}

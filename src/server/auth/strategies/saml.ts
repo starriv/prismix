@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { SAML, ValidateInResponseTo } from "@node-saml/node-saml";
 import type { CacheProvider } from "@node-saml/node-saml/lib/types";
 
-import { createCacheStore } from "@/server/cache";
+import { lazyCacheStore } from "@/server/cache";
 import { getProviderFullConfig } from "@/server/lib/auth-provider-config";
 import { log } from "@/server/lib/logger";
 
@@ -13,11 +13,11 @@ import { AuthError } from "../strategy";
 // ── State cache (RelayState for CSRF) ──────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = createCacheStore<string>("saml-state");
+const stateCache = lazyCacheStore<string>("saml-state");
 
 // ── InResponseTo cache (replay protection) ──────────────────────────
 
-const inResponseToCache = createCacheStore<boolean>("saml-in-response-to");
+const inResponseToCache = lazyCacheStore<boolean>("saml-in-response-to");
 
 /** node-saml CacheProvider for InResponseTo validation */
 const samlRequestCache: CacheProvider = {
