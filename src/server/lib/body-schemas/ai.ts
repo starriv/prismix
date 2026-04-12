@@ -24,7 +24,7 @@ export const updateAiProviderBody = z.object({
   name: z.string().min(1).max(100).optional(),
   baseUrl: z.string().url().max(500).optional(),
   apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]).optional(),
-  authType: z.enum(["bearer", "api-key"]).optional(),
+  authType: z.enum(["bearer", "api-key", "sigv4"]).optional(),
   authConfig: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
   loadBalanceStrategy: z.enum(["round-robin", "random"]).optional(),
@@ -82,7 +82,7 @@ export const updateAiModelBody = z.object({
 export const createAiKeyBody = z.object({
   providerId: z.number().int().positive(),
   name: z.string().min(1).max(100),
-  apiKey: z.string().min(1).max(500),
+  apiKey: z.string().min(1).max(10000),
   ownerId: z.number().int().positive().nullable().optional(),
 });
 
