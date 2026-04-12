@@ -84,29 +84,30 @@ function extractRegionFromUrl(baseUrl: string): string | null {
 }
 
 /**
- * Map an AWS region code to the Bedrock cross-region inference geography prefix.
- * e.g. "us-east-1" → "us", "eu-central-1" → "eu", "ap-northeast-1" → "ap"
+ * Default inference profile geography prefix.
+ * "us" has the broadest model coverage. Cross-region inference routes
+ * requests from any endpoint region to the model's home region automatically.
  */
-function regionToGeoPrefix(region: string): string {
-  const seg = region.split("-")[0]; // "us", "eu", "ap", "ca", "sa", "me", "af"
-  return seg;
-}
+const DEFAULT_GEO_PREFIX = "us";
 
 /**
  * Ensure the model ID has a cross-region inference profile prefix.
  * Newer Bedrock models require invoking via inference profiles (e.g. us.anthropic.claude-*)
  * rather than bare model IDs. If the model already has a geography prefix, return as-is.
+ *
+ * Always uses "us" prefix since it has the broadest model availability —
+ * cross-region inference handles routing from any endpoint region.
  */
 export function ensureInferenceProfile(modelId: string, baseUrl: string): string {
   // Already has a known geography prefix → no change
   const parts = modelId.split(".");
   if (parts.length > 2 && REGION_PREFIXES.has(parts[0])) return modelId;
 
+  // Verify we're dealing with a Bedrock URL (don't prefix for custom endpoints)
   const region = extractRegionFromUrl(baseUrl);
   if (!region) return modelId;
 
-  const geo = regionToGeoPrefix(region);
-  return `${geo}.${modelId}`;
+  return `${DEFAULT_GEO_PREFIX}.${modelId}`;
 }
 
 // ── Adapter ─────────────────────────────────────────────────────────

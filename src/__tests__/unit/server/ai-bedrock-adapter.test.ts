@@ -57,18 +57,16 @@ describe("bedrock adapter", () => {
       ).toBe(`${base}/model/us.anthropic.claude-sonnet-4-6/invoke`);
     });
 
-    it("uses eu prefix for eu regions", () => {
+    it("always uses us prefix regardless of endpoint region", () => {
       const euBase = "https://bedrock-runtime.eu-central-1.amazonaws.com";
       expect(
         bedrockAdapter.buildUrl(euBase, { model: "anthropic.claude-sonnet-4-6", stream: false }),
-      ).toBe(`${euBase}/model/eu.anthropic.claude-sonnet-4-6/invoke`);
-    });
+      ).toBe(`${euBase}/model/us.anthropic.claude-sonnet-4-6/invoke`);
 
-    it("uses ap prefix for ap regions", () => {
       const apBase = "https://bedrock-runtime.ap-northeast-1.amazonaws.com";
       expect(
         bedrockAdapter.buildUrl(apBase, { model: "minimax.minimax-m2.1", stream: false }),
-      ).toBe(`${apBase}/model/ap.minimax.minimax-m2.1/invoke`);
+      ).toBe(`${apBase}/model/us.minimax.minimax-m2.1/invoke`);
     });
   });
 
@@ -108,20 +106,14 @@ describe("ensureInferenceProfile", () => {
   const euBase = "https://bedrock-runtime.eu-central-1.amazonaws.com";
   const apBase = "https://bedrock-runtime.ap-northeast-1.amazonaws.com";
 
-  it("adds us prefix for US region", () => {
+  it("adds us prefix regardless of endpoint region", () => {
     expect(ensureInferenceProfile("anthropic.claude-sonnet-4-6", usBase)).toBe(
       "us.anthropic.claude-sonnet-4-6",
     );
-  });
-
-  it("adds eu prefix for EU region", () => {
     expect(ensureInferenceProfile("anthropic.claude-sonnet-4-6", euBase)).toBe(
-      "eu.anthropic.claude-sonnet-4-6",
+      "us.anthropic.claude-sonnet-4-6",
     );
-  });
-
-  it("adds ap prefix for AP region", () => {
-    expect(ensureInferenceProfile("minimax.minimax-m2.1", apBase)).toBe("ap.minimax.minimax-m2.1");
+    expect(ensureInferenceProfile("minimax.minimax-m2.1", apBase)).toBe("us.minimax.minimax-m2.1");
   });
 
   it("preserves existing geography prefix", () => {
