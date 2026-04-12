@@ -29,13 +29,28 @@ describe("openai adapter", () => {
   });
 
   describe("transformRequest", () => {
-    it("passes through non-streaming body unchanged", () => {
+    it("passes through non-streaming body without max_tokens unchanged", () => {
       const body = {
         model: "gpt-4o",
         messages: [{ role: "user" as const, content: "hello" }],
         temperature: 0.7,
       };
-      expect(openaiAdapter.transformRequest(body)).toBe(body);
+      const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
+      expect(result.model).toBe("gpt-4o");
+      expect(result.temperature).toBe(0.7);
+      expect(result.max_tokens).toBeUndefined();
+      expect(result.max_completion_tokens).toBeUndefined();
+    });
+
+    it("renames max_tokens to max_completion_tokens", () => {
+      const body = {
+        model: "gpt-5.4",
+        messages: [{ role: "user" as const, content: "hello" }],
+        max_tokens: 1024,
+      };
+      const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
+      expect(result.max_completion_tokens).toBe(1024);
+      expect(result.max_tokens).toBeUndefined();
     });
 
     it("injects stream_options for streaming requests", () => {
@@ -47,6 +62,19 @@ describe("openai adapter", () => {
       const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
       expect(result.stream_options).toEqual({ include_usage: true });
       expect(result.model).toBe("gpt-4o");
+    });
+
+    it("renames max_tokens and injects stream_options together", () => {
+      const body = {
+        model: "gpt-5.4",
+        messages: [{ role: "user" as const, content: "hello" }],
+        stream: true,
+        max_tokens: 2048,
+      };
+      const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
+      expect(result.max_completion_tokens).toBe(2048);
+      expect(result.max_tokens).toBeUndefined();
+      expect(result.stream_options).toEqual({ include_usage: true });
     });
   });
 
@@ -346,5 +374,77 @@ describe("aiRelayChatBody", () => {
   it("rejects negative max_tokens", () => {
     const result = aiRelayChatBody.safeParse({ ...validBody, max_tokens: -1 });
     expect(result.success).toBe(false);
+  });
+
+  // ── max_tokens coercion ────────────────────────────────────────────
+
+  it("coerces string max_tokens to number", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_tokens: "1024" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.max_tokens).toBe(1024);
+  });
+
+  it("coerces float max_tokens to integer", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_tokens: 1024.7 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.max_tokens).toBe(1024);
+  });
+
+  it("treats null max_tokens as undefined", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_tokens: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.max_tokens).toBeUndefined();
+  });
+
+  it("rejects non-numeric string max_tokens", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_tokens: "abc" });
+    expect(result.success).toBe(false);
+  });
+
+  // ── max_completion_tokens normalization ─────────────────────────────
+
+  it("normalizes max_completion_tokens to max_tokens", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_completion_tokens: 2048 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.max_tokens).toBe(2048);
+      expect(result.data.max_completion_tokens).toBeUndefined();
+    }
+  });
+
+  it("prefers max_tokens over max_completion_tokens when both present", () => {
+    const result = aiRelayChatBody.safeParse({
+      ...validBody,
+      max_tokens: 1000,
+      max_completion_tokens: 2000,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.max_tokens).toBe(1000);
+  });
+
+  it("coerces string max_completion_tokens", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, max_completion_tokens: "512" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.max_tokens).toBe(512);
+  });
+
+  // ── temperature / top_p coercion ───────────────────────────────────
+
+  it("coerces string temperature to number", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, temperature: "0.7" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.temperature).toBe(0.7);
+  });
+
+  it("coerces string top_p to number", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, top_p: "0.9" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.top_p).toBe(0.9);
+  });
+
+  it("treats null temperature as undefined", () => {
+    const result = aiRelayChatBody.safeParse({ ...validBody, temperature: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.temperature).toBeUndefined();
   });
 });

@@ -95,10 +95,31 @@ export const updateAiKeyBody = z.object({
 
 // ── AI Relay ───────────────────────────────────────────────────────────
 
+/** Coerce a value to a positive integer or undefined. Accepts number, numeric string, null. */
+const coercePositiveInt = z.preprocess((v) => {
+  if (v === null || v === undefined) return undefined;
+  const n = typeof v === "string" ? Number(v) : v;
+  if (typeof n !== "number" || !Number.isFinite(n)) return v; // let Zod reject
+  return Math.trunc(n);
+}, z.number().int().positive().optional());
+
+/** Coerce a value to a number in range or undefined. Accepts number, numeric string, null. */
+const coerceFloat = (min: number, max: number) =>
+  z.preprocess((v) => {
+    if (v === null || v === undefined) return undefined;
+    const n = typeof v === "string" ? Number(v) : v;
+    if (typeof n !== "number" || !Number.isFinite(n)) return v;
+    return n;
+  }, z.number().min(min).max(max).optional());
+
 /**
  * OpenAI-compatible chat completions request body.
  * Uses .passthrough() to allow provider-specific extra fields (tools, response_format, etc.)
  * to flow through to the upstream provider untouched.
+ *
+ * Compatibility:
+ * - max_tokens / max_completion_tokens: coerced from string/null, merged into max_tokens.
+ * - temperature / top_p: coerced from string/null.
  */
 export const aiRelayChatBody = z
   .object({
@@ -114,11 +135,20 @@ export const aiRelayChatBody = z
       )
       .min(1),
     stream: z.boolean().optional().default(false),
-    max_tokens: z.number().int().positive().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    top_p: z.number().min(0).max(1).optional(),
+    max_tokens: coercePositiveInt,
+    max_completion_tokens: coercePositiveInt,
+    temperature: coerceFloat(0, 2),
+    top_p: coerceFloat(0, 1),
   })
-  .passthrough();
+  .passthrough()
+  .transform((data) => {
+    // Normalize: max_completion_tokens → max_tokens (OpenAI newer field → canonical)
+    const { max_completion_tokens, ...rest } = data;
+    return {
+      ...rest,
+      max_tokens: rest.max_tokens ?? max_completion_tokens,
+    };
+  });
 
 // ── Relay Consumer Keys ───────────────────────────────────────────────
 
