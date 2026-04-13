@@ -110,7 +110,7 @@ const DEFAULT_CIRCUIT_BREAKERS: CircuitBreakerConfig[] = [
 ];
 
 const DEFAULT_TIMEOUTS: TimeoutConfig = {
-  upstreamFetchMs: 30_000,
+  upstreamFetchMs: 120_000, // 120s — extended thinking models need 60-120s for first token
   streamIdleMs: 5 * 60 * 1000,
   streamMaxDurationMs: 30 * 60 * 1000,
 };
