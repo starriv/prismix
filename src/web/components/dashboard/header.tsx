@@ -1,7 +1,7 @@
 import { Languages } from "lucide-react";
 
+import { AccountMenu } from "@/web/components/dashboard/account-menu";
 import { ThemeToggle } from "@/web/components/dashboard/theme-toggle";
-import { WalletButton } from "@/web/components/dashboard/wallet-button";
 import { Button } from "@/web/components/ui/button";
 import { useLanguageSwitch } from "@/web/hooks/use-locale";
 
@@ -30,7 +30,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             <Languages className="h-3.5 w-3.5" />
             {currentLang === "zh" ? "EN" : "中文"}
           </Button>
-          <WalletButton />
+          <AccountMenu />
         </div>
       </div>
     </div>

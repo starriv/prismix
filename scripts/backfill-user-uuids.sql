@@ -27,7 +27,8 @@ $$;
 BEGIN;
 
 UPDATE users
-SET uuid = uuid_v7_text();
+SET uuid = uuid_v7_text()
+WHERE uuid IS NULL;
 
 COMMIT;
 

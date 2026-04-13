@@ -2831,6 +2831,34 @@
       "wallet": "Wallet",
       "logout": "Sign Out"
     },
+    "account-menu": {
+      "fallback-name": "User",
+      "sections": {
+        "account": "Account",
+        "wallet": "Wallet"
+      },
+      "fields": {
+        "uuid": "UUID",
+        "email": "Email",
+        "network": "Network",
+        "address": "Address"
+      },
+      "auth": {
+        "wallet": "Wallet account",
+        "email": "Email account",
+        "oauth": "OAuth account",
+        "user": "User account"
+      },
+      "wallet": {
+        "connected": "Wallet connected",
+        "not-connected": "Wallet not connected",
+        "connect-hint": "Connect a wallet if you want to use onchain deposit and withdrawal flows.",
+        "unsupported": "The connected wallet is on an unsupported network.",
+        "switch-network": "Switch network",
+        "manage": "Manage wallet",
+        "open-explorer": "Open address in explorer"
+      }
+    },
     "login": {
       "title": "Sign in to your account",
       "desc": "Access your API keys and usage dashboard",

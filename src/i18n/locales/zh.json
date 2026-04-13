@@ -2831,6 +2831,34 @@
       "wallet": "钱包",
       "logout": "退出登录"
     },
+    "account-menu": {
+      "fallback-name": "用户",
+      "sections": {
+        "account": "账户",
+        "wallet": "钱包"
+      },
+      "fields": {
+        "uuid": "UUID",
+        "email": "邮箱",
+        "network": "网络",
+        "address": "地址"
+      },
+      "auth": {
+        "wallet": "钱包账户",
+        "email": "邮箱账户",
+        "oauth": "OAuth 账户",
+        "user": "用户账户"
+      },
+      "wallet": {
+        "connected": "钱包已连接",
+        "not-connected": "钱包未连接",
+        "connect-hint": "如果你要使用链上充值和提现流程，请先连接钱包。",
+        "unsupported": "当前连接的钱包网络不受支持。",
+        "switch-network": "切换网络",
+        "manage": "管理钱包",
+        "open-explorer": "在区块浏览器中打开地址"
+      }
+    },
     "login": {
       "title": "登录您的账户",
       "desc": "访问您的 API 密钥和用量仪表盘",

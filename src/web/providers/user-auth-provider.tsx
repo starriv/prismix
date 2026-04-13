@@ -27,3 +27,7 @@ export function useUserAuthContext(): UserAuthContextValue {
   if (!ctx) throw new Error("useUserAuthContext must be used within UserAuthProvider");
   return ctx;
 }
+
+export function useOptionalUserAuthContext(): UserAuthContextValue | null {
+  return useContext(UserAuthContext);
+}
