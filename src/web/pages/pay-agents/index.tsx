@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
-import { Plus, Search } from "lucide-react";
+import { ExternalLink, Plus, Search } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
@@ -10,6 +10,7 @@ import { usePayAgentsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -223,7 +224,18 @@ export default function PayAgentsPage() {
                       <TableCell className="text-xs">{agent.id}</TableCell>
                       <TableCell className="font-medium">{agent.name}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {agent.userId ? `#${agent.userId} ${agent.userName ?? ""}` : "\u2014"}
+                        {agent.userId ? (
+                          <LocaleLink
+                            to={`/admin/users?id=${agent.userId}`}
+                            className="inline-flex items-center gap-1 text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {`#${agent.userId} ${agent.userName ?? ""}`}
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </LocaleLink>
+                        ) : (
+                          "\u2014"
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {agent.address

@@ -110,7 +110,7 @@
     "ai-errors": "错误",
     "consumer-keys": "消费者密钥",
     "key-providers": "号池供应商",
-    "gateway": "网关",
+    "gateway": "熔断限流",
     "billing": "支付管理",
     "system-settings": "系统设置",
     "notification-configs": "通知配置",

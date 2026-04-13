@@ -79,10 +79,17 @@ export const queryKeys = {
   // ── Admin (real admin / back-office) ─────────────────────────
   adminAdmins: () => ["admin", "admins"] as const,
   adminUserDetail: (userId: number) => ["admin", "user-detail", userId] as const,
-  adminUsers: (params?: { name?: string; email?: string; address?: string; page?: number }) =>
+  adminUsers: (params?: {
+    id?: number;
+    name?: string;
+    email?: string;
+    address?: string;
+    page?: number;
+  }) =>
     [
       "admin",
       "users",
+      params?.id ?? 0,
       params?.name ?? "",
       params?.email ?? "",
       params?.address ?? "",

@@ -30,10 +30,11 @@ export const userRepo = {
   async findAll(
     limit = 50,
     offset = 0,
-    filters?: { name?: string; email?: string; address?: string },
+    filters?: { id?: number; name?: string; email?: string; address?: string },
   ): Promise<User[]> {
     const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
     const conditions = [];
+    if (filters?.id) conditions.push(eq(users.id, filters.id));
     if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
     if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
     if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));

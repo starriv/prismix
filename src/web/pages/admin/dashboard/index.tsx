@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import { formatDistanceToNow } from "date-fns";
 import { Search } from "lucide-react";
@@ -29,6 +30,15 @@ import { UserDetailSheet } from "./user-detail-sheet";
 
 export default function AdminDashboardPage() {
   const { t, i18n } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Read ?id= from URL to pre-filter by user id
+  const idParam = searchParams.get("id");
+  const idFromUrl = idParam
+    ? Number.isFinite(Number(idParam)) && Number(idParam) > 0
+      ? Number(idParam)
+      : undefined
+    : undefined;
 
   // Draft filter state (UI controls)
   const [draftName, setDraftName] = useState("");
@@ -42,6 +52,7 @@ export default function AdminDashboardPage() {
   const [page, setPage] = useState(0);
 
   const { data: users = [], isLoading } = useAdminUsers({
+    id: idFromUrl,
     name: appliedName || undefined,
     email: appliedEmail || undefined,
     address: appliedAddress || undefined,
@@ -69,6 +80,7 @@ export default function AdminDashboardPage() {
   const handleClose = useCallback(() => setSelectedId(null), []);
 
   const hasFilters =
+    !!idFromUrl ||
     draftName !== "" ||
     draftEmail !== "" ||
     draftAddress !== "" ||
@@ -77,13 +89,15 @@ export default function AdminDashboardPage() {
     appliedAddress !== "";
 
   const applyFilters = useCallback(() => {
+    if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setAppliedName(draftName.trim());
     setAppliedEmail(draftEmail.trim());
     setAppliedAddress(draftAddress.trim());
     setPage(0);
-  }, [draftName, draftEmail, draftAddress]);
+  }, [draftName, draftEmail, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
+    if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setDraftName("");
     setDraftEmail("");
     setDraftAddress("");
@@ -91,7 +105,7 @@ export default function AdminDashboardPage() {
     setAppliedEmail("");
     setAppliedAddress("");
     setPage(0);
-  }, []);
+  }, [searchParams, setSearchParams]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

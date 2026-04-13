@@ -77,7 +77,6 @@ const AI_CHILD_PATHS = [
   "/admin/ai-usage",
   "/admin/ai-logs",
   "/admin/ai-errors",
-  "/admin/gateway",
 ];
 
 const ACCOUNTS_CHILD_PATHS = [
@@ -88,6 +87,7 @@ const ACCOUNTS_CHILD_PATHS = [
 ];
 
 const NOTIF_CHILD_PATHS = [
+  "/admin/announcements",
   "/admin/notifications",
   "/admin/notification-providers",
   "/admin/webhooks",
@@ -99,7 +99,7 @@ const SYSTEM_CHILD_PATHS = [
   "/admin/login-strategies",
   "/admin/networks",
   "/admin/tokens",
-  "/admin/announcements",
+  "/admin/gateway",
 ];
 
 const navTree: NavEntry[] = [
@@ -119,7 +119,6 @@ const navTree: NavEntry[] = [
       { href: "/admin/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },
       { href: "/admin/ai-logs", labelKey: "nav.ai-logs", icon: FileText },
       { href: "/admin/ai-errors", labelKey: "nav.ai-errors", icon: AlertTriangle },
-      { href: "/admin/gateway", labelKey: "nav.gateway", icon: Activity },
     ],
   },
   {
@@ -138,6 +137,7 @@ const navTree: NavEntry[] = [
     icon: Bell,
     childPaths: NOTIF_CHILD_PATHS,
     children: [
+      { href: "/admin/announcements", labelKey: "admin.nav.announcements", icon: Megaphone },
       { href: "/admin/notifications", labelKey: "nav.notification-configs", icon: Bell },
       {
         href: "/admin/notification-providers",
@@ -157,7 +157,7 @@ const navTree: NavEntry[] = [
       { href: "/admin/login-strategies", labelKey: "admin.nav.login-strategies", icon: KeyRound },
       { href: "/admin/networks", labelKey: "admin.nav.networks", icon: Network },
       { href: "/admin/tokens", labelKey: "admin.nav.tokens", icon: Coins },
-      { href: "/admin/announcements", labelKey: "admin.nav.announcements", icon: Megaphone },
+      { href: "/admin/gateway", labelKey: "nav.gateway", icon: Activity },
     ],
   },
 ];

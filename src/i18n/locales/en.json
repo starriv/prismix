@@ -110,7 +110,7 @@
     "ai-errors": "Errors",
     "consumer-keys": "Consumer Keys",
     "key-providers": "Key Providers",
-    "gateway": "Gateway",
+    "gateway": "Circuit Breaker & Rate Limiting",
     "billing": "Payments",
     "system-settings": "System Settings",
     "notification-configs": "Notification Configs",

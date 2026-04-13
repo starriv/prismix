@@ -108,12 +108,14 @@ export function useDeleteAdmin() {
 // ── Queries ─────────────────────────────────────────────────────────
 
 export function useAdminUsers(params?: {
+  id?: number;
   name?: string;
   email?: string;
   address?: string;
   page?: number;
 }) {
   const qs = new URLSearchParams();
+  if (params?.id) qs.set("id", String(params.id));
   if (params?.name) qs.set("name", params.name);
   if (params?.email) qs.set("email", params.email);
   if (params?.address) qs.set("address", params.address);
