@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  AlertTriangle,
   ArrowUpFromLine,
   BarChart3,
   Bell,
@@ -75,6 +76,7 @@ const AI_CHILD_PATHS = [
   "/admin/key-providers",
   "/admin/ai-usage",
   "/admin/ai-logs",
+  "/admin/ai-errors",
   "/admin/gateway",
 ];
 
@@ -116,6 +118,7 @@ const navTree: NavEntry[] = [
       { href: "/admin/key-providers", labelKey: "nav.key-providers", icon: HandCoins },
       { href: "/admin/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },
       { href: "/admin/ai-logs", labelKey: "nav.ai-logs", icon: FileText },
+      { href: "/admin/ai-errors", labelKey: "nav.ai-errors", icon: AlertTriangle },
       { href: "/admin/gateway", labelKey: "nav.gateway", icon: Activity },
     ],
   },

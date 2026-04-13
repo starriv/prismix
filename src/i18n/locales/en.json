@@ -106,6 +106,7 @@
     "ai-relay": "Unified Endpoint",
     "ai-usage": "Usage",
     "ai-logs": "Logs",
+    "ai-errors": "Errors",
     "consumer-keys": "Consumer Keys",
     "key-providers": "Key Providers",
     "gateway": "Gateway",
@@ -2621,6 +2622,10 @@
       "res-body": "Response Body",
       "no-body": "Request logging is not enabled or log has expired"
     }
+  },
+  "ai-errors": {
+    "title": "AI Gateway Errors",
+    "desc": "4xx / 5xx error overview and recent error trends"
   },
   "consumer-keys": {
     "title": "Consumer Keys",

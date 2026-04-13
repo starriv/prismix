@@ -2,26 +2,10 @@ import { lazy, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { orderBy } from "lodash-es";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Brain,
-  DollarSign,
-  Hash,
-  PercentCircle,
-  ServerCrash,
-  Sparkles,
-  TriangleAlert,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, Brain, DollarSign, Hash, PercentCircle, Sparkles, Zap } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
-import {
-  useAiErrorDaily,
-  useAiErrorOverview,
-  useAiUsageDaily,
-  useAiUsageSummary,
-} from "@/web/api/hooks";
+import { useAiUsageDaily, useAiUsageSummary } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatCard } from "@/web/components/dashboard/stat-card";
 import { LocaleLink } from "@/web/components/locale-link";
@@ -33,7 +17,6 @@ import { DailyTrendChart } from "@/web/pages/ai-usage/charts";
 import { formatTokens } from "@/web/pages/ai-usage/helpers";
 
 const RequestVolumeChart = lazy(() => import("@/web/pages/dashboard/volume-chart"));
-const ErrorTrendChart = lazy(() => import("@/web/pages/dashboard/error-trend-chart"));
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -52,11 +35,9 @@ export default function DashboardPage() {
 // ── AI Gateway Dashboard ────────────────────────────
 
 function AiGatewayDashboard() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { data: summary, isLoading } = useAiUsageSummary();
   const { data: daily = [] } = useAiUsageDaily(30);
-  const { data: errorOverview } = useAiErrorOverview(30);
-  const { data: errorDaily = [] } = useAiErrorDaily(30);
 
   const daily7 = useMemo(() => daily.slice(-7), [daily]);
 
@@ -114,45 +95,6 @@ function AiGatewayDashboard() {
           {/* Interactive Bar Chart — 30 days requests / tokens */}
           <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
             <RequestVolumeChart data={daily} />
-          </Suspense>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title={t("dash.ai.error-4xx")}
-              value={errorOverview ? errorOverview.total4xx.toLocaleString() : "0"}
-              subtitle={t("dash.ai.last-30-days")}
-              icon={TriangleAlert}
-            />
-            <StatCard
-              title={t("dash.ai.error-5xx")}
-              value={errorOverview ? errorOverview.total5xx.toLocaleString() : "0"}
-              subtitle={t("dash.ai.last-30-days")}
-              icon={ServerCrash}
-            />
-            <StatCard
-              title={t("dash.ai.error-4xx-peak")}
-              value={errorOverview ? errorOverview.peak4xx.toLocaleString() : "0"}
-              subtitle={
-                errorOverview?.peak4xxDate
-                  ? new Date(errorOverview.peak4xxDate).toLocaleDateString(i18n.language)
-                  : t("dash.ai.no-peak")
-              }
-              icon={AlertTriangle}
-            />
-            <StatCard
-              title={t("dash.ai.error-5xx-peak")}
-              value={errorOverview ? errorOverview.peak5xx.toLocaleString() : "0"}
-              subtitle={
-                errorOverview?.peak5xxDate
-                  ? new Date(errorOverview.peak5xxDate).toLocaleDateString(i18n.language)
-                  : t("dash.ai.no-peak")
-              }
-              icon={AlertTriangle}
-            />
-          </div>
-
-          <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
-            <ErrorTrendChart data={errorDaily} />
           </Suspense>
 
           {/* Daily Trend (7 days) + Top Models side by side */}
