@@ -133,6 +133,8 @@ export const apiAiKeyTest = (id: number) => `/api/admin/ai/keys/${id}/test`;
 export const API_AI_USAGE_SUMMARY = "/api/admin/ai/usage/summary";
 export const API_AI_USAGE_RECENT = "/api/admin/ai/usage/recent";
 export const API_AI_USAGE_DAILY = "/api/admin/ai/usage/daily";
+export const API_AI_ERROR_OVERVIEW = "/api/admin/ai/usage/error-overview";
+export const API_AI_ERROR_DAILY = "/api/admin/ai/usage/error-daily";
 export const API_AI_USAGE_BY_KEY = "/api/admin/ai/usage/by-key";
 export const apiAiUsageRequest = (requestId: string) => `/api/admin/ai/usage/request/${requestId}`;
 export const API_AI_REQUEST_LOGGING = "/api/admin/ai/settings/request-logging";

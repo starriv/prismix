@@ -96,6 +96,26 @@ export const aiDailyUsageSchema = z.object({
 });
 export type AiDailyUsage = z.infer<typeof aiDailyUsageSchema>;
 
+export const aiErrorOverviewSchema = z.object({
+  total4xx: z.number(),
+  total5xx: z.number(),
+  last24h4xx: z.number(),
+  last24h5xx: z.number(),
+  peak4xx: z.number(),
+  peak4xxDate: z.string().nullable(),
+  peak5xx: z.number(),
+  peak5xxDate: z.string().nullable(),
+});
+export type AiErrorOverview = z.infer<typeof aiErrorOverviewSchema>;
+
+export const aiErrorDailySchema = z.object({
+  date: z.string(),
+  clientErrors: z.coerce.number(),
+  serverErrors: z.coerce.number(),
+  totalErrors: z.coerce.number(),
+});
+export type AiErrorDaily = z.infer<typeof aiErrorDailySchema>;
+
 export const aiUsageRecordSchema = z.object({
   id: z.number(),
   keyId: z.number().nullable(),

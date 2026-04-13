@@ -308,8 +308,9 @@ describe("aiRelayChatBody", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.tools).toBeDefined();
-      expect(result.data.response_format).toBeDefined();
+      const parsed = result.data as Record<string, unknown>;
+      expect(parsed.tools).toBeDefined();
+      expect(parsed.response_format).toBeDefined();
     }
   });
 
@@ -408,7 +409,8 @@ describe("aiRelayChatBody", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.max_tokens).toBe(2048);
-      expect(result.data.max_completion_tokens).toBeUndefined();
+      const parsed = result.data as Record<string, unknown>;
+      expect(parsed.max_completion_tokens).toBeUndefined();
     }
   });
 

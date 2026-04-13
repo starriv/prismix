@@ -7,6 +7,8 @@ import {
   API_ADMIN_GATEWAY_CONFIG,
   API_ADMIN_GATEWAY_STATUS,
   API_AI_DEFAULT_MARKUP,
+  API_AI_ERROR_DAILY,
+  API_AI_ERROR_OVERVIEW,
   API_AI_KEYS,
   API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
@@ -34,6 +36,8 @@ import {
 import { queryKeys } from "./query-keys";
 import {
   aiDailyUsageSchema,
+  aiErrorDailySchema,
+  aiErrorOverviewSchema,
   aiKeySchema,
   aiModelSchema,
   aiProviderSchema,
@@ -307,6 +311,22 @@ export function useAiUsageDaily(days = 30, refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.aiUsageDaily(days),
     queryFn: () => get(`${API_AI_USAGE_DAILY}?days=${days}`, z.array(aiDailyUsageSchema)),
+    refetchInterval,
+  });
+}
+
+export function useAiErrorOverview(days = 30, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiErrorOverview(days),
+    queryFn: () => get(`${API_AI_ERROR_OVERVIEW}?days=${days}`, aiErrorOverviewSchema),
+    refetchInterval,
+  });
+}
+
+export function useAiErrorDaily(days = 30, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiErrorDaily(days),
+    queryFn: () => get(`${API_AI_ERROR_DAILY}?days=${days}`, z.array(aiErrorDailySchema)),
     refetchInterval,
   });
 }

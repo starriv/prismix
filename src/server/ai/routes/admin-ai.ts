@@ -104,6 +104,18 @@ adminAi.get("/usage/daily", async (c) => {
   return ok(c, await aiUsageLogRepo.dailySummary(days, consumerKeyId));
 });
 
+adminAi.get("/usage/error-overview", async (c) => {
+  getAdminSession(c);
+  const days = Math.min(Number(c.req.query("days")) || 30, 90);
+  return ok(c, await aiUsageLogRepo.errorOverview(days));
+});
+
+adminAi.get("/usage/error-daily", async (c) => {
+  getAdminSession(c);
+  const days = Math.min(Number(c.req.query("days")) || 30, 90);
+  return ok(c, await aiUsageLogRepo.errorDaily(days));
+});
+
 adminAi.get("/usage/by-key", async (c) => {
   getAdminSession(c);
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;

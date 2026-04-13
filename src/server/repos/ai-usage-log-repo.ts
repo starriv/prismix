@@ -56,6 +56,24 @@ export interface ConsumerKeyUsageRow {
   estimatedCost: number;
 }
 
+export interface ErrorOverview {
+  total4xx: number;
+  total5xx: number;
+  last24h4xx: number;
+  last24h5xx: number;
+  peak4xx: number;
+  peak4xxDate: string | null;
+  peak5xx: number;
+  peak5xxDate: string | null;
+}
+
+export interface ErrorDailyRow {
+  date: string;
+  clientErrors: number;
+  serverErrors: number;
+  totalErrors: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 interface UsageFilters {
@@ -299,5 +317,78 @@ export const aiUsageLogRepo = {
       totalTokens: Number(r.inputTokens ?? 0) + Number(r.outputTokens ?? 0),
       estimatedCost: Number(r.cost ?? 0),
     }));
+  },
+
+  async errorOverview(days = 30): Promise<ErrorOverview> {
+    const totals = await queryOne<{
+      total4xx: string | null;
+      total5xx: string | null;
+      last24h4xx: string | null;
+      last24h5xx: string | null;
+    }>(
+      db
+        .select({
+          total4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= NOW() - make_interval(days => ${days}))`,
+          total5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= NOW() - make_interval(days => ${days}))`,
+          last24h4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
+          last24h5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
+        })
+        .from(aiUsageLogs),
+    );
+
+    const peaks = await queryAll<{
+      date: string;
+      clientErrors: number;
+      serverErrors: number;
+    }>(
+      db
+        .select({
+          date: sql<string>`date_trunc('day', ${aiUsageLogs.createdAt})::date::text`,
+          clientErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500)`,
+          serverErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600)`,
+        })
+        .from(aiUsageLogs)
+        .where(gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`))
+        .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
+    );
+
+    const peak4xx = peaks.reduce(
+      (best, row) =>
+        row.clientErrors > best.count ? { count: row.clientErrors, date: row.date } : best,
+      { count: 0, date: null as string | null },
+    );
+    const peak5xx = peaks.reduce(
+      (best, row) =>
+        row.serverErrors > best.count ? { count: row.serverErrors, date: row.date } : best,
+      { count: 0, date: null as string | null },
+    );
+
+    return {
+      total4xx: Number(totals?.total4xx ?? 0),
+      total5xx: Number(totals?.total5xx ?? 0),
+      last24h4xx: Number(totals?.last24h4xx ?? 0),
+      last24h5xx: Number(totals?.last24h5xx ?? 0),
+      peak4xx: peak4xx.count,
+      peak4xxDate: peak4xx.date,
+      peak5xx: peak5xx.count,
+      peak5xxDate: peak5xx.date,
+    };
+  },
+
+  async errorDaily(days = 30): Promise<ErrorDailyRow[]> {
+    return queryAll<ErrorDailyRow>(
+      db
+        .select({
+          date: sql<string>`date_trunc('day', ${aiUsageLogs.createdAt})::date::text`,
+          clientErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500)`,
+          serverErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600)`,
+          totalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600)`,
+        })
+        .from(aiUsageLogs)
+        .where(gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`))
+        .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
+    );
   },
 };
