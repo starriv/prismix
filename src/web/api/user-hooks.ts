@@ -17,10 +17,13 @@ import {
   API_USER_WALLET,
   API_USER_WALLET_DEPOSIT_INFO,
   API_USER_WALLET_DEPOSIT_VERIFY,
+  API_USER_WALLET_TOPUP,
+  API_USER_WALLET_TOPUP_ORDERS,
   API_USER_WALLET_TRANSACTIONS,
   API_USER_WALLET_WITHDRAW,
   API_USER_WALLET_WITHDRAWALS,
   apiUserRequestLog,
+  apiUserWalletTopupOrder,
   DEFAULT_PAGE_SIZE,
 } from "./constants";
 import { queryKeys } from "./query-keys";
@@ -32,15 +35,17 @@ import {
   aiUsageRecordSchema,
   aiUsageSummarySchema,
   announcementSchema,
+  createWalletTopupBody,
   depositInfoSchema,
   userKeySchema,
-  userPortalInfoSchema,
   userWalletSchema,
+  userWalletTopupOrderListSchema,
+  userWalletTopupOrderSchema,
   verifyDepositResultSchema,
   walletTransactionSchema,
   withdrawOrderSchema,
 } from "./schemas";
-import type { CreateWithdrawBody, VerifyDepositBody } from "./schemas";
+import type { CreateWalletTopupBody, CreateWithdrawBody, VerifyDepositBody } from "./schemas";
 import { userGet, userPost } from "./user-client";
 
 // ── Model Catalog ─────────────────────────────────────────────
@@ -229,6 +234,55 @@ export function useWalletDepositInfo(enabled = true) {
   });
 }
 
+export function useCreateWalletTopup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateWalletTopupBody) =>
+      userPost(
+        API_USER_WALLET_TOPUP,
+        createWalletTopupBody.parse(body),
+        userWalletTopupOrderSchema,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+    },
+  });
+}
+
+export function useWalletTopupOrder(orderId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.userWalletDepositInfo(), "topup-order", orderId ?? 0],
+    queryFn: () => userGet(apiUserWalletTopupOrder(orderId!), userWalletTopupOrderSchema),
+    enabled: enabled && orderId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status && status !== "pending") return false;
+      return 10_000;
+    },
+  });
+}
+
+export function useWalletTopupOrders(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+
+  return useQuery({
+    queryKey: ["user", "wallet-topup-orders", params ?? {}],
+    queryFn: () =>
+      userGet(
+        `${API_USER_WALLET_TOPUP_ORDERS}${qs ? `?${qs}` : ""}`,
+        userWalletTopupOrderListSchema,
+      ),
+  });
+}
+
 export function useVerifyDeposit() {
   const qc = useQueryClient();
   return useMutation({
@@ -237,6 +291,7 @@ export function useVerifyDeposit() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.userWallet() });
       qc.invalidateQueries({ queryKey: queryKeys.userWalletTransactions() });
+      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
     },
   });
 }
@@ -254,6 +309,7 @@ export function useWalletTransactions(params?: { type?: string; limit?: number; 
         `${API_USER_WALLET_TRANSACTIONS}${qs ? `?${qs}` : ""}`,
         z.array(walletTransactionSchema),
       ),
+    placeholderData: keepPreviousData,
   });
 }
 

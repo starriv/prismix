@@ -31,6 +31,10 @@ export const userRepo = {
     return queryOne(db.select().from(users).where(eq(users.address, address.toLowerCase())));
   },
 
+  async findByAgentId(agentId: number): Promise<User | undefined> {
+    return queryOne(db.select().from(users).where(eq(users.agentId, agentId)));
+  },
+
   async findAll(
     limit = 50,
     offset = 0,

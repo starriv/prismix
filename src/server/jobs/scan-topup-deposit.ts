@@ -17,9 +17,8 @@ import { payAgentRepo, payAgentTransactionRepo, topupOrderRepo } from "@/server/
 import { removeTailingZero, safePlus } from "@/shared/number";
 
 const QUEUE_NAME = "deposit-scan";
-const POLL_INTERVAL_MS = 30_000; // 30 seconds between polls
 const LOOKBACK_BLOCKS = 200n; // initial lookback (~10 min on L2)
-const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — aligned with expire job
+export const TOPUP_SCAN_TTL_MS = 60 * 60 * 1000; // 1 hour — keep PAYG polling bounded
 const USDC_DECIMALS = 6;
 
 const transferEvent = parseAbiItem(
@@ -47,7 +46,7 @@ async function processScan(data: ScanJobData): Promise<void> {
 
   // 2. Check TTL — stop polling if order is too old
   const age = Date.now() - new Date(order.createdAt).getTime();
-  if (age > TTL_MS) {
+  if (age > TOPUP_SCAN_TTL_MS) {
     log.blockchain.debug({ orderId, ageMs: age }, "Order exceeded TTL, stopping scan");
     return;
   }
@@ -76,7 +75,7 @@ async function processScan(data: ScanJobData): Promise<void> {
     latestBlock = await client.getBlockNumber();
   } catch (err) {
     log.blockchain.warn({ err, orderId, network }, "Failed to get block number");
-    reschedule(orderId, lastScannedBlock);
+    reschedule(orderId, lastScannedBlock, age);
     return;
   }
 
@@ -86,7 +85,7 @@ async function processScan(data: ScanJobData): Promise<void> {
 
   if (fromBlock > latestBlock) {
     // No new blocks — reschedule
-    reschedule(orderId, Number(latestBlock));
+    reschedule(orderId, Number(latestBlock), age);
     return;
   }
 
@@ -104,7 +103,7 @@ async function processScan(data: ScanJobData): Promise<void> {
     });
   } catch (err) {
     log.blockchain.warn({ err, orderId, network }, "Deposit scan getLogs failed");
-    reschedule(orderId, lastScannedBlock);
+    reschedule(orderId, lastScannedBlock, age);
     return;
   }
 
@@ -168,17 +167,22 @@ async function processScan(data: ScanJobData): Promise<void> {
   }
 
   // 7. No matching deposit found — reschedule
-  reschedule(orderId, Number(latestBlock));
+  reschedule(orderId, Number(latestBlock), age);
 }
 
 /** Re-enqueue the scan job with a delay for the next polling iteration. */
-function reschedule(orderId: number, lastScannedBlock?: number): void {
+function getPollIntervalMs(ageMs: number): number {
+  if (ageMs < 3 * 60 * 1000) return 20_000; // first 3 min: near-real-time
+  if (ageMs < 15 * 60 * 1000) return 60_000; // next 12 min: 1 min cadence
+  return 5 * 60 * 1000; // remaining hour: low-cost background scan
+}
+
+function reschedule(orderId: number, lastScannedBlock?: number, ageMs = 0): void {
   if (!queue) return;
-  queue
-    .add("scan", { orderId, lastScannedBlock } satisfies ScanJobData, { delay: POLL_INTERVAL_MS })
-    .catch((err) => {
-      log.blockchain.error({ err, orderId }, "Failed to reschedule deposit scan");
-    });
+  const delay = getPollIntervalMs(ageMs);
+  queue.add("scan", { orderId, lastScannedBlock } satisfies ScanJobData, { delay }).catch((err) => {
+    log.blockchain.error({ err, orderId }, "Failed to reschedule deposit scan");
+  });
 }
 
 // ── Public API ──────────────────────────────────────────────────────

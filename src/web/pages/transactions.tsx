@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatDistanceToNow } from "date-fns";
@@ -15,7 +15,6 @@ import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
-import { Input } from "@/web/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -50,7 +49,11 @@ export default function TransactionLedgerPage() {
   const [source, setSource] = useState<string | undefined>();
   const [page, setPage] = useState(0);
 
-  const { data: txns = [], isLoading } = usePayAgentTxnsList({
+  const {
+    data: txns = [],
+    isLoading,
+    isFetching,
+  } = usePayAgentTxnsList({
     type,
     agentId,
     source,
@@ -59,14 +62,14 @@ export default function TransactionLedgerPage() {
 
   const hasFilters = draftType !== "all" || draftAgent !== "all" || draftSource !== "all";
 
-  const applyFilters = useCallback(() => {
+  function applyFilters() {
     setType(draftType !== "all" ? draftType : undefined);
     setAgentId(draftAgent !== "all" ? Number(draftAgent) : undefined);
     setSource(draftSource !== "all" ? draftSource : undefined);
     setPage(0);
-  }, [draftType, draftAgent, draftSource]);
+  }
 
-  const resetFilters = useCallback(() => {
+  function resetFilters() {
     setDraftType("all");
     setDraftAgent("all");
     setDraftSource("all");
@@ -74,14 +77,11 @@ export default function TransactionLedgerPage() {
     setAgentId(undefined);
     setSource(undefined);
     setPage(0);
-  }, []);
+  }
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") applyFilters();
-    },
-    [applyFilters],
-  );
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") applyFilters();
+  }
 
   // Agent name lookup
   const agentMap = new Map(agents.map((a) => [a.id, a.name]));
@@ -154,7 +154,7 @@ export default function TransactionLedgerPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && txns.length === 0 ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-10 w-full" />
@@ -163,17 +163,17 @@ export default function TransactionLedgerPage() {
             ) : txns.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">{t("ledger.empty")}</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="relative overflow-x-auto">
+                <Table className="table-fixed min-w-[1080px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs">{t("common.th.type")}</TableHead>
-                      <TableHead className="text-xs">{t("common.th.amount")}</TableHead>
-                      <TableHead className="text-xs">{t("ledger.th.balance")}</TableHead>
-                      <TableHead className="text-xs">{t("ledger.th.wallet")}</TableHead>
-                      <TableHead className="text-xs">{t("common.th.source")}</TableHead>
+                      <TableHead className="w-[140px] text-xs">{t("common.th.type")}</TableHead>
+                      <TableHead className="w-[136px] text-xs">{t("common.th.amount")}</TableHead>
+                      <TableHead className="w-[176px] text-xs">{t("ledger.th.balance")}</TableHead>
+                      <TableHead className="w-[180px] text-xs">{t("ledger.th.wallet")}</TableHead>
+                      <TableHead className="w-[108px] text-xs">{t("common.th.source")}</TableHead>
                       <TableHead className="text-xs">{t("ledger.th.detail")}</TableHead>
-                      <TableHead className="text-xs">{t("common.th.time")}</TableHead>
+                      <TableHead className="w-[124px] text-xs">{t("common.th.time")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -182,6 +182,9 @@ export default function TransactionLedgerPage() {
                     ))}
                   </TableBody>
                 </Table>
+                {isFetching && (
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-primary/40" />
+                )}
               </div>
             )}
 
@@ -218,19 +221,19 @@ function TxRow({ tx, agentName }: { tx: PayAgentTransaction; agentName?: string 
       <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
         {removeTailingZero(tx.balanceBefore)} → {removeTailingZero(tx.balanceAfter)}
       </TableCell>
-      <TableCell className="text-xs max-w-[120px]">
+      <TableCell className="max-w-0 text-xs">
         <LocaleLink
           to={`/admin/pay-agents?id=${tx.agentId}`}
-          className="inline-flex items-center gap-1 text-primary hover:underline truncate"
+          className="inline-flex max-w-full items-center gap-1 overflow-hidden text-primary hover:underline"
         >
-          {agentName ?? `Agent #${tx.agentId}`}
+          <span className="truncate">{agentName ?? `Agent #${tx.agentId}`}</span>
           <ExternalLink className="h-3 w-3 shrink-0" />
         </LocaleLink>
       </TableCell>
       <TableCell>
         <SourceBadge source={tx.source} />
       </TableCell>
-      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+      <TableCell className="max-w-0 text-xs text-muted-foreground">
         <TxDetail tx={tx} />
       </TableCell>
       <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
@@ -298,7 +301,7 @@ function TxDetail({ tx }: { tx: PayAgentTransaction }) {
   // AI usage: show model + tokens
   if (tx.type === "ai_usage" && tx.modelId) {
     return (
-      <span>
+      <span className="block truncate">
         {tx.modelId} ({tx.tokens ?? 0} tokens)
       </span>
     );
@@ -307,16 +310,16 @@ function TxDetail({ tx }: { tx: PayAgentTransaction }) {
   // On-chain: show tx hash link
   if (tx.txHash) {
     return (
-      <span className="inline-flex items-center gap-1 font-mono">
-        {tx.txHash.slice(0, 12)}...
-        <ExternalLink className="h-3 w-3" />
+      <span className="inline-flex max-w-full items-center gap-1 overflow-hidden font-mono">
+        <span className="truncate">{tx.txHash.slice(0, 12)}...</span>
+        <ExternalLink className="h-3 w-3 shrink-0" />
       </span>
     );
   }
 
   // Description fallback
   if (tx.description) {
-    return <span>{tx.description}</span>;
+    return <span className="block truncate">{tx.description}</span>;
   }
 
   return <span>—</span>;

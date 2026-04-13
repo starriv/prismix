@@ -49,6 +49,24 @@ export const topupOrderRepo = {
     );
   },
 
+  async findByAgent(
+    agentId: number,
+    opts?: { status?: string; limit?: number; offset?: number },
+  ): Promise<TopUpOrder[]> {
+    const conditions = [eq(topUpOrders.agentId, agentId)];
+    if (opts?.status) conditions.push(eq(topUpOrders.status, opts.status));
+
+    return queryAll(
+      db
+        .select()
+        .from(topUpOrders)
+        .where(and(...conditions))
+        .orderBy(desc(topUpOrders.createdAt))
+        .limit(opts?.limit ?? 20)
+        .offset(opts?.offset ?? 0),
+    );
+  },
+
   async count(status?: string): Promise<number> {
     const conditions = [];
     if (status) conditions.push(eq(topUpOrders.status, status));
@@ -101,6 +119,17 @@ export const topupOrderRepo = {
             eq(topUpOrders.status, "pending"),
           ),
         )
+        .orderBy(desc(topUpOrders.createdAt))
+        .limit(1),
+    );
+  },
+
+  async findLatestPendingByAgent(agentId: number): Promise<TopUpOrder | undefined> {
+    return queryOne(
+      db
+        .select()
+        .from(topUpOrders)
+        .where(and(eq(topUpOrders.agentId, agentId), eq(topUpOrders.status, "pending")))
         .orderBy(desc(topUpOrders.createdAt))
         .limit(1),
     );

@@ -16,6 +16,7 @@ import {
   apiPayAgentTxns,
   apiTopupOrderConfirm,
   apiTopupOrderReject,
+  apiTopupOrderSettle,
   DEFAULT_PAGE_SIZE,
 } from "./constants";
 import { queryKeys } from "./query-keys";
@@ -248,6 +249,19 @@ export function useRejectTopupOrder() {
       put(apiTopupOrderReject(id), body, topUpOrderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.topupOrdersAll() });
+    },
+  });
+}
+
+export function useSettleTopupOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount, note }: { id: number; amount: string; note?: string }) =>
+      put(apiTopupOrderSettle(id), { amount, note }, topUpOrderSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.topupOrdersAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.payAgentTxnsAll() });
     },
   });
 }

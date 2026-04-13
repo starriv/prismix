@@ -45,7 +45,11 @@ export function TransactionHistory() {
   const [type, setType] = useState<string | undefined>();
   const [page, setPage] = useState(0);
 
-  const { data: transactions = [], isLoading } = useWalletTransactions({
+  const {
+    data: transactions = [],
+    isLoading,
+    isFetching,
+  } = useWalletTransactions({
     type,
     limit: TX_PAGE_SIZE,
     offset: page * TX_PAGE_SIZE,
@@ -116,7 +120,7 @@ export function TransactionHistory() {
         </div>
 
         {/* Table */}
-        {isLoading ? (
+        {isLoading && transactions.length === 0 ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full" />
@@ -127,17 +131,17 @@ export function TransactionHistory() {
             {t("user.wallet.tx-empty")}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="relative overflow-x-auto">
+            <Table className="table-fixed min-w-[980px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">{t("common.th.type")}</TableHead>
-                  <TableHead className="text-xs">{t("common.th.amount")}</TableHead>
-                  <TableHead className="text-xs">{t("user.wallet.th.balance")}</TableHead>
-                  <TableHead className="text-xs">{t("common.th.source")}</TableHead>
-                  <TableHead className="text-xs">{t("common.th.network")}</TableHead>
+                  <TableHead className="w-[128px] text-xs">{t("common.th.type")}</TableHead>
+                  <TableHead className="w-[132px] text-xs">{t("common.th.amount")}</TableHead>
+                  <TableHead className="w-[168px] text-xs">{t("user.wallet.th.balance")}</TableHead>
+                  <TableHead className="w-[108px] text-xs">{t("common.th.source")}</TableHead>
+                  <TableHead className="w-[96px] text-xs">{t("common.th.network")}</TableHead>
                   <TableHead className="text-xs">{t("user.wallet.th.detail")}</TableHead>
-                  <TableHead className="text-xs">{t("common.th.time")}</TableHead>
+                  <TableHead className="w-[124px] text-xs">{t("common.th.time")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -165,7 +169,7 @@ export function TransactionHistory() {
                       <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
                         {chain?.shortName ?? tx.network ?? "—"}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                      <TableCell className="max-w-0 text-xs text-muted-foreground">
                         <TxDetail
                           txHash={tx.txHash}
                           description={tx.description}
@@ -190,6 +194,9 @@ export function TransactionHistory() {
                 })}
               </TableBody>
             </Table>
+            {isFetching && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-primary/40" />
+            )}
           </div>
         )}
 
@@ -206,30 +213,6 @@ export function TransactionHistory() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-function TxHashCell({ txHash, explorerUrl }: { txHash: string | null; explorerUrl?: string }) {
-  if (!txHash) {
-    return <span className="text-xs text-muted-foreground">—</span>;
-  }
-
-  const href = explorerUrl ? explorerTxUrl(explorerUrl, txHash) : undefined;
-
-  if (href) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {txHash.slice(0, 10)}...
-        <ExternalLink className="h-3 w-3" />
-      </a>
-    );
-  }
-
-  return <span className="font-mono text-xs text-muted-foreground">{txHash.slice(0, 10)}...</span>;
-}
 
 function SourceBadge({ source }: { source: string }) {
   const { t } = useTranslation();
@@ -258,17 +241,17 @@ function TxDetail({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 font-mono hover:text-foreground transition-colors"
+        className="inline-flex max-w-full items-center gap-1 overflow-hidden font-mono hover:text-foreground transition-colors"
       >
-        {txHash.slice(0, 12)}...
-        <ExternalLink className="h-3 w-3" />
+        <span className="truncate">{txHash.slice(0, 12)}...</span>
+        <ExternalLink className="h-3 w-3 shrink-0" />
       </a>
     ) : (
-      <span className="font-mono">{txHash.slice(0, 12)}...</span>
+      <span className="block truncate font-mono">{txHash.slice(0, 12)}...</span>
     );
   }
 
-  if (description) return <span>{description}</span>;
+  if (description) return <span className="block truncate">{description}</span>;
 
   return <span>—</span>;
 }

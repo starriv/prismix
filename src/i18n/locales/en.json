@@ -80,6 +80,7 @@
     "pay-agents": "Pay Agents",
     "settings": "Settings",
     "notifications": "Notifications",
+    "topup-orders": "Top-up Orders",
     "ledger": "Transactions",
     "withdraw-orders": "Withdrawals",
     "fiat-configs": "Payment Methods",
@@ -2052,6 +2053,47 @@
       "delete-error": "Failed to delete payment method"
     }
   },
+  "topup": {
+    "title": "Top-up Orders",
+    "desc": "View and manage created deposit orders",
+    "card-title": "Top-up Orders",
+    "table-empty": "No top-up orders found",
+    "filter": {
+      "all": "All Statuses"
+    },
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "detail": {
+      "amount": "Requested Amount",
+      "pending-hint": "For pending orders, credit the wallet and confirm the order, or reject it if the request is invalid.",
+      "readonly-hint": "Processed orders are read-only and kept for audit and reconciliation.",
+      "user": "User & Wallet",
+      "user-name": "User",
+      "user-uuid": "User UUID",
+      "agent-id": "Wallet Agent",
+      "address": "Deposit Address",
+      "chain": "Deposit Route",
+      "txhash": "On-chain Tx Hash",
+      "method": "Payment Method",
+      "timeline": "Timeline",
+      "created": "Created",
+      "updated": "Updated",
+      "expires": "Expires",
+      "note": "Admin Note"
+    },
+    "action": {
+      "reject": "Reject Order",
+      "settle": "Credit & Confirm",
+      "settle-success": "Wallet credited and order confirmed.",
+      "settle-error": "Failed to settle top-up order.",
+      "reject-success": "Top-up order rejected.",
+      "reject-error": "Failed to reject top-up order."
+    }
+  },
   "ai": {
     "title": "AI API Keys",
     "desc": "Manage your API keys for AI providers",
@@ -2542,6 +2584,7 @@
       "overview": "Overview",
       "endpoint": "API Endpoint",
       "models": "Models",
+      "transactions": "Transactions",
       "keys": "Keys",
       "usage": "Usage",
       "logs": "Logs",
@@ -2743,7 +2786,13 @@
       "deposit-order-failed": "Failed to create deposit order",
       "deposit-order-active": "Waiting for {{amount}} USDC. Auto-detection runs in the background for up to 1 hour.",
       "deposit-order-expiry": "For the lowest fee and fastest credit, paste the transaction hash right after sending.",
-      "deposit-auto-confirmed": "Deposit confirmed automatically: {{amount}} USDC credited."
+      "deposit-auto-confirmed": "Deposit confirmed automatically: {{amount}} USDC credited.",
+      "deposit-orders": "Deposit Orders",
+      "deposit-orders-empty": "No deposit orders yet"
+    },
+    "transactions": {
+      "title": "Transactions",
+      "desc": "View wallet deposits, withdrawals, payments, and AI usage history"
     }
   }
 }

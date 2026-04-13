@@ -3,12 +3,23 @@ import { Hono } from "hono";
 import { groupBy } from "lodash-es";
 
 import { transaction } from "@/server/db";
-import { createAdminBody } from "@/server/lib/body-schemas";
+import {
+  confirmTopupOrderBody,
+  createAdminBody,
+  rejectTopupOrderBody,
+} from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { adminRepo, identityRepo } from "@/server/repos";
+import {
+  adminRepo,
+  identityRepo,
+  payAgentRepo,
+  payAgentTransactionRepo,
+  topupOrderRepo,
+  userRepo,
+} from "@/server/repos";
 
 const PASSWORD_COMPLEXITY_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 
@@ -155,6 +166,121 @@ admin.get("/wallet/deposits", async (c) => {
     offset,
   );
   return ok(c, rows);
+});
+
+// GET /topup-orders — all top-up orders (enriched with owner uuid)
+admin.get("/topup-orders", async (c) => {
+  const limit = parsePaginationLimit(c.req.query("limit"), 50, 100);
+  const offset = parsePaginationOffset(c.req.query("offset"));
+  const status = c.req.query("status") || undefined;
+
+  const items = await topupOrderRepo.findAll({ status, limit, offset });
+  const total = await topupOrderRepo.count(status);
+
+  const users = await userRepo.findAll(1000, 0);
+  const userByAgentId = new Map(users.filter((u) => u.agentId).map((u) => [u.agentId!, u]));
+
+  return ok(c, {
+    items: items.map((order) => {
+      const owner = userByAgentId.get(order.agentId);
+      return {
+        ...order,
+        userId: owner?.id ?? null,
+        userUuid: owner?.uuid ?? null,
+        userName: owner?.name ?? null,
+      };
+    }),
+    total,
+  });
+});
+
+// PUT /topup-orders/:id/confirm — manually confirm a top-up order
+admin.put("/topup-orders/:id/confirm", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
+
+  const parsed = await parseBody(c, confirmTopupOrderBody);
+  if (!parsed.ok) return parsed.response;
+
+  const order = await topupOrderRepo.confirm(id, {
+    fiatAmount: parsed.data.fiatAmount,
+    note: parsed.data.note,
+  });
+  if (!order) return c.json({ error: "Top-up order not found or already processed" }, 404);
+
+  return ok(c, order);
+});
+
+// PUT /topup-orders/:id/settle — credit wallet + mark order confirmed
+admin.put("/topup-orders/:id/settle", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
+
+  const parsed = await parseBody(
+    c,
+    confirmTopupOrderBody.extend({
+      amount: confirmTopupOrderBody.shape.fiatAmount
+        .unwrap()
+        .regex(/^\d+(\.\d+)?$/, "Invalid amount format"),
+    }),
+  );
+  if (!parsed.ok) return parsed.response;
+
+  const order = await topupOrderRepo.findById(id);
+  if (!order || order.status !== "pending") {
+    return c.json({ error: "Top-up order not found or already processed" }, 404);
+  }
+
+  const owner = await userRepo.findByAgentId(order.agentId);
+  const agent = await payAgentRepo.findById(order.agentId);
+  if (!owner || !agent) {
+    return c.json({ error: "Order owner wallet not found" }, 404);
+  }
+
+  const amount = parsed.data.amount;
+  const description = parsed.data.note || `Admin settled top-up order #${order.id}`;
+  const credited = await payAgentRepo.creditBalance(agent.id, amount);
+  await payAgentTransactionRepo.insert({
+    agentId: agent.id,
+    userId: owner.id,
+    type: "top_up",
+    amount,
+    balanceBefore: agent.balance,
+    balanceAfter: credited.balance,
+    referenceType: "top_up_order",
+    referenceId: order.id,
+    description,
+    source: "platform",
+    network: order.network,
+  });
+
+  const settled = await topupOrderRepo.confirm(id, {
+    note: description,
+    fiatAmount: parsed.data.fiatAmount,
+  });
+  if (!settled) {
+    return c.json({ error: "Failed to settle top-up order" }, 409);
+  }
+
+  log.admin.info(
+    { orderId: id, userId: owner.id, agentId: agent.id, amount },
+    "Top-up order settled by admin",
+  );
+  return ok(c, settled);
+});
+
+// PUT /topup-orders/:id/reject — reject a pending top-up order
+admin.put("/topup-orders/:id/reject", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
+
+  const parsed = await parseBody(c, rejectTopupOrderBody);
+  if (!parsed.ok) return parsed.response;
+
+  const order = await topupOrderRepo.reject(id, parsed.data.note);
+  if (!order) return c.json({ error: "Top-up order not found or already processed" }, 404);
+
+  return ok(c, order);
 });
 
 // GET /wallet/withdrawals — all withdrawal orders

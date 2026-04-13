@@ -43,6 +43,7 @@ const AdminNetworksPage = lazy(() => import("./pages/admin/networks"));
 const AdminNotificationProvidersPage = lazy(() => import("./pages/admin/notification-providers"));
 const AdminAnnouncementsPage = lazy(() => import("./pages/admin/announcements"));
 const AdminWithdrawOrdersPage = lazy(() => import("./pages/admin/withdraw-orders"));
+const AdminTopupOrdersPage = lazy(() => import("./pages/admin/topup-orders"));
 
 // Former merchant pages — now under admin
 const DashboardPage = lazy(() => import("./pages/dashboard"));
@@ -78,6 +79,7 @@ const UserLogsPage = lazy(() => import("./pages/user/logs"));
 const UserErrorsPage = lazy(() => import("./pages/user/errors"));
 const UserSettingsPage = lazy(() => import("./pages/user/settings"));
 const UserWalletPage = lazy(() => import("./pages/user/wallet"));
+const UserTransactionsPage = lazy(() => import("./pages/user/transactions"));
 const UserEndpointPage = lazy(() => import("./pages/user/endpoint"));
 const UserModelsPage = lazy(() => import("./pages/user/models"));
 
@@ -174,6 +176,7 @@ export function App() {
                 {/* Pay Agents */}
                 <Route path="pay-agents" element={<PayAgentsPage />} />
                 <Route path="transactions" element={<TransactionLedgerPage />} />
+                <Route path="topup-orders" element={<AdminTopupOrdersPage />} />
                 <Route path="withdraw-orders" element={<AdminWithdrawOrdersPage />} />
                 <Route path="fiat-configs" element={<FiatConfigsPage />} />
 
@@ -218,6 +221,7 @@ export function App() {
                 <Route path="endpoint" element={<UserEndpointPage />} />
                 <Route path="models" element={<UserModelsPage />} />
                 <Route path="wallet" element={<UserWalletPage />} />
+                <Route path="transactions" element={<UserTransactionsPage />} />
                 <Route path="keys" element={<UserKeysPage />} />
                 <Route path="usage" element={<UserUsagePage />} />
                 <Route path="logs" element={<UserLogsPage />} />

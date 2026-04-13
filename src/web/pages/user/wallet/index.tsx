@@ -14,7 +14,7 @@ import { useChainRegistry } from "@/web/shared/chains";
 
 import { DepositDialog } from "./deposit-dialog";
 import { PendingWithdrawals } from "./pending-withdrawals";
-import { TransactionHistory } from "./transaction-history";
+import { WalletTopupOrders } from "./topup-orders";
 import { WithdrawDialog } from "./withdraw-dialog";
 
 export default function UserWalletPage() {
@@ -78,8 +78,8 @@ export default function UserWalletPage() {
           </CardContent>
         </Card>
 
-        {/* Transaction History */}
-        <TransactionHistory />
+        {/* Deposit Orders */}
+        <WalletTopupOrders />
 
         {/* Withdrawal Orders */}
         <PendingWithdrawals />

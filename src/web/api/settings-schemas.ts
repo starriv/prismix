@@ -288,6 +288,36 @@ export const depositInfoSchema = z.object({
 });
 export type DepositInfo = z.infer<typeof depositInfoSchema>;
 
+export const createWalletTopupBody = z.object({
+  amount: z.string().regex(/^\d+(\.\d+)?$/),
+  network: z.string(),
+});
+export type CreateWalletTopupBody = z.infer<typeof createWalletTopupBody>;
+
+export const userWalletTopupOrderSchema = z.object({
+  id: z.number(),
+  agentId: z.number(),
+  amount: z.string(),
+  fiatAmount: z.string().nullable().optional(),
+  fiatCurrency: z.string(),
+  status: z.string(),
+  paymentMethod: z.string().nullable().optional(),
+  paymentProof: z.string().nullable().optional(),
+  adminNote: z.string().nullable().optional(),
+  network: z.string().nullable().optional(),
+  toAddress: z.string().nullable().optional(),
+  txHash: z.string().nullable().optional(),
+  confirmedAt: z.string().or(z.number()).nullable().optional(),
+  expiredAt: z.string().or(z.number()).nullable().optional(),
+  expiresAt: z.string(),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type UserWalletTopupOrder = z.infer<typeof userWalletTopupOrderSchema>;
+
+export const userWalletTopupOrderListSchema = z.array(userWalletTopupOrderSchema);
+export type UserWalletTopupOrderList = z.infer<typeof userWalletTopupOrderListSchema>;
+
 export const verifyDepositResultSchema = z.object({
   success: z.boolean(),
   amount: z.string(),

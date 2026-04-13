@@ -28,6 +28,7 @@ import { SUPPORTED_PAYMENT_CHAIN_IDS } from "@/shared/circle-networks";
 import { gt, gte } from "@/shared/number";
 
 const USDC_DECIMALS = 6;
+const TOPUP_EXPIRES_IN_MS = 60 * 60 * 1000;
 
 const wallet = new Hono();
 
@@ -144,6 +145,17 @@ wallet.post("/topup", async (c) => {
     return c.json({ error: `Network not supported for deposits: ${network}` }, 400);
   }
 
+  const pendingOrder = await topupOrderRepo.findLatestPendingByAgent(agentId);
+  if (pendingOrder) {
+    return c.json(
+      {
+        error: "You already have a pending deposit order. Complete or wait for it to expire first.",
+        orderId: pendingOrder.id,
+      },
+      409,
+    );
+  }
+
   // Ensure agent has a wallet address
   let toAddress: string;
   try {
@@ -171,11 +183,23 @@ wallet.post("/topup", async (c) => {
   );
 
   return ok(c, {
-    orderId: order.id,
-    toAddress,
-    network,
-    amount,
-    status: "pending",
+    id: order.id,
+    agentId: order.agentId,
+    amount: order.amount,
+    fiatAmount: order.fiatAmount,
+    fiatCurrency: order.fiatCurrency,
+    status: order.status,
+    paymentMethod: order.paymentMethod,
+    paymentProof: order.paymentProof,
+    adminNote: order.adminNote,
+    network: order.network,
+    toAddress: order.toAddress,
+    txHash: order.txHash,
+    confirmedAt: order.confirmedAt,
+    expiredAt: order.expiredAt,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
   });
 });
 
@@ -191,7 +215,28 @@ wallet.get("/topup/:id", async (c) => {
   const order = await topupOrderRepo.findByIdAndAgent(id, agentId);
   if (!order) return c.json({ error: "Order not found" }, 404);
 
-  return ok(c, order);
+  return ok(c, {
+    ...order,
+    expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
+  });
+});
+
+wallet.get("/topup", async (c) => {
+  const agentId = await resolveAgentId(c);
+  if (!agentId) return c.json({ error: "No wallet found for this account" }, 404);
+
+  const limit = parsePaginationLimit(c.req.query("limit"), 20, 100);
+  const offset = parsePaginationOffset(c.req.query("offset"));
+  const status = c.req.query("status") || undefined;
+
+  const orders = await topupOrderRepo.findByAgent(agentId, { status, limit, offset });
+  return ok(
+    c,
+    orders.map((order) => ({
+      ...order,
+      expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
+    })),
+  );
 });
 
 // ── POST /deposit/verify — manual txHash verification ───────────────

@@ -82,6 +82,9 @@ export type PayAgentTransaction = z.infer<typeof payAgentTransactionSchema>;
 export const topUpOrderSchema = z.object({
   id: z.number(),
   agentId: z.number(),
+  userId: z.number().nullable().optional(),
+  userUuid: z.string().nullable().optional(),
+  userName: z.string().nullable().optional(),
   amount: z.string(),
   fiatAmount: z.string().nullable().optional(),
   fiatCurrency: z.string(),
@@ -89,8 +92,12 @@ export const topUpOrderSchema = z.object({
   paymentMethod: z.string().nullable().optional(),
   paymentProof: z.string().nullable().optional(),
   adminNote: z.string().nullable().optional(),
+  network: z.string().nullable().optional(),
+  toAddress: z.string().nullable().optional(),
+  txHash: z.string().nullable().optional(),
   confirmedAt: z.string().or(z.number()).nullable().optional(),
   expiredAt: z.string().or(z.number()).nullable().optional(),
+  expiresAt: z.string().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });

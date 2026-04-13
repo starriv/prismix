@@ -80,6 +80,7 @@
     "pay-agents": "Pay Agent 管理",
     "settings": "设置",
     "notifications": "通知中心",
+    "topup-orders": "充值订单",
     "ledger": "交易记录",
     "withdraw-orders": "提现管理",
     "fiat-configs": "收款方式",
@@ -2052,6 +2053,47 @@
       "delete-error": "删除收款方式失败"
     }
   },
+  "topup": {
+    "title": "充值订单",
+    "desc": "查看并管理已创建的充值订单",
+    "card-title": "充值订单",
+    "table-empty": "暂无充值订单",
+    "filter": {
+      "all": "全部状态"
+    },
+    "status": {
+      "pending": "待处理",
+      "confirmed": "已确认",
+      "rejected": "已拒绝",
+      "expired": "已过期"
+    },
+    "detail": {
+      "amount": "申请金额",
+      "pending-hint": "待处理订单应当执行实际入账后再确认；若请求无效，则直接拒绝订单。",
+      "readonly-hint": "已处理订单仅用于审计和对账，不再允许修改。",
+      "user": "用户与钱包",
+      "user-name": "用户",
+      "user-uuid": "用户 UUID",
+      "agent-id": "钱包 Agent",
+      "address": "充值地址",
+      "chain": "充值路径",
+      "txhash": "链上交易哈希",
+      "method": "支付方式",
+      "timeline": "时间线",
+      "created": "创建时间",
+      "updated": "更新时间",
+      "expires": "过期时间",
+      "note": "管理员备注"
+    },
+    "action": {
+      "reject": "拒绝订单",
+      "settle": "入账并确认",
+      "settle-success": "已完成上账并确认订单。",
+      "settle-error": "处理充值订单失败。",
+      "reject-success": "充值订单已拒绝。",
+      "reject-error": "拒绝充值订单失败。"
+    }
+  },
   "ai": {
     "title": "AI API 密钥",
     "desc": "管理您的 AI 提供商 API 密钥",
@@ -2542,6 +2584,7 @@
       "overview": "概览",
       "endpoint": "API 端点",
       "models": "模型",
+      "transactions": "交易",
       "keys": "密钥",
       "usage": "用量",
       "logs": "日志",
@@ -2743,7 +2786,13 @@
       "deposit-order-failed": "创建充值订单失败",
       "deposit-order-active": "正在等待 {{amount}} USDC。后台会在 1 小时内自动检测到账。",
       "deposit-order-expiry": "为了更省成本也更快入账，建议转账后立即粘贴交易哈希。",
-      "deposit-auto-confirmed": "已自动确认充值：{{amount}} USDC 已入账。"
+      "deposit-auto-confirmed": "已自动确认充值：{{amount}} USDC 已入账。",
+      "deposit-orders": "充值订单",
+      "deposit-orders-empty": "暂无充值订单"
+    },
+    "transactions": {
+      "title": "交易",
+      "desc": "查看钱包的充值、提现、支付和 AI 使用记录"
     }
   }
 }

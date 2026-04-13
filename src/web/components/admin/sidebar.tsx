@@ -82,6 +82,7 @@ const AI_CHILD_PATHS = [
 
 const ACCOUNTS_CHILD_PATHS = [
   "/admin/pay-agents",
+  "/admin/topup-orders",
   "/admin/transactions",
   "/admin/withdraw-orders",
   "/admin/fiat-configs",
@@ -129,6 +130,7 @@ const navTree: NavEntry[] = [
     childPaths: ACCOUNTS_CHILD_PATHS,
     children: [
       { href: "/admin/pay-agents", labelKey: "nav.pay-agents", icon: Bot },
+      { href: "/admin/topup-orders", labelKey: "nav.topup-orders", icon: Wallet },
       { href: "/admin/transactions", labelKey: "nav.ledger", icon: CreditCard },
       { href: "/admin/withdraw-orders", labelKey: "nav.withdraw-orders", icon: ArrowUpFromLine },
       { href: "/admin/fiat-configs", labelKey: "nav.fiat-configs", icon: Coins },

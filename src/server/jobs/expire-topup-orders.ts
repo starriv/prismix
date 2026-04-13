@@ -8,8 +8,10 @@ import { log } from "@/server/lib/logger";
 import { emitNotification } from "@/server/messaging/notifications";
 import { payAgentRepo, topupOrderRepo } from "@/server/repos";
 
+import { TOPUP_SCAN_TTL_MS } from "./scan-topup-deposit";
+
 const INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const TTL_MS = TOPUP_SCAN_TTL_MS;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 

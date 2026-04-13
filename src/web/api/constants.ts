@@ -72,6 +72,7 @@ export const API_FIAT_CONFIGS_REORDER = "/api/admin/fiat-configs/reorder";
 export const API_TOPUP_ORDERS = "/api/admin/topup-orders";
 export const apiTopupOrderDetail = (id: number) => `/api/admin/topup-orders/${id}`;
 export const apiTopupOrderConfirm = (id: number) => `/api/admin/topup-orders/${id}/confirm`;
+export const apiTopupOrderSettle = (id: number) => `/api/admin/topup-orders/${id}/settle`;
 export const apiTopupOrderReject = (id: number) => `/api/admin/topup-orders/${id}/reject`;
 
 // ── Webhooks ────────────────────────────────────────────────
@@ -175,7 +176,10 @@ export const API_USER_ANNOUNCEMENTS = "/api/user/announcements";
 // ── User Wallet ────────────────────────────────────────────────
 export const API_USER_WALLET = "/api/user/wallet";
 export const API_USER_WALLET_DEPOSIT_INFO = "/api/user/wallet/deposit-info";
+export const API_USER_WALLET_TOPUP = "/api/user/wallet/topup";
 export const API_USER_WALLET_DEPOSIT_VERIFY = "/api/user/wallet/deposit/verify";
+export const apiUserWalletTopupOrder = (id: number) => `/api/user/wallet/topup/${id}`;
+export const API_USER_WALLET_TOPUP_ORDERS = "/api/user/wallet/topup";
 export const API_USER_WALLET_TRANSACTIONS = "/api/user/wallet/transactions";
 export const API_USER_WALLET_WITHDRAW = "/api/user/wallet/withdraw";
 export const API_USER_WALLET_WITHDRAWALS = "/api/user/wallet/withdrawals";
