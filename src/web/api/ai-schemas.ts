@@ -12,11 +12,68 @@ export const aiProviderSchema = z.object({
   authConfig: z.record(z.string(), z.unknown()),
   enabled: z.coerce.boolean(),
   loadBalanceStrategy: z.string().optional().default("round-robin"),
+  upstreamRoutingStrategy: z.string().optional().default("priority"),
   iconUrl: z.string().nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
 export type AiProvider = z.infer<typeof aiProviderSchema>;
+
+export const aiProviderUpstreamSchema = z.object({
+  id: z.number(),
+  providerId: z.number(),
+  upstreamId: z.string(),
+  name: z.string(),
+  baseUrl: z.string(),
+  kind: z.string(),
+  priority: z.number(),
+  weight: z.number(),
+  enabled: z.coerce.boolean(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiProviderUpstream = z.infer<typeof aiProviderUpstreamSchema>;
+
+export const aiUpstreamOverviewItemSchema = z.object({
+  id: z.number(),
+  providerDbId: z.number(),
+  providerId: z.string().nullable(),
+  providerName: z.string().nullable(),
+  name: z.string(),
+  upstreamId: z.string(),
+  baseUrl: z.string(),
+  kind: z.string(),
+  enabled: z.coerce.boolean(),
+  priority: z.number(),
+  weight: z.number(),
+  totalKeys: z.number(),
+  enabledKeys: z.number(),
+  requests24h: z.number(),
+  clientErrors24h: z.number(),
+  serverErrors24h: z.number(),
+  totalTokens24h: z.number(),
+  avgLatencyMs24h: z.number(),
+  errorRate24h: z.number(),
+  lastSeenAt: z.string().nullable(),
+  lastStatusCode: z.number().nullable(),
+  lastError: z.string().nullable(),
+  healthStatus: z.enum(["healthy", "degraded", "idle", "no-key", "disabled"]),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiUpstreamOverviewItem = z.infer<typeof aiUpstreamOverviewItemSchema>;
+
+export const aiUpstreamsOverviewSchema = z.object({
+  totals: z.object({
+    totalUpstreams: z.number(),
+    enabledUpstreams: z.number(),
+    activeUpstreams24h: z.number(),
+    degradedUpstreams24h: z.number(),
+  }),
+  upstreams: z.array(aiUpstreamOverviewItemSchema),
+});
+export type AiUpstreamsOverview = z.infer<typeof aiUpstreamsOverviewSchema>;
 
 export const aiModelSchema = z.object({
   id: z.number(),
@@ -38,6 +95,7 @@ export type AiModel = z.infer<typeof aiModelSchema>;
 export const aiKeySchema = z.object({
   id: z.number(),
   providerId: z.number(),
+  upstreamId: z.number().nullable().optional(),
   ownerId: z.number().nullable().optional(),
   name: z.string(),
   keyPrefix: z.string(),
@@ -45,6 +103,8 @@ export const aiKeySchema = z.object({
   enabled: z.coerce.boolean(),
   providerName: z.string().optional(),
   ownerName: z.string().nullable().optional(),
+  upstreamName: z.string().nullable().optional(),
+  upstreamSlug: z.string().nullable().optional(),
   lastUsedAt: z.string().or(z.number()).nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
@@ -122,6 +182,9 @@ export const aiUsageRecordSchema = z.object({
   consumerKeyId: z.number().nullable().optional(),
   providerId: z.string().nullable(),
   modelId: z.string().nullable(),
+  upstreamId: z.number().nullable().optional(),
+  upstreamName: z.string().nullable().optional(),
+  upstreamBaseUrl: z.string().nullable().optional(),
   inputTokens: z.number(),
   outputTokens: z.number(),
   totalTokens: z.number(),

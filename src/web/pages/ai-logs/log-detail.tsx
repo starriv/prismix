@@ -60,6 +60,12 @@ export function LogDetail({ log, keyName, requestLog, bodyLoading }: LogDetailPr
           <DetailRow label={t("ai-logs.detail.provider")}>
             <span className="text-xs">{log.providerId ?? "—"}</span>
           </DetailRow>
+          <DetailRow label={t("ai-logs.detail.upstream")}>
+            <span className="text-xs">{log.upstreamName ?? "—"}</span>
+          </DetailRow>
+          <DetailRow label={t("ai-logs.detail.upstream-url")}>
+            <span className="font-mono text-xs break-all">{log.upstreamBaseUrl ?? "—"}</span>
+          </DetailRow>
           {keyName && (
             <DetailRow label={t("ai-logs.detail.consumer-key")}>
               <span className="text-xs">{keyName}</span>

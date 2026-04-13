@@ -338,6 +338,7 @@ export default function AiUsageUserDetailPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t("ai-usage.th.model")}</TableHead>
+                        <TableHead>{t("ai-usage.th.upstream")}</TableHead>
                         <TableHead className="text-right">{t("ai-usage.th.tokens")}</TableHead>
                         <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
                         <TableHead className="text-right">{t("ai-usage.th.latency")}</TableHead>
@@ -358,6 +359,11 @@ export default function AiUsageUserDetailPage() {
                           >
                             <TableCell className="font-mono text-xs">
                               {row.modelId ?? "-"}
+                            </TableCell>
+                            <TableCell className="max-w-[220px]">
+                              <div className="truncate text-xs">
+                                {row.upstreamName ?? row.upstreamBaseUrl ?? "-"}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right font-mono text-xs tabular-nums">
                               {formatTokens(row.totalTokens)}
@@ -381,7 +387,7 @@ export default function AiUsageUserDetailPage() {
                           </TableRow>
                           {expandedRequestId === row.requestId && row.requestId && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
-                              <TableCell colSpan={6} className="p-0">
+                              <TableCell colSpan={7} className="p-0">
                                 <RequestLogDetail requestId={row.requestId} />
                               </TableCell>
                             </TableRow>

@@ -48,17 +48,17 @@ export function WalletAddress({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <p className="font-mono text-xs text-ellipsis overflow-clip cursor-default underline decoration-foreground pb-0.5">
-              <span className="text-green-300">{prefix}</span>
+            <p className="font-mono font-medium text-xs text-ellipsis overflow-clip cursor-pointer underline underline-offset-2 decoration-foreground pb-0.5">
+              <span className="text-green-600">{prefix}</span>
               {full ? (
                 <>
                   <span className="text-muted-foreground">{middle}</span>
-                  <span className="text-green-300">{suffix}</span>
+                  <span className="text-green-600">{suffix}</span>
                 </>
               ) : (
                 <>
-                  <span className="text-muted-foreground">......</span>
-                  <span className="text-green-300">{suffix}</span>
+                  <span className="text-muted-foreground">****</span>
+                  <span className="text-green-600">{suffix}</span>
                 </>
               )}
             </p>

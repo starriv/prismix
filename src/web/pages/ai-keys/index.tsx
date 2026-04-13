@@ -133,6 +133,19 @@ export default function AiKeysPage() {
     setAddOpen(true);
   }, []);
 
+  const handleUpstreamChange = useCallback(
+    async (key: AiKey, upstreamId: number | null) => {
+      if ((key.upstreamId ?? null) === upstreamId) return;
+      try {
+        await updateKey.mutateAsync({ id: key.id, upstreamId });
+        toast.success(t("ai.toast.updated"));
+      } catch {
+        toast.error(t("ai.toast.update-error"));
+      }
+    },
+    [t, updateKey],
+  );
+
   const handleAddGlobal = useCallback(() => {
     setAddProviderId(0);
     setAddOpen(true);
@@ -185,6 +198,7 @@ export default function AiKeysPage() {
                   onDelete={handleDelete}
                   onWeightChange={handleWeightChange}
                   onStrategyChange={handleStrategyChange}
+                  onUpstreamChange={handleUpstreamChange}
                   onAdd={() => handleAddToProvider(group.providerId)}
                   isToggling={updateKey.isPending}
                   isTesting={testKey.isPending}

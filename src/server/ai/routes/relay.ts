@@ -13,6 +13,7 @@ import { getGatewayConfigCached, resolveTimeoutConfig } from "@/server/lib/gatew
 import { log } from "@/server/lib/logger";
 import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
+import { weightedShuffle } from "@/server/lib/weighted-shuffle";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { getAdminSession } from "@/server/middleware/auth";
 import { getRequestId } from "@/server/middleware/request-id";
@@ -34,6 +35,7 @@ import {
   RETRYABLE_STATUS,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
+import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
 import type { OpenAIChatBody, ProviderAdapter } from "../providers/types";
@@ -46,6 +48,9 @@ interface RelayErrorExtras {
   keyId?: number | null;
   providerId?: string | null;
   modelId?: string | null;
+  upstreamId?: number | null;
+  upstreamName?: string | null;
+  upstreamBaseUrl?: string | null;
   requestBody?: string;
   responseBody?: string;
   estimatedCost?: string | null;
@@ -65,6 +70,9 @@ function respondWithRelayError(
     keyId: extras?.keyId ?? null,
     providerId: extras?.providerId ?? null,
     modelId: extras?.modelId ?? null,
+    upstreamId: extras?.upstreamId ?? null,
+    upstreamName: extras?.upstreamName ?? null,
+    upstreamBaseUrl: extras?.upstreamBaseUrl ?? null,
     estimatedCost: extras?.estimatedCost ?? null,
     latencyMs: Date.now() - start,
     requestBody: extras?.requestBody,
@@ -150,8 +158,10 @@ relay.post("/v1/chat/completions", async (c) => {
 
   // -- 3. Try each candidate (fallback loop) --
   let lastError: { status: number; message: string } | null = null;
+  let totalAttempts = 0;
 
   for (const candidate of candidates) {
+    if (totalAttempts >= MAX_UPSTREAM_ATTEMPTS) break;
     if (isUnsupportedStreamingCandidate(body.stream, candidate.provider.apiFormat)) {
       log.gateway.info(
         { provider: candidate.provider.providerId, model: candidate.model.modelId, requestId },
@@ -173,191 +183,200 @@ relay.post("/v1/chat/completions", async (c) => {
     const transformedBody = adapter.transformRequest(candidateBody);
     const serializedBody = JSON.stringify(transformedBody);
 
-    const attempt = await resolveCandidate(candidate, adapter, !!body.stream, serializedBody);
-    if (!attempt) continue; // no key for this provider
+    const attempts = await resolveCandidate(candidate, adapter, !!body.stream, serializedBody);
+    if (attempts.length === 0) continue;
 
-    const { finalUrl, authHeaders, keyMeta } = attempt;
-    const passthroughHeaders = extractPassthroughHeaders(c);
+    for (const attempt of attempts) {
+      if (totalAttempts >= MAX_UPSTREAM_ATTEMPTS) break;
+      totalAttempts++;
 
-    const meta: StreamRelayMeta = {
-      keyId: keyMeta.keyId,
-      providerId: candidate.provider.providerId,
-      modelId: candidate.model.modelId,
-      requestId,
-      start,
-      inputPrice: candidate.model.inputPrice,
-      outputPrice: candidate.model.outputPrice,
-      requestBody: logEnabled ? serializedBody : undefined,
-    };
+      const { finalUrl, authHeaders, keyMeta } = attempt;
+      const passthroughHeaders = extractPassthroughHeaders(c);
 
-    // -- Cache check (non-streaming only) --
-    if (!body.stream) {
-      const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
-      const cached = getCachedResponse(cacheKey);
-      if (cached) {
-        return c.json(cached);
-      }
-    }
-
-    // -- Streaming path --
-    if (body.stream) {
-      try {
-        const upstreamRes = await fetchUpstream(
-          finalUrl,
-          { ...authHeaders, ...passthroughHeaders },
-          serializedBody,
-          timeouts.upstreamFetchMs,
-          { provider: candidate.provider.providerId, route: "chat" },
-        );
-        if (upstreamRes.ok) {
-          return forwardStream(c, upstreamRes, adapter, meta, undefined, timeouts);
-        }
-        // Retryable → try next candidate
-        if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-          markKeyFailure(keyMeta.keyId);
-          const errBody = await upstreamRes.text().catch(() => "");
-          log.gateway.warn(
-            { provider: meta.providerId, model: meta.modelId, status: upstreamRes.status },
-            "AI relay fallback: retryable stream error",
-          );
-          lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
-          continue;
-        }
-        // Non-retryable → return error immediately
-        const errBody = await upstreamRes.text().catch(() => "");
-        return respondWithRelayError(
-          c,
-          requestId,
-          start,
-          upstreamRes.status,
-          { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-          {
-            keyId: keyMeta.keyId,
-            providerId: candidate.provider.providerId,
-            modelId: candidate.model.modelId,
-            requestBody: logEnabled ? serializedBody : undefined,
-          },
-        );
-      } catch (err) {
-        markKeyFailure(keyMeta.keyId);
-        const message = err instanceof Error ? err.message : String(err);
-        lastError = { status: 0, message };
-        continue;
-      }
-    }
-
-    // -- Non-streaming path --
-    try {
-      const fetchStart = Date.now();
-      const upstreamRes = await fetch(finalUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
-        body: serializedBody,
-        signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
-      });
-      gatewayUpstreamDuration.observe(
-        { provider: candidate.provider.providerId, route: "chat", phase: "response" },
-        (Date.now() - fetchStart) / 1000,
-      );
-
-      if (!upstreamRes.ok) {
-        const errBody = await upstreamRes.text().catch(() => "");
-        if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-          markKeyFailure(keyMeta.keyId);
-          log.gateway.warn(
-            { provider: meta.providerId, model: meta.modelId, status: upstreamRes.status },
-            "AI relay fallback: retryable error",
-          );
-          lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
-          continue;
-        }
-        return respondWithRelayError(
-          c,
-          requestId,
-          start,
-          upstreamRes.status,
-          { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-          {
-            keyId: keyMeta.keyId,
-            providerId: candidate.provider.providerId,
-            modelId: candidate.model.modelId,
-            requestBody: logEnabled ? serializedBody : undefined,
-          },
-        );
-      }
-
-      // Success — parse, transform, log, return
-      const latencyMs = Date.now() - start;
-      let responseBody: unknown;
-      try {
-        responseBody = await upstreamRes.json();
-      } catch {
-        return respondWithRelayError(
-          c,
-          requestId,
-          start,
-          502,
-          { error: "Failed to parse upstream response" },
-          {
-            keyId: keyMeta.keyId,
-            providerId: candidate.provider.providerId,
-            modelId: candidate.model.modelId,
-            requestBody: logEnabled ? serializedBody : undefined,
-          },
-        );
-      }
-
-      const transformed = adapter.transformResponse(responseBody);
-      const usage = adapter.extractUsage(responseBody);
-      markKeySuccess(keyMeta.keyId);
-
-      const cost = calculateCost(usage, candidate.model);
-      enqueueJob("ai-usage-log", {
+      const meta: StreamRelayMeta = {
         keyId: keyMeta.keyId,
         providerId: candidate.provider.providerId,
         modelId: candidate.model.modelId,
-        inputTokens: usage?.inputTokens ?? 0,
-        outputTokens: usage?.outputTokens ?? 0,
-        totalTokens: usage?.totalTokens ?? 0,
-        cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
-        cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
-        estimatedCost: cost ?? null,
-        latencyMs,
-        statusCode: upstreamRes.status,
         requestId,
-        error: null,
-      } as Record<string, unknown>);
+        start,
+        inputPrice: candidate.model.inputPrice,
+        outputPrice: candidate.model.outputPrice,
+        requestBody: logEnabled ? serializedBody : undefined,
+      };
 
-      if (logEnabled) {
-        enqueueJob("ai-request-log", {
-          requestId,
-          consumerKeyId: null,
-          modelId: candidate.model.modelId,
-          requestBody: serializedBody,
-          responseBody: JSON.stringify(responseBody),
-          createdAt: new Date().toISOString(),
-        } as Record<string, unknown>);
+      // -- Cache check (non-streaming only) --
+      if (!body.stream) {
+        const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
+        const cached = getCachedResponse(cacheKey);
+        if (cached) {
+          return c.json(cached);
+        }
       }
 
-      enqueueJob("ai-key-touch", {
-        keyId: keyMeta.keyId,
-        keyType: "admin",
-      });
+      if (body.stream) {
+        try {
+          const upstreamRes = await fetchUpstream(
+            finalUrl,
+            { ...authHeaders, ...passthroughHeaders },
+            serializedBody,
+            timeouts.upstreamFetchMs,
+            { provider: candidate.provider.providerId, route: "chat" },
+          );
+          if (upstreamRes.ok) {
+            return forwardStream(
+              c,
+              upstreamRes,
+              adapter,
+              {
+                ...meta,
+                upstreamId: keyMeta.upstreamId,
+                upstreamName: keyMeta.upstreamName,
+                upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              },
+              undefined,
+              timeouts,
+            );
+          }
+          if (RETRYABLE_STATUS.has(upstreamRes.status)) {
+            markKeyFailure(keyMeta.keyId);
+            const errBody = await upstreamRes.text().catch(() => "");
+            lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+            continue;
+          }
+          const errBody = await upstreamRes.text().catch(() => "");
+          return respondWithRelayError(
+            c,
+            requestId,
+            start,
+            upstreamRes.status,
+            { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
+            {
+              keyId: keyMeta.keyId,
+              providerId: candidate.provider.providerId,
+              modelId: candidate.model.modelId,
+              upstreamId: keyMeta.upstreamId,
+              upstreamName: keyMeta.upstreamName,
+              upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              requestBody: logEnabled ? serializedBody : undefined,
+            },
+          );
+        } catch (err) {
+          markKeyFailure(keyMeta.keyId);
+          lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+          continue;
+        }
+      }
 
-      // Store in cache for future identical requests
-      const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
-      setCachedResponse(cacheKey, transformed);
+      try {
+        const fetchStart = Date.now();
+        const upstreamRes = await fetch(finalUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
+          body: serializedBody,
+          signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
+        });
+        gatewayUpstreamDuration.observe(
+          { provider: candidate.provider.providerId, route: "chat", phase: "response" },
+          (Date.now() - fetchStart) / 1000,
+        );
 
-      return c.json(transformed);
-    } catch (err) {
-      markKeyFailure(keyMeta.keyId);
-      const message = err instanceof Error ? err.message : String(err);
-      log.gateway.error(
-        { err, provider: meta.providerId, model: meta.modelId },
-        "AI relay upstream fetch failed",
-      );
-      lastError = { status: 0, message };
-      continue;
+        if (!upstreamRes.ok) {
+          const errBody = await upstreamRes.text().catch(() => "");
+          if (RETRYABLE_STATUS.has(upstreamRes.status)) {
+            markKeyFailure(keyMeta.keyId);
+            lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+            continue;
+          }
+          return respondWithRelayError(
+            c,
+            requestId,
+            start,
+            upstreamRes.status,
+            { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
+            {
+              keyId: keyMeta.keyId,
+              providerId: candidate.provider.providerId,
+              modelId: candidate.model.modelId,
+              upstreamId: keyMeta.upstreamId,
+              upstreamName: keyMeta.upstreamName,
+              upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              requestBody: logEnabled ? serializedBody : undefined,
+            },
+          );
+        }
+
+        const latencyMs = Date.now() - start;
+        let responseBody: unknown;
+        try {
+          responseBody = await upstreamRes.json();
+        } catch {
+          return respondWithRelayError(
+            c,
+            requestId,
+            start,
+            502,
+            { error: "Failed to parse upstream response" },
+            {
+              keyId: keyMeta.keyId,
+              providerId: candidate.provider.providerId,
+              modelId: candidate.model.modelId,
+              upstreamId: keyMeta.upstreamId,
+              upstreamName: keyMeta.upstreamName,
+              upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              requestBody: logEnabled ? serializedBody : undefined,
+            },
+          );
+        }
+
+        const transformed = adapter.transformResponse(responseBody);
+        const usage = adapter.extractUsage(responseBody);
+        markKeySuccess(keyMeta.keyId);
+
+        const cost = calculateCost(usage, candidate.model);
+        enqueueJob("ai-usage-log", {
+          keyId: keyMeta.keyId,
+          providerId: candidate.provider.providerId,
+          modelId: candidate.model.modelId,
+          upstreamId: keyMeta.upstreamId,
+          upstreamName: keyMeta.upstreamName,
+          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+          inputTokens: usage?.inputTokens ?? 0,
+          outputTokens: usage?.outputTokens ?? 0,
+          totalTokens: usage?.totalTokens ?? 0,
+          cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
+          cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+          estimatedCost: cost ?? null,
+          latencyMs,
+          statusCode: upstreamRes.status,
+          requestId,
+          error: null,
+        } as Record<string, unknown>);
+
+        if (logEnabled) {
+          enqueueJob("ai-request-log", {
+            requestId,
+            consumerKeyId: null,
+            modelId: candidate.model.modelId,
+            requestBody: serializedBody,
+            responseBody: JSON.stringify(responseBody),
+            createdAt: new Date().toISOString(),
+          } as Record<string, unknown>);
+        }
+
+        enqueueJob("ai-key-touch", {
+          keyId: keyMeta.keyId,
+          keyType: "admin",
+        });
+
+        const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
+        setCachedResponse(cacheKey, transformed);
+
+        return c.json(transformed);
+      } catch (err) {
+        markKeyFailure(keyMeta.keyId);
+        lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+        continue;
+      }
     }
   }
 
@@ -430,8 +449,46 @@ relay.all("/v1/*", async (c) => {
     );
   }
 
-  const key = await pickKey(provider.id);
-  if (!key) {
+  interface ResolvedPassthroughAttempt {
+    keyId: number;
+    authHeaders: Record<string, string>;
+    finalUrl: string;
+    upstreamId: number | null;
+    upstreamName: string;
+    upstreamBaseUrl: string;
+  }
+
+  const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
+  const serializedBody = JSON.stringify(body);
+
+  for (const upstream of await resolveUpstreamCandidates(provider)) {
+    const key = await pickKey(provider.id, upstream.id);
+    if (!key) continue;
+
+    try {
+      const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+      const base = upstream.baseUrl.replace(/\/+$/, "");
+      const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
+      const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
+        provider,
+        plainKey,
+        upstreamUrl,
+        serializedBody,
+      );
+      resolvedAttempts.push({
+        keyId: key.id,
+        authHeaders,
+        finalUrl,
+        upstreamId: upstream.id,
+        upstreamName: upstream.name,
+        upstreamBaseUrl: upstream.baseUrl,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  if (resolvedAttempts.length === 0) {
     return respondWithRelayError(
       c,
       requestId,
@@ -442,142 +499,141 @@ relay.all("/v1/*", async (c) => {
     );
   }
 
-  let plainKey: string;
-  try {
-    plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-  } catch {
-    return respondWithRelayError(
-      c,
-      requestId,
-      start,
-      500,
-      { error: "Failed to decrypt provider key" },
-      { keyId: key.id, providerId: provider.providerId, modelId },
-    );
-  }
-
-  const base = provider.baseUrl.replace(/\/+$/, "");
-  const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
-
-  const serializedBody = JSON.stringify(body);
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-    provider,
-    plainKey,
-    upstreamUrl,
-    serializedBody,
-  );
-
   const passthroughHeaders = extractPassthroughHeaders(c);
-
-  const meta: StreamRelayMeta = {
-    keyId: key.id,
-    providerId: provider.providerId,
-    modelId,
-    requestId,
-    start,
-    inputPrice: result.model.inputPrice,
-    outputPrice: result.model.outputPrice,
-    requestBody: logEnabled ? serializedBody : undefined,
-  };
-
   const isStreaming = body.stream === true;
+  let lastError: { status: number; message: string } | null = null;
+  let selected = resolvedAttempts[0];
 
-  try {
-    const fetchStart = Date.now();
-    const upstreamRes = await fetch(finalUrl, {
-      method: c.req.method,
-      headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
-      body: c.req.method !== "GET" ? serializedBody : undefined,
-      signal: AbortSignal.timeout(
-        isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
-      ),
-    });
-    gatewayUpstreamDuration.observe(
-      { provider: provider.providerId, route: "passthrough", phase: "response" },
-      (Date.now() - fetchStart) / 1000,
-    );
+  for (let idx = 0; idx < resolvedAttempts.length && idx < MAX_UPSTREAM_ATTEMPTS; idx++) {
+    selected = resolvedAttempts[idx];
 
-    // ── Streaming passthrough — parse SSE frames for usage ──
-    if (isStreaming && upstreamRes.ok && upstreamRes.body) {
-      return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts);
-    }
-
-    // ── Non-streaming passthrough — read JSON for usage ──
-    const latencyMs = Date.now() - start;
-    const isJson = (upstreamRes.headers.get("content-type") ?? "").includes("application/json");
-    let responseText: string | null = null;
-    let usage: ReturnType<typeof extractPassthroughUsage> = null;
-
-    if (isJson) {
-      responseText = await upstreamRes.text();
-      usage = extractPassthroughUsage(responseText);
-    }
-
-    if (upstreamRes.ok) {
-      markKeySuccess(key.id);
-    } else if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
-      markKeyFailure(key.id);
-    }
-
-    enqueueJob("ai-usage-log", {
-      keyId: key.id,
+    const meta: StreamRelayMeta = {
+      keyId: selected.keyId,
       providerId: provider.providerId,
       modelId,
-      inputTokens: usage?.inputTokens ?? 0,
-      outputTokens: usage?.outputTokens ?? 0,
-      totalTokens: usage?.totalTokens ?? 0,
-      latencyMs,
-      statusCode: upstreamRes.status,
-      requestId,
-      error:
-        !upstreamRes.ok && responseText
-          ? buildAccessLogErrorMessage(`Upstream returned ${upstreamRes.status}`, responseText)
-          : !upstreamRes.ok
-            ? `Upstream returned ${upstreamRes.status}`
-            : null,
-    } as Record<string, unknown>);
-
-    if (logEnabled) {
-      enqueueJob("ai-request-log", {
-        requestId,
-        consumerKeyId: null,
-        modelId,
-        requestBody: serializedBody,
-        responseBody: responseText ?? "",
-        createdAt: new Date().toISOString(),
-      } as Record<string, unknown>);
-    }
-    enqueueJob("ai-key-touch", { keyId: key.id, keyType: "admin" });
-
-    const resHeaders = new Headers();
-    upstreamRes.headers.forEach((v, k) => {
-      if (!["transfer-encoding", "content-encoding", "connection"].includes(k.toLowerCase())) {
-        resHeaders.set(k, v);
-      }
-    });
-
-    const responseBody = responseText !== null ? responseText : upstreamRes.body;
-    return new Response(responseBody, {
-      status: upstreamRes.status,
-      headers: resHeaders,
-    });
-  } catch (err) {
-    markKeyFailure(key.id);
-    const message = err instanceof Error ? err.message : String(err);
-    return respondWithRelayError(
-      c,
+      upstreamId: selected.upstreamId,
+      upstreamName: selected.upstreamName,
+      upstreamBaseUrl: selected.upstreamBaseUrl,
       requestId,
       start,
-      502,
-      { error: `Upstream request failed: ${message}` },
-      {
-        keyId: key.id,
+      inputPrice: result.model.inputPrice,
+      outputPrice: result.model.outputPrice,
+      requestBody: logEnabled ? serializedBody : undefined,
+    };
+
+    try {
+      const fetchStart = Date.now();
+      const upstreamRes = await fetch(selected.finalUrl, {
+        method: c.req.method,
+        headers: {
+          "Content-Type": "application/json",
+          ...selected.authHeaders,
+          ...passthroughHeaders,
+        },
+        body: c.req.method !== "GET" ? serializedBody : undefined,
+        signal: AbortSignal.timeout(
+          isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
+        ),
+      });
+      gatewayUpstreamDuration.observe(
+        { provider: provider.providerId, route: "passthrough", phase: "response" },
+        (Date.now() - fetchStart) / 1000,
+      );
+
+      if (isStreaming && upstreamRes.ok && upstreamRes.body) {
+        return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts);
+      }
+
+      if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
+        markKeyFailure(selected.keyId);
+        const errBody = await upstreamRes.text().catch(() => "");
+        lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+        continue;
+      }
+
+      const latencyMs = Date.now() - start;
+      const isJson = (upstreamRes.headers.get("content-type") ?? "").includes("application/json");
+      let responseText: string | null = null;
+      let usage: ReturnType<typeof extractPassthroughUsage> = null;
+
+      if (isJson) {
+        responseText = await upstreamRes.text();
+        usage = extractPassthroughUsage(responseText);
+      }
+
+      if (upstreamRes.ok) {
+        markKeySuccess(selected.keyId);
+      } else if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
+        markKeyFailure(selected.keyId);
+      }
+
+      enqueueJob("ai-usage-log", {
+        keyId: selected.keyId,
         providerId: provider.providerId,
         modelId,
-        requestBody: logEnabled ? serializedBody : undefined,
-      },
-    );
+        upstreamId: selected.upstreamId,
+        upstreamName: selected.upstreamName,
+        upstreamBaseUrl: selected.upstreamBaseUrl,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        totalTokens: usage?.totalTokens ?? 0,
+        latencyMs,
+        statusCode: upstreamRes.status,
+        requestId,
+        error:
+          !upstreamRes.ok && responseText
+            ? buildAccessLogErrorMessage(`Upstream returned ${upstreamRes.status}`, responseText)
+            : !upstreamRes.ok
+              ? `Upstream returned ${upstreamRes.status}`
+              : null,
+      } as Record<string, unknown>);
+
+      if (logEnabled) {
+        enqueueJob("ai-request-log", {
+          requestId,
+          consumerKeyId: null,
+          modelId,
+          requestBody: serializedBody,
+          responseBody: responseText ?? "",
+          createdAt: new Date().toISOString(),
+        } as Record<string, unknown>);
+      }
+      enqueueJob("ai-key-touch", { keyId: selected.keyId, keyType: "admin" });
+
+      const resHeaders = new Headers();
+      upstreamRes.headers.forEach((v, k) => {
+        if (!["transfer-encoding", "content-encoding", "connection"].includes(k.toLowerCase())) {
+          resHeaders.set(k, v);
+        }
+      });
+
+      const responseBody = responseText !== null ? responseText : upstreamRes.body;
+      return new Response(responseBody, {
+        status: upstreamRes.status,
+        headers: resHeaders,
+      });
+    } catch (err) {
+      markKeyFailure(selected.keyId);
+      lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+    }
   }
+
+  return respondWithRelayError(
+    c,
+    requestId,
+    start,
+    lastError?.status || 502,
+    { error: "All upstream candidates failed", detail: lastError?.message ?? "Unknown error" },
+    {
+      keyId: selected.keyId,
+      providerId: provider.providerId,
+      modelId,
+      upstreamId: selected.upstreamId,
+      upstreamName: selected.upstreamName,
+      upstreamBaseUrl: selected.upstreamBaseUrl,
+      requestBody: logEnabled ? serializedBody : undefined,
+    },
+  );
 });
 
 export default relay;
@@ -591,6 +647,9 @@ interface Candidate {
 
 interface KeyMeta {
   keyId: number;
+  upstreamId: number | null;
+  upstreamName: string;
+  upstreamBaseUrl: string;
 }
 
 interface ResolvedCandidate {
@@ -624,7 +683,7 @@ async function buildCandidateChain(
   if (weighted.length <= 1) return weighted;
 
   // Weighted shuffle: pick candidates in probability-weighted order
-  return weightedShuffle(weighted);
+  return weightedShuffle(weighted, (c) => c.model.weight ?? 1);
 }
 
 /** Resolve key, auth headers, and URL for a candidate model. */
@@ -633,32 +692,45 @@ async function resolveCandidate(
   adapter: ProviderAdapter,
   stream: boolean,
   bodyForSigning?: string,
-): Promise<ResolvedCandidate | null> {
+): Promise<ResolvedCandidate[]> {
   const { model, provider } = candidate;
+  const upstreams = await resolveUpstreamCandidates(provider);
+  const resolved: ResolvedCandidate[] = [];
 
-  const key = await pickKey(provider.id);
-  if (!key) return null;
+  for (const upstream of upstreams) {
+    const key = await pickKey(provider.id, upstream.id);
+    if (!key) continue;
 
-  const keyMeta: KeyMeta = { keyId: key.id };
+    let plainKey: string;
+    try {
+      plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+    } catch (err) {
+      log.gateway.error({ err, keyId: key.id }, "Failed to decrypt AI key");
+      continue;
+    }
 
-  let plainKey: string;
-  try {
-    plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-  } catch (err) {
-    log.gateway.error({ err, keyId: key.id }, "Failed to decrypt AI key");
-    return null;
+    const upstreamUrl = adapter.buildUrl(upstream.baseUrl, { model: model.modelId, stream });
+    const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
+      provider,
+      plainKey,
+      upstreamUrl,
+      bodyForSigning,
+    );
+
+    resolved.push({
+      adapter,
+      finalUrl,
+      authHeaders,
+      keyMeta: {
+        keyId: key.id,
+        upstreamId: upstream.id,
+        upstreamName: upstream.name,
+        upstreamBaseUrl: upstream.baseUrl,
+      },
+    });
   }
 
-  // Build URL + auth headers
-  const upstreamUrl = adapter.buildUrl(provider.baseUrl, { model: model.modelId, stream });
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-    provider,
-    plainKey,
-    upstreamUrl,
-    bodyForSigning,
-  );
-
-  return { adapter, finalUrl, authHeaders, keyMeta };
+  return resolved;
 }
 
 function calculateCost(
@@ -672,38 +744,6 @@ function calculateCost(
     1_000_000,
   );
   return removeTailingZero(safePlus(inputCost, outputCost), 6);
-}
-
-/**
- * Weighted shuffle: reorder candidates so higher-weight items appear first probabilistically.
- * Uses Fisher-Yates with weighted random selection (no shared state, stateless per-request).
- */
-function weightedShuffle(candidates: Candidate[]): Candidate[] {
-  const result: Candidate[] = [];
-  const pool = [...candidates];
-
-  while (pool.length > 0) {
-    const totalWeight = pool.reduce((sum, c) => sum + (c.model.weight ?? 1), 0);
-    let rand = Math.random() * totalWeight;
-    let picked = false;
-
-    for (let i = 0; i < pool.length; i++) {
-      rand -= pool[i].model.weight ?? 1;
-      if (rand <= 0) {
-        result.push(pool[i]);
-        pool.splice(i, 1);
-        picked = true;
-        break;
-      }
-    }
-
-    // M2: Floating-point safety — if rand didn't reach <= 0, pick last element
-    if (!picked && pool.length > 0) {
-      result.push(pool.pop()!);
-    }
-  }
-
-  return result;
 }
 
 export function isUnsupportedStreamingCandidate(

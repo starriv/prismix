@@ -31,6 +31,9 @@ export interface BillConsumerParams {
   keyId: number;
   providerId: string;
   modelId: string;
+  upstreamId?: number | null;
+  upstreamName?: string | null;
+  upstreamBaseUrl?: string | null;
   inputPrice: string;
   outputPrice: string;
   requestId: string;
@@ -126,6 +129,9 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
     userId: p.consumer.userId,
     providerId: p.providerId,
     modelId: p.modelId,
+    upstreamId: p.upstreamId ?? null,
+    upstreamName: p.upstreamName ?? null,
+    upstreamBaseUrl: p.upstreamBaseUrl ?? null,
     inputTokens: p.usage?.inputTokens ?? 0,
     outputTokens: p.usage?.outputTokens ?? 0,
     totalTokens: p.usage?.totalTokens ?? 0,

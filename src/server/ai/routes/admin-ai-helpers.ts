@@ -15,6 +15,10 @@ export function formatProvider(p: { authConfig: string; [key: string]: unknown }
   return { ...p, authConfig: parseJsonField(p.authConfig) };
 }
 
+export function formatProviderUpstream(p: { metadata: string; [key: string]: unknown }) {
+  return { ...p, metadata: parseJsonField(p.metadata) };
+}
+
 export function formatModel(m: {
   capabilities: string;
   fallbackModelIds: string | null;

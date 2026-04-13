@@ -1,7 +1,7 @@
 /**
  * AI Usage Log repository — append-only writes + queries for `ai_usage_logs` table.
  */
-import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, lte, sql, sum } from "drizzle-orm";
 
 import {
   type AiUsageLog,
@@ -93,12 +93,26 @@ export interface AiOwnerUsageTotals {
   upstreamCost: string;
 }
 
+export interface UpstreamUsageOverviewRow {
+  upstreamId: number;
+  providerId: string | null;
+  upstreamName: string | null;
+  upstreamBaseUrl: string | null;
+  requests24h: number;
+  clientErrors24h: number;
+  serverErrors24h: number;
+  totalTokens24h: number;
+  avgLatencyMs24h: number;
+  lastSeenAt: string | null;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 interface UsageFilters {
   consumerKeyId?: number;
   userId?: number;
   keyId?: number;
+  upstreamId?: number;
   modelId?: string;
   providerId?: string;
   statusCode?: number;
@@ -118,6 +132,9 @@ function buildConditions(filters: UsageFilters) {
   }
   if (filters.keyId != null) {
     conditions.push(eq(aiUsageLogs.keyId, filters.keyId));
+  }
+  if (filters.upstreamId != null) {
+    conditions.push(eq(aiUsageLogs.upstreamId, filters.upstreamId));
   }
   if (filters.modelId) conditions.push(eq(aiUsageLogs.modelId, filters.modelId));
   if (filters.providerId) conditions.push(eq(aiUsageLogs.providerId, filters.providerId));
@@ -168,6 +185,81 @@ export const aiUsageLogRepo = {
         .where(filters ? buildConditions(filters) : undefined),
     );
     return row?.total ?? 0;
+  },
+
+  /**
+   * Batch-fetch the most recent usage log per upstream (DISTINCT ON).
+   * Replaces per-upstream findAll(1) N+1 queries in overview endpoint.
+   */
+  async findLatestByUpstreamIds(upstreamIds: number[]): Promise<Map<number, AiUsageLog>> {
+    if (upstreamIds.length === 0) return new Map();
+    const rows = await queryAll<AiUsageLog>(
+      sql`
+        SELECT DISTINCT ON (${aiUsageLogs.upstreamId}) *
+        FROM ${aiUsageLogs}
+        WHERE ${inArray(aiUsageLogs.upstreamId, upstreamIds)}
+        ORDER BY ${aiUsageLogs.upstreamId}, ${aiUsageLogs.createdAt} DESC
+      `,
+    );
+    const map = new Map<number, AiUsageLog>();
+    for (const row of rows) {
+      if (row.upstreamId != null) map.set(row.upstreamId, row);
+    }
+    return map;
+  },
+
+  async upstreamOverview(hours = 24): Promise<UpstreamUsageOverviewRow[]> {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const rows = await queryAll<{
+      upstreamId: number | null;
+      providerId: string | null;
+      upstreamName: string | null;
+      upstreamBaseUrl: string | null;
+      requests24h: number;
+      clientErrors24h: number;
+      serverErrors24h: number;
+      totalTokens24h: string | null;
+      avgLatencyMs24h: string | null;
+      lastSeenAt: Date | string | null;
+    }>(
+      db
+        .select({
+          upstreamId: aiUsageLogs.upstreamId,
+          providerId: aiUsageLogs.providerId,
+          upstreamName: aiUsageLogs.upstreamName,
+          upstreamBaseUrl: aiUsageLogs.upstreamBaseUrl,
+          requests24h: count(),
+          clientErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 THEN 1 ELSE 0 END)`,
+          serverErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 THEN 1 ELSE 0 END)`,
+          totalTokens24h: sum(aiUsageLogs.totalTokens),
+          avgLatencyMs24h: sql<string>`AVG(${aiUsageLogs.latencyMs})`,
+          lastSeenAt: sql<Date | string | null>`MAX(${aiUsageLogs.createdAt})`,
+        })
+        .from(aiUsageLogs)
+        .where(and(isNotNull(aiUsageLogs.upstreamId), gte(aiUsageLogs.createdAt, since)))
+        .groupBy(
+          aiUsageLogs.upstreamId,
+          aiUsageLogs.providerId,
+          aiUsageLogs.upstreamName,
+          aiUsageLogs.upstreamBaseUrl,
+        ),
+    );
+
+    return rows
+      .filter((row): row is typeof row & { upstreamId: number } => row.upstreamId != null)
+      .map((row) => ({
+        upstreamId: row.upstreamId,
+        providerId: row.providerId ?? null,
+        upstreamName: row.upstreamName ?? null,
+        upstreamBaseUrl: row.upstreamBaseUrl ?? null,
+        requests24h: Number(row.requests24h ?? 0),
+        clientErrors24h: Number(row.clientErrors24h ?? 0),
+        serverErrors24h: Number(row.serverErrors24h ?? 0),
+        totalTokens24h: Number(row.totalTokens24h ?? 0),
+        avgLatencyMs24h: Math.round(Number(row.avgLatencyMs24h ?? 0)),
+        lastSeenAt:
+          row.lastSeenAt instanceof Date ? row.lastSeenAt.toISOString() : (row.lastSeenAt ?? null),
+      }));
   },
 
   async summaryByOwnerAndAiKeyIds(

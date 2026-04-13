@@ -12,7 +12,7 @@ import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiProviderRepo, keyProviderRepo } from "@/server/repos";
+import { aiKeyRepo, aiProviderRepo, aiProviderUpstreamRepo, keyProviderRepo } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
@@ -42,12 +42,21 @@ router.get("/keys", async (c) => {
     if (kp) ownerMap.set(oid, kp.name);
   }
 
+  const upstreamIds = compact(uniq(keys.map((k) => k.upstreamId))) as number[];
+  const upstreamMap = new Map<number, { name: string; upstreamId: string }>();
+  const upstreamRows = await aiProviderUpstreamRepo.findByIds(upstreamIds);
+  for (const u of upstreamRows) {
+    upstreamMap.set(u.id, { name: u.name, upstreamId: u.upstreamId });
+  }
+
   return ok(
     c,
     keys.map(({ encryptedKey, keyHash, ...rest }) => ({
       ...rest,
       providerName: providerMap.get(rest.providerId) ?? "Unknown",
       ownerName: rest.ownerId ? (ownerMap.get(rest.ownerId) ?? null) : null,
+      upstreamName: rest.upstreamId ? (upstreamMap.get(rest.upstreamId)?.name ?? null) : null,
+      upstreamSlug: rest.upstreamId ? (upstreamMap.get(rest.upstreamId)?.upstreamId ?? null) : null,
     })),
   );
 });
@@ -56,11 +65,18 @@ router.post("/keys", async (c) => {
   getAdminSession(c);
   const parsed = await parseBody(c, createAiKeyBody);
   if (!parsed.ok) return parsed.response;
-  const { providerId, name, apiKey, ownerId } = parsed.data;
+  const { providerId, upstreamId, name, apiKey, ownerId } = parsed.data;
 
   const provider = await aiProviderRepo.findById(providerId);
   if (!provider || !provider.enabled) {
     return c.json({ error: "Provider not found or disabled" }, 400);
+  }
+
+  if (upstreamId != null) {
+    const upstream = await aiProviderUpstreamRepo.findById(upstreamId);
+    if (!upstream || upstream.providerId !== providerId || !upstream.enabled) {
+      return c.json({ error: "Upstream not found, disabled, or does not belong to provider" }, 400);
+    }
   }
 
   const keyHash = hashApiKey(apiKey);
@@ -69,6 +85,7 @@ router.post("/keys", async (c) => {
 
   const created = await aiKeyRepo.create({
     providerId,
+    upstreamId: upstreamId ?? null,
     name,
     encryptedKey,
     keyHash,
@@ -78,8 +95,8 @@ router.post("/keys", async (c) => {
 
   log.auth.info({ providerId: provider.providerId, keyId: created.id }, "AI key created");
 
-  invalidateKeyPool(providerId);
-  emit("ai.key-pool-invalidated", null, { providerId });
+  invalidateKeyPool(providerId, upstreamId ?? null);
+  emit("ai.key-pool-invalidated", null, { providerId, upstreamId: upstreamId ?? null });
 
   const { encryptedKey: _, keyHash: _h, ...safe } = created;
   return ok(c, { ...safe, providerName: provider.name }, 201);
@@ -96,11 +113,28 @@ router.put("/keys/:id", async (c) => {
   const parsed = await parseBody(c, updateAiKeyBody);
   if (!parsed.ok) return parsed.response;
 
+  if (parsed.data.upstreamId != null) {
+    const upstream = await aiProviderUpstreamRepo.findById(parsed.data.upstreamId);
+    if (!upstream || upstream.providerId !== existing.providerId || !upstream.enabled) {
+      return c.json({ error: "Upstream not found, disabled, or does not belong to provider" }, 400);
+    }
+  }
+
   const updated = await aiKeyRepo.update(id, parsed.data);
   if (!updated) return c.json({ error: "Update failed" }, 500);
 
-  invalidateKeyPool(existing.providerId);
-  emit("ai.key-pool-invalidated", null, { providerId: existing.providerId });
+  invalidateKeyPool(existing.providerId, existing.upstreamId ?? null);
+  emit("ai.key-pool-invalidated", null, {
+    providerId: existing.providerId,
+    upstreamId: existing.upstreamId ?? null,
+  });
+  if ((updated.upstreamId ?? null) !== (existing.upstreamId ?? null)) {
+    invalidateKeyPool(updated.providerId, updated.upstreamId ?? null);
+    emit("ai.key-pool-invalidated", null, {
+      providerId: updated.providerId,
+      upstreamId: updated.upstreamId ?? null,
+    });
+  }
 
   const { encryptedKey: _, keyHash: _h, ...safe } = updated;
   return ok(c, safe);
@@ -115,8 +149,11 @@ router.delete("/keys/:id", async (c) => {
   if (!existing) return c.json({ error: "Key not found" }, 404);
 
   await aiKeyRepo.delete(id);
-  invalidateKeyPool(existing.providerId);
-  emit("ai.key-pool-invalidated", null, { providerId: existing.providerId });
+  invalidateKeyPool(existing.providerId, existing.upstreamId ?? null);
+  emit("ai.key-pool-invalidated", null, {
+    providerId: existing.providerId,
+    upstreamId: existing.upstreamId ?? null,
+  });
   return ok(c, { success: true });
 });
 
@@ -142,7 +179,9 @@ router.post("/keys/:id/test", async (c) => {
 
   const start = Date.now();
   try {
-    const { headers, url } = buildProviderAuth(provider, plainKey, `${provider.baseUrl}/models`);
+    const upstream = key.upstreamId ? await aiProviderUpstreamRepo.findById(key.upstreamId) : null;
+    const baseUrl = upstream?.baseUrl ?? provider.baseUrl;
+    const { headers, url } = buildProviderAuth(provider, plainKey, `${baseUrl}/models`);
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
     const latencyMs = Date.now() - start;
 

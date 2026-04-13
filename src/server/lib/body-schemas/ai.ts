@@ -3,6 +3,37 @@
  */
 import { z } from "zod";
 
+// ── SSRF-safe URL check ─────────────────────────────────────────────
+
+const BLOCKED_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
+const PRIVATE_RANGES = [
+  /^10\./, // 10.0.0.0/8
+  /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+  /^192\.168\./, // 192.168.0.0/16
+  /^169\.254\./, // link-local
+  /^100\.(6[4-9]|[7-9]\d|1[0-2]\d)\./, // CGN 100.64.0.0/10
+];
+
+function isSafeUpstreamUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (BLOCKED_HOSTNAMES.has(hostname)) return false;
+    if (hostname.endsWith(".local") || hostname.endsWith(".internal")) return false;
+    if (PRIVATE_RANGES.some((re) => re.test(hostname))) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const safeUrlSchema = z
+  .string()
+  .url()
+  .max(500)
+  .refine(isSafeUpstreamUrl, "URL must not point to private or internal network addresses");
+
 // ── AI: Providers ──────────────────────────────────────────────────────
 
 export const createAiProviderBody = z.object({
@@ -17,6 +48,7 @@ export const createAiProviderBody = z.object({
   authType: z.enum(["bearer", "api-key", "sigv4"]),
   authConfig: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
+  upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 
@@ -28,7 +60,39 @@ export const updateAiProviderBody = z.object({
   authConfig: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
   loadBalanceStrategy: z.enum(["round-robin", "random"]).optional(),
+  upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
+});
+
+export const createAiProviderUpstreamBody = z.object({
+  upstreamId: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, "Upstream ID must be lowercase alphanumeric with hyphens"),
+  name: z.string().min(1).max(100),
+  baseUrl: safeUrlSchema,
+  kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .refine((v) => JSON.stringify(v).length <= 4096, "Metadata must be under 4 KB")
+    .optional(),
+});
+
+export const updateAiProviderUpstreamBody = z.object({
+  name: z.string().min(1).max(100).optional(),
+  baseUrl: safeUrlSchema.optional(),
+  kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .refine((v) => JSON.stringify(v).length <= 4096, "Metadata must be under 4 KB")
+    .optional(),
 });
 
 // ── AI: Models ─────────────────────────────────────────────────────────
@@ -81,6 +145,7 @@ export const updateAiModelBody = z.object({
 
 export const createAiKeyBody = z.object({
   providerId: z.number().int().positive(),
+  upstreamId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1).max(100),
   apiKey: z.string().min(1).max(10000),
   ownerId: z.number().int().positive().nullable().optional(),
@@ -91,6 +156,7 @@ export const updateAiKeyBody = z.object({
   enabled: z.boolean().optional(),
   weight: z.number().int().min(0).max(100).optional(),
   ownerId: z.number().int().positive().nullable().optional(),
+  upstreamId: z.number().int().positive().nullable().optional(),
 });
 
 // ── AI Relay ───────────────────────────────────────────────────────────

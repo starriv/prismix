@@ -497,6 +497,7 @@ export const aiProviders = pgTable(
     authConfig: text("auth_config").notNull().default("{}"), // JSON: { headerName?: string }
     enabled: boolean("enabled").notNull().default(true),
     loadBalanceStrategy: text("load_balance_strategy").notNull().default("round-robin"), // "round-robin" | "random"
+    upstreamRoutingStrategy: text("upstream_routing_strategy").notNull().default("priority"), // "priority" | "weighted-random"
     iconUrl: text("icon_url"),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -506,6 +507,34 @@ export const aiProviders = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [index("idx_ai_providers_provider_id").on(t.providerId)],
+);
+
+export const aiProviderUpstreams = pgTable(
+  "ai_provider_upstreams",
+  {
+    id: serial("id").primaryKey(),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => aiProviders.id, { onDelete: "cascade" }),
+    upstreamId: text("upstream_id").notNull(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    kind: text("kind").notNull().default("custom"),
+    priority: integer("priority").notNull().default(100),
+    weight: integer("weight").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    metadata: text("metadata").notNull().default("{}"),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    unique().on(t.providerId, t.upstreamId),
+    index("idx_ai_provider_upstreams_provider_id").on(t.providerId),
+  ],
 );
 
 export const aiModels = pgTable(
@@ -544,6 +573,9 @@ export const aiKeys = pgTable(
     providerId: integer("provider_id")
       .notNull()
       .references(() => aiProviders.id, { onDelete: "cascade" }),
+    upstreamId: integer("upstream_id").references(() => aiProviderUpstreams.id, {
+      onDelete: "set null",
+    }),
     ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }), // key provider (号池供应商)
     name: text("name").notNull(), // user label
     encryptedKey: text("encrypted_key").notNull(), // AES-encrypted API key
@@ -559,7 +591,10 @@ export const aiKeys = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_ai_keys_provider_id").on(t.providerId)],
+  (t) => [
+    index("idx_ai_keys_provider_id").on(t.providerId),
+    index("idx_ai_keys_upstream_id").on(t.upstreamId),
+  ],
 );
 
 export const aiGuardrailConfigs = pgTable("ai_guardrail_configs", {
@@ -586,6 +621,9 @@ export const aiUsageLogs = pgTable(
     userId: integer("user_id"), // no FK — set when user is identified
     providerId: text("provider_id"), // denormalized slug
     modelId: text("model_id"), // denormalized slug
+    upstreamId: integer("upstream_id"),
+    upstreamName: text("upstream_name"),
+    upstreamBaseUrl: text("upstream_base_url"),
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
     totalTokens: integer("total_tokens").notNull().default(0),
@@ -609,6 +647,7 @@ export const aiUsageLogs = pgTable(
     index("idx_ai_usage_logs_user_id").on(t.userId),
     index("idx_ai_usage_logs_key_id").on(t.keyId),
     index("idx_ai_usage_logs_key_owner_id").on(t.keyOwnerId),
+    index("idx_ai_usage_logs_upstream_id").on(t.upstreamId),
   ],
 );
 
@@ -684,6 +723,8 @@ export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type NewWebhookDelivery = typeof webhookDeliveries.$inferInsert;
 export type AiProvider = typeof aiProviders.$inferSelect;
 export type NewAiProvider = typeof aiProviders.$inferInsert;
+export type AiProviderUpstream = typeof aiProviderUpstreams.$inferSelect;
+export type NewAiProviderUpstream = typeof aiProviderUpstreams.$inferInsert;
 export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
 export type AiKey = typeof aiKeys.$inferSelect;

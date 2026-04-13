@@ -106,6 +106,7 @@
     "ai-keys": "供应商密钥",
     "ai-relay": "统一端点",
     "ai-usage": "用量",
+    "ai-upstreams": "上游",
     "ai-logs": "日志",
     "ai-errors": "错误",
     "consumer-keys": "消费者密钥",
@@ -2341,6 +2342,10 @@
     "form": {
       "provider": "提供商",
       "provider-ph": "选择提供商",
+      "upstream": "上游",
+      "upstream-ph": "选择上游",
+      "upstream-legacy": "默认提供商地址",
+      "upstream-hint": "将此密钥绑定到指定上游；保留默认则继续使用提供商默认地址。",
       "name": "密钥名称",
       "name-ph": "输入密钥名称",
       "api-key": "API 密钥",
@@ -2376,14 +2381,22 @@
     "empty": "暂未配置供应商",
     "btn": {
       "new": "添加供应商",
-      "create": "创建供应商"
+      "create": "创建供应商",
+      "manage-upstreams": "管理上游",
+      "new-upstream": "添加上游",
+      "create-upstream": "创建上游"
     },
     "th": {
       "name": "名称",
       "provider-id": "供应商 ID",
       "api-format": "API 格式",
       "auth-type": "认证类型",
+      "routing": "上游调度",
       "enabled": "启用"
+    },
+    "strategy": {
+      "priority": "优先级",
+      "weighted-random": "加权随机"
     },
     "form": {
       "provider-id": "供应商 ID",
@@ -2394,6 +2407,8 @@
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API 格式",
       "auth-type": "认证类型",
+      "upstream-routing-strategy": "上游调度策略",
+      "upstream-routing-strategy-hint": "决定 provider 下多个 upstream 的默认选择顺序。",
       "sigv4-region": "AWS 区域",
       "sigv4-region-ph": "us-east-1",
       "sigv4-region-hint": "Bedrock 端点所在的 AWS 区域",
@@ -2405,7 +2420,44 @@
       "add-title": "添加供应商",
       "edit-title": "编辑供应商",
       "delete-title": "删除供应商",
-      "delete-body": "删除「{{name}}」？所有关联的模型和密钥也会被删除。"
+      "delete-body": "删除「{{name}}」？所有关联的模型和密钥也会被删除。",
+      "add-upstream-title": "添加上游",
+      "edit-upstream-title": "编辑上游",
+      "delete-upstream-title": "删除上游",
+      "delete-upstream-body": "删除上游「{{name}}」？绑定到它的密钥会回退为默认 Base URL。"
+    },
+    "upstreams": {
+      "title": "管理 {{name}} 的上游",
+      "section-title": "Upstreams",
+      "desc": "为同一个 provider 配置多个不同的执行入口，并设置调度优先级或权重。",
+      "empty": "还没有配置任何 upstream。未添加前，系统会继续使用 provider 的 Base URL。",
+      "th": {
+        "name": "名称",
+        "upstream-id": "上游 ID",
+        "kind": "类型",
+        "base-url": "Base URL",
+        "priority": "优先级",
+        "weight": "权重",
+        "enabled": "启用"
+      },
+      "form": {
+        "upstream-id": "上游 ID",
+        "upstream-id-ph": "official 或 friend-1",
+        "name": "名称",
+        "name-ph": "输入上游名称",
+        "base-url": "Base URL",
+        "base-url-ph": "https://api.example.com/v1",
+        "kind": "类型",
+        "priority": "优先级",
+        "weight": "权重",
+        "enabled": "启用"
+      },
+      "kind": {
+        "official": "官方",
+        "reseller": "转售",
+        "openrouter": "OpenRouter",
+        "custom": "自定义"
+      }
     },
     "toast": {
       "created": "供应商已创建",
@@ -2413,7 +2465,13 @@
       "deleted": "供应商已删除",
       "create-error": "创建供应商失败",
       "update-error": "更新供应商失败",
-      "delete-error": "删除供应商失败"
+      "delete-error": "删除供应商失败",
+      "upstream-created": "上游已创建",
+      "upstream-updated": "上游已更新",
+      "upstream-deleted": "上游已删除",
+      "upstream-create-error": "创建上游失败",
+      "upstream-update-error": "更新上游失败",
+      "upstream-delete-error": "删除上游失败"
     }
   },
   "ai-models": {
@@ -2558,6 +2616,7 @@
     "th": {
       "provider": "提供商",
       "model": "模型",
+      "upstream": "上游",
       "requests": "请求数",
       "input": "输入 Token",
       "output": "输出 Token",
@@ -2603,6 +2662,7 @@
     "th": {
       "model": "模型",
       "provider": "提供商",
+      "upstream": "上游",
       "tokens": "Token 数",
       "cost": "费用",
       "latency": "延迟",
@@ -2620,6 +2680,8 @@
       "request-id": "请求 ID",
       "model": "模型",
       "provider": "提供商",
+      "upstream": "上游",
+      "upstream-url": "上游地址",
       "consumer-key": "消费者密钥",
       "input-tokens": "输入 Token",
       "output-tokens": "输出 Token",
@@ -2637,6 +2699,64 @@
   "ai-errors": {
     "title": "AI 网关错误",
     "desc": "4xx / 5xx 错误概览与近期趋势"
+  },
+  "ai-upstreams": {
+    "title": "AI 上游",
+    "desc": "查看已配置 upstream 的实时状态、最近流量与错误情况",
+    "empty": "当前还没有配置任何 upstream",
+    "never": "从未",
+    "health": {
+      "healthy": "正常",
+      "degraded": "异常",
+      "idle": "空闲",
+      "no-key": "无密钥",
+      "disabled": "已禁用"
+    },
+    "stats": {
+      "total": "上游总数",
+      "total-subtitle": "已配置 upstream",
+      "enabled": "启用中",
+      "enabled-subtitle": "当前可参与调度",
+      "active": "24h 活跃",
+      "active-subtitle": "最近 24 小时有请求",
+      "degraded": "24h 异常",
+      "degraded-subtitle": "最近 24 小时错误偏高"
+    },
+    "table": {
+      "title": "上游状态"
+    },
+    "th": {
+      "provider": "提供商",
+      "upstream": "上游",
+      "kind": "类型",
+      "status": "状态",
+      "keys": "密钥",
+      "requests": "24h 请求",
+      "error-rate": "24h 错误率",
+      "latency": "24h 平均延迟",
+      "last-seen": "最近请求",
+      "enabled": "启用"
+    },
+    "actions": {
+      "details": "详情"
+    },
+    "detail": {
+      "title": "上游详情",
+      "provider": "提供商",
+      "upstream-id": "上游 ID",
+      "base-url": "Base URL",
+      "health": "健康状态",
+      "enabled": "启用",
+      "keys": "密钥",
+      "tokens-24h": "24h Token",
+      "recent-title": "最近请求",
+      "recent-empty": "该上游最近没有请求记录",
+      "model": "模型",
+      "tokens": "Token",
+      "latency": "延迟",
+      "status": "状态",
+      "time": "时间"
+    }
   },
   "consumer-keys": {
     "title": "消费者密钥",

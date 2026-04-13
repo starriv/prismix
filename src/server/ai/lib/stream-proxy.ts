@@ -88,6 +88,9 @@ export interface StreamRelayMeta {
   keyId: number;
   providerId: string;
   modelId: string;
+  upstreamId?: number | null;
+  upstreamName?: string | null;
+  upstreamBaseUrl?: string | null;
   requestId: string;
   start: number;
   inputPrice?: string;
@@ -947,6 +950,9 @@ function enqueueUsageLog(
     keyId: meta.keyId,
     providerId: meta.providerId,
     modelId: meta.modelId,
+    upstreamId: meta.upstreamId ?? null,
+    upstreamName: meta.upstreamName ?? null,
+    upstreamBaseUrl: meta.upstreamBaseUrl ?? null,
     inputTokens: usage?.inputTokens ?? 0,
     outputTokens: usage?.outputTokens ?? 0,
     totalTokens: usage?.totalTokens ?? 0,

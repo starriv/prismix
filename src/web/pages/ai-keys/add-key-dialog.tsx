@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { useCreateAiKey } from "@/web/api/hooks";
+import { useAiProviderUpstreams, useCreateAiKey } from "@/web/api/hooks";
 import type { AiProvider, KeyProvider } from "@/web/api/schemas";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -37,6 +37,7 @@ import {
 
 const addKeyFormSchema = z.object({
   providerId: z.number().int().positive(),
+  upstreamId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, "common.valid.name-required"),
   apiKey: z.string().min(1, "common.valid.required"),
   ownerId: z.number().int().positive().nullable().optional(),
@@ -69,6 +70,7 @@ export function AddKeyDialog({
     resolver: zodResolver(addKeyFormSchema),
     defaultValues: {
       providerId: 0,
+      upstreamId: null,
       name: "",
       apiKey: "",
       ownerId: null,
@@ -77,13 +79,24 @@ export function AddKeyDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset({ providerId: defaultProviderId, name: "", apiKey: "", ownerId: null });
+      form.reset({
+        providerId: defaultProviderId,
+        upstreamId: null,
+        name: "",
+        apiKey: "",
+        ownerId: null,
+      });
     }
   }, [open, defaultProviderId, form]);
 
   const watchedProviderId = form.watch("providerId");
   const selectedProvider = providers.find((p) => p.id === watchedProviderId);
   const isSigV4 = selectedProvider?.authType === "sigv4";
+  const { data: upstreams = [] } = useAiProviderUpstreams(watchedProviderId);
+
+  useEffect(() => {
+    form.setValue("upstreamId", null);
+  }, [form, watchedProviderId]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
@@ -126,6 +139,37 @@ export function AddKeyDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="upstreamId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai.form.upstream")}</FormLabel>
+                    <Select
+                      value={field.value ? String(field.value) : "legacy"}
+                      onValueChange={(v) => field.onChange(v === "legacy" ? null : Number(v))}
+                      disabled={watchedProviderId <= 0}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={t("ai.form.upstream-ph")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="legacy">{t("ai.form.upstream-legacy")}</SelectItem>
+                        {upstreams.map((upstream) => (
+                          <SelectItem key={upstream.id} value={String(upstream.id)}>
+                            {upstream.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("ai.form.upstream-hint")}
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

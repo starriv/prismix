@@ -1,6 +1,7 @@
 export { aiKeyRepo } from "./ai-key-repo";
 export { aiModelRepo } from "./ai-model-repo";
 export { aiProviderRepo } from "./ai-provider-repo";
+export { aiProviderUpstreamRepo } from "./ai-provider-upstream-repo";
 export { aiGuardrailConfigRepo } from "./ai-guardrail-config-repo";
 export { aiUsageLogRepo } from "./ai-usage-log-repo";
 export { relayConsumerKeyRepo } from "./relay-consumer-key-repo";

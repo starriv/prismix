@@ -19,6 +19,7 @@ import { aiKeyRepo, aiModelRepo, aiProviderRepo } from "@/server/repos";
 
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
 import { buildProviderAuth } from "../lib/provider-auth";
+import { resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { formatModel } from "./admin-ai-helpers";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
@@ -47,9 +48,18 @@ router.get("/providers/:id/discover-models", async (c) => {
   const provider = await aiProviderRepo.findById(id);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
-  // Use an enabled key to authenticate with upstream
-  const key = await aiKeyRepo.findAnyEnabledByProvider(id);
-  if (!key) {
+  let key: Awaited<ReturnType<typeof aiKeyRepo.findAnyEnabledByUpstream>> | undefined;
+  let baseUrl: string | null = null;
+
+  for (const upstream of await resolveUpstreamCandidates(provider)) {
+    const candidateKey = await aiKeyRepo.findAnyEnabledByUpstream(id, upstream.id);
+    if (!candidateKey) continue;
+    key = candidateKey;
+    baseUrl = upstream.baseUrl;
+    break;
+  }
+
+  if (!key || !baseUrl) {
     return c.json({ error: "No API key configured — add an API key for this provider first" }, 400);
   }
 
@@ -60,7 +70,7 @@ router.get("/providers/:id/discover-models", async (c) => {
     return c.json({ error: "Failed to decrypt key" }, 500);
   }
 
-  const base = provider.baseUrl.replace(/\/+$/, "");
+  const base = baseUrl.replace(/\/+$/, "");
   // Gemini and Anthropic have their own model list endpoints; OpenAI-compatible use /v1/models
   const modelsUrl = match(provider.apiFormat)
     .with("bedrock", () => {

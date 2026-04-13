@@ -75,6 +75,7 @@ const AI_CHILD_PATHS = [
   "/admin/consumer-keys",
   "/admin/key-providers",
   "/admin/ai-usage",
+  "/admin/ai-upstreams",
   "/admin/ai-logs",
   "/admin/ai-errors",
 ];
@@ -117,6 +118,7 @@ const navTree: NavEntry[] = [
       { href: "/admin/consumer-keys", labelKey: "nav.consumer-keys", icon: KeyRound },
       { href: "/admin/key-providers", labelKey: "nav.key-providers", icon: HandCoins },
       { href: "/admin/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },
+      { href: "/admin/ai-upstreams", labelKey: "nav.ai-upstreams", icon: Network },
       { href: "/admin/ai-logs", labelKey: "nav.ai-logs", icon: FileText },
       { href: "/admin/ai-errors", labelKey: "nav.ai-errors", icon: AlertTriangle },
     ],

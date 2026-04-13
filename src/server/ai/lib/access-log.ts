@@ -9,6 +9,9 @@ export interface AiAccessLogParams {
   userId?: number | null;
   providerId?: string | null;
   modelId?: string | null;
+  upstreamId?: number | null;
+  upstreamName?: string | null;
+  upstreamBaseUrl?: string | null;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
@@ -37,6 +40,9 @@ export function enqueueAiAccessLog(params: AiAccessLogParams): void {
     userId: params.userId ?? null,
     providerId: params.providerId ?? null,
     modelId: params.modelId ?? null,
+    upstreamId: params.upstreamId ?? null,
+    upstreamName: params.upstreamName ?? null,
+    upstreamBaseUrl: params.upstreamBaseUrl ?? null,
     inputTokens: params.inputTokens ?? 0,
     outputTokens: params.outputTokens ?? 0,
     totalTokens: params.totalTokens ?? 0,

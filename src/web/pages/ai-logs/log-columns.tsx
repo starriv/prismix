@@ -23,6 +23,16 @@ export function buildLogColumns(t: TFunction, language: string): DataTableColumn
       cell: (r) => <span className="text-xs">{r.providerId ?? "—"}</span>,
     },
     {
+      header: t("ai-logs.th.upstream"),
+      width: "w-[14%]",
+      hiddenOnMobile: true,
+      cell: (r) => (
+        <span className="block max-w-[160px] truncate text-xs">
+          {r.upstreamName ?? r.upstreamBaseUrl ?? "—"}
+        </span>
+      ),
+    },
+    {
       header: t("ai-logs.th.tokens"),
       width: "w-[10%]",
       hiddenOnMobile: true,

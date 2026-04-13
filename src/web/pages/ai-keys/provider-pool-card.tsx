@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { Activity, Plus, RefreshCw, Trash2 } from "lucide-react";
 
+import { useAiProviderUpstreams } from "@/web/api/hooks";
 import type { AiKey, AiProvider } from "@/web/api/schemas";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -28,6 +29,7 @@ export function ProviderPoolCard({
   onDelete,
   onWeightChange,
   onStrategyChange,
+  onUpstreamChange,
   onAdd,
   isToggling,
   isTesting,
@@ -44,6 +46,7 @@ export function ProviderPoolCard({
   onDelete: (key: AiKey) => void;
   onWeightChange: (key: AiKey, delta: number) => void;
   onStrategyChange: (provider: AiProvider, strategy: string) => void;
+  onUpstreamChange: (key: AiKey, upstreamId: number | null) => void;
   onAdd: () => void;
   isToggling: boolean;
   isTesting: boolean;
@@ -51,6 +54,7 @@ export function ProviderPoolCard({
 }) {
   const strategy = provider?.loadBalanceStrategy ?? "round-robin";
   const showPool = totalCount > 1;
+  const { data: upstreams = [] } = useAiProviderUpstreams(provider?.id ?? 0);
 
   return (
     <Card>
@@ -182,10 +186,28 @@ export function ProviderPoolCard({
                   </div>
                 </div>
                 {/* Row 2: Key prefix + owner + last used */}
-                <div className="flex items-center gap-3 mt-1.5">
+                <div className="mt-1.5 flex flex-wrap items-center gap-3">
                   <code className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded w-[160px] truncate inline-block">
                     {k.keyPrefix}****
                   </code>
+                  <Select
+                    value={k.upstreamId ? String(k.upstreamId) : "legacy"}
+                    onValueChange={(value) =>
+                      onUpstreamChange(k, value === "legacy" ? null : Number(value))
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-[180px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="legacy">{t("ai.form.upstream-legacy")}</SelectItem>
+                      {upstreams.map((upstream) => (
+                        <SelectItem key={upstream.id} value={String(upstream.id)}>
+                          {upstream.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Badge
                     variant={k.ownerName ? "secondary" : "outline"}
                     className="text-[10px] px-1.5 py-0"

@@ -13,6 +13,7 @@ import {
   API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
   API_AI_REQUEST_LOGGING,
+  API_AI_UPSTREAMS_OVERVIEW,
   API_AI_USAGE_BY_KEY,
   API_AI_USAGE_DAILY,
   API_AI_USAGE_RECENT,
@@ -25,8 +26,11 @@ import {
   apiAiProviderDetail,
   apiAiProviderModels,
   apiAiProviderModelsBatch,
+  apiAiProviderUpstreamDetail,
+  apiAiProviderUpstreams,
   apiAiSyncPricesApply,
   apiAiSyncPricesPreview,
+  apiAiUpstreamRecent,
   apiAiUsageRequest,
   apiRelayKeyDetail,
   apiRelayKeyReveal,
@@ -41,7 +45,9 @@ import {
   aiKeySchema,
   aiModelSchema,
   aiProviderSchema,
+  aiProviderUpstreamSchema,
   aiRequestLogSchema,
+  aiUpstreamsOverviewSchema,
   aiUsageByKeySchema,
   aiUsageRecordSchema,
   aiUsageSummarySchema,
@@ -62,6 +68,35 @@ export function useAiProviders() {
   });
 }
 
+export function useAiProviderUpstreams(providerId: number) {
+  return useQuery({
+    queryKey: queryKeys.aiProviderUpstreams(providerId),
+    queryFn: () => get(apiAiProviderUpstreams(providerId), z.array(aiProviderUpstreamSchema)),
+    enabled: providerId > 0,
+  });
+}
+
+export function useAiUpstreamsOverview(hours = 24, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiUpstreamsOverview(hours),
+    queryFn: () => get(`${API_AI_UPSTREAMS_OVERVIEW}?hours=${hours}`, aiUpstreamsOverviewSchema),
+    refetchInterval,
+  });
+}
+
+export function useAiUpstreamRecent(
+  id: number | null,
+  limit = 10,
+  refetchInterval?: number | false,
+) {
+  return useQuery({
+    queryKey: queryKeys.aiUpstreamRecent(id ?? 0, limit),
+    queryFn: () => get(`${apiAiUpstreamRecent(id!)}?limit=${limit}`, z.array(aiUsageRecordSchema)),
+    enabled: !!id,
+    refetchInterval,
+  });
+}
+
 interface CreateAiProviderBody {
   providerId: string;
   name: string;
@@ -70,6 +105,7 @@ interface CreateAiProviderBody {
   authType: string;
   enabled?: boolean;
   loadBalanceStrategy?: string;
+  upstreamRoutingStrategy?: string;
   authConfig?: Record<string, unknown>;
 }
 
@@ -104,6 +140,68 @@ export function useDeleteAiProvider() {
   });
 }
 
+export function useCreateAiProviderUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      providerId,
+      ...body
+    }: {
+      providerId: number;
+      upstreamId: string;
+      name: string;
+      baseUrl: string;
+      kind?: string;
+      priority?: number;
+      weight?: number;
+      enabled?: boolean;
+      metadata?: Record<string, unknown>;
+    }) => post(apiAiProviderUpstreams(providerId), body, aiProviderUpstreamSchema),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+    },
+  });
+}
+
+export function useUpdateAiProviderUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      providerId,
+      id,
+      ...body
+    }: {
+      providerId: number;
+      id: number;
+      name?: string;
+      baseUrl?: string;
+      kind?: string;
+      priority?: number;
+      weight?: number;
+      enabled?: boolean;
+      metadata?: Record<string, unknown>;
+    }) => put(apiAiProviderUpstreamDetail(providerId, id), body, aiProviderUpstreamSchema),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+    },
+  });
+}
+
+export function useDeleteAiProviderUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ providerId, id }: { providerId: number; id: number }) =>
+      del(apiAiProviderUpstreamDetail(providerId, id), z.object({ success: z.boolean() })),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+    },
+  });
+}
+
 // ── AI Keys ───────────────────────────────────────────────────────────
 
 export function useAiKeys() {
@@ -118,6 +216,7 @@ export function useCreateAiKey() {
   return useMutation({
     mutationFn: (body: {
       providerId: number;
+      upstreamId?: number | null;
       name: string;
       apiKey: string;
       ownerId?: number | null;
@@ -140,6 +239,7 @@ export function useUpdateAiKey() {
       enabled?: boolean;
       weight?: number;
       ownerId?: number | null;
+      upstreamId?: number | null;
     }) => put(apiAiKeyDetail(id), body, aiKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });

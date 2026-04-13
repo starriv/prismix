@@ -118,6 +118,11 @@ export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 // ── AI ──────────────────────────────────────────────────────────
 export const API_AI_PROVIDERS = "/api/admin/ai/providers";
 export const apiAiProviderDetail = (id: number) => `/api/admin/ai/providers/${id}`;
+export const apiAiProviderUpstreams = (id: number) => `/api/admin/ai/providers/${id}/upstreams`;
+export const apiAiProviderUpstreamDetail = (providerId: number, upstreamId: number) =>
+  `/api/admin/ai/providers/${providerId}/upstreams/${upstreamId}`;
+export const API_AI_UPSTREAMS_OVERVIEW = "/api/admin/ai/upstreams/overview";
+export const apiAiUpstreamRecent = (id: number) => `/api/admin/ai/upstreams/${id}/recent`;
 export const apiAiProviderModels = (id: number) => `/api/admin/ai/providers/${id}/models`;
 export const apiAiProviderModelsBatch = (id: number) =>
   `/api/admin/ai/providers/${id}/models/batch`;

@@ -48,8 +48,8 @@ const keyHealth = new Map<number, KeyHealth>();
 const BASE_PENALTY_MS = 30_000;
 const MAX_PENALTY_MS = 2 * 60 * 1000;
 
-function poolKey(providerId: number): string {
-  return `${providerId}`;
+function poolKey(providerId: number, upstreamId: number | null): string {
+  return `${providerId}:${upstreamId ?? "legacy"}`;
 }
 
 function getKeyHealthState(keyId: number): KeyHealth {
@@ -75,14 +75,17 @@ function getEffectiveWeight(entry: PoolEntry, now = Date.now()): number {
 
 // ── Pool loading ─────────────────────────────────────────────────────
 
-async function loadPool(providerId: number): Promise<Pool> {
+async function loadPool(providerId: number, upstreamId: number | null): Promise<Pool> {
   // Load provider strategy
   const config = await aiProviderRepo.findBalancerConfig(providerId);
   const strategy = (
     config?.loadBalanceStrategy === "random" ? "random" : "round-robin"
   ) as BalancerStrategy;
 
-  const rows = await aiKeyRepo.findEnabledByProvider(providerId);
+  const rows =
+    upstreamId == null
+      ? await aiKeyRepo.findEnabledByProvider(providerId)
+      : await aiKeyRepo.findEnabledByUpstream(providerId, upstreamId);
 
   const entries: PoolEntry[] = rows.map((r) => ({
     key: r,
@@ -95,11 +98,11 @@ async function loadPool(providerId: number): Promise<Pool> {
   return { entries, totalWeight, strategy };
 }
 
-async function getPool(providerId: number): Promise<Pool> {
-  const pk = poolKey(providerId);
+async function getPool(providerId: number, upstreamId: number | null): Promise<Pool> {
+  const pk = poolKey(providerId, upstreamId);
   let pool = pools.get(pk);
   if (!pool) {
-    pool = await loadPool(providerId);
+    pool = await loadPool(providerId, upstreamId);
     pools.set(pk, pool);
   }
   return pool;
@@ -168,8 +171,11 @@ function selectRandom(pool: Pool): AiKey | undefined {
  * Strategy is read from the provider's `loadBalanceStrategy` column.
  * Returns undefined if no enabled keys with weight > 0 exist.
  */
-export async function pickKey(providerId: number): Promise<AiKey | undefined> {
-  const pool = await getPool(providerId);
+export async function pickKey(
+  providerId: number,
+  upstreamId: number | null = null,
+): Promise<AiKey | undefined> {
+  const pool = await getPool(providerId, upstreamId);
 
   if (pool.entries.length === 0) return undefined;
 
@@ -197,8 +203,14 @@ export async function pickKey(providerId: number): Promise<AiKey | undefined> {
  * Invalidate a specific provider pool (call after key CRUD).
  * Next `pickKey` call will reload from DB.
  */
-export function invalidateKeyPool(providerId: number): void {
-  pools.delete(poolKey(providerId));
+export function invalidateKeyPool(providerId: number, upstreamId?: number | null): void {
+  if (upstreamId !== undefined) {
+    pools.delete(poolKey(providerId, upstreamId));
+    return;
+  }
+  for (const key of pools.keys()) {
+    if (key.startsWith(`${providerId}:`)) pools.delete(key);
+  }
 }
 
 /**
@@ -214,8 +226,9 @@ export function clearAllPools(): void {
  */
 export async function getPoolInfo(
   providerId: number,
+  upstreamId: number | null = null,
 ): Promise<{ size: number; totalWeight: number; keyIds: number[]; penalizedKeyIds: number[] }> {
-  const pool = await getPool(providerId);
+  const pool = await getPool(providerId, upstreamId);
   const now = Date.now();
   return {
     size: pool.entries.length,

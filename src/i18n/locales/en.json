@@ -106,6 +106,7 @@
     "ai-keys": "Provider Keys",
     "ai-relay": "Unified Endpoint",
     "ai-usage": "Usage",
+    "ai-upstreams": "Upstreams",
     "ai-logs": "Logs",
     "ai-errors": "Errors",
     "consumer-keys": "Consumer Keys",
@@ -2341,6 +2342,10 @@
     "form": {
       "provider": "Provider",
       "provider-ph": "Select a provider",
+      "upstream": "Upstream",
+      "upstream-ph": "Select an upstream",
+      "upstream-legacy": "Provider Default Base URL",
+      "upstream-hint": "Bind this key to a specific upstream, or leave it on the provider default base URL.",
       "name": "Key Name",
       "name-ph": "Give your key a name",
       "api-key": "API Key",
@@ -2376,14 +2381,22 @@
     "empty": "No providers configured yet",
     "btn": {
       "new": "Add Provider",
-      "create": "Create Provider"
+      "create": "Create Provider",
+      "manage-upstreams": "Manage Upstreams",
+      "new-upstream": "Add Upstream",
+      "create-upstream": "Create Upstream"
     },
     "th": {
       "name": "Name",
       "provider-id": "Provider ID",
       "api-format": "API Format",
       "auth-type": "Auth Type",
+      "routing": "Upstream Routing",
       "enabled": "Enabled"
+    },
+    "strategy": {
+      "priority": "Priority",
+      "weighted-random": "Weighted Random"
     },
     "form": {
       "provider-id": "Provider ID",
@@ -2394,6 +2407,8 @@
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API Format",
       "auth-type": "Auth Type",
+      "upstream-routing-strategy": "Upstream Routing Strategy",
+      "upstream-routing-strategy-hint": "Controls how multiple upstreams under this provider are selected by default.",
       "sigv4-region": "AWS Region",
       "sigv4-region-ph": "us-east-1",
       "sigv4-region-hint": "The AWS region for your Bedrock endpoint",
@@ -2405,7 +2420,44 @@
       "add-title": "Add Provider",
       "edit-title": "Edit Provider",
       "delete-title": "Delete Provider",
-      "delete-body": "Delete \"{{name}}\"? All models and keys will also be deleted."
+      "delete-body": "Delete \"{{name}}\"? All models and keys will also be deleted.",
+      "add-upstream-title": "Add Upstream",
+      "edit-upstream-title": "Edit Upstream",
+      "delete-upstream-title": "Delete Upstream",
+      "delete-upstream-body": "Delete upstream \"{{name}}\"? Keys bound to it will fall back to the default provider base URL."
+    },
+    "upstreams": {
+      "title": "Manage Upstreams for {{name}}",
+      "section-title": "Upstreams",
+      "desc": "Configure multiple execution endpoints for one provider and control their routing order or weights.",
+      "empty": "No upstreams configured yet. Until one is added, the relay will keep using the provider base URL.",
+      "th": {
+        "name": "Name",
+        "upstream-id": "Upstream ID",
+        "kind": "Kind",
+        "base-url": "Base URL",
+        "priority": "Priority",
+        "weight": "Weight",
+        "enabled": "Enabled"
+      },
+      "form": {
+        "upstream-id": "Upstream ID",
+        "upstream-id-ph": "official or friend-1",
+        "name": "Name",
+        "name-ph": "Enter upstream name",
+        "base-url": "Base URL",
+        "base-url-ph": "https://api.example.com/v1",
+        "kind": "Kind",
+        "priority": "Priority",
+        "weight": "Weight",
+        "enabled": "Enabled"
+      },
+      "kind": {
+        "official": "Official",
+        "reseller": "Reseller",
+        "openrouter": "OpenRouter",
+        "custom": "Custom"
+      }
     },
     "toast": {
       "created": "Provider created",
@@ -2413,7 +2465,13 @@
       "deleted": "Provider deleted",
       "create-error": "Failed to create provider",
       "update-error": "Failed to update provider",
-      "delete-error": "Failed to delete provider"
+      "delete-error": "Failed to delete provider",
+      "upstream-created": "Upstream created",
+      "upstream-updated": "Upstream updated",
+      "upstream-deleted": "Upstream deleted",
+      "upstream-create-error": "Failed to create upstream",
+      "upstream-update-error": "Failed to update upstream",
+      "upstream-delete-error": "Failed to delete upstream"
     }
   },
   "ai-models": {
@@ -2558,6 +2616,7 @@
     "th": {
       "provider": "Provider",
       "model": "Model",
+      "upstream": "Upstream",
       "requests": "Requests",
       "input": "Input Tokens",
       "output": "Output Tokens",
@@ -2603,6 +2662,7 @@
     "th": {
       "model": "Model",
       "provider": "Provider",
+      "upstream": "Upstream",
       "tokens": "Tokens",
       "cost": "Cost",
       "latency": "Latency",
@@ -2620,6 +2680,8 @@
       "request-id": "Request ID",
       "model": "Model",
       "provider": "Provider",
+      "upstream": "Upstream",
+      "upstream-url": "Upstream URL",
       "consumer-key": "Consumer Key",
       "input-tokens": "Input Tokens",
       "output-tokens": "Output Tokens",
@@ -2637,6 +2699,64 @@
   "ai-errors": {
     "title": "AI Gateway Errors",
     "desc": "4xx / 5xx error overview and recent error trends"
+  },
+  "ai-upstreams": {
+    "title": "AI Upstreams",
+    "desc": "Inspect configured upstreams, recent traffic, and error conditions",
+    "empty": "No upstreams have been configured yet",
+    "never": "Never",
+    "health": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "idle": "Idle",
+      "no-key": "No Key",
+      "disabled": "Disabled"
+    },
+    "stats": {
+      "total": "Total Upstreams",
+      "total-subtitle": "Configured upstreams",
+      "enabled": "Enabled",
+      "enabled-subtitle": "Eligible for routing now",
+      "active": "Active 24h",
+      "active-subtitle": "Received traffic in the last 24 hours",
+      "degraded": "Degraded 24h",
+      "degraded-subtitle": "Elevated error rate in the last 24 hours"
+    },
+    "table": {
+      "title": "Upstream Status"
+    },
+    "th": {
+      "provider": "Provider",
+      "upstream": "Upstream",
+      "kind": "Kind",
+      "status": "Status",
+      "keys": "Keys",
+      "requests": "24h Requests",
+      "error-rate": "24h Error Rate",
+      "latency": "24h Avg Latency",
+      "last-seen": "Last Seen",
+      "enabled": "Enabled"
+    },
+    "actions": {
+      "details": "Details"
+    },
+    "detail": {
+      "title": "Upstream Detail",
+      "provider": "Provider",
+      "upstream-id": "Upstream ID",
+      "base-url": "Base URL",
+      "health": "Health",
+      "enabled": "Enabled",
+      "keys": "Keys",
+      "tokens-24h": "24h Tokens",
+      "recent-title": "Recent Requests",
+      "recent-empty": "No recent requests for this upstream",
+      "model": "Model",
+      "tokens": "Tokens",
+      "latency": "Latency",
+      "status": "Status",
+      "time": "Time"
+    }
   },
   "consumer-keys": {
     "title": "Consumer Keys",
