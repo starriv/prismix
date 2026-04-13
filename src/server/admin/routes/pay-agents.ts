@@ -15,7 +15,7 @@ import {
   parsePaginationOffset,
 } from "@/server/lib/validate";
 import { ensureAgentWallet } from "@/server/lib/wallet";
-import { payAgentRepo, payAgentTransactionRepo, userRepo } from "@/server/repos";
+import { payAgentRepo, payAgentTransactionRepo } from "@/server/repos";
 import { safePlus } from "@/shared/number";
 
 const payAgentsRouter = new Hono();
@@ -28,23 +28,9 @@ payAgentsRouter.get("/", async (c) => {
   const userName = c.req.query("userName") || undefined;
   const address = c.req.query("address") || undefined;
 
-  const agents = await payAgentRepo.findAll(limit, offset, { address });
+  const agents = await payAgentRepo.findAll(limit, offset, { address, userName });
 
-  // Attach owner userId by looking up users.agentId
-  const users = await userRepo.findAll();
-  const userByAgentId = new Map(users.filter((u) => u.agentId).map((u) => [u.agentId, u]));
-  let enriched = agents.map((a) => {
-    const owner = userByAgentId.get(a.id);
-    return { ...a, userId: owner?.id ?? null, userName: owner?.name ?? null };
-  });
-
-  // Post-filter by owner userName (lives in users table, not pay_agents)
-  if (userName) {
-    const needle = userName.toLowerCase();
-    enriched = enriched.filter((a) => a.userName && a.userName.toLowerCase().includes(needle));
-  }
-
-  return ok(c, enriched);
+  return ok(c, agents);
 });
 
 // ── Create a new pay agent ───────────────────────────────────────────

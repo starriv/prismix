@@ -12,18 +12,57 @@ import {
   queryAll,
   queryOne,
   returningOne,
+  users,
 } from "@/server/db";
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
+export type PayAgentWithOwner = PayAgent & { userId: number | null; userName: string | null };
+
 export const payAgentRepo = {
-  async findAll(limit = 200, offset = 0, filters?: { address?: string }): Promise<PayAgent[]> {
+  /**
+   * Fetch all pay agents with optional filters.
+   * Joins with users table to include owner info and enable userName filtering at DB level.
+   */
+  async findAll(
+    limit = 200,
+    offset = 0,
+    filters?: { address?: string; userName?: string },
+  ): Promise<PayAgentWithOwner[]> {
     const conditions = [];
     if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
+    if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
 
-    const qb = db.select().from(payAgents);
-    if (conditions.length) qb.where(and(...conditions));
-    return queryAll(qb.orderBy(desc(payAgents.createdAt)).limit(limit).offset(offset));
+    const rows = await queryAll(
+      db
+        .select({
+          id: payAgents.id,
+          name: payAgents.name,
+          description: payAgents.description,
+          address: payAgents.address,
+          privateKey: payAgents.privateKey,
+          type: payAgents.type,
+          balance: payAgents.balance,
+          status: payAgents.status,
+          perPayLimit: payAgents.perPayLimit,
+          dailyLimit: payAgents.dailyLimit,
+          monthlyLimit: payAgents.monthlyLimit,
+          defaultMarkupPercent: payAgents.defaultMarkupPercent,
+          lastSyncBlock: payAgents.lastSyncBlock,
+          updatedAt: payAgents.updatedAt,
+          createdAt: payAgents.createdAt,
+          userId: users.id,
+          userName: users.name,
+        })
+        .from(payAgents)
+        .leftJoin(users, eq(users.agentId, payAgents.id))
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(payAgents.createdAt))
+        .limit(limit)
+        .offset(offset),
+    );
+
+    return rows as PayAgentWithOwner[];
   },
 
   async findById(id: number): Promise<PayAgent | undefined> {
