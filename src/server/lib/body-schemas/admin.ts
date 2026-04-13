@@ -22,6 +22,7 @@ export const createAdminBody = z.object({
     .regex(ETH_ADDRESS_RE, "Invalid Ethereum address")
     .optional()
     .or(z.literal("")),
+  password: z.string().min(10).max(128).optional(),
 });
 
 // ── Admin: Auth Provider Config ───────────────────────────────────

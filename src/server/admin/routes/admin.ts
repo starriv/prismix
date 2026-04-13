@@ -1,3 +1,4 @@
+import argon2 from "argon2";
 import { Hono } from "hono";
 import { groupBy } from "lodash-es";
 
@@ -8,6 +9,8 @@ import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import { adminRepo, identityRepo } from "@/server/repos";
+
+const PASSWORD_COMPLEXITY_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 
 const admin = new Hono();
 
@@ -56,6 +59,21 @@ admin.post("/admins", async (c) => {
     return c.json({ error: "An admin with this identity already exists" }, 409);
   }
 
+  // Hash password for credentials provider (mandatory)
+  let passwordHash: string | undefined;
+  if (body.provider === "credentials") {
+    if (!body.password) {
+      return c.json({ error: "Password is required for credentials provider" }, 400);
+    }
+    if (!PASSWORD_COMPLEXITY_RE.test(body.password)) {
+      return c.json(
+        { error: "Password must contain at least one uppercase, one lowercase, and one digit" },
+        400,
+      );
+    }
+    passwordHash = await argon2.hash(body.password);
+  }
+
   const newAdmin = await transaction(async () => {
     const created = await adminRepo.create({
       name: body.name.trim(),
@@ -68,6 +86,7 @@ admin.post("/admins", async (c) => {
       userRole: "admin",
       provider: body.provider,
       providerAccountId: body.providerAccountId.toLowerCase(),
+      passwordHash: passwordHash ?? null,
     });
 
     return created;
@@ -92,9 +111,14 @@ admin.delete("/admins", async (c) => {
   const target = await adminRepo.findById(adminId);
   if (!target) return c.json({ error: "Admin not found" }, 404);
 
+  // Only the primary admin (id=1) can delete other admins
+  const session = getAdminSession(c);
+  if (session.adminId !== 1) {
+    return c.json({ error: "Only the primary admin can remove members" }, 403);
+  }
+
   // Prevent self-deletion
-  const session = c.get("admin" as never) as { adminId: number } | undefined;
-  if (session?.adminId === adminId) {
+  if (session.adminId === adminId) {
     return c.json({ error: "Cannot delete yourself" }, 400);
   }
 

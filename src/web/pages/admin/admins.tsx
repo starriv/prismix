@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Plus, Shield, Trash2 } from "lucide-react";
+import { Plus, Shield, Shuffle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -46,12 +46,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/web/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
+import { useAdminAuthContext } from "@/web/providers/admin-auth-provider";
 
 export default function AdminMembersPage() {
   const { t } = useTranslation();
+  const { admin: currentAdmin } = useAdminAuthContext();
   const { data: admins = [], isLoading } = useAdminMembers();
   const deleteAdmin = useDeleteAdmin();
   const [deleteTarget, setDeleteTarget] = useState<AdminMember | null>(null);
+
+  const isPrimaryAdmin = currentAdmin?.id === 1;
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -116,16 +121,37 @@ export default function AdminMembersPage() {
                           {a.identities.map((i) => i.providerAccountId).join(", ") || "—"}
                         </TableCell>
                         <TableCell className="py-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => setDeleteTarget(a)}
-                            disabled={admins.length <= 1}
-                            aria-label={t("common.btn.delete")}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {isPrimaryAdmin ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => setDeleteTarget(a)}
+                              disabled={admins.length <= 1}
+                              aria-label={t("common.btn.delete")}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground"
+                                    disabled
+                                    aria-label={t("common.btn.delete")}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("admin.admins.only-primary-can-delete")}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -162,6 +188,36 @@ export default function AdminMembersPage() {
 
 // ── Add Admin Dialog ─────────────────────────────────────────────────
 
+const PASSWORD_CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+const PASSWORD_LENGTH = 16;
+// Rejection threshold: largest multiple of charset length that fits in a byte
+const REJECT_THRESHOLD = 256 - (256 % PASSWORD_CHARSET.length); // 210
+
+/** Pick a uniformly random char from PASSWORD_CHARSET (rejection sampling). */
+function randomCharFromCharset(): string {
+  const buf = new Uint8Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < REJECT_THRESHOLD) return PASSWORD_CHARSET[buf[0] % PASSWORD_CHARSET.length];
+  }
+}
+
+function generateRandomPassword(): string {
+  const chars = Array.from({ length: PASSWORD_LENGTH }, randomCharFromCharset);
+  // Pick 3 distinct positions to guarantee complexity
+  const indices = new Uint8Array(PASSWORD_LENGTH);
+  crypto.getRandomValues(indices);
+  const shuffled = Array.from({ length: PASSWORD_LENGTH }, (_, i) => i).sort(
+    (a, b) => indices[a] - indices[b],
+  );
+  const rng = new Uint8Array(3);
+  crypto.getRandomValues(rng);
+  chars[shuffled[0]] = "abcdefghijklmnopqrstuvwxyz"[rng[0] % 26];
+  chars[shuffled[1]] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[rng[1] % 26];
+  chars[shuffled[2]] = "0123456789"[rng[2] % 10];
+  return chars.join("");
+}
+
 function AddAdminDialog() {
   const { t } = useTranslation();
   const createAdmin = useCreateAdmin();
@@ -169,22 +225,39 @@ function AddAdminDialog() {
   const [name, setName] = useState("");
   const [provider, setProvider] = useState("siwe");
   const [accountId, setAccountId] = useState("");
+  const [password, setPassword] = useState("");
+
+  const isCredentials = provider === "credentials";
+  const canSubmit = name.trim() && accountId.trim() && (!isCredentials || password.length >= 10);
+
+  const handleGeneratePassword = useCallback(async () => {
+    const pwd = generateRandomPassword();
+    setPassword(pwd);
+    try {
+      await navigator.clipboard.writeText(pwd);
+      toast.success(t("admin.admins.toast.password-copied"));
+    } catch {
+      // clipboard may not be available
+    }
+  }, [t]);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !accountId.trim()) return;
+    if (!canSubmit) return;
     try {
       await createAdmin.mutateAsync({
         name: name.trim(),
         provider,
         providerAccountId: accountId.trim(),
         address: provider === "siwe" ? accountId.trim().toLowerCase() : undefined,
-        email: provider === "credentials" ? accountId.trim().toLowerCase() : undefined,
+        email: isCredentials ? accountId.trim().toLowerCase() : undefined,
+        password: isCredentials ? password : undefined,
       });
       toast.success(t("admin.admins.toast.created"));
       setOpen(false);
       setName("");
       setProvider("siwe");
       setAccountId("");
+      setPassword("");
     } catch {
       toast.error(t("admin.admins.toast.create-error"));
     }
@@ -214,7 +287,13 @@ function AddAdminDialog() {
             </div>
             <div className="space-y-2">
               <Label>{t("admin.admins.provider")}</Label>
-              <Select value={provider} onValueChange={setProvider}>
+              <Select
+                value={provider}
+                onValueChange={(v) => {
+                  setProvider(v);
+                  setPassword("");
+                }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -238,13 +317,45 @@ function AddAdminDialog() {
                   : t("admin.admins.form.email-hint")}
               </p>
             </div>
+            {isCredentials && (
+              <div className="space-y-2">
+                <Label>{t("admin.admins.form.password")}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("admin.admins.form.password-ph")}
+                    className="flex-1"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={handleGeneratePassword}
+                      >
+                        <Shuffle className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("admin.admins.form.generate-password")}</TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("common.valid.password-weak")}
+                </p>
+              </div>
+            )}
           </div>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             {t("common.btn.cancel")}
           </Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || !accountId.trim()}>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
             {t("admin.admins.add")}
           </Button>
         </DialogFooter>

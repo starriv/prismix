@@ -85,7 +85,8 @@
       "network-required": "Network is required",
       "invalid-email": "Invalid email address",
       "invalid-url": "Invalid URL",
-      "range": "Must be between {{min}} and {{max}}"
+      "range": "Must be between {{min}} and {{max}}",
+      "password-weak": "Password must be 10+ chars with upper, lower, and digit"
     }
   },
   "nav": {
@@ -592,17 +593,22 @@
       "delete": "Remove",
       "delete-confirm": "Remove this admin? This cannot be undone.",
       "delete-title": "Remove Admin",
+      "only-primary-can-delete": "Only the primary admin can remove members",
       "toast": {
         "created": "Admin member added",
         "deleted": "Admin member removed",
         "create-error": "Failed to add admin",
-        "delete-error": "Failed to remove admin"
+        "delete-error": "Failed to remove admin",
+        "password-copied": "Password copied to clipboard"
       },
       "form": {
         "name-ph": "Admin name",
         "account-ph": "Wallet address or email",
         "address-hint": "For wallet login, enter the ETH address (0x...)",
-        "email-hint": "For email login, enter the email address"
+        "email-hint": "For email login, enter the email address",
+        "password": "Password",
+        "password-ph": "Min 10 chars, upper + lower + digit",
+        "generate-password": "Generate random password"
       }
     },
     "withdraw": {

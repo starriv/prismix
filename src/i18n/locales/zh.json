@@ -85,7 +85,8 @@
       "network-required": "网络为必填",
       "invalid-email": "邮箱格式不正确",
       "invalid-url": "URL 格式不正确",
-      "range": "需在 {{min}} 到 {{max}} 之间"
+      "range": "需在 {{min}} 到 {{max}} 之间",
+      "password-weak": "密码需 10 位以上，含大小写字母和数字"
     }
   },
   "nav": {
@@ -592,17 +593,22 @@
       "delete": "移除",
       "delete-confirm": "确定移除此管理员？此操作不可撤销。",
       "delete-title": "移除管理员",
+      "only-primary-can-delete": "只有主管理员可以移除成员",
       "toast": {
         "created": "管理员已添加",
         "deleted": "管理员已移除",
         "create-error": "添加管理员失败",
-        "delete-error": "移除管理员失败"
+        "delete-error": "移除管理员失败",
+        "password-copied": "密码已复制到剪贴板"
       },
       "form": {
         "name-ph": "管理员名称",
         "account-ph": "钱包地址或邮箱",
         "address-hint": "钱包登录请输入 ETH 地址 (0x...)",
-        "email-hint": "邮箱登录请输入邮箱地址"
+        "email-hint": "邮箱登录请输入邮箱地址",
+        "password": "密码",
+        "password-ph": "至少 10 位，含大小写字母和数字",
+        "generate-password": "生成随机密码"
       }
     },
     "withdraw": {

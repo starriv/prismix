@@ -86,6 +86,7 @@ export function useCreateAdmin() {
       providerAccountId: string;
       email?: string;
       address?: string;
+      password?: string;
     }) => adminPost(API_ADMIN_ADMINS, body, z.unknown()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminAdmins() });
