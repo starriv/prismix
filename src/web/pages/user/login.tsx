@@ -22,8 +22,8 @@ import { isPasswordValid, PasswordStrength } from "@/web/components/auth/passwor
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { EmailInput } from "@/web/components/ui/email-input";
-import { Input } from "@/web/components/ui/input";
 import { Logo } from "@/web/components/ui/logo";
+import { PasswordInput } from "@/web/components/ui/password-input";
 import { useLanguageSwitch, useLocaleNavigate } from "@/web/hooks/use-locale";
 import { useUserAuthContext } from "@/web/providers/user-auth-provider";
 
@@ -41,6 +41,7 @@ export default function UserLoginPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isWalletLoginBusy, setIsWalletLoginBusy] = useState(false);
 
   const { currentLang, toggleLang } = useLanguageSwitch();
 
@@ -50,7 +51,14 @@ export default function UserLoginPage() {
 
   const handleWalletLogin = useCallback(() => {
     if (isConnected) {
-      login("siwe");
+      void (async () => {
+        setIsWalletLoginBusy(true);
+        try {
+          await login("siwe");
+        } finally {
+          setIsWalletLoginBusy(false);
+        }
+      })();
     } else {
       openConnectModal?.();
     }
@@ -114,7 +122,7 @@ export default function UserLoginPage() {
               className="w-full gap-2"
               size="lg"
             >
-              {isBusy ? (
+              {isWalletLoginBusy ? (
                 <>
                   <span className="animate-spin">
                     <Loader2 className="h-4 w-4" />
@@ -153,8 +161,7 @@ export default function UserLoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
                     />
-                    <Input
-                      type="password"
+                    <PasswordInput
                       placeholder={t("auth.password-ph")}
                       aria-label={t("auth.password-ph")}
                       value={password}
@@ -164,8 +171,7 @@ export default function UserLoginPage() {
                     {isRegisterMode && (
                       <>
                         <PasswordStrength password={password} />
-                        <Input
-                          type="password"
+                        <PasswordInput
                           placeholder={t("auth.confirm-password-ph")}
                           aria-label={t("auth.confirm-password-ph")}
                           value={confirmPassword}
@@ -191,7 +197,7 @@ export default function UserLoginPage() {
                           (password !== confirmPassword || !isPasswordValid(password)))
                       }
                       className="w-full gap-2"
-                      size="sm"
+                      size="lg"
                     >
                       {isRegisterMode ? (
                         <>
@@ -205,17 +211,19 @@ export default function UserLoginPage() {
                         </>
                       )}
                     </Button>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="lg"
                       onClick={() => {
                         setIsRegisterMode((v) => !v);
                         setPassword("");
                         setConfirmPassword("");
                       }}
-                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="w-full text-xs text-muted-foreground hover:text-foreground"
                     >
                       {isRegisterMode ? t("user.login.have-account") : t("user.login.no-account")}
-                    </button>
+                    </Button>
                   </form>
                 )}
 

@@ -20,8 +20,8 @@ import { GoogleIcon } from "@/web/components/auth/google-icon";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { EmailInput } from "@/web/components/ui/email-input";
-import { Input } from "@/web/components/ui/input";
 import { Logo } from "@/web/components/ui/logo";
+import { PasswordInput } from "@/web/components/ui/password-input";
 import { useLanguageSwitch, useLocaleNavigate } from "@/web/hooks/use-locale";
 import { useAdminAuthContext } from "@/web/providers/admin-auth-provider";
 
@@ -37,6 +37,7 @@ export default function AdminLoginPage() {
   // Local state for email/password form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isWalletLoginBusy, setIsWalletLoginBusy] = useState(false);
 
   const { currentLang, toggleLang } = useLanguageSwitch();
 
@@ -44,9 +45,14 @@ export default function AdminLoginPage() {
     if (isAuthenticated) navigate("/admin/dashboard", { replace: true });
   }, [isAuthenticated, navigate]);
 
-  const handleWalletLogin = () => {
+  const handleWalletLogin = async () => {
     if (isConnected) {
-      login("siwe");
+      setIsWalletLoginBusy(true);
+      try {
+        await login("siwe");
+      } finally {
+        setIsWalletLoginBusy(false);
+      }
     } else {
       openConnectModal?.();
     }
@@ -102,7 +108,7 @@ export default function AdminLoginPage() {
               className="w-full gap-2"
               size="lg"
             >
-              {isBusy ? (
+              {isWalletLoginBusy ? (
                 <>
                   <span className="animate-spin">
                     <Loader2 className="h-4 w-4" />
@@ -141,8 +147,7 @@ export default function AdminLoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
                     />
-                    <Input
-                      type="password"
+                    <PasswordInput
                       placeholder={t("auth.password-ph")}
                       aria-label={t("auth.password-ph")}
                       value={password}
@@ -154,7 +159,7 @@ export default function AdminLoginPage() {
                       variant="secondary"
                       disabled={isBusy || !email || !password}
                       className="w-full gap-2"
-                      size="sm"
+                      size="lg"
                     >
                       <Mail className="h-3.5 w-3.5" />
                       {t("auth.sign-in-btn-email")}
