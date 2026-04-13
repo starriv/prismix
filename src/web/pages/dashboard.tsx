@@ -1,12 +1,11 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
 import { orderBy } from "lodash-es";
 import { ArrowRight, Brain, DollarSign, Hash, PercentCircle, Sparkles, Zap } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
-import { useAiUsageDaily, useAiUsageRecent, useAiUsageSummary } from "@/web/api/hooks";
+import { useAiUsageDaily, useAiUsageSummary } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatCard } from "@/web/components/dashboard/stat-card";
 import { LocaleLink } from "@/web/components/locale-link";
@@ -14,17 +13,8 @@ import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { DailyTrendChart } from "@/web/pages/ai-usage/charts";
-import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
-import { getDateLocale } from "@/web/shared/date-locale";
+import { formatTokens } from "@/web/pages/ai-usage/helpers";
 
 const RequestVolumeChart = lazy(() => import("@/web/pages/dashboard/volume-chart"));
 
@@ -45,13 +35,11 @@ export default function DashboardPage() {
 // ── AI Gateway Dashboard ────────────────────────────
 
 function AiGatewayDashboard() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { data: summary, isLoading } = useAiUsageSummary();
   const { data: daily = [] } = useAiUsageDaily(30);
-  const { data: recent = [] } = useAiUsageRecent();
 
   const daily7 = useMemo(() => daily.slice(-7), [daily]);
-  const recentRequests = recent.slice(0, 5);
 
   const topModels = useMemo(() => {
     if (!summary?.byModel?.length) return [];
@@ -158,44 +146,6 @@ function AiGatewayDashboard() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Recent AI Requests */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("dash.ai.recent-title")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("ai-usage.th.model")}</TableHead>
-                    <TableHead>{t("ai-usage.th.tokens")}</TableHead>
-                    <TableHead>{t("ai-usage.th.status")}</TableHead>
-                    <TableHead>{t("ai-usage.th.time")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentRequests.map((req) => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-mono text-xs">{req.modelId ?? "-"}</TableCell>
-                      <TableCell className="text-xs tabular-nums">
-                        {formatTokens(req.totalTokens)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge code={req.statusCode} error={req.error} />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {formatDistanceToNow(new Date(req.createdAt), {
-                          addSuffix: true,
-                          locale: getDateLocale(i18n.language),
-                        })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
 
           {/* View Full Report CTA */}
           <div className="flex justify-center">
