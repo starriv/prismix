@@ -581,6 +581,7 @@ export const aiUsageLogs = pgTable(
   {
     id: serial("id").primaryKey(),
     keyId: integer("key_id"), // no FK — references ai_keys.id
+    keyOwnerId: integer("key_owner_id"), // owner snapshot at log-write time for supplier reconciliation
     consumerKeyId: integer("consumer_key_id"), // no FK — set when consumer key is used
     userId: integer("user_id"), // no FK — set when user is identified
     providerId: text("provider_id"), // denormalized slug
@@ -607,6 +608,7 @@ export const aiUsageLogs = pgTable(
     index("idx_ai_usage_logs_consumer_key").on(t.consumerKeyId),
     index("idx_ai_usage_logs_user_id").on(t.userId),
     index("idx_ai_usage_logs_key_id").on(t.keyId),
+    index("idx_ai_usage_logs_key_owner_id").on(t.keyOwnerId),
   ],
 );
 

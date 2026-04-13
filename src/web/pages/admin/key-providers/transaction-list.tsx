@@ -12,7 +12,13 @@ import { cn } from "@/web/shared/utils";
 
 import { PREVIEW_COUNT } from "./constants";
 
-export function TransactionList({ providerId }: { providerId: number }) {
+export function TransactionList({
+  providerId,
+  keyLabels,
+}: {
+  providerId: number;
+  keyLabels?: Record<number, string>;
+}) {
   const { t } = useTranslation();
   const { data: txns = [] } = useKeyProviderTxns(providerId);
   const [expanded, setExpanded] = useState(false);
@@ -53,6 +59,15 @@ export function TransactionList({ providerId }: { providerId: number }) {
                       ${removeTailingZero(tx.amount)}
                     </Badge>
                   </div>
+                  {tx.keyId != null && (
+                    <p className="text-xs text-muted-foreground pl-10">
+                      {t("admin.key-providers.detail.txn-key", {
+                        defaultValue: "Key: {{name}} (#{{id}})",
+                        name: keyLabels?.[tx.keyId] ?? `#${tx.keyId}`,
+                        id: tx.keyId,
+                      })}
+                    </p>
+                  )}
                   {tx.description && (
                     <p className="text-xs text-muted-foreground pl-10 break-all">
                       {tx.description}

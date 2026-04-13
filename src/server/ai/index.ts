@@ -60,9 +60,23 @@ export function initAiRelay(): void {
   registerBatchHandler(
     "ai-usage-log",
     async (batch) => {
+      const keyIds = Array.from(
+        new Set(
+          batch
+            .map((data) => data.keyId as number | null | undefined)
+            .filter((id): id is number => typeof id === "number" && id > 0),
+        ),
+      );
+      const keys = await aiKeyRepo.findByIds(keyIds);
+      const ownerIdByKeyId = new Map(keys.map((key) => [key.id, key.ownerId ?? null]));
+
       await aiUsageLogRepo.insertMany(
         batch.map((data) => ({
           keyId: (data.keyId as number) ?? null,
+          keyOwnerId:
+            (data.keyId as number | null | undefined) != null
+              ? (ownerIdByKeyId.get(data.keyId as number) ?? null)
+              : null,
           consumerKeyId: (data.consumerKeyId as number) ?? null,
           userId: (data.userId as number) ?? null,
           providerId: data.providerId as string,

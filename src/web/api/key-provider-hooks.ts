@@ -10,7 +10,11 @@ import {
 } from "./constants";
 import { queryKeys } from "./query-keys";
 import type { CreateKeyProviderBody } from "./schemas";
-import { keyProviderSchema, keyProviderTransactionSchema } from "./schemas";
+import {
+  keyProviderDetailSchema,
+  keyProviderSchema,
+  keyProviderTransactionSchema,
+} from "./schemas";
 
 // ── Key Providers ─────────────────────────────────────────────────────
 
@@ -18,6 +22,14 @@ export function useKeyProviders() {
   return useQuery({
     queryKey: queryKeys.keyProviders(),
     queryFn: () => get(API_KEY_PROVIDERS, z.array(keyProviderSchema)),
+  });
+}
+
+export function useKeyProviderDetail(providerId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.keyProviderDetail(providerId ?? 0),
+    queryFn: () => get(apiKeyProviderDetail(providerId!), keyProviderDetailSchema),
+    enabled: providerId != null && providerId > 0,
   });
 }
 
@@ -38,6 +50,7 @@ export function useUpdateKeyProvider() {
       put(apiKeyProviderDetail(id), body, keyProviderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
     },
   });
 }
@@ -48,6 +61,7 @@ export function useDeleteKeyProvider() {
     mutationFn: (id: number) => del(apiKeyProviderDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
     },
   });
 }
@@ -66,6 +80,7 @@ export function useAdjustKeyProviderBalance() {
     }) => post(apiKeyProviderAdjust(id), body, keyProviderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
     },
   });
 }

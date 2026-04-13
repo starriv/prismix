@@ -112,7 +112,7 @@ export default function KeyProvidersPage() {
       <Sheet open={!!editing} onOpenChange={() => setEditingId(null)}>
         <SheetContent className="w-full sm:w-[480px]">
           {editing && (
-            <KeyProviderDetailSheet provider={editing} onClose={() => setEditingId(null)} />
+            <KeyProviderDetailSheet providerId={editing.id} onClose={() => setEditingId(null)} />
           )}
         </SheetContent>
       </Sheet>

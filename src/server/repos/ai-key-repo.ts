@@ -1,7 +1,7 @@
 /**
  * AI Key repository — CRUD for `ai_keys` table.
  */
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 
 import {
   type AiKey,
@@ -21,6 +21,11 @@ export const aiKeyRepo = {
 
   async findById(id: number): Promise<AiKey | undefined> {
     return queryOne(db.select().from(aiKeys).where(eq(aiKeys.id, id)));
+  },
+
+  async findByIds(ids: number[]): Promise<AiKey[]> {
+    if (ids.length === 0) return [];
+    return queryAll(db.select().from(aiKeys).where(inArray(aiKeys.id, ids)));
   },
 
   /**

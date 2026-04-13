@@ -21,8 +21,13 @@ import {
   parsePaginationLimit,
   parsePaginationOffset,
 } from "@/server/lib/validate";
-import { aiKeyRepo, keyProviderRepo, keyProviderTransactionRepo } from "@/server/repos";
-import { safeMinus } from "@/shared/number";
+import {
+  aiKeyRepo,
+  aiUsageLogRepo,
+  keyProviderRepo,
+  keyProviderTransactionRepo,
+} from "@/server/repos";
+import { removeTailingZero, safeMinus, safePlus } from "@/shared/number";
 
 const keyProvidersRouter = new Hono();
 
@@ -71,10 +76,59 @@ keyProvidersRouter.get("/:id", async (c) => {
   if (!provider) return c.json({ error: "Key provider not found" }, 404);
 
   // Get associated keys
-  const allKeys = await aiKeyRepo.findAll();
-  const ownedKeys = allKeys.filter((k) => k.ownerId === id);
+  const ownedKeys = await aiKeyRepo.findByOwnerId(id);
+  const keyIds = ownedKeys.map((k) => k.id);
+  const usageByKey = await aiUsageLogRepo.summaryByOwnerAndAiKeyIds(id, keyIds);
+  const revenueShareByKey =
+    await keyProviderTransactionRepo.summarizeRevenueShareByProviderAndKeyIds(id, keyIds);
+  const usageMap = new Map(usageByKey.map((row) => [row.keyId, row]));
 
-  return ok(c, { ...provider, keys: ownedKeys });
+  const keySummaries = ownedKeys.map((key) => {
+    const usage = usageMap.get(key.id);
+    const estimatedCost = usage?.estimatedCost ?? "0";
+    const upstreamCost = usage?.upstreamCost ?? "0";
+    const revenueShare = revenueShareByKey.get(key.id) ?? "0";
+
+    return {
+      keyId: key.id,
+      keyName: key.name,
+      keyPrefix: key.keyPrefix,
+      providerId: key.providerId,
+      enabled: key.enabled,
+      weight: key.weight,
+      lastUsedAt: key.lastUsedAt,
+      requests: usage?.requests ?? 0,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      totalTokens: usage?.totalTokens ?? 0,
+      consumerSpend: removeTailingZero(estimatedCost, 6),
+      upstreamCost: removeTailingZero(upstreamCost, 6),
+      revenueShare: removeTailingZero(revenueShare, 6),
+    };
+  });
+
+  const totals = keySummaries.reduce(
+    (acc, row) => ({
+      requests: acc.requests + row.requests,
+      inputTokens: acc.inputTokens + row.inputTokens,
+      outputTokens: acc.outputTokens + row.outputTokens,
+      totalTokens: acc.totalTokens + row.totalTokens,
+      consumerSpend: removeTailingZero(safePlus(acc.consumerSpend, row.consumerSpend), 6),
+      upstreamCost: removeTailingZero(safePlus(acc.upstreamCost, row.upstreamCost), 6),
+      revenueShare: removeTailingZero(safePlus(acc.revenueShare, row.revenueShare), 6),
+    }),
+    {
+      requests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      consumerSpend: "0",
+      upstreamCost: "0",
+      revenueShare: "0",
+    },
+  );
+
+  return ok(c, { ...provider, keys: ownedKeys, keySummaries, totals });
 });
 
 // ── Create key provider ─────────────────────────────────────────────

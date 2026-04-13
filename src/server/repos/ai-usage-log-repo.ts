@@ -1,7 +1,7 @@
 /**
  * AI Usage Log repository — append-only writes + queries for `ai_usage_logs` table.
  */
-import { and, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm";
 
 import {
   type AiUsageLog,
@@ -72,6 +72,16 @@ export interface ErrorDailyRow {
   clientErrors: number;
   serverErrors: number;
   totalErrors: number;
+}
+
+export interface AiKeyUsageSummaryRow {
+  keyId: number;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: string;
+  upstreamCost: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -149,6 +159,49 @@ export const aiUsageLogRepo = {
         .where(filters ? buildConditions(filters) : undefined),
     );
     return row?.total ?? 0;
+  },
+
+  async summaryByOwnerAndAiKeyIds(
+    ownerId: number,
+    keyIds: number[],
+  ): Promise<AiKeyUsageSummaryRow[]> {
+    if (keyIds.length === 0) return [];
+
+    const rows = await queryAll<{
+      keyId: number | null;
+      requests: number;
+      inputTokens: string | null;
+      outputTokens: string | null;
+      totalTokens: string | null;
+      estimatedCost: string | null;
+      upstreamCost: string | null;
+    }>(
+      db
+        .select({
+          keyId: aiUsageLogs.keyId,
+          requests: count(),
+          inputTokens: sum(aiUsageLogs.inputTokens),
+          outputTokens: sum(aiUsageLogs.outputTokens),
+          totalTokens: sum(aiUsageLogs.totalTokens),
+          estimatedCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)::text`,
+          upstreamCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.upstreamCost} AS NUMERIC)), 0)::text`,
+        })
+        .from(aiUsageLogs)
+        .where(and(eq(aiUsageLogs.keyOwnerId, ownerId), inArray(aiUsageLogs.keyId, keyIds)))
+        .groupBy(aiUsageLogs.keyId),
+    );
+
+    return rows
+      .filter((row): row is NonNullable<typeof row> & { keyId: number } => row.keyId != null)
+      .map((row) => ({
+        keyId: row.keyId,
+        requests: row.requests,
+        inputTokens: Number(row.inputTokens ?? 0),
+        outputTokens: Number(row.outputTokens ?? 0),
+        totalTokens: Number(row.totalTokens ?? 0),
+        estimatedCost: row.estimatedCost ?? "0",
+        upstreamCost: row.upstreamCost ?? "0",
+      }));
   },
 
   /** Aggregated usage summary (optionally filtered by consumer key, user, date range, etc.). */

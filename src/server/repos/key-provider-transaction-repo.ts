@@ -1,7 +1,7 @@
 /**
  * Key Provider Transaction repository — revenue share ledger records.
  */
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   db,
@@ -30,6 +30,34 @@ export const keyProviderTransactionRepo = {
         .orderBy(desc(keyProviderTransactions.createdAt))
         .limit(limit)
         .offset(offset),
+    );
+  },
+
+  async summarizeRevenueShareByProviderAndKeyIds(
+    providerId: number,
+    keyIds: number[],
+  ): Promise<Map<number, string>> {
+    if (keyIds.length === 0) return new Map();
+
+    const rows = await queryAll<{ keyId: number | null; totalRevenueShare: string | null }>(
+      db
+        .select({
+          keyId: keyProviderTransactions.keyId,
+          totalRevenueShare: sql<string>`COALESCE(SUM(CAST(${keyProviderTransactions.amount} AS NUMERIC)), 0)::text`,
+        })
+        .from(keyProviderTransactions)
+        .where(
+          sql`${keyProviderTransactions.providerId} = ${providerId} AND ${keyProviderTransactions.type} = 'revenue_share' AND ${inArray(keyProviderTransactions.keyId, keyIds)}`,
+        )
+        .groupBy(keyProviderTransactions.keyId),
+    );
+
+    return new Map(
+      rows
+        .filter(
+          (row): row is { keyId: number; totalRevenueShare: string | null } => row.keyId != null,
+        )
+        .map((row) => [row.keyId, row.totalRevenueShare ?? "0"]),
     );
   },
 };

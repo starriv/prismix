@@ -91,6 +91,7 @@ export function CreateKeyProviderDialog({
                       <FormControl>
                         <EmailInput
                           {...field}
+                          value={field.value ?? ""}
                           placeholder={t("admin.key-providers.form.email-ph")}
                         />
                       </FormControl>
