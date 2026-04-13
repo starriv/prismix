@@ -21,6 +21,7 @@ export const users = pgTable(
   {
     id: serial("id").primaryKey(),
     uuid: text("uuid")
+      .notNull()
       .default(sql`uuid_v7_text()`)
       .$defaultFn(() => generateUuidV7()),
     email: text("email").unique(),
