@@ -2838,6 +2838,7 @@
         "wallet": "Wallet"
       },
       "fields": {
+        "name": "Name",
         "uuid": "UUID",
         "email": "Email",
         "network": "Network",

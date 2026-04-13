@@ -2838,6 +2838,7 @@
         "wallet": "钱包"
       },
       "fields": {
+        "name": "名称",
         "uuid": "UUID",
         "email": "邮箱",
         "network": "网络",

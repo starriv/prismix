@@ -29,3 +29,7 @@ export function useAdminAuthContext(): AdminAuthContextValue {
   if (!ctx) throw new Error("useAdminAuthContext must be used within AdminAuthProvider");
   return ctx;
 }
+
+export function useOptionalAdminAuthContext(): AdminAuthContextValue | null {
+  return useContext(AdminAuthContext);
+}

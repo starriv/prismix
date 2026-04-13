@@ -9,6 +9,7 @@ import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/web/components/ui/popover";
 import { useCopyById } from "@/web/hooks/use-copy";
+import { useOptionalAdminAuthContext } from "@/web/providers/admin-auth-provider";
 import { useOptionalUserAuthContext } from "@/web/providers/user-auth-provider";
 import { explorerAddressUrl, useChainRegistry } from "@/web/shared/chains";
 
@@ -27,29 +28,32 @@ function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function getAuthLabel(user: {
-  address: string | null;
-  email: string | null;
-  providers?: string[];
-}): string {
+function getAuthLabel(user: { address: string | null; email: string | null }): string {
   if (user.address) return "user.account-menu.auth.wallet";
-  if (user.providers?.includes("credentials")) return "user.account-menu.auth.email";
-  if (user.providers?.some((provider) => ["google", "github", "oidc", "saml"].includes(provider))) {
-    return "user.account-menu.auth.oauth";
-  }
   if (user.email) return "user.account-menu.auth.email";
   return "user.account-menu.auth.user";
 }
 
 export function AccountMenu() {
+  return <AccountMenuInner compact={false} />;
+}
+
+export function CompactAccountMenu() {
+  return <AccountMenuInner compact />;
+}
+
+function AccountMenuInner({ compact }: { compact: boolean }) {
   const { t } = useTranslation();
   const userAuth = useOptionalUserAuthContext();
+  const adminAuth = useOptionalAdminAuthContext();
   const { copy, isCopied } = useCopyById<"uuid" | "email" | "wallet">();
   const { getChainDisplay } = useChainRegistry();
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [open, setOpen] = useState(false);
 
   const user = userAuth?.user;
+  const admin = adminAuth?.admin;
+  const identity = user ?? admin;
   useEffect(() => {
     return () => clearTimeout(closeTimer.current);
   }, []);
@@ -63,13 +67,18 @@ export function AccountMenu() {
     closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
   };
 
-  if (!user) return null;
+  if (!identity) return null;
 
   const displayName =
-    user.name ||
-    user.email ||
-    (user.address ? shortAddress(user.address) : t("user.account-menu.fallback-name"));
-  const authLabelKey = getAuthLabel(user);
+    identity.name ||
+    identity.email ||
+    (identity.address ? shortAddress(identity.address) : t("user.account-menu.fallback-name"));
+  const authLabelKey = getAuthLabel({
+    address: identity.address,
+    email: identity.email,
+  });
+  const avatarSrc = user?.avatar ?? null;
+  const userUuid = user?.uuid ?? null;
 
   return (
     <ConnectButton.Custom>
@@ -84,7 +93,11 @@ export function AccountMenu() {
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-8 max-w-[162px] items-center gap-2 rounded-md px-1 text-left transition-colors hover:bg-muted/40"
+                className={
+                  compact
+                    ? "inline-flex size-8 items-center justify-center rounded-md outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
+                    : "inline-flex h-8 max-w-[162px] items-center gap-2 rounded-md px-1 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
+                }
                 {...(!ready && {
                   "aria-hidden": true,
                   style: {
@@ -105,15 +118,19 @@ export function AccountMenu() {
               >
                 <span className="relative shrink-0">
                   <Avatar size="sm">
-                    {user.avatar && <AvatarImage src={user.avatar} alt={displayName} />}
+                    {avatarSrc && <AvatarImage src={avatarSrc} alt={displayName} />}
                     <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                   </Avatar>
                   {walletConnected && (
                     <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border border-background bg-emerald-500" />
                   )}
                 </span>
-                <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
-                <span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
+                {!compact && (
+                  <>
+                    <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+                    <span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
+                  </>
+                )}
               </button>
             </PopoverTrigger>
 
@@ -126,7 +143,7 @@ export function AccountMenu() {
               <div className="flex items-start gap-3">
                 <span className="relative shrink-0">
                   <Avatar>
-                    {user.avatar && <AvatarImage src={user.avatar} alt={displayName} />}
+                    {avatarSrc && <AvatarImage src={avatarSrc} alt={displayName} />}
                     <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                   </Avatar>
                   {walletConnected && (
@@ -154,23 +171,28 @@ export function AccountMenu() {
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                   {t("user.account-menu.sections.account")}
                 </p>
-                {user.uuid && (
+                <ProfileField
+                  icon={UserRound}
+                  label={t("user.account-menu.fields.name")}
+                  value={displayName}
+                />
+                {userUuid && (
                   <ProfileField
                     icon={UserRound}
                     label={t("user.account-menu.fields.uuid")}
-                    value={user.uuid}
+                    value={userUuid}
                     copied={isCopied("uuid")}
-                    onCopy={() => copy(user.uuid!, "uuid")}
+                    onCopy={() => copy(userUuid, "uuid")}
                     mono
                   />
                 )}
-                {user.email && (
+                {identity.email && (
                   <ProfileField
                     icon={Mail}
                     label={t("user.account-menu.fields.email")}
-                    value={user.email}
+                    value={identity.email}
                     copied={isCopied("email")}
-                    onCopy={() => copy(user.email!, "email")}
+                    onCopy={() => copy(identity.email!, "email")}
                   />
                 )}
               </section>
