@@ -22,14 +22,11 @@
       "suspended": "已暂停"
     },
     "th": {
-      "id": "ID",
       "type": "类型",
-      "resource": "资源",
       "amount": "金额",
       "status": "状态",
       "time": "时间",
       "name": "名称",
-      "method": "方法",
       "source": "来源",
       "network": "网络",
       "token": "代币"
@@ -44,7 +41,6 @@
       "clear-all": "清除全部",
       "done": "完成",
       "save": "保存",
-      "saving": "保存中...",
       "creating": "创建中...",
       "close": "关闭",
       "delete": "删除",
@@ -72,20 +68,9 @@
       "refresh": "刷新",
       "send": "发送",
       "test": "测试",
-      "toggle-visibility": "切换可见性",
-      "try-playground": "在沙盒中试用",
-      "actions": "操作",
-      "no-results": "没有找到结果",
-      "results-count": "{{count}} 条结果"
+      "actions": "操作"
     },
     "valid": {
-      "required": "此项为必填",
-      "name-required": "名称为必填",
-      "amount-required": "金额为必填",
-      "network-required": "网络为必填",
-      "invalid-email": "邮箱格式不正确",
-      "invalid-url": "URL 格式不正确",
-      "range": "需在 {{min}} 到 {{max}} 之间",
       "password-weak": "密码需 10 位以上，含大小写字母和数字"
     }
   },
@@ -95,7 +80,6 @@
     "pay-agents": "Pay Agent 管理",
     "settings": "设置",
     "notifications": "通知中心",
-    "topup-orders": "充值订单",
     "ledger": "交易记录",
     "withdraw-orders": "提现管理",
     "fiat-configs": "收款方式",
@@ -144,7 +128,6 @@
       "last-30-days": "近 30 天",
       "no-peak": "暂无峰值",
       "top-models": "热门模型",
-      "recent-title": "最近 AI 请求",
       "recent-empty": "暂无 AI 请求",
       "recent-empty-hint": "通过 AI 中继发送请求即可看到统计数据。",
       "view-full": "查看完整报告",
@@ -168,12 +151,10 @@
     "th": {
       "name": "名称",
       "user": "所属用户",
-      "type": "类型",
       "address": "地址",
       "status": "状态",
       "balance": "余额",
-      "created": "创建时间",
-      "actions": "操作"
+      "created": "创建时间"
     },
     "status": {
       "active": "活跃",
@@ -197,7 +178,6 @@
       "create": "创建 Pay Agent",
       "save": "保存更改",
       "delete": "删除 Pay Agent",
-      "copy": "复制",
       "manual-topup": "手动充值",
       "manual-debit": "扣减余额"
     },
@@ -214,29 +194,15 @@
       "default-markup": "默认加价",
       "default-markup-ph": "继承全局默认",
       "default-markup-hint": "留空继承全局默认值。设为 0 表示不加价。",
-      "global-badge": "全局",
-      "type": "Agent 类型"
+      "global-badge": "全局"
     },
-    "type": {
-      "standard": "标准",
-      "ledger": "账本"
-    },
-    "type-tooltip": "标准：拥有区块链钱包，支持链上 USDC 充值。账本：手动管理余额，无钱包 — 适用于 AI 计费场景。",
     "ledger-hint": "纯账本模式 — 无区块链钱包。",
     "wallet": {
-      "enable": "启用钱包",
-      "disable": "禁用钱包",
-      "enable-confirm": "为此 Agent 生成区块链钱包？启用后可使用链上 USDC 充值。",
-      "disable-confirm": "移除区块链钱包？Agent 将切换为纯账本模式，链上充值将不可用。",
-      "enabled": "钱包已启用",
-      "disabled": "钱包已禁用"
+      "enable": "启用钱包"
     },
     "detail": {
       "limits": "消费限额",
       "limits-hint": "留空表示不限制。限额适用于所有交易（支付 + AI 用量）。",
-      "spending": "消费统计",
-      "spent-today": "今日消费",
-      "spent-month": "本月消费",
       "allowed-resources": "可访问资源",
       "no-resources": "暂无可访问资源"
     },
@@ -269,48 +235,6 @@
       "amount-ph": "例如 10.00",
       "note": "原因（可选）",
       "note-ph": "例如 退款调整"
-    },
-    "txn": {
-      "title": "交易记录",
-      "page-title": "Agent 交易记录",
-      "page-desc": "查看所有 Pay Agent 的交易记录，支持筛选",
-      "empty": "暂无交易记录",
-      "type": {
-        "top_up": "充值",
-        "payment": "支付",
-        "ai_usage": "AI 消费",
-        "withdraw": "提现",
-        "admin_debit": "管理员扣减"
-      },
-      "th": {
-        "type": "类型",
-        "amount": "金额",
-        "balance-after": "余额变动",
-        "description": "描述",
-        "time": "时间"
-      },
-      "source": {
-        "platform": "平台",
-        "on-chain": "链上"
-      },
-      "filter": {
-        "agent-ph": "选择 Agent",
-        "type-ph": "选择类型",
-        "all-agents": "全部 Agent",
-        "all-types": "全部类型",
-        "source-ph": "选择来源",
-        "all-sources": "全部来源"
-      },
-      "btn-sync-all": "链上同步",
-      "sync-success": "{{count}} 个 Agent 同步成功",
-      "sync-partial": "{{failed}} 个 Agent 同步失败",
-      "sync-error": "同步 Agent 失败",
-      "detail": {
-        "model": "模型",
-        "tokens": "Token 数",
-        "cost": "费用",
-        "view-usage": "查看用量"
-      }
     }
   },
   "settings": {
@@ -322,12 +246,7 @@
       "name": "名称"
     },
     "config": {
-      "title": "网关配置",
-      "desc": "设置存储在数据库中。设置了环境变量时，环境变量优先于数据库值。",
-      "saved": "设置已保存",
-      "save-error": "保存设置失败",
-      "save-btn": "保存设置",
-      "restart-note": "重启服务器后生效"
+      "save-btn": "保存设置"
     },
     "wallet": {
       "title": "已连接钱包",
@@ -400,7 +319,6 @@
       },
       "toast": {
         "created": "API 密钥已创建",
-        "updated": "API 密钥已更新",
         "revoked": "API 密钥已吊销",
         "rotated": "API 密钥已轮换",
         "deleted": "API 密钥已删除",
@@ -426,9 +344,6 @@
     "not-admin": "此账号未注册为管理员，请联系系统管理员。",
     "back": "返回登录",
     "footer-note": "管理员访问仅限已注册的管理员钱包。",
-    "step": {
-      "sign": "签名"
-    },
     "nav": {
       "subtitle": "管理面板",
       "users": "用户管理",
@@ -535,7 +450,6 @@
     "announce": {
       "title": "系统公告",
       "desc": "编写并向所有用户广播系统公告",
-      "count": "共 {{count}} 条公告",
       "btn": {
         "compose": "编写",
         "send": "发送",
@@ -745,9 +659,7 @@
         "name": "名称",
         "email": "邮箱",
         "address": "地址",
-        "balance": "余额",
-        "status": "状态",
-        "actions": "操作"
+        "status": "状态"
       },
       "status": {
         "active": "正常",
@@ -760,13 +672,7 @@
       "empty": "暂无已注册用户",
       "delete-confirm": "确定要删除此用户吗？其所有 Key、消费记录将被永久删除。",
       "delete-title": "删除用户",
-      "disable-title": "禁用用户",
-      "disable-confirm": "确定要禁用此用户吗？其消费密钥将被暂停。",
-      "enable-title": "启用用户",
-      "enable-confirm": "确定要重新启用此用户吗？",
-      "edit-title": "编辑用户",
       "credit-title": "充值钱包",
-      "credit-desc": "为此用户的钱包余额充值",
       "form": {
         "name": "名称",
         "name-ph": "输入用户名称",
@@ -780,10 +686,6 @@
         "agent-ph": "选择一个 Pay Agent",
         "no-agent": "无 Agent"
       },
-      "btn": {
-        "create-agent": "新建 Agent"
-      },
-      "no-wallet": "无钱包",
       "toast": {
         "updated": "用户已更新",
         "update-error": "更新用户失败",
@@ -802,13 +704,8 @@
         "info": "用户信息",
         "auth": "认证方式",
         "wallet": "钱包",
-        "balance": "余额",
-        "danger": "危险操作"
+        "balance": "余额"
       }
-    },
-    "settings": {
-      "title": "系统配置",
-      "desc": "管理网络、代币和系统设置"
     },
     "notif": {
       "title": "通知渠道配置",
@@ -923,19 +820,10 @@
     }
   },
   "auth": {
-    "login-title": "欢迎回来",
-    "login-desc": "连接钱包并签名以进入控制台。",
-    "sign-in-btn": "签名登录",
     "signing": "签名中…",
-    "verifying": "验证中…",
     "logout": "退出登录",
     "loading": "加载中…",
-    "footer-note": "登录即表示你了解这是自托管实例，你完全掌控自己的密钥。",
-    "step": {
-      "sign": "签名"
-    },
     "brand": {
-      "back": "返回首页",
       "badge": "AI 网关 · 多供应商 · 统一 API",
       "title-1": "所有 AI，",
       "title-2": "一个端点。",
@@ -967,8 +855,6 @@
     "continue-with-github": "使用 GitHub 登录",
     "continue-with-sso": "企业 SSO",
     "continue-with-saml": "SAML SSO",
-    "name-label": "姓名",
-    "name-ph": "你的姓名",
     "callback": {
       "loading": "正在完成登录...",
       "error": "认证失败，请重试。",
@@ -1076,7 +962,6 @@
       "created": "通知渠道已创建",
       "updated": "通知渠道已更新",
       "deleted": "通知渠道已删除",
-      "create-error": "创建通知渠道失败",
       "update-error": "更新通知渠道失败",
       "delete-error": "删除通知渠道失败",
       "test-ok": "测试通知已成功发送",
@@ -1087,11 +972,6 @@
       "telegram": "Telegram",
       "webhook": "Webhook",
       "whatsapp": "WhatsApp"
-    },
-    "valid": {
-      "channel-required": "请选择渠道",
-      "target-required": "请输入目标",
-      "events-required": "请至少选择一个事件"
     }
   },
   "webhook": {
@@ -1104,7 +984,6 @@
       "save": "保存",
       "delete": "删除",
       "test": "测试",
-      "retry": "重试",
       "rotate": "轮换密钥"
     },
     "status": {
@@ -1114,10 +993,7 @@
     },
     "card": {
       "events": "事件",
-      "status": "状态",
-      "failure-count": "失败次数",
-      "success-rate": "成功率",
-      "last-delivery": "最近投递"
+      "status": "状态"
     },
     "dialog-title-create": "添加 Webhook 端点",
     "dialog-title-edit": "编辑 Webhook 端点",
@@ -1203,44 +1079,19 @@
   },
   "home": {
     "nav": {
-      "launch": "进入应用"
+      "launch": "打开控制台"
     },
     "hero": {
-      "ai-badge": "兼容 OpenAI 协议",
+      "ai-badge": "兼容 Claude Code 与 OpenAI",
       "ai-title-1": "统一 AI 网关",
-      "ai-title-2": "一个端点，所有模型",
-      "ai-tagline": "多供应商中继 · 负载均衡 · 实时计费",
-      "ai-desc": "路由到任意供应商，内置负载均衡、自动故障转移和逐 Token 计费。一个 OpenAI 兼容 API 驱动所有 AI 应用。",
-      "cta-primary": "立即开始",
-      "cta-secondary": "查看文档"
-    },
-    "hero-chat": {
-      "q1": "用 3 条总结 Q4 业绩",
-      "a1": "Q4 核心亮点：\n\n1. 营收同比增长 23% 至 420 万美元\n2. 客户留存率提升至 94%\n3. 营业利润率扩大 340 个基点",
-      "q2": "写一个 Python 合并排序辅助函数",
-      "a2": "def merge_sorted(a, b):\n    result, i, j = [], 0, 0\n    while i < len(a) and j < len(b):\n        if a[i] <= b[j]:\n            result.append(a[i]); i += 1\n        else:\n            result.append(b[j]); j += 1\n    return result + a[i:] + b[j:]",
-      "q3": "翻译成日语：会议在下午3点",
-      "a3": "会議は午後3時です。\n(Kaigi wa gogo san-ji desu.)\n\n这是礼貌的商务日语，适用于邮件或正式沟通场景。",
-      "q4": "REST 和 GraphQL 的区别？",
-      "a4": "核心区别：\n\n- REST 返回固定结构；GraphQL 让客户端自选字段\n- REST 用多个 URL；GraphQL 用单一端点\n- REST 常过度获取；GraphQL 消除了这个问题\n- REST 需 URL 版本化；GraphQL 通过 Schema 演进",
-      "q5": "简单解释 CAP 定理",
-      "a5": "分布式系统只能同时保证三者中的两个：\n\n- 一致性：读取总能获得最新写入\n- 可用性：每个请求都能获得响应\n- 分区容错：网络故障时系统仍可运行\n\n网络分区不可避免，因此需在 CP 和 AP 间选择。"
-    },
-    "features": {
-      "title": "你需要的一切",
-      "desc": "完整的 AI 中继与 API 变现基础设施",
-      "pay-agents": {
-        "title": "Agent 钱包系统",
-        "desc": "为每个 Agent 托管 EVM 钱包。支持链上 USDC 充值、法币充值桥（管理员审批），自动追踪余额与消费记录。"
-      },
-      "monitoring": {
-        "title": "实时监控",
-        "desc": "SSE 实时事件推送、熔断器仪表盘、多通道通知 — 邮件、Telegram、Webhook。第一时间掌握所有动态。"
-      }
+      "ai-title-2": "一个端点，接入多家模型供应商",
+      "ai-tagline": "统一接入 · 智能路由 · 用量计费",
+      "ai-desc": "优先面向 Claude Code 与 Anthropic 工作流，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
+      "cta-primary": "开始接入"
     },
     "cta": {
-      "ai-title": "立即接入所有 AI 模型",
-      "ai-desc": "添加供应商密钥，签发调用凭证，一个端点即可开始推理。",
+      "ai-title": "把 AI 流量统一到一个端点",
+      "ai-desc": "连接供应商，配置模型与访问策略，然后通过统一端点稳定对外提供服务。",
       "ai-btn": "打开控制台"
     },
     "footer": {
@@ -1248,20 +1099,20 @@
     },
     "ai": {
       "intro": {
-        "label": "AI 中继网关",
-        "title": "一个端点，所有模型",
-        "desc": "单一 OpenAI 兼容 API，路由到任意供应商 —— 内置负载均衡、故障转移和用量追踪",
+        "label": "AI 网关平台",
+        "title": "一个端点，统一接入主流模型",
+        "desc": "优先兼容 Claude Code 与 Anthropic 生态，同时统一接入 OpenAI、Gemini 等主流模型供应商，并提供路由、故障转移、权限控制和用量追踪。",
         "unified": {
-          "title": "统一端点",
-          "desc": "所有供应商共享一个 OpenAI 兼容 API。OpenAI、Anthropic、Gemini、Azure OpenAI、AWS Bedrock —— 一个地址，一种格式。"
+          "title": "统一接入",
+          "desc": "让 Claude Code、Anthropic、OpenAI 和 Gemini 等客户端接入同一个网关端点。统一入口，减少多供应商适配成本。"
         },
         "keypool": {
-          "title": "智能负载均衡",
-          "desc": "多 Key 加权调度，自动故障转移。在 API Key 间分配负载，按 Key 追踪健康状态，配额耗尽零停机。"
+          "title": "智能路由与故障转移",
+          "desc": "在多个供应商、上游和 API Key 之间按权重调度流量。异常、限流或配额耗尽时自动切换。"
         },
         "metering": {
-          "title": "用量计量",
-          "desc": "逐请求 Token 计数与费用估算。按天、模型、供应商和 Consumer Key 细分 —— 全部在仪表盘查看。"
+          "title": "用量、预算与计费",
+          "desc": "按请求统计 Token 和费用，并按模型、供应商、消费者密钥细分。支持余额扣减、预算控制和历史追踪。"
         }
       },
       "flow": {
@@ -1270,51 +1121,51 @@
         "key-pool": "负载均衡"
       },
       "features": {
-        "title": "为生产级 AI 负载打造",
-        "desc": "运行多供应商 AI 网关所需的一切",
+        "title": "面向生产环境的 AI 网关能力",
+        "desc": "不只是转发请求，还覆盖治理、可观测性和运营能力",
         "relay": {
-          "title": "多供应商中继",
-          "desc": "通过一个端点路由到 5+ 供应商。模型级回退链，供应商间自动格式转换。"
+          "title": "多供应商统一接入",
+          "desc": "优先支持 Claude Code 与 Anthropic 工作流，同时通过统一端点接入多家 AI 供应商，降低集成和迁移成本。"
         },
         "rotation": {
-          "title": "加权负载均衡",
-          "desc": "按可配权重在多个 API Key 间分发请求。Key 触发限流或报错时自动切换。"
+          "title": "上游路由与韧性",
+          "desc": "支持多上游、加权调度、自动故障转移，以及熔断、超时和队列背压配置。"
         },
         "consumer": {
-          "title": "API Key 权限管控",
-          "desc": "签发带作用域的 API Key，按 Key 配置模型白名单、速率限制和日/月预算上限。触及限额时自动停用。"
+          "title": "消费者密钥治理",
+          "desc": "为不同用户或应用签发独立密钥，配置模型白名单、速率限制、预算上限和停用策略。"
         },
         "billing": {
-          "title": "用量追踪与计费",
-          "desc": "逐请求 Token 计数，按模型、供应商和 API Key 细分费用。实时余额扣减，完整交易记录。"
+          "title": "用量与结算",
+          "desc": "按模型、供应商和消费者密钥追踪请求量、Token 与费用，并支持实时余额扣减。"
         },
         "logging": {
-          "title": "请求日志",
-          "desc": "可选的请求/响应体捕获，存储在 Redis 中，可配置 TTL。完整审计追踪，支持 JSON 可折叠查看。"
+          "title": "日志、告警与通知",
+          "desc": "查看请求日志、错误趋势和上游健康，并通过邮件、Telegram、Webhook 或 WhatsApp 接收通知。"
         },
         "wallet": {
-          "title": "USDC 钱包支付",
-          "desc": "支持从任意 EVM 链存入 USDC。链上转账自动验证、余额即时到账、按请求扣费 —— 无需信用卡。"
+          "title": "加密货币友好",
+          "desc": "支持 Base 与 Polygon 自动充值，并支持 402 支付协议接入，让充值和支付流程更顺滑。"
         }
       },
       "how": {
-        "desc": "无需供应商 SDK，无需 API Key 管理，只需一个网关，即刻接入 AI。",
-        "title": "从配置到推理只需 3 分钟",
+        "desc": "无需为每家供应商分别接入。完成配置后，用一个端点统一承接 AI 流量。",
+        "title": "几分钟完成接入与上线",
         "step1": {
-          "title": "添加供应商",
-          "desc": "在仪表盘配置供应商凭证，自动发现上游可用模型。"
+          "title": "连接供应商",
+          "desc": "添加供应商凭证，配置上游，并同步或维护可用模型目录。"
         },
         "step2": {
-          "title": "创建 Key",
-          "desc": "签发 Consumer API Key，配置预算限额、模型访问权限和速率限制。"
+          "title": "配置访问策略",
+          "desc": "创建消费者密钥，设置模型权限、预算、速率限制和结算规则。"
         },
         "step3": {
-          "title": "发送请求",
-          "desc": "将任何 OpenAI 兼容 SDK 指向你的网关端点。兼容 LangChain、Vercel AI SDK 或原生 fetch。"
+          "title": "切换到统一端点",
+          "desc": "将 Claude Code、OpenAI SDK、Gemini SDK 或其他兼容客户端指向你的网关端点。"
         },
         "step4": {
-          "title": "监控",
-          "desc": "实时追踪 Token 用量、费用和错误率。支持按模型、供应商或 Consumer 逐级查看明细。"
+          "title": "监控并运营",
+          "desc": "通过日志、用量报表、上游健康、Webhook 和通知渠道持续监控线上流量。"
         }
       }
     }
@@ -1335,26 +1186,10 @@
     "hub": {
       "title": "Prismix 文档",
       "desc": "使用指南、部署方案和安全架构。",
-      "deploy": "单机部署",
       "security": "安全架构",
       "security-desc": "多层纵深防御设计，保护网关、凭证和上游 API。",
       "architecture": "系统架构",
       "architecture-desc": "Strategy 模式、请求流程、签名引擎、网关热路径和项目结构。"
-    },
-    "overview": {
-      "title": "部署指南",
-      "desc": "选择适合你的部署方式",
-      "th": {
-        "method": "方式",
-        "database": "数据库",
-        "cost": "月费"
-      },
-      "docker": {
-        "label": "单机"
-      },
-      "val": {
-        "caddy": "Caddy (Let's Encrypt)"
-      }
     },
     "production": {
       "title": "生产部署",
@@ -1463,21 +1298,13 @@
         "title": "纵深防御架构",
         "desc": "每个请求经过多个安全层后才到达上游 API。每一层独立运行——单一层被绕过不会影响其他层。",
         "l1": "全局限流 (IP / Token / 全局)",
-        "t1": "限流器",
         "l2": "CORS 策略 (网关: 开放 / 控制台: 同源)",
-        "t2": "跨域",
         "l3": "资源级 CORS (支付前 OPTIONS 预检)",
-        "t3": "跨域",
         "l4": "API Key 认证",
-        "t4": "支付",
         "l5": "资源级限流 (资源 × IP)",
-        "t5": "限流器",
         "l6": "请求头安全 (逐跳剥离、代理转发)",
-        "t6": "请求头",
         "l7": "签名引擎 (加密凭证 / WASM 沙箱)",
-        "t7": "加密",
-        "l8": "上游请求 (超时 + 熔断器)",
-        "t8": "韧性"
+        "l8": "上游请求 (超时 + 熔断器)"
       },
       "authn": {
         "title": "身份认证",
@@ -1555,24 +1382,6 @@
         "title": "多租户",
         "desc": "所有数据实体为系统级。资源、认证配置、Agent 等由管理员统一管理。SSE 事件通过 scope 过滤实现管理员和用户隔离。"
       },
-      "chain": {
-        "title": "区块链",
-        "desc": "通过 viem 实现多链支持。链和代币由数据库驱动，管理员管理。可选链上结算使用 ERC-3009 USDC 授权。结算是异步的 — 响应在链上确认之前就已返回。"
-      },
-      "engines": {
-        "title": "签名引擎",
-        "desc": "5 种内置引擎用于上游 API 认证。配置使用 AES-256-GCM 加密存储。",
-        "th-engine": "引擎",
-        "th-headers": "上游请求头",
-        "th-notes": "说明",
-        "api-key": "静态头，可配置名称",
-        "bearer": "静态 token",
-        "hmac": "确定性，payload = method+path+timestamp+SHA256(body)",
-        "oauth2": "客户端凭证，token 缓存 + 自动刷新",
-        "custom": "QuickJS WASM 沙箱（ES5, 8MB, 5s 超时）",
-        "custom-headers": "用户自定义",
-        "encryption": "所有引擎配置使用 AES-256-GCM 加密，密钥按域 PBKDF2 派生。"
-      },
       "hotpath": {
         "title": "网关热路径",
         "th-component": "组件",
@@ -1582,10 +1391,6 @@
         "cache-mech": "TTL 缓存（内存或 Redis write-through）",
         "limiter": "限流器",
         "limiter-mech": "滑动窗口，每资源每 IP",
-        "breaker": "熔断器",
-        "breaker-mech": "CLOSED/OPEN/HALF_OPEN 状态机",
-        "signing": "签名",
-        "signing-mech": "PBKDF2 缓存密钥 → AES 解密 → engine.sign()",
         "writes": "DB 写入",
         "writes-mech": "作业队列（BullMQ/Redis 或内存，异步）"
       },
@@ -2163,62 +1968,6 @@
       "login": "去登录"
     }
   },
-  "topup": {
-    "title": "充值订单",
-    "desc": "管理机器人的法币充值订单",
-    "table-empty": "暂无充值订单",
-    "th": {
-      "id": "ID",
-      "agent": "Agent",
-      "amount": "金额",
-      "fiat-amount": "法币金额",
-      "status": "状态",
-      "method": "支付方式",
-      "time": "时间",
-      "actions": "操作"
-    },
-    "status": {
-      "pending": "待处理",
-      "confirmed": "已确认",
-      "rejected": "已拒绝",
-      "expired": "已过期"
-    },
-    "filter": {
-      "all": "全部状态",
-      "pending": "待处理",
-      "confirmed": "已确认",
-      "rejected": "已拒绝",
-      "expired": "已过期"
-    },
-    "btn": {
-      "confirm": "确认",
-      "reject": "拒绝"
-    },
-    "confirm": {
-      "title": "确认充值订单",
-      "fiat-amount": "法币金额（可选）",
-      "note": "备注（可选）"
-    },
-    "reject": {
-      "title": "拒绝充值订单",
-      "note": "原因（可选）"
-    },
-    "toast": {
-      "confirmed": "订单已确认",
-      "rejected": "订单已拒绝",
-      "confirm-error": "确认订单失败",
-      "reject-error": "拒绝订单失败"
-    },
-    "detail": {
-      "title": "订单详情",
-      "currency": "法币币种",
-      "proof": "支付凭证",
-      "note": "管理员备注",
-      "confirmed-at": "确认时间",
-      "expired-at": "过期时间",
-      "updated-at": "更新时间"
-    }
-  },
   "ledger": {
     "title": "交易记录",
     "desc": "所有钱包交易 — 充值、提现、AI 扣费、退款",
@@ -2299,12 +2048,8 @@
       "created": "收款方式已创建",
       "updated": "收款方式已更新",
       "deleted": "收款方式已删除",
-      "create-error": "创建收款方式失败",
       "update-error": "更新收款方式失败",
       "delete-error": "删除收款方式失败"
-    },
-    "valid": {
-      "display-name-required": "显示名称不能为空"
     }
   },
   "ai": {
@@ -2314,7 +2059,6 @@
     "empty-hint": "为供应商添加 API 密钥以启用 AI 中继服务",
     "never": "从未使用",
     "test": "测试",
-    "testing": "测试中...",
     "unknown-provider": "未知提供商",
     "tag": {
       "platform": "平台"
@@ -2325,7 +2069,6 @@
     },
     "pool": {
       "count": "{{enabled}}/{{total}} 启用",
-      "lru": "轮询",
       "next": "下一个轮到",
       "add": "添加密钥",
       "weight-hint": "权重 — 值越大分配的流量越多",
@@ -2335,13 +2078,6 @@
         "round-robin": "轮询",
         "random": "随机"
       }
-    },
-    "th": {
-      "provider": "提供商",
-      "name": "密钥名称",
-      "key-prefix": "密钥前缀",
-      "enabled": "启用",
-      "last-used": "最近使用"
     },
     "form": {
       "provider": "提供商",
@@ -2386,17 +2122,13 @@
     "btn": {
       "new": "添加供应商",
       "create": "创建供应商",
-      "manage-upstreams": "管理上游",
       "new-upstream": "添加上游",
       "create-upstream": "创建上游"
     },
     "th": {
-      "name": "名称",
-      "provider-id": "供应商 ID",
       "api-format": "API 格式",
       "auth-type": "认证类型",
-      "routing": "上游调度",
-      "enabled": "启用"
+      "routing": "上游调度"
     },
     "strategy": {
       "priority": "优先级",
@@ -2431,7 +2163,6 @@
       "delete-upstream-body": "删除上游「{{name}}」？绑定到它的密钥会回退为默认 Base URL。"
     },
     "upstreams": {
-      "title": "管理 {{name}} 的上游",
       "section-title": "Upstreams",
       "desc": "为同一个 provider 配置多个不同的执行入口，并设置调度优先级或权重。",
       "empty": "还没有配置任何 upstream。未添加前，系统会继续使用 provider 的 Base URL。",
@@ -2482,7 +2213,6 @@
     "title": "AI 模型",
     "desc": "按供应商管理模型目录",
     "empty": "此供应商暂无模型",
-    "select-provider": "选择供应商",
     "no-providers": "暂无已配置的供应商",
     "btn": {
       "new": "添加模型",
@@ -2536,8 +2266,6 @@
       "th-model": "模型",
       "th-input-price": "输入价格",
       "th-output-price": "输出价格",
-      "old": "当前",
-      "new": "LiteLLM",
       "no-diff": "所有价格与 LiteLLM 目录一致，无需更新。",
       "apply": "更新 {{count}} 个模型"
     },
@@ -2548,7 +2276,6 @@
       "batch-deleted": "已删除 {{count}} 个模型",
       "batch-created": "已添加 {{count}} 个模型",
       "prices-synced": "已更新 {{count}} 个模型价格",
-      "prices-no-diff": "所有价格已是最新",
       "sync-error": "同步价格失败",
       "create-error": "创建模型失败",
       "update-error": "更新模型失败",
@@ -2639,9 +2366,7 @@
       "title": "用量明细: {{name}}",
       "back": "返回用量概览",
       "daily-title": "每日用量（近 30 天）",
-      "daily-empty": "暂无每日数据",
-      "th-date": "日期",
-      "not-found": "未找到该消费者密钥"
+      "daily-empty": "暂无每日数据"
     },
     "user-detail": {
       "title": "用户用量: {{name}}",
@@ -2800,11 +2525,7 @@
       "created-title": "密钥已创建",
       "created-hint": "复制你的消费者密钥。关闭后也可以从列表中随时复制。",
       "delete-title": "删除消费者密钥",
-      "delete-body": "删除此消费者密钥？该用户将立即失去访问权限。",
-      "suspend-agent-title": "暂停关联的 Agent？",
-      "suspend-agent-body": "Agent「{{name}}」余额为 ${{balance}} USDC。是否将其暂停？暂停后无法处理支付。你可以在 Pay Agents 页面重新激活或删除。",
-      "suspend": "暂停 Agent",
-      "keep-active": "保持活跃"
+      "delete-body": "删除此消费者密钥？该用户将立即失去访问权限。"
     },
     "toast": {
       "created": "消费者密钥已创建",
@@ -2812,9 +2533,7 @@
       "deleted": "消费者密钥已删除",
       "delete-error": "删除消费者密钥失败",
       "copied": "API 密钥已复制到剪贴板",
-      "copy-error": "复制 API 密钥失败",
-      "agent-suspended": "Pay Agent 已暂停",
-      "agent-suspend-error": "暂停 Pay Agent 失败"
+      "copy-error": "复制 API 密钥失败"
     }
   },
   "user": {
@@ -2844,15 +2563,8 @@
         "network": "网络",
         "address": "地址"
       },
-      "auth": {
-        "wallet": "钱包账户",
-        "email": "邮箱账户",
-        "oauth": "OAuth 账户",
-        "user": "用户账户"
-      },
       "wallet": {
         "connected": "钱包已连接",
-        "not-connected": "钱包未连接",
         "connect-hint": "如果你要使用链上充值和提现流程，请先连接钱包。",
         "unsupported": "当前连接的钱包网络不受支持。",
         "switch-network": "切换网络",
@@ -2870,19 +2582,10 @@
       "back": "返回首页",
       "footer-note": "登录即表示您同意服务条款。"
     },
-    "overview": {
-      "title": "概览",
-      "desc": "您的 API 用量一览",
-      "total-balance": "总余额",
-      "total-keys": "活跃密钥",
-      "total-requests": "总请求数",
-      "total-spend": "总花费"
-    },
     "dash": {
       "title": "仪表盘",
       "desc": "查看您的 API 用量和钱包概览",
       "requests": "总请求数",
-      "tokens": "总 Token 数",
       "spend": "总花费",
       "balance": "钱包余额",
       "keys": "活跃密钥",
@@ -2917,7 +2620,6 @@
       "th": {
         "name": "名称",
         "prefix": "密钥前缀",
-        "balance": "余额",
         "status": "状态",
         "created": "创建时间"
       },
@@ -2927,13 +2629,6 @@
       }
     },
     "usage": {
-      "title": "用量",
-      "desc": "查看您的 API 使用统计",
-      "total-requests": "总请求数",
-      "total-tokens": "总 Token 数",
-      "total-spend": "总花费",
-      "daily-title": "每日用量（近 30 天）",
-      "no-data": "暂无用量数据",
       "th": {
         "date": "日期",
         "requests": "请求数",
@@ -2942,16 +2637,11 @@
       }
     },
     "logs": {
-      "title": "请求日志",
-      "desc": "查看您近期的 API 请求日志",
-      "empty": "暂无请求日志",
-      "total": "共 {{count}} 条记录",
       "th": {
         "model": "模型",
         "tokens": "Token 数",
         "cost": "费用",
         "status": "状态",
-        "latency": "延迟",
         "time": "时间"
       }
     },
@@ -2990,10 +2680,9 @@
       "deposit": "充值",
       "withdraw": "提现",
       "deposit-title": "充值 USDC",
-      "deposit-desc": "在支持的网络上将 USDC 发送到以下地址",
+      "deposit-desc": "请先创建充值订单，再在支持的网络上转入 USDC。转账后粘贴交易哈希可立即入账。",
       "deposit-address": "充值地址",
       "deposit-network": "网络",
-      "deposit-copy": "复制地址",
       "deposit-copied": "地址已复制！",
       "deposit-manual": "通过交易哈希验证",
       "deposit-manual-desc": "已经转账了？粘贴你的交易哈希即时验证入账",
@@ -3001,8 +2690,6 @@
       "deposit-verify": "验证充值",
       "deposit-verified": "充值验证成功！已入账 {{amount}} USDC。",
       "deposit-failed": "验证失败",
-      "deposit-already": "该交易已验证过",
-      "deposit-not-found": "未找到此地址的 USDC 转账记录",
       "withdraw-title": "提现 USDC",
       "withdraw-desc": "将 USDC 从钱包发送到外部地址",
       "withdraw-address": "收款地址",
@@ -3014,8 +2701,6 @@
       "withdraw-confirm": "确认提现",
       "withdraw-success": "提现申请已提交，等待管理员审核",
       "withdraw-failed": "提现失败",
-      "withdraw-insufficient": "余额不足",
-      "withdraw-unavailable": "提现功能暂不可用",
       "pending-title": "待处理提现",
       "pending-th": {
         "amount": "金额",
@@ -3051,7 +2736,14 @@
       "source": {
         "platform": "平台",
         "on_chain": "链上"
-      }
+      },
+      "deposit-token": "充值路径",
+      "deposit-create-order": "创建充值订单",
+      "deposit-order-created": "充值订单已创建，未来 1 小时内会自动检测到账。",
+      "deposit-order-failed": "创建充值订单失败",
+      "deposit-order-active": "正在等待 {{amount}} USDC。后台会在 1 小时内自动检测到账。",
+      "deposit-order-expiry": "为了更省成本也更快入账，建议转账后立即粘贴交易哈希。",
+      "deposit-auto-confirmed": "已自动确认充值：{{amount}} USDC 已入账。"
     }
   }
 }

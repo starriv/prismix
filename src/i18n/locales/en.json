@@ -22,14 +22,11 @@
       "suspended": "Suspended"
     },
     "th": {
-      "id": "ID",
       "type": "Type",
-      "resource": "Resource",
       "amount": "Amount",
       "status": "Status",
       "time": "Time",
       "name": "Name",
-      "method": "Method",
       "source": "Source",
       "network": "Network",
       "token": "Token"
@@ -44,7 +41,6 @@
       "clear-all": "Clear All",
       "done": "Done",
       "save": "Save",
-      "saving": "Saving...",
       "creating": "Creating...",
       "close": "Close",
       "delete": "Delete",
@@ -72,20 +68,9 @@
       "refresh": "Refresh",
       "send": "Send",
       "test": "Test",
-      "toggle-visibility": "Toggle visibility",
-      "try-playground": "Try in playground",
-      "actions": "Actions",
-      "no-results": "No results found",
-      "results-count": "{{count}} results"
+      "actions": "Actions"
     },
     "valid": {
-      "required": "This field is required",
-      "name-required": "Name is required",
-      "amount-required": "Amount is required",
-      "network-required": "Network is required",
-      "invalid-email": "Invalid email address",
-      "invalid-url": "Invalid URL",
-      "range": "Must be between {{min}} and {{max}}",
       "password-weak": "Password must be 10+ chars with upper, lower, and digit"
     }
   },
@@ -95,7 +80,6 @@
     "pay-agents": "Pay Agents",
     "settings": "Settings",
     "notifications": "Notifications",
-    "topup-orders": "Top-up Orders",
     "ledger": "Transactions",
     "withdraw-orders": "Withdrawals",
     "fiat-configs": "Payment Methods",
@@ -144,7 +128,6 @@
       "last-30-days": "last 30 days",
       "no-peak": "No peak yet",
       "top-models": "Top Models",
-      "recent-title": "Recent AI Requests",
       "recent-empty": "No AI requests yet",
       "recent-empty-hint": "Send a request through the AI relay to see activity here.",
       "view-full": "View Full Report",
@@ -168,12 +151,10 @@
     "th": {
       "name": "Name",
       "user": "Owner",
-      "type": "Type",
       "address": "Address",
       "status": "Status",
       "balance": "Balance",
-      "created": "Created",
-      "actions": "Actions"
+      "created": "Created"
     },
     "status": {
       "active": "Active",
@@ -197,7 +178,6 @@
       "create": "Create Pay Agent",
       "save": "Save Changes",
       "delete": "Delete Pay Agent",
-      "copy": "Copy",
       "manual-topup": "Manual Top-up",
       "manual-debit": "Deduct Balance"
     },
@@ -214,29 +194,15 @@
       "default-markup": "Default Markup",
       "default-markup-ph": "inherited from global",
       "default-markup-hint": "Leave empty to inherit global default. Set 0 for no markup.",
-      "global-badge": "Global",
-      "type": "Agent Type"
+      "global-badge": "Global"
     },
-    "type": {
-      "standard": "Standard",
-      "ledger": "Ledger"
-    },
-    "type-tooltip": "Standard: has a blockchain wallet for on-chain USDC topup. Ledger: balance managed manually, no wallet — ideal for AI billing.",
     "ledger-hint": "Ledger-only — no blockchain wallet.",
     "wallet": {
-      "enable": "Enable Wallet",
-      "disable": "Disable Wallet",
-      "enable-confirm": "Generate a blockchain wallet for this agent? This enables on-chain USDC topup.",
-      "disable-confirm": "Remove the blockchain wallet? The agent will switch to ledger-only mode. On-chain topup will no longer work.",
-      "enabled": "Wallet enabled",
-      "disabled": "Wallet disabled"
+      "enable": "Enable Wallet"
     },
     "detail": {
       "limits": "Spending Limits",
       "limits-hint": "Leave empty for unlimited. Limits apply to all transactions (payments + AI usage).",
-      "spending": "Spending Stats",
-      "spent-today": "Spent Today",
-      "spent-month": "Spent This Month",
       "allowed-resources": "Allowed Resources",
       "no-resources": "No accessible resources"
     },
@@ -269,48 +235,6 @@
       "amount-ph": "e.g. 10.00",
       "note": "Reason (optional)",
       "note-ph": "e.g. Refund adjustment"
-    },
-    "txn": {
-      "title": "Transaction History",
-      "page-title": "Agent Transactions",
-      "page-desc": "View all pay agent transaction records with filters",
-      "empty": "No transactions found",
-      "type": {
-        "top_up": "Top Up",
-        "payment": "Payment",
-        "ai_usage": "AI Usage",
-        "withdraw": "Withdrawal",
-        "admin_debit": "Admin Debit"
-      },
-      "th": {
-        "type": "Type",
-        "amount": "Amount",
-        "balance-after": "Balance After",
-        "description": "Description",
-        "time": "Time"
-      },
-      "source": {
-        "platform": "Platform",
-        "on-chain": "On-chain"
-      },
-      "filter": {
-        "agent-ph": "Select agent",
-        "type-ph": "Select type",
-        "all-agents": "All Agents",
-        "all-types": "All Types",
-        "source-ph": "Select source",
-        "all-sources": "All Sources"
-      },
-      "btn-sync-all": "Sync On-chain",
-      "sync-success": "{{count}} agents synced successfully",
-      "sync-partial": "{{failed}} agents failed to sync",
-      "sync-error": "Failed to sync agents",
-      "detail": {
-        "model": "Model",
-        "tokens": "Tokens",
-        "cost": "Cost",
-        "view-usage": "View Usage"
-      }
     }
   },
   "settings": {
@@ -322,12 +246,7 @@
       "name": "Name"
     },
     "config": {
-      "title": "Gateway Configuration",
-      "desc": "Settings stored in the database. Environment variables override DB values when set.",
-      "saved": "Settings saved",
-      "save-error": "Failed to save settings",
-      "save-btn": "Save Settings",
-      "restart-note": "Takes effect after server restart"
+      "save-btn": "Save Settings"
     },
     "wallet": {
       "title": "Connected Wallet",
@@ -400,7 +319,6 @@
       },
       "toast": {
         "created": "API key created",
-        "updated": "API key updated",
         "revoked": "API key revoked",
         "rotated": "API key secret rotated",
         "deleted": "API key deleted",
@@ -426,9 +344,6 @@
     "not-admin": "This account is not registered as an admin. Please contact the system administrator.",
     "back": "Back to login",
     "footer-note": "Admin access is restricted to registered admin wallets only.",
-    "step": {
-      "sign": "Sign"
-    },
     "nav": {
       "subtitle": "Admin Panel",
       "users": "Users",
@@ -535,7 +450,6 @@
     "announce": {
       "title": "System Announcements",
       "desc": "Compose and broadcast announcements to all users",
-      "count": "{{count}} announcement(s)",
       "btn": {
         "compose": "Compose",
         "send": "Send",
@@ -745,9 +659,7 @@
         "name": "Name",
         "email": "Email",
         "address": "Address",
-        "balance": "Balance",
-        "status": "Status",
-        "actions": "Actions"
+        "status": "Status"
       },
       "status": {
         "active": "Active",
@@ -760,13 +672,7 @@
       "empty": "No users registered yet",
       "delete-confirm": "Are you sure you want to delete this user? All their keys, transactions, and data will be permanently deleted.",
       "delete-title": "Delete User",
-      "disable-title": "Disable User",
-      "disable-confirm": "Are you sure you want to disable this user? Their consumer keys will be suspended.",
-      "enable-title": "Enable User",
-      "enable-confirm": "Are you sure you want to re-enable this user?",
-      "edit-title": "Edit User",
       "credit-title": "Credit Wallet",
-      "credit-desc": "Add funds to this user's wallet balance",
       "form": {
         "name": "Name",
         "name-ph": "Enter user name",
@@ -780,10 +686,6 @@
         "agent-ph": "Select a pay agent",
         "no-agent": "No agent"
       },
-      "btn": {
-        "create-agent": "Create New Agent"
-      },
-      "no-wallet": "No wallet",
       "toast": {
         "updated": "User updated",
         "update-error": "Failed to update user",
@@ -802,13 +704,8 @@
         "info": "User Info",
         "auth": "Auth Methods",
         "wallet": "Wallet",
-        "balance": "Balance",
-        "danger": "Danger Zone"
+        "balance": "Balance"
       }
-    },
-    "settings": {
-      "title": "System Configuration",
-      "desc": "Manage networks, tokens, and facilitator settings"
     },
     "notif": {
       "title": "Notification Providers",
@@ -923,19 +820,10 @@
     }
   },
   "auth": {
-    "login-title": "Welcome back",
-    "login-desc": "Connect your wallet and sign to access the dashboard.",
-    "sign-in-btn": "Sign In",
     "signing": "Signing...",
-    "verifying": "Verifying...",
     "logout": "Logout",
     "loading": "Loading...",
-    "footer-note": "By signing in you agree that this is a self-hosted instance and you control your own keys.",
-    "step": {
-      "sign": "Sign"
-    },
     "brand": {
-      "back": "Back to home",
       "badge": "AI Gateway · Multi-Provider · Unified API",
       "title-1": "All your AI,",
       "title-2": "one endpoint.",
@@ -967,8 +855,6 @@
     "continue-with-github": "Continue with GitHub",
     "continue-with-sso": "Enterprise SSO",
     "continue-with-saml": "SAML SSO",
-    "name-label": "Name",
-    "name-ph": "Your name",
     "callback": {
       "loading": "Completing sign-in...",
       "error": "Authentication failed. Please try again.",
@@ -1076,7 +962,6 @@
       "created": "Notification channel created",
       "updated": "Notification channel updated",
       "deleted": "Notification channel deleted",
-      "create-error": "Failed to create notification channel",
       "update-error": "Failed to update notification channel",
       "delete-error": "Failed to delete notification channel",
       "test-ok": "Test notification sent successfully",
@@ -1087,11 +972,6 @@
       "telegram": "Telegram",
       "webhook": "Webhook",
       "whatsapp": "WhatsApp"
-    },
-    "valid": {
-      "channel-required": "Please select a channel",
-      "target-required": "Target is required",
-      "events-required": "Select at least one event"
     }
   },
   "webhook": {
@@ -1104,7 +984,6 @@
       "save": "Save",
       "delete": "Delete",
       "test": "Test",
-      "retry": "Retry",
       "rotate": "Rotate Secret"
     },
     "status": {
@@ -1114,10 +993,7 @@
     },
     "card": {
       "events": "Events",
-      "status": "Status",
-      "failure-count": "Failures",
-      "success-rate": "Success Rate",
-      "last-delivery": "Last delivery"
+      "status": "Status"
     },
     "dialog-title-create": "Add Webhook Endpoint",
     "dialog-title-edit": "Edit Webhook Endpoint",
@@ -1203,44 +1079,19 @@
   },
   "home": {
     "nav": {
-      "launch": "Launch App"
+      "launch": "Open Dashboard"
     },
     "hero": {
-      "ai-badge": "OpenAI-Compatible Relay",
+      "ai-badge": "Claude Code & OpenAI Compatible",
       "ai-title-1": "Unified AI Gateway",
-      "ai-title-2": "One Endpoint, All Models",
-      "ai-tagline": "Multi-provider relay · Load balancing · Real-time billing",
-      "ai-desc": "Route to any provider with load balancing, automatic failover, and per-token billing. One OpenAI-compatible API for all your AI workloads.",
-      "cta-primary": "Get Started",
-      "cta-secondary": "Read the Docs"
-    },
-    "hero-chat": {
-      "q1": "Summarize Q4 results in 3 bullet points",
-      "a1": "Here are the Q4 highlights:\n\n1. Revenue grew 23% YoY to $4.2M\n2. Customer retention improved to 94%\n3. Operating margin expanded by 340bps",
-      "q2": "Write a Python merge sort helper",
-      "a2": "def merge_sorted(a, b):\n    result, i, j = [], 0, 0\n    while i < len(a) and j < len(b):\n        if a[i] <= b[j]:\n            result.append(a[i]); i += 1\n        else:\n            result.append(b[j]); j += 1\n    return result + a[i:] + b[j:]",
-      "q3": "Translate to Japanese: The meeting is at 3pm",
-      "a3": "会議は午後3時です。\n(Kaigi wa gogo san-ji desu.)\n\nThis is polite, business-appropriate Japanese suitable for email or formal communication.",
-      "q4": "REST vs GraphQL — key differences?",
-      "a4": "Key differences:\n\n- REST returns fixed structures; GraphQL lets clients pick fields\n- REST uses multiple URLs; GraphQL uses one endpoint\n- REST often over-fetches; GraphQL eliminates this\n- REST needs URL versioning; GraphQL evolves via schema",
-      "q5": "Explain the CAP theorem simply",
-      "a5": "A distributed system can guarantee only 2 of 3:\n\n- Consistency: reads return the latest write\n- Availability: every request gets a response\n- Partition tolerance: survives network splits\n\nSince partitions are unavoidable, you choose CP or AP."
-    },
-    "features": {
-      "title": "Everything you need",
-      "desc": "A complete infrastructure for AI relay and API monetization",
-      "pay-agents": {
-        "title": "Agent Wallet System",
-        "desc": "Managed crypto wallets for every pay agent. On-chain USDC top-up, fiat bridge with admin approval, automatic balance tracking and spending history."
-      },
-      "monitoring": {
-        "title": "Real-Time Monitoring",
-        "desc": "SSE live events, circuit breaker dashboards, and multi-channel notifications — email, Telegram, webhook. Know the moment something happens."
-      }
+      "ai-title-2": "One Endpoint for Multiple Model Providers",
+      "ai-tagline": "Unified Access · Smart Routing · Usage Billing",
+      "ai-desc": "Built first for Claude Code and Anthropic workflows, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients. Includes upstream routing, failover, access control, and usage billing.",
+      "cta-primary": "Get Started"
     },
     "cta": {
-      "ai-title": "Start using all AI models today",
-      "ai-desc": "Add your provider keys, issue access credentials, and start inference through one endpoint.",
+      "ai-title": "Bring Your AI Traffic to One Endpoint",
+      "ai-desc": "Connect providers, configure models and access policies, then serve traffic through one stable endpoint.",
       "ai-btn": "Open Dashboard"
     },
     "footer": {
@@ -1248,20 +1099,20 @@
     },
     "ai": {
       "intro": {
-        "label": "AI Relay Gateway",
-        "title": "One endpoint, every model",
-        "desc": "A single OpenAI-compatible API that routes to any provider — with load balancing, failover, and usage tracking built in",
+        "label": "AI Gateway Platform",
+        "title": "One Endpoint for Leading Models",
+        "desc": "Built first for Claude Code and the Anthropic ecosystem, while also connecting OpenAI, Gemini, and other leading model providers through one gateway endpoint.",
         "unified": {
-          "title": "Unified Endpoint",
-          "desc": "Single OpenAI-compatible API for all providers. OpenAI, Anthropic, Gemini, Azure OpenAI, AWS Bedrock — one base URL, one format."
+          "title": "Unified Access",
+          "desc": "Point Claude Code, Anthropic, OpenAI, Gemini, and other compatible clients at the same gateway endpoint. One entry point means less provider-specific integration work."
         },
         "keypool": {
-          "title": "Smart Load Balancer",
-          "desc": "Weighted load balancing across API keys with automatic failover. Track health per key, zero downtime on quota limits."
+          "title": "Smart Routing & Failover",
+          "desc": "Route traffic across providers, upstreams, and API keys with weighted selection. Automatically fail over on errors, rate limits, or exhausted quotas."
         },
         "metering": {
-          "title": "Usage Metering",
-          "desc": "Per-request token counting and cost estimation. Breakdowns by day, model, provider, and consumer key — all in the dashboard."
+          "title": "Usage, Budgets & Billing",
+          "desc": "Track tokens and cost per request with breakdowns by model, provider, and consumer key. Support balance deduction, budget controls, and history."
         }
       },
       "flow": {
@@ -1270,51 +1121,51 @@
         "key-pool": "Load Balancer"
       },
       "features": {
-        "title": "Built for production AI workloads",
-        "desc": "Everything you need to run a multi-provider AI gateway",
+        "title": "Production Features for an AI Gateway",
+        "desc": "More than request forwarding: governance, observability, and operations built in",
         "relay": {
-          "title": "Multi-Provider Relay",
-          "desc": "Route requests to 5+ providers through one endpoint. Model-level fallback chains, automatic format translation between providers."
+          "title": "Unified Multi-Provider Access",
+          "desc": "Support Claude Code and Anthropic workflows first, while connecting multiple AI providers through one endpoint. A single entry point reduces integration and migration overhead."
         },
         "rotation": {
-          "title": "Weighted Load Balancing",
-          "desc": "Distribute requests across multiple API keys with configurable weights. Automatic failover when a key hits rate limits or errors."
+          "title": "Upstream Routing & Resilience",
+          "desc": "Run multiple upstreams with weighted routing, automatic failover, circuit breakers, timeout controls, and queue backpressure."
         },
         "consumer": {
-          "title": "API Key Access Control",
-          "desc": "Issue scoped API keys with per-key model allowlists, rate limits, and daily/monthly budget caps. Auto-suspend when limits are hit."
+          "title": "Consumer Key Governance",
+          "desc": "Issue separate keys for users or applications with model allowlists, rate limits, budget caps, and suspension policies."
         },
         "billing": {
-          "title": "Usage Tracking & Billing",
-          "desc": "Per-request token counting with cost breakdowns by model, provider, and API key. Real-time balance deduction and full transaction history."
+          "title": "Usage Metering & Billing",
+          "desc": "Track requests, tokens, and spend by model, provider, and consumer key, with real-time balance deduction."
         },
         "logging": {
-          "title": "Request Logging",
-          "desc": "Opt-in request and response body capture with configurable retention. Full audit trail with collapsible JSON viewer."
+          "title": "Logs, Alerts & Notifications",
+          "desc": "Review request logs, error trends, and upstream health, then notify teams through email, Telegram, webhooks, or WhatsApp."
         },
         "wallet": {
-          "title": "USDC Wallet Payments",
-          "desc": "Deposit USDC from any supported EVM chain. On-chain transfer verification, automatic balance credit, and per-request deduction — no credit card required."
+          "title": "Crypto-Friendly",
+          "desc": "Support automatic top-ups on Base and Polygon, plus 402 payment protocol integration for smoother funding and payment flows."
         }
       },
       "how": {
-        "desc": "No provider SDK. No API key management. Just one gateway and your AI workloads.",
-        "title": "From setup to inference in 3 minutes",
+        "desc": "Skip per-provider integrations. After setup, one endpoint handles your AI traffic.",
+        "title": "Go Live in Minutes",
         "step1": {
-          "title": "Add Provider",
-          "desc": "Configure provider credentials in the dashboard. Auto-discover available models from upstream."
+          "title": "Connect Providers",
+          "desc": "Add provider credentials, configure upstreams, and sync or manage your model catalog."
         },
         "step2": {
-          "title": "Create Key",
-          "desc": "Issue a consumer API key with budget limits, model access control, and rate limits."
+          "title": "Define Access Policies",
+          "desc": "Create consumer keys and define model access, budgets, rate limits, and billing rules."
         },
         "step3": {
-          "title": "Send Request",
-          "desc": "Point any OpenAI-compatible SDK at your gateway endpoint. Works with LangChain, Vercel AI SDK, or raw fetch."
+          "title": "Point to One Endpoint",
+          "desc": "Point Claude Code, the OpenAI SDK, the Gemini SDK, or any compatible client at your gateway endpoint."
         },
         "step4": {
-          "title": "Monitor",
-          "desc": "Track token usage, costs, and error rates in real time. Drill down by model, provider, or consumer."
+          "title": "Monitor & Operate",
+          "desc": "Monitor production traffic with logs, usage reports, upstream health, webhooks, and notification channels."
         }
       }
     }
@@ -1335,26 +1186,10 @@
     "hub": {
       "title": "Prismix Documentation",
       "desc": "Guides, deployment options, and security architecture for your AI gateway.",
-      "deploy": "Standalone Deployment",
       "security": "Security Architecture",
       "security-desc": "Multi-layered defense-in-depth design protecting the gateway, credentials, and upstream APIs.",
       "architecture": "System Architecture",
       "architecture-desc": "Strategy pattern, request flow, signing engines, gateway hot path, and project structure."
-    },
-    "overview": {
-      "title": "Deployment Guide",
-      "desc": "Choose a deployment method that fits your needs",
-      "th": {
-        "method": "Method",
-        "database": "Database",
-        "cost": "Monthly Cost"
-      },
-      "docker": {
-        "label": "Standalone"
-      },
-      "val": {
-        "caddy": "Caddy (Let's Encrypt)"
-      }
     },
     "production": {
       "title": "Production Deployment",
@@ -1463,21 +1298,13 @@
         "title": "Defense-in-Depth Architecture",
         "desc": "Every request passes through multiple security layers before reaching the upstream API. Each layer is independent — a bypass of one layer does not compromise the others.",
         "l1": "Global Rate Limiting (IP / Token / Global)",
-        "t1": "rate-limiter",
         "l2": "CORS Policy (gateway: open / dashboard: same-origin)",
-        "t2": "cors",
         "l3": "Per-Resource CORS (OPTIONS preflight before payment)",
-        "t3": "cors",
         "l4": "API Key Authentication",
-        "t4": "payment",
         "l5": "Per-Resource Rate Limiting (resource × IP)",
-        "t5": "rate-limiter",
         "l6": "Header Security (hop-by-hop stripping, proxy forwarding)",
-        "t6": "headers",
         "l7": "Signing Engine (encrypted credentials / WASM sandbox)",
-        "t7": "crypto",
-        "l8": "Upstream Request (timeout + circuit breaker)",
-        "t8": "resilience"
+        "l8": "Upstream Request (timeout + circuit breaker)"
       },
       "authn": {
         "title": "Authentication",
@@ -1555,24 +1382,6 @@
         "title": "Multi-Tenancy",
         "desc": "All data entities are system-level. Resources, auth profiles, agents, and settings are globally managed by the admin. SSE events use scope-based filtering for admin and user isolation."
       },
-      "chain": {
-        "title": "Blockchain",
-        "desc": "Multi-chain support via viem. Chains and tokens are DB-driven and admin-managed. Optional on-chain settlement uses ERC-3009 USDC authorization. Settlement is async — response is delivered before on-chain confirmation."
-      },
-      "engines": {
-        "title": "Signing Engines",
-        "desc": "5 built-in engines authenticate requests to upstream APIs. Configs encrypted at rest with AES-256-GCM.",
-        "th-engine": "Engine",
-        "th-headers": "Upstream Headers",
-        "th-notes": "Notes",
-        "api-key": "Static header, configurable name",
-        "bearer": "Static token",
-        "hmac": "Deterministic, payload = method+path+timestamp+SHA256(body)",
-        "oauth2": "Client credentials, token cache + auto-refresh",
-        "custom": "QuickJS WASM sandbox (ES5, 8MB, 5s timeout)",
-        "custom-headers": "User-defined",
-        "encryption": "All engine configs encrypted with AES-256-GCM using per-domain PBKDF2 key derivation."
-      },
       "hotpath": {
         "title": "Gateway Hot Path",
         "th-component": "Component",
@@ -1582,10 +1391,6 @@
         "cache-mech": "TTL cache (memory or Redis write-through)",
         "limiter": "Rate limiter",
         "limiter-mech": "Sliding window, per-resource per-IP",
-        "breaker": "Circuit breaker",
-        "breaker-mech": "CLOSED/OPEN/HALF_OPEN state machine",
-        "signing": "Signing",
-        "signing-mech": "PBKDF2-cached key → AES decrypt → engine.sign()",
         "writes": "DB writes",
         "writes-mech": "Job queue (BullMQ/Redis or in-memory, async)"
       },
@@ -2163,62 +1968,6 @@
       "login": "Sign In"
     }
   },
-  "topup": {
-    "title": "Top-up Orders",
-    "desc": "Manage fiat top-up orders for your agents",
-    "table-empty": "No top-up orders found",
-    "th": {
-      "id": "ID",
-      "agent": "Agent",
-      "amount": "Amount",
-      "fiat-amount": "Fiat Amount",
-      "status": "Status",
-      "method": "Payment Method",
-      "time": "Time",
-      "actions": "Actions"
-    },
-    "status": {
-      "pending": "Pending",
-      "confirmed": "Confirmed",
-      "rejected": "Rejected",
-      "expired": "Expired"
-    },
-    "filter": {
-      "all": "All Statuses",
-      "pending": "Pending",
-      "confirmed": "Confirmed",
-      "rejected": "Rejected",
-      "expired": "Expired"
-    },
-    "btn": {
-      "confirm": "Confirm",
-      "reject": "Reject"
-    },
-    "confirm": {
-      "title": "Confirm Top-up Order",
-      "fiat-amount": "Fiat Amount (optional)",
-      "note": "Note (optional)"
-    },
-    "reject": {
-      "title": "Reject Top-up Order",
-      "note": "Reason (optional)"
-    },
-    "toast": {
-      "confirmed": "Order confirmed successfully",
-      "rejected": "Order rejected",
-      "confirm-error": "Failed to confirm order",
-      "reject-error": "Failed to reject order"
-    },
-    "detail": {
-      "title": "Order Details",
-      "currency": "Fiat Currency",
-      "proof": "Payment Proof",
-      "note": "Admin Note",
-      "confirmed-at": "Confirmed At",
-      "expired-at": "Expired At",
-      "updated-at": "Updated At"
-    }
-  },
   "ledger": {
     "title": "Transaction Ledger",
     "desc": "All wallet transactions — deposits, withdrawals, AI charges, and refunds",
@@ -2299,12 +2048,8 @@
       "created": "Payment method created",
       "updated": "Payment method updated",
       "deleted": "Payment method deleted",
-      "create-error": "Failed to create payment method",
       "update-error": "Failed to update payment method",
       "delete-error": "Failed to delete payment method"
-    },
-    "valid": {
-      "display-name-required": "Display name is required"
     }
   },
   "ai": {
@@ -2314,7 +2059,6 @@
     "empty-hint": "Add API keys to your providers to start using the AI relay",
     "never": "Never",
     "test": "Test",
-    "testing": "Testing...",
     "unknown-provider": "Unknown Provider",
     "tag": {
       "platform": "Platform"
@@ -2325,7 +2069,6 @@
     },
     "pool": {
       "count": "{{enabled}}/{{total}} active",
-      "lru": "Round-robin",
       "next": "Next in rotation",
       "add": "Add Key",
       "weight-hint": "Weight — higher value means more traffic share",
@@ -2335,13 +2078,6 @@
         "round-robin": "Round-robin",
         "random": "Random"
       }
-    },
-    "th": {
-      "provider": "Provider",
-      "name": "Key Name",
-      "key-prefix": "Key Prefix",
-      "enabled": "Enabled",
-      "last-used": "Last Used"
     },
     "form": {
       "provider": "Provider",
@@ -2386,17 +2122,13 @@
     "btn": {
       "new": "Add Provider",
       "create": "Create Provider",
-      "manage-upstreams": "Manage Upstreams",
       "new-upstream": "Add Upstream",
       "create-upstream": "Create Upstream"
     },
     "th": {
-      "name": "Name",
-      "provider-id": "Provider ID",
       "api-format": "API Format",
       "auth-type": "Auth Type",
-      "routing": "Upstream Routing",
-      "enabled": "Enabled"
+      "routing": "Upstream Routing"
     },
     "strategy": {
       "priority": "Priority",
@@ -2431,7 +2163,6 @@
       "delete-upstream-body": "Delete upstream \"{{name}}\"? Keys bound to it will fall back to the default provider base URL."
     },
     "upstreams": {
-      "title": "Manage Upstreams for {{name}}",
       "section-title": "Upstreams",
       "desc": "Configure multiple execution endpoints for one provider and control their routing order or weights.",
       "empty": "No upstreams configured yet. Until one is added, the relay will keep using the provider base URL.",
@@ -2482,7 +2213,6 @@
     "title": "AI Models",
     "desc": "Manage model catalog per provider",
     "empty": "No models for this provider",
-    "select-provider": "Select a provider",
     "no-providers": "No providers configured",
     "btn": {
       "new": "Add Model",
@@ -2536,8 +2266,6 @@
       "th-model": "Model",
       "th-input-price": "Input Price",
       "th-output-price": "Output Price",
-      "old": "Current",
-      "new": "LiteLLM",
       "no-diff": "All prices are up to date with LiteLLM catalog.",
       "apply": "Update {{count}} Models"
     },
@@ -2548,7 +2276,6 @@
       "batch-deleted": "{{count}} models deleted",
       "batch-created": "{{count}} models added",
       "prices-synced": "{{count}} model prices updated",
-      "prices-no-diff": "All prices are up to date",
       "sync-error": "Failed to sync prices",
       "create-error": "Failed to create model",
       "update-error": "Failed to update model",
@@ -2639,9 +2366,7 @@
       "title": "Usage: {{name}}",
       "back": "Back to Usage Overview",
       "daily-title": "Daily Usage (Last 30 Days)",
-      "daily-empty": "No daily data yet",
-      "th-date": "Date",
-      "not-found": "Consumer key not found"
+      "daily-empty": "No daily data yet"
     },
     "user-detail": {
       "title": "User Usage: {{name}}",
@@ -2800,11 +2525,7 @@
       "created-title": "Key Created",
       "created-hint": "Copy your consumer key now. You can also copy it later from the table.",
       "delete-title": "Delete Consumer Key",
-      "delete-body": "Delete this consumer key? The user will lose access immediately.",
-      "suspend-agent-title": "Suspend Linked Agent?",
-      "suspend-agent-body": "The agent \"{{name}}\" has a balance of ${{balance}} USDC. Would you like to suspend it? Suspended agents cannot process payments. You can reactivate or delete it from the Pay Agents page.",
-      "suspend": "Suspend Agent",
-      "keep-active": "Keep Active"
+      "delete-body": "Delete this consumer key? The user will lose access immediately."
     },
     "toast": {
       "created": "Consumer key created",
@@ -2812,9 +2533,7 @@
       "deleted": "Consumer key deleted",
       "delete-error": "Failed to delete consumer key",
       "copied": "API key copied to clipboard",
-      "copy-error": "Failed to copy API key",
-      "agent-suspended": "Pay agent suspended",
-      "agent-suspend-error": "Failed to suspend pay agent"
+      "copy-error": "Failed to copy API key"
     }
   },
   "user": {
@@ -2844,15 +2563,8 @@
         "network": "Network",
         "address": "Address"
       },
-      "auth": {
-        "wallet": "Wallet account",
-        "email": "Email account",
-        "oauth": "OAuth account",
-        "user": "User account"
-      },
       "wallet": {
         "connected": "Wallet connected",
-        "not-connected": "Wallet not connected",
         "connect-hint": "Connect a wallet if you want to use onchain deposit and withdrawal flows.",
         "unsupported": "The connected wallet is on an unsupported network.",
         "switch-network": "Switch network",
@@ -2870,19 +2582,10 @@
       "back": "Back to home",
       "footer-note": "By signing in, you agree to the Terms of Service."
     },
-    "overview": {
-      "title": "Overview",
-      "desc": "Your API usage at a glance",
-      "total-balance": "Total Balance",
-      "total-keys": "Active Keys",
-      "total-requests": "Total Requests",
-      "total-spend": "Total Spend"
-    },
     "dash": {
       "title": "Dashboard",
       "desc": "Overview of your API usage and wallet",
       "requests": "Total Requests",
-      "tokens": "Total Tokens",
       "spend": "Total Spend",
       "balance": "Wallet Balance",
       "keys": "Active Keys",
@@ -2917,7 +2620,6 @@
       "th": {
         "name": "Name",
         "prefix": "Key Prefix",
-        "balance": "Balance",
         "status": "Status",
         "created": "Created"
       },
@@ -2927,13 +2629,6 @@
       }
     },
     "usage": {
-      "title": "Usage",
-      "desc": "View your API usage statistics",
-      "total-requests": "Total Requests",
-      "total-tokens": "Total Tokens",
-      "total-spend": "Total Spend",
-      "daily-title": "Daily Usage (Last 30 Days)",
-      "no-data": "No usage data yet",
       "th": {
         "date": "Date",
         "requests": "Requests",
@@ -2942,16 +2637,11 @@
       }
     },
     "logs": {
-      "title": "Request Logs",
-      "desc": "View your recent API request logs",
-      "empty": "No request logs yet",
-      "total": "{{count}} total records",
       "th": {
         "model": "Model",
         "tokens": "Tokens",
         "cost": "Cost",
         "status": "Status",
-        "latency": "Latency",
         "time": "Time"
       }
     },
@@ -2990,10 +2680,9 @@
       "deposit": "Deposit",
       "withdraw": "Withdraw",
       "deposit-title": "Deposit USDC",
-      "deposit-desc": "Send USDC to the address below on a supported network",
+      "deposit-desc": "Create a deposit order first, then send USDC on a supported network. Paste the transaction hash for instant credit.",
       "deposit-address": "Deposit Address",
       "deposit-network": "Network",
-      "deposit-copy": "Copy Address",
       "deposit-copied": "Address copied!",
       "deposit-manual": "Verify by Transaction Hash",
       "deposit-manual-desc": "Already sent? Paste your transaction hash for instant verification",
@@ -3001,8 +2690,6 @@
       "deposit-verify": "Verify Deposit",
       "deposit-verified": "Deposit verified! {{amount}} USDC credited.",
       "deposit-failed": "Verification failed",
-      "deposit-already": "This transaction has already been verified",
-      "deposit-not-found": "No USDC transfer found for this address",
       "withdraw-title": "Withdraw USDC",
       "withdraw-desc": "Send USDC from your wallet to an external address",
       "withdraw-address": "Recipient Address",
@@ -3014,8 +2701,6 @@
       "withdraw-confirm": "Confirm Withdrawal",
       "withdraw-success": "Withdrawal submitted, pending admin review",
       "withdraw-failed": "Withdrawal failed",
-      "withdraw-insufficient": "Insufficient balance",
-      "withdraw-unavailable": "Withdrawals are currently unavailable",
       "pending-title": "Pending Withdrawals",
       "pending-th": {
         "amount": "Amount",
@@ -3051,7 +2736,14 @@
       "source": {
         "platform": "Platform",
         "on_chain": "On-chain"
-      }
+      },
+      "deposit-token": "Deposit Route",
+      "deposit-create-order": "Create Deposit Order",
+      "deposit-order-created": "Deposit order created. Auto-detection is active for the next hour.",
+      "deposit-order-failed": "Failed to create deposit order",
+      "deposit-order-active": "Waiting for {{amount}} USDC. Auto-detection runs in the background for up to 1 hour.",
+      "deposit-order-expiry": "For the lowest fee and fastest credit, paste the transaction hash right after sending.",
+      "deposit-auto-confirmed": "Deposit confirmed automatically: {{amount}} USDC credited."
     }
   }
 }
