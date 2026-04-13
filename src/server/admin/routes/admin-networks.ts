@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { initBlockchainConfig } from "@/blockchain/config";
 import { transaction } from "@/server/db";
 import { createNetworkBody, updateNetworkBody } from "@/server/lib/body-schemas";
 import { ok } from "@/server/lib/response";
@@ -26,6 +27,7 @@ router.post("/networks", async (c) => {
   }
 
   const created = await networkRepo.createNetwork(body);
+  await initBlockchainConfig();
   return ok(c, created, 201);
 });
 
@@ -36,6 +38,7 @@ router.put("/networks", async (c) => {
   const { id, ...fields } = parsed.data;
   const result = await networkRepo.updateNetwork(id, fields);
   if (!result) return c.json({ error: "Network not found" }, 404);
+  await initBlockchainConfig();
   return ok(c, result);
 });
 
@@ -51,6 +54,7 @@ router.delete("/networks", async (c) => {
     await networkRepo.deleteTokensByNetwork(existing.networkId);
     await networkRepo.deleteNetwork(Number(id));
   });
+  await initBlockchainConfig();
   return ok(c, { success: true });
 });
 

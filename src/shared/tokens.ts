@@ -19,6 +19,15 @@ export const KNOWN_TOKENS: KnownToken[] = [
   { symbol: "EURC", name: "Euro Coin", decimals: 6 },
 ];
 
+/** Primary settlement token symbol used across UI and server. */
+export const TOKEN_SYMBOL = "USDC";
+
+/** Decimal precision for the settlement token — derived from KNOWN_TOKENS. */
+export const SETTLEMENT_DECIMALS = KNOWN_TOKENS.find((t) => t.symbol === TOKEN_SYMBOL)!.decimals;
+
+/** Minimum amount accepted for a wallet top-up order. */
+export const MIN_TOPUP_AMOUNT = "5";
+
 /** Map of `symbol:networkId` → contract address */
 export const KNOWN_TOKEN_ADDRESSES: Record<string, string> = {
   // ── USDC (source: circle.com/multi-chain-usdc) ────────────────

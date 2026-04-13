@@ -148,6 +148,8 @@ function buildChainConfig(networks: SupportedNetwork[]): Record<string, NetworkC
 
 // Lazy chain config — populated on first access or via initChainConfig()
 let _chainConfig: Record<string, NetworkConfig> | null = null;
+let _blockchainConfigInitialized = false;
+let _blockchainConfigInitPromise: Promise<void> | null = null;
 
 /**
  * Get the chain config map. Must call initChainConfig() at startup.
@@ -164,6 +166,7 @@ export function getChainConfig(): Record<string, NetworkConfig> {
 /** Invalidate the cached chain config (e.g., after network CRUD). */
 export function invalidateChainConfig(): void {
   _chainConfig = null;
+  _blockchainConfigInitialized = false;
 }
 
 // Backward-compatible constant — delegates to lazy getter
@@ -276,4 +279,30 @@ export async function initBlockchainConfig(): Promise<void> {
       _usdcAddresses[t.network] = t.contractAddress;
     }
   }
+
+  _blockchainConfigInitialized = true;
+}
+
+/**
+ * Ensure blockchain config is loaded for request-time callers.
+ * This makes the app resilient when a request lands before bootstrap finishes
+ * or when an environment bypasses the normal bootstrap path.
+ */
+export async function ensureBlockchainConfig(): Promise<void> {
+  if (_blockchainConfigInitialized) return;
+  if (_blockchainConfigInitPromise) {
+    await _blockchainConfigInitPromise;
+    return;
+  }
+
+  _blockchainConfigInitPromise = initBlockchainConfig()
+    .catch((err) => {
+      _blockchainConfigInitialized = false;
+      throw err;
+    })
+    .finally(() => {
+      _blockchainConfigInitPromise = null;
+    });
+
+  await _blockchainConfigInitPromise;
 }

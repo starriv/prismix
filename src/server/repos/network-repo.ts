@@ -114,4 +114,23 @@ export const networkRepo = {
     const tokens = await this.findEnabledTokens();
     return tokens.filter((t) => enabledNetworkIds.includes(t.network));
   },
+
+  async findEnabledUsdcDepositNetworks(): Promise<
+    Array<SupportedNetwork & { usdcAddress: string }>
+  > {
+    const networks = await this.findEnabledNetworks();
+    const usdcTokens = (await this.findEnabledTokens()).filter(
+      (token) => token.symbol === "USDC" && !!token.contractAddress,
+    );
+    const usdcByNetwork = new Map(
+      usdcTokens.map((token) => [token.network, token.contractAddress]),
+    );
+
+    return networks
+      .map((network) => {
+        const usdcAddress = usdcByNetwork.get(network.networkId);
+        return usdcAddress ? { ...network, usdcAddress } : null;
+      })
+      .filter((network): network is SupportedNetwork & { usdcAddress: string } => network !== null);
+  },
 };

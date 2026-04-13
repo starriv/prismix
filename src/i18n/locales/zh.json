@@ -2823,6 +2823,8 @@
         "on_chain": "链上"
       },
       "deposit-create-order": "创建充值订单",
+      "deposit-min-amount": "最低充值金额为 {{amount}} USDC",
+      "deposit-min-amount-hint": "最低充值金额：{{amount}} USDC，最多 {{decimals}} 位小数",
       "deposit-order-created": "充值订单已创建，未来 1 小时内会自动检测到账。",
       "deposit-order-failed": "创建充值订单失败",
       "deposit-pending-block-title": "你还有待处理的充值订单",

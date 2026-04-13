@@ -2823,6 +2823,8 @@
         "on_chain": "On-chain"
       },
       "deposit-create-order": "Create Deposit Order",
+      "deposit-min-amount": "Minimum deposit is {{amount}} USDC",
+      "deposit-min-amount-hint": "Minimum deposit: {{amount}} USDC, up to {{decimals}} decimals",
       "deposit-order-created": "Deposit order created. Auto-detection is active for the next hour.",
       "deposit-order-failed": "Failed to create deposit order",
       "deposit-pending-block-title": "You already have a pending deposit order",

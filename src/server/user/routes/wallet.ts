@@ -9,7 +9,12 @@ import { Hono } from "hono";
 import type { Address } from "viem";
 import { formatUnits } from "viem";
 
-import { getChainConfig, getPublicClient, getUsdcAddress } from "@/blockchain/config";
+import {
+  ensureBlockchainConfig,
+  getChainConfig,
+  getPublicClient,
+  getUsdcAddress,
+} from "@/blockchain/config";
 import { enqueueDepositScan } from "@/server/jobs/scan-topup-deposit";
 import { createTopupRequestBody, verifyDepositBody, withdrawBody } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
@@ -18,6 +23,7 @@ import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server
 import { ensureAgentWallet } from "@/server/lib/wallet";
 import { getUserSession } from "@/server/middleware/auth";
 import {
+  networkRepo,
   payAgentRepo,
   payAgentTransactionRepo,
   topupOrderRepo,
@@ -26,8 +32,8 @@ import {
 } from "@/server/repos";
 import { SUPPORTED_PAYMENT_CHAIN_IDS } from "@/shared/circle-networks";
 import { gt, gte, removeTailingZero, safePlus } from "@/shared/number";
+import { MIN_TOPUP_AMOUNT, SETTLEMENT_DECIMALS } from "@/shared/tokens";
 
-const USDC_DECIMALS = 6;
 const TOPUP_EXPIRES_IN_MS = 60 * 60 * 1000;
 
 const wallet = new Hono();
@@ -42,36 +48,23 @@ async function resolveAgentId(c: Context): Promise<number | null> {
 }
 
 /** Get supported networks with USDC addresses, filtered by payment chain IDs. */
-function getSupportedNetworks(): Array<{
-  chainId: number;
-  networkId: string;
-  name: string;
-  usdcAddress: string;
-}> {
-  const chainConfig = getChainConfig();
-  const results: Array<{
+async function getSupportedNetworks(): Promise<
+  Array<{
     chainId: number;
     networkId: string;
     name: string;
     usdcAddress: string;
-  }> = [];
-
-  for (const [networkId, config] of Object.entries(chainConfig)) {
-    if (!SUPPORTED_PAYMENT_CHAIN_IDS.has(config.chainId)) continue;
-    try {
-      const usdcAddress = getUsdcAddress(networkId);
-      results.push({
-        chainId: config.chainId,
-        networkId,
-        name: config.chain.name,
-        usdcAddress,
-      });
-    } catch {
-      // No USDC address configured for this network — skip
-    }
-  }
-
-  return results;
+  }>
+> {
+  const networks = await networkRepo.findEnabledUsdcDepositNetworks();
+  return networks
+    .filter((network) => SUPPORTED_PAYMENT_CHAIN_IDS.has(network.chainId))
+    .map((network) => ({
+      chainId: network.chainId,
+      networkId: network.networkId,
+      name: network.name,
+      usdcAddress: network.usdcAddress,
+    }));
 }
 
 // ── GET / — wallet overview (single agent) ─────────────────────────
@@ -115,7 +108,7 @@ wallet.get("/deposit-info", async (c) => {
     return c.json({ error: "Failed to generate deposit address" }, 500);
   }
 
-  const networks = getSupportedNetworks();
+  const networks = await getSupportedNetworks();
 
   return ok(c, { address, networks });
 });
@@ -130,10 +123,14 @@ wallet.post("/topup", async (c) => {
   if (!parsed.ok) return parsed.response;
 
   const { amount, network } = parsed.data;
+  await ensureBlockchainConfig();
 
   // Validate amount > 0
   if (!gt(amount, "0")) {
     return c.json({ error: "Amount must be greater than zero" }, 400);
+  }
+  if (!gte(amount, MIN_TOPUP_AMOUNT)) {
+    return c.json({ error: `Minimum deposit amount is ${MIN_TOPUP_AMOUNT} USDC` }, 400);
   }
 
   // Validate network is supported
@@ -259,6 +256,7 @@ wallet.post("/deposit/verify", async (c) => {
   if (!parsed.ok) return parsed.response;
 
   const { txHash, network } = parsed.data;
+  await ensureBlockchainConfig();
 
   // Validate network is supported
   const chainConfig = getChainConfig();
@@ -320,7 +318,7 @@ wallet.post("/deposit/verify", async (c) => {
     // Parse amount from data (uint256)
     const rawValue = BigInt(logEntry.data);
     matchedTransfers.push({
-      amount: removeTailingZero(formatUnits(rawValue, USDC_DECIMALS)),
+      amount: removeTailingZero(formatUnits(rawValue, SETTLEMENT_DECIMALS)),
       txKey: `${txHash}:${logEntry.logIndex ?? 0}`,
     });
   }
@@ -424,6 +422,7 @@ wallet.post("/withdraw", async (c) => {
   if (!parsed.ok) return parsed.response;
 
   const { toAddress, withdrawAll, network } = parsed.data;
+  await ensureBlockchainConfig();
 
   // Validate network is supported
   const chainConfig = getChainConfig();

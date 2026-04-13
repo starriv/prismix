@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { initBlockchainConfig } from "@/blockchain/config";
 import { createAllowedTokenBody, updateAllowedTokenBody } from "@/server/lib/body-schemas";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
@@ -42,6 +43,7 @@ router.post("/allowed-tokens", async (c) => {
   }
 
   const created = await networkRepo.createToken({ symbol, network, contractAddress });
+  await initBlockchainConfig();
   return ok(c, created, 201);
 });
 
@@ -58,6 +60,7 @@ router.put("/allowed-tokens", async (c) => {
   if (!result) {
     return c.json({ error: "Token not found" }, 404);
   }
+  await initBlockchainConfig();
   return ok(c, result);
 });
 
@@ -74,6 +77,7 @@ router.delete("/allowed-tokens", async (c) => {
   }
 
   await networkRepo.deleteToken(Number(id));
+  await initBlockchainConfig();
   return ok(c, { success: true });
 });
 

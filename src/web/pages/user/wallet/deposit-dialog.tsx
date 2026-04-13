@@ -6,6 +6,7 @@ import { ArrowRight, Check, Copy, ExternalLink, Loader2, Search } from "lucide-r
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
+import { MIN_TOPUP_AMOUNT, SETTLEMENT_DECIMALS, TOKEN_SYMBOL } from "@/shared/tokens";
 import { ApiError } from "@/web/api/create-api-client";
 import { queryKeys } from "@/web/api/query-keys";
 import {
@@ -39,6 +40,10 @@ import { explorerAddressUrl, useChainRegistry } from "@/web/shared/chains";
 import { cn } from "@/web/shared/utils";
 
 type DepositStep = "create" | "verify" | "result";
+
+const MIN_TOPUP_AMOUNT_NUM = Number(MIN_TOPUP_AMOUNT);
+const AMOUNT_PRECISION_RE = new RegExp(`^\\d+(\\.\\d{0,${SETTLEMENT_DECIMALS}})?$`);
+const QUICK_TOPUP_AMOUNTS = ["5", "10", "50", "100"] as const;
 
 const DEPOSIT_STEPS: Array<{ key: DepositStep; order: 1 | 2 | 3; labelKey: string }> = [
   { key: "create", order: 1, labelKey: "user.wallet.deposit-step-create" },
@@ -149,6 +154,7 @@ export function DepositDialog({
   const createTopup = useCreateWalletTopup();
   const verifyDeposit = useVerifyDeposit();
   const [amount, setAmount] = useState("");
+  const [amountTouched, setAmountTouched] = useState(false);
   const [txHash, setTxHash] = useState("");
   const [network, setNetwork] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
@@ -183,9 +189,18 @@ export function DepositDialog({
   const qrValue = useMemo(() => depositAddress.trim(), [depositAddress]);
   const qrPanelBg = resolvedTheme === "dark" ? "#e4e4e7" : "#ffffff";
   const confirmedRef = useRef<number | null>(null);
+  const parsedAmount = Number(amount);
+  const hasValidPrecision = amount.trim().length === 0 || AMOUNT_PRECISION_RE.test(amount.trim());
+  const isAmountValid =
+    amount.trim().length > 0 &&
+    hasValidPrecision &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount >= MIN_TOPUP_AMOUNT_NUM;
+  const showAmountError = amountTouched && amount.trim().length > 0 && !isAmountValid;
 
   const resetDialog = useCallback(() => {
     setAmount("");
+    setAmountTouched(false);
     setTxHash("");
     setNetwork("");
     setOrderId(null);
@@ -222,8 +237,29 @@ export function DepositDialog({
     toast.success(t("user.wallet.deposit-copied"));
   }, [depositAddress, t]);
 
+  const handleAmountChange = useCallback((value: string) => {
+    if (value === "") {
+      setAmount("");
+      return;
+    }
+
+    if (!/^\d*\.?\d*$/.test(value)) return;
+
+    const [integerPart, decimalPart] = value.split(".");
+    if (decimalPart && decimalPart.length > SETTLEMENT_DECIMALS) return;
+
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "");
+    setAmount(
+      decimalPart !== undefined ? `${normalizedInteger}.${decimalPart}` : normalizedInteger,
+    );
+  }, []);
+
   const handleCreateTopup = useCallback(async () => {
     if (!amount || !network) return;
+    if (!isAmountValid) {
+      toast.error(t("user.wallet.deposit-min-amount", { amount: MIN_TOPUP_AMOUNT }));
+      return;
+    }
     try {
       const order = await createTopup.mutateAsync({ amount, network });
       setOrderId(order.id);
@@ -234,7 +270,7 @@ export function DepositDialog({
       }
       toast.error(err instanceof Error ? err.message : t("user.wallet.deposit-order-failed"));
     }
-  }, [amount, network, createTopup, t, pendingOrders.refetch]);
+  }, [amount, network, createTopup, isAmountValid, t, pendingOrders.refetch]);
 
   const handleVerify = useCallback(async () => {
     if (!txHash || !effectiveNetwork) return;
@@ -250,6 +286,7 @@ export function DepositDialog({
 
   const handleRestart = useCallback(() => {
     setAmount("");
+    setAmountTouched(false);
     setNetwork("");
     setTxHash("");
     setOrderId(null);
@@ -310,7 +347,7 @@ export function DepositDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <DialogBody>
-            <div className="min-h-[320px] space-y-4">
+            <div className="min-h-80 space-y-4">
               <div className={currentStep !== "create" ? "hidden" : "space-y-4"}>
                 {showBlockingPendingPrompt ? (
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300">
@@ -352,12 +389,46 @@ export function DepositDialog({
 
                 <div className="space-y-2">
                   <Label>{t("user.wallet.withdraw-amount")}</Label>
-                  <Input
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder={t("user.wallet.withdraw-amount-ph")}
-                    inputMode="decimal"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={amount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      onBlur={() => setAmountTouched(true)}
+                      placeholder={t("user.wallet.withdraw-amount-ph")}
+                      inputMode="decimal"
+                      aria-invalid={showAmountError}
+                      className={cn(
+                        "pr-14",
+                        showAmountError && "border-destructive focus-visible:ring-destructive",
+                      )}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                      {TOKEN_SYMBOL}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("user.wallet.deposit-min-amount-hint", {
+                      amount: MIN_TOPUP_AMOUNT,
+                      decimals: SETTLEMENT_DECIMALS,
+                    })}
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {QUICK_TOPUP_AMOUNTS.map((quickAmount) => (
+                      <Button
+                        key={quickAmount}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3"
+                        onClick={() => {
+                          setAmount(quickAmount);
+                          setAmountTouched(true);
+                        }}
+                      >
+                        {quickAmount} {TOKEN_SYMBOL}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -382,7 +453,7 @@ export function DepositDialog({
                     </div>
 
                     {depositAddress && (
-                      <div className="rounded-2xl border bg-gradient-to-b from-muted/40 to-muted/10 p-4">
+                      <div className="rounded-2xl border bg-linear-to-b from-muted/40 to-muted/10 p-4">
                         <div className="space-y-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-1">
@@ -511,9 +582,7 @@ export function DepositDialog({
               </div>
 
               <div
-                className={
-                  !showResultStep ? "hidden" : "flex min-h-[320px] items-center justify-center"
-                }
+                className={!showResultStep ? "hidden" : "flex min-h-80 items-center justify-center"}
               >
                 <div className="mx-auto flex max-w-sm flex-col items-center text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-400">
@@ -555,7 +624,9 @@ export function DepositDialog({
             ) : !showVerifyStep ? (
               <Button
                 type="submit"
-                disabled={showBlockingPendingPrompt || !amount || !network || createTopup.isPending}
+                disabled={
+                  showBlockingPendingPrompt || !network || !isAmountValid || createTopup.isPending
+                }
               >
                 {createTopup.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
                 <ArrowRight className="mr-1 h-3.5 w-3.5" />

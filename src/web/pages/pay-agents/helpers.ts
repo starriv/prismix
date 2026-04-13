@@ -10,8 +10,7 @@ export const createFormSchema = createAgentBody.extend({
 
 export type CreateFormValues = z.infer<typeof createFormSchema>;
 
-/** Settlement token symbol — single source of truth for display. */
-export const TOKEN_SYMBOL = "USDC";
+export { TOKEN_SYMBOL } from "@/shared/tokens";
 
 export const editFormSchema = z.object({
   name: z.string().min(1, "common.valid.name-required"),
