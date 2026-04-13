@@ -189,22 +189,24 @@ export const aiUsageLogRepo = {
 
   /**
    * Batch-fetch the most recent usage log per upstream (DISTINCT ON).
-   * Replaces per-upstream findAll(1) N+1 queries in overview endpoint.
+   * Uses simple per-upstream queries for reliability across Drizzle execution paths.
+   * Upstream counts are expected to be small in admin usage, so this is acceptable.
    */
   async findLatestByUpstreamIds(upstreamIds: number[]): Promise<Map<number, AiUsageLog>> {
     if (upstreamIds.length === 0) return new Map();
-    const rows = await queryAll<AiUsageLog>(
-      sql`
-        SELECT DISTINCT ON (${aiUsageLogs.upstreamId}) *
-        FROM ${aiUsageLogs}
-        WHERE ${inArray(aiUsageLogs.upstreamId, upstreamIds)}
-        ORDER BY ${aiUsageLogs.upstreamId}, ${aiUsageLogs.createdAt} DESC
-      `,
-    );
+
     const map = new Map<number, AiUsageLog>();
+    const rows: Array<[number, AiUsageLog] | null> = await Promise.all(
+      upstreamIds.map(async (upstreamId) => {
+        const [latest] = await this.findAll(1, 0, { upstreamId });
+        return latest ? [upstreamId, latest] : null;
+      }),
+    );
+
     for (const row of rows) {
-      if (row.upstreamId != null) map.set(row.upstreamId, row);
+      if (row) map.set(row[0], row[1]);
     }
+
     return map;
   },
 
