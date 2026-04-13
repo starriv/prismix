@@ -61,24 +61,31 @@ export default function ConsumerKeysPage() {
 
   // ── Filter + Pagination (draft / applied pattern) ──
   const [draftPrefix, setDraftPrefix] = useState("");
+  const [draftUserUuid, setDraftUserUuid] = useState("");
   const [appliedPrefix, setAppliedPrefix] = useState("");
+  const [appliedUserUuid, setAppliedUserUuid] = useState("");
   const [page, setPage] = useState(0);
 
   const { data: keys = [], isLoading } = useRelayKeys({
     prefix: appliedPrefix || undefined,
+    userUuid: appliedUserUuid || undefined,
     page,
   });
 
-  const hasFilters = draftPrefix !== "" || appliedPrefix !== "";
+  const hasFilters =
+    draftPrefix !== "" || draftUserUuid !== "" || appliedPrefix !== "" || appliedUserUuid !== "";
 
   const applyFilters = useCallback(() => {
     setAppliedPrefix(draftPrefix.trim());
+    setAppliedUserUuid(draftUserUuid.trim());
     setPage(0);
-  }, [draftPrefix]);
+  }, [draftPrefix, draftUserUuid]);
 
   const resetFilters = useCallback(() => {
     setDraftPrefix("");
+    setDraftUserUuid("");
     setAppliedPrefix("");
+    setAppliedUserUuid("");
     setPage(0);
   }, []);
 
@@ -91,6 +98,10 @@ export default function ConsumerKeysPage() {
 
   const handlePrefixChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftPrefix(e.target.value),
+    [],
+  );
+  const handleUserUuidChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftUserUuid(e.target.value),
     [],
   );
 
@@ -151,6 +162,13 @@ export default function ConsumerKeysPage() {
                 onKeyDown={handleKeyDown}
                 className="w-full sm:w-[200px]"
               />
+              <Input
+                placeholder={t("consumer-keys.filter-uuid-ph")}
+                value={draftUserUuid}
+                onChange={handleUserUuidChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[240px]"
+              />
               <div className="flex gap-2">
                 <Button size="sm" onClick={applyFilters}>
                   <Search className="mr-1 h-3.5 w-3.5" />
@@ -193,8 +211,8 @@ export default function ConsumerKeysPage() {
                     <TableRow key={k.id}>
                       <TableCell className="font-medium">{k.name}</TableCell>
                       <TableCell className="font-mono text-xs">{k.apiKeyPrefix}&hellip;</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {k.userId ? `#${k.userId} ${k.userName ?? ""}` : "\u2014"}
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {k.userUuid ?? (k.userId ? `#${k.userId} ${k.userName ?? ""}` : "\u2014")}
                       </TableCell>
                       <TableCell className="text-sm">
                         <LocaleLink

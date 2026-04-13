@@ -15,6 +15,7 @@ export const payAgentSchema = z.object({
   monthlyLimit: z.string().nullable().optional(),
   defaultMarkupPercent: z.number().nullable(),
   userId: z.number().nullable().optional(),
+  userUuid: z.string().nullable().optional(),
   userName: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),

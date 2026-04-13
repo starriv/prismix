@@ -224,6 +224,7 @@ export type AiUsageByKey = z.infer<typeof aiUsageByKeySchema>;
 export const relayConsumerKeySchema = z.object({
   id: z.number(),
   userId: z.number().nullable(),
+  userUuid: z.string().nullable().optional(),
   userName: z.string().nullable().optional(),
   agentId: z.number(),
   name: z.string(),

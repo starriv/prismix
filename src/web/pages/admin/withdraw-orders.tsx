@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/web/components/ui/dialog";
+import { Input } from "@/web/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -55,6 +56,8 @@ export default function AdminWithdrawOrdersPage() {
   // Draft + applied filter state
   const [draftStatus, setDraftStatus] = useState("all");
   const [appliedStatus, setAppliedStatus] = useState("all");
+  const [draftUserUuid, setDraftUserUuid] = useState("");
+  const [appliedUserUuid, setAppliedUserUuid] = useState("");
   const [page, setPage] = useState(0);
 
   const withdrawStatusColorMap = useMemo(
@@ -70,21 +73,37 @@ export default function AdminWithdrawOrdersPage() {
 
   const { data: orders = [], isLoading } = useAdminWithdrawals({
     status: appliedStatus !== "all" ? appliedStatus : undefined,
+    userUuid: appliedUserUuid || undefined,
     page,
   });
 
-  const hasFilters = draftStatus !== "all";
+  const hasFilters = draftStatus !== "all" || draftUserUuid !== "" || appliedUserUuid !== "";
 
   const applyFilters = useCallback(() => {
     setAppliedStatus(draftStatus);
+    setAppliedUserUuid(draftUserUuid.trim());
     setPage(0);
-  }, [draftStatus]);
+  }, [draftStatus, draftUserUuid]);
 
   const resetFilters = useCallback(() => {
     setDraftStatus("all");
     setAppliedStatus("all");
+    setDraftUserUuid("");
+    setAppliedUserUuid("");
     setPage(0);
   }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") applyFilters();
+    },
+    [applyFilters],
+  );
+
+  const handleUserUuidChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftUserUuid(e.target.value),
+    [],
+  );
 
   // Approve / Reject state
   const [approveTarget, setApproveTarget] = useState<WithdrawOrder | null>(null);
@@ -114,6 +133,13 @@ export default function AdminWithdrawOrdersPage() {
                   <SelectItem value="cancelled">{t("admin.withdraw.filter.cancelled")}</SelectItem>
                 </SelectContent>
               </Select>
+              <Input
+                placeholder={t("admin.withdraw.filter-uuid-ph")}
+                value={draftUserUuid}
+                onChange={handleUserUuidChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[240px]"
+              />
 
               <div className="flex gap-2">
                 <Button size="sm" onClick={applyFilters}>
@@ -160,8 +186,8 @@ export default function AdminWithdrawOrdersPage() {
                   {orders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-mono text-xs">#{order.id}</TableCell>
-                      <TableCell className="text-xs">
-                        {order.userId ? `User #${order.userId}` : "—"}
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {order.userUuid ?? (order.userId ? `User #${order.userId}` : "—")}
                       </TableCell>
                       <TableCell className="font-mono text-sm font-medium">
                         ${removeTailingZero(order.amount)} USDC

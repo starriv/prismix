@@ -27,9 +27,10 @@ payAgentsRouter.get("/", async (c) => {
   const offset = parsePaginationOffset(c.req.query("offset"));
   const id = parseIntParam(c.req.query("id")) ?? undefined;
   const userName = c.req.query("userName") || undefined;
+  const userUuid = c.req.query("userUuid") || undefined;
   const address = c.req.query("address") || undefined;
 
-  const agents = await payAgentRepo.findAll(limit, offset, { id, address, userName });
+  const agents = await payAgentRepo.findAll(limit, offset, { id, address, userName, userUuid });
 
   return ok(c, agents);
 });

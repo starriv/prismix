@@ -26,10 +26,11 @@ router.get("/users", async (c) => {
   const idRaw = c.req.query("id");
   const id =
     idRaw && Number.isFinite(Number(idRaw)) && Number(idRaw) > 0 ? Number(idRaw) : undefined;
+  const uuid = c.req.query("uuid")?.trim() || undefined;
   const name = c.req.query("name")?.trim() || undefined;
   const email = c.req.query("email")?.trim() || undefined;
   const address = c.req.query("address")?.trim() || undefined;
-  const all = await userRepo.findAll(limit, offset, { id, name, email, address });
+  const all = await userRepo.findAll(limit, offset, { id, uuid, name, email, address });
   const userIds = all.map((u) => u.id);
   const identities = userIds.length ? await identityRepo.findByUserIds(userIds) : [];
   const identitiesByUserId = groupBy(identities, "userId");

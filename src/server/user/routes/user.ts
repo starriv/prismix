@@ -39,7 +39,7 @@ user.get("/profile", async (c) => {
   const session = getUserSession(c);
   const u = await userRepo.findById(session.userId);
   if (!u) return c.json({ error: "User not found" }, 404);
-  return ok(c, pick(u, ["id", "name", "email", "avatar", "status"]));
+  return ok(c, pick(u, ["id", "uuid", "name", "email", "avatar", "status"]));
 });
 
 // PUT /profile — update name/avatar
@@ -49,7 +49,7 @@ user.put("/profile", async (c) => {
   if (!parsed.ok) return parsed.response;
   const updated = await userRepo.update(session.userId, parsed.data);
   if (!updated) return c.json({ error: "User not found" }, 404);
-  return ok(c, pick(updated, ["id", "name", "email", "avatar", "status"]));
+  return ok(c, pick(updated, ["id", "uuid", "name", "email", "avatar", "status"]));
 });
 
 // ── Model Catalog ───────────────────────────────────────────────

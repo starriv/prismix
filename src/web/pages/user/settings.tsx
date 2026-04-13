@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -22,6 +23,7 @@ import {
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
 import { Skeleton } from "@/web/components/ui/skeleton";
+import { useCopy } from "@/web/hooks/use-copy";
 import { useUserAuthContext } from "@/web/providers/user-auth-provider";
 
 const profileSchema = z.object({
@@ -34,6 +36,7 @@ export default function UserSettingsPage() {
   const { t } = useTranslation();
   const { user } = useUserAuthContext();
   const { data: profile, isLoading } = useUserProfile();
+  const { copy, copied } = useCopy();
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -94,6 +97,27 @@ export default function UserSettingsPage() {
                   <div>
                     <label className="text-sm font-medium">{t("user.settings.email-label")}</label>
                     <Input value={user?.email ?? "—"} readOnly className="mt-1.5 bg-muted" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">{t("user.settings.uuid-label")}</label>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Input
+                        value={user?.uuid ?? profile?.uuid ?? "—"}
+                        readOnly
+                        className="bg-muted font-mono"
+                      />
+                      {(user?.uuid ?? profile?.uuid) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copy((user?.uuid ?? profile?.uuid)!)}
+                        >
+                          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <Button type="submit" size="sm" disabled={form.formState.isSubmitting}>

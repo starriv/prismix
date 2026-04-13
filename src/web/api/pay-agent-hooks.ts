@@ -51,12 +51,14 @@ export function usePayAgents() {
 export function usePayAgentsList(params: {
   id?: number;
   userName?: string;
+  userUuid?: string;
   address?: string;
   page?: number;
 }) {
   const qp = new URLSearchParams();
   if (params.id) qp.set("id", String(params.id));
   if (params.userName) qp.set("userName", params.userName);
+  if (params.userUuid) qp.set("userUuid", params.userUuid);
   if (params.address) qp.set("address", params.address);
   const page = params.page ?? 0;
   qp.set("limit", String(DEFAULT_PAGE_SIZE));

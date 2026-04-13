@@ -41,11 +41,13 @@ export default function AdminDashboardPage() {
     : undefined;
 
   // Draft filter state (UI controls)
+  const [draftUuid, setDraftUuid] = useState("");
   const [draftName, setDraftName] = useState("");
   const [draftEmail, setDraftEmail] = useState("");
   const [draftAddress, setDraftAddress] = useState("");
 
   // Applied filter state (drives query)
+  const [appliedUuid, setAppliedUuid] = useState("");
   const [appliedName, setAppliedName] = useState("");
   const [appliedEmail, setAppliedEmail] = useState("");
   const [appliedAddress, setAppliedAddress] = useState("");
@@ -53,6 +55,7 @@ export default function AdminDashboardPage() {
 
   const { data: users = [], isLoading } = useAdminUsers({
     id: idFromUrl,
+    uuid: appliedUuid || undefined,
     name: appliedName || undefined,
     email: appliedEmail || undefined,
     address: appliedAddress || undefined,
@@ -81,26 +84,31 @@ export default function AdminDashboardPage() {
 
   const hasFilters =
     !!idFromUrl ||
+    draftUuid !== "" ||
     draftName !== "" ||
     draftEmail !== "" ||
     draftAddress !== "" ||
+    appliedUuid !== "" ||
     appliedName !== "" ||
     appliedEmail !== "" ||
     appliedAddress !== "";
 
   const applyFilters = useCallback(() => {
     if (searchParams.has("id")) setSearchParams({}, { replace: true });
+    setAppliedUuid(draftUuid.trim());
     setAppliedName(draftName.trim());
     setAppliedEmail(draftEmail.trim());
     setAppliedAddress(draftAddress.trim());
     setPage(0);
-  }, [draftName, draftEmail, draftAddress, searchParams, setSearchParams]);
+  }, [draftUuid, draftName, draftEmail, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
     if (searchParams.has("id")) setSearchParams({}, { replace: true });
+    setDraftUuid("");
     setDraftName("");
     setDraftEmail("");
     setDraftAddress("");
+    setAppliedUuid("");
     setAppliedName("");
     setAppliedEmail("");
     setAppliedAddress("");
@@ -114,6 +122,10 @@ export default function AdminDashboardPage() {
     [applyFilters],
   );
 
+  const handleUuidChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftUuid(e.target.value),
+    [],
+  );
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftName(e.target.value),
     [],
@@ -139,6 +151,13 @@ export default function AdminDashboardPage() {
           <CardContent className="space-y-4">
             {/* Filter bar */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                placeholder={t("admin.users.filter-uuid-ph")}
+                value={draftUuid}
+                onChange={handleUuidChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[240px]"
+              />
               <Input
                 placeholder={t("admin.users.filter-name-ph")}
                 value={draftName}
@@ -190,6 +209,7 @@ export default function AdminDashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs">{t("admin.users.th.id")}</TableHead>
+                    <TableHead className="text-xs">{t("admin.users.th.uuid")}</TableHead>
                     <TableHead className="text-xs">{t("admin.users.th.name")}</TableHead>
                     <TableHead className="text-xs">{t("admin.users.th.email")}</TableHead>
                     <TableHead className="text-xs">{t("admin.users.th.address")}</TableHead>
@@ -205,6 +225,7 @@ export default function AdminDashboardPage() {
                       onClick={() => setSelectedId(user.id)}
                     >
                       <TableCell className="text-xs">{user.id}</TableCell>
+                      <TableCell className="font-mono text-xs">{user.uuid ?? "---"}</TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell className="text-xs">{user.email ?? "---"}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">

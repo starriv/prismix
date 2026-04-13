@@ -163,6 +163,7 @@
     "edit-title": "Agent 详情",
     "delete-confirm": "确定要删除此 Agent 吗？此操作无法撤消。",
     "filter-user-ph": "按用户筛选…",
+    "filter-uuid-ph": "按用户 UUID 筛选",
     "filter-address-ph": "按地址筛选…",
     "th": {
       "name": "名称",
@@ -632,6 +633,7 @@
         "failed": "失败",
         "cancelled": "已取消"
       },
+      "filter-uuid-ph": "按用户 UUID 筛选",
       "status": {
         "pending": "待审核",
         "processing": "处理中",
@@ -739,6 +741,7 @@
       "desc": "管理所有已注册的用户",
       "th": {
         "id": "ID",
+        "uuid": "UUID",
         "name": "名称",
         "email": "邮箱",
         "address": "地址",
@@ -750,6 +753,7 @@
         "active": "正常",
         "disabled": "已禁用"
       },
+      "filter-uuid-ph": "按 UUID 筛选",
       "filter-name-ph": "按名称筛选",
       "filter-email-ph": "按邮箱筛选",
       "filter-address-ph": "按地址筛选",
@@ -2776,6 +2780,7 @@
       "last-used": "最近使用"
     },
     "filter-prefix-ph": "按密钥前缀搜索",
+    "filter-uuid-ph": "按用户 UUID 筛选",
     "form": {
       "name": "密钥名称",
       "name-ph": "输入密钥名称",
@@ -2931,6 +2936,7 @@
       "profile-title": "个人资料",
       "name-label": "名称",
       "email-label": "邮箱",
+      "uuid-label": "UUID",
       "save": "保存更改",
       "toast": {
         "updated": "个人资料已更新"

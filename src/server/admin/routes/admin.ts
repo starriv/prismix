@@ -162,8 +162,9 @@ admin.get("/wallet/withdrawals", async (c) => {
   const limit = Number(c.req.query("limit") ?? 50);
   const offset = Number(c.req.query("offset") ?? 0);
   const status = c.req.query("status") || undefined;
+  const userUuid = c.req.query("userUuid") || undefined;
   const { withdrawOrderRepo } = await import("@/server/repos");
-  const rows = await withdrawOrderRepo.findAll({ status, limit, offset });
+  const rows = await withdrawOrderRepo.findAll({ status, userUuid, limit, offset });
   return ok(c, rows);
 });
 

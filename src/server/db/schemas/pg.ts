@@ -1,3 +1,6 @@
+import crypto from "crypto";
+
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -13,21 +16,28 @@ import {
 
 // ── Users (end consumers) ─────────────────────────────────────────────
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  email: text("email").unique(),
-  name: text("name").notNull(),
-  avatar: text("avatar"),
-  address: text("address").unique(), // optional — Web3 users have a wallet
-  agentId: integer("agent_id").references(() => payAgents.id, { onDelete: "set null" }), // user's single wallet (pay agent)
-  status: integer("status").notNull().default(1), // 1=active, 2=disabled
-  updatedAt: timestamp("updated_at")
-    .notNull()
-    .$defaultFn(() => new Date()),
-  createdAt: timestamp("created_at")
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    uuid: text("uuid")
+      .default(sql`gen_random_uuid()::text`)
+      .$defaultFn(() => crypto.randomUUID()),
+    email: text("email").unique(),
+    name: text("name").notNull(),
+    avatar: text("avatar"),
+    address: text("address").unique(), // optional — Web3 users have a wallet
+    agentId: integer("agent_id").references(() => payAgents.id, { onDelete: "set null" }), // user's single wallet (pay agent)
+    status: integer("status").notNull().default(1), // 1=active, 2=disabled
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("users_uuid_unique").on(t.uuid)],
+);
 
 // ── Admins ────────────────────────────────────────────────────────────
 

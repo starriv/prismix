@@ -163,6 +163,7 @@
     "edit-title": "Agent Details",
     "delete-confirm": "Are you sure you want to delete this agent? This action cannot be undone.",
     "filter-user-ph": "Filter by owner…",
+    "filter-uuid-ph": "Filter by user UUID",
     "filter-address-ph": "Filter by address…",
     "th": {
       "name": "Name",
@@ -632,6 +633,7 @@
         "failed": "Failed",
         "cancelled": "Cancelled"
       },
+      "filter-uuid-ph": "Filter by user UUID",
       "status": {
         "pending": "Pending",
         "processing": "Processing",
@@ -739,6 +741,7 @@
       "desc": "Manage all registered users",
       "th": {
         "id": "ID",
+        "uuid": "UUID",
         "name": "Name",
         "email": "Email",
         "address": "Address",
@@ -750,6 +753,7 @@
         "active": "Active",
         "disabled": "Disabled"
       },
+      "filter-uuid-ph": "Filter by UUID",
       "filter-name-ph": "Filter by name",
       "filter-email-ph": "Filter by email",
       "filter-address-ph": "Filter by address",
@@ -2776,6 +2780,7 @@
       "last-used": "Last Used"
     },
     "filter-prefix-ph": "Search by key prefix",
+    "filter-uuid-ph": "Filter by user UUID",
     "form": {
       "name": "Key Name",
       "name-ph": "Enter key name",
@@ -2931,6 +2936,7 @@
       "profile-title": "Profile",
       "name-label": "Name",
       "email-label": "Email",
+      "uuid-label": "UUID",
       "save": "Save Changes",
       "toast": {
         "updated": "Profile updated"

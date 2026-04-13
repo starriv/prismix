@@ -17,7 +17,11 @@ import {
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
-export type PayAgentWithOwner = PayAgent & { userId: number | null; userName: string | null };
+export type PayAgentWithOwner = PayAgent & {
+  userId: number | null;
+  userUuid: string | null;
+  userName: string | null;
+};
 
 export const payAgentRepo = {
   /**
@@ -27,12 +31,13 @@ export const payAgentRepo = {
   async findAll(
     limit = 200,
     offset = 0,
-    filters?: { id?: number; address?: string; userName?: string },
+    filters?: { id?: number; address?: string; userName?: string; userUuid?: string },
   ): Promise<PayAgentWithOwner[]> {
     const conditions = [];
     if (filters?.id) conditions.push(eq(payAgents.id, filters.id));
     if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
     if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
+    if (filters?.userUuid) conditions.push(eq(users.uuid, filters.userUuid));
 
     const rows = await queryAll(
       db
@@ -53,6 +58,7 @@ export const payAgentRepo = {
           updatedAt: payAgents.updatedAt,
           createdAt: payAgents.createdAt,
           userId: users.id,
+          userUuid: users.uuid,
           userName: users.name,
         })
         .from(payAgents)

@@ -584,9 +584,10 @@ export function useUpdateAiDefaultMarkup() {
 
 // ── Relay Consumer Keys ───────────────────────────────────────────────
 
-export function useRelayKeys(params?: { prefix?: string; page?: number }) {
+export function useRelayKeys(params?: { prefix?: string; userUuid?: string; page?: number }) {
   const qs = new URLSearchParams();
   if (params?.prefix) qs.set("prefix", params.prefix);
+  if (params?.userUuid) qs.set("userUuid", params.userUuid);
   if (params?.page) qs.set("page", String(params.page));
   const url = qs.size ? `${API_RELAY_KEYS}?${qs}` : API_RELAY_KEYS;
 

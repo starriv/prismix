@@ -26,6 +26,7 @@ export type ConsumerKeyWithUserStatus = RelayConsumerKey & {
 /** Consumer key row joined with user name for admin list view. */
 export type ConsumerKeyWithUser = RelayConsumerKey & {
   userName: string | null;
+  userUuid: string | null;
 };
 
 export const relayConsumerKeyRepo = {
@@ -36,14 +37,15 @@ export const relayConsumerKeyRepo = {
   async findFiltered(
     limit = 200,
     offset = 0,
-    filters?: { prefix?: string },
+    filters?: { prefix?: string; userUuid?: string },
   ): Promise<ConsumerKeyWithUser[]> {
     const conditions = [];
     if (filters?.prefix)
       conditions.push(ilike(relayConsumerKeys.apiKeyPrefix, `%${esc(filters.prefix)}%`));
+    if (filters?.userUuid) conditions.push(eq(users.uuid, filters.userUuid));
 
     const qb = db
-      .select({ ...getTableColumns(relayConsumerKeys), userName: users.name })
+      .select({ ...getTableColumns(relayConsumerKeys), userName: users.name, userUuid: users.uuid })
       .from(relayConsumerKeys)
       .leftJoin(users, eq(relayConsumerKeys.userId, users.id));
     if (conditions.length) qb.where(and(...conditions));

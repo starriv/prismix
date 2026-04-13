@@ -39,6 +39,7 @@ const auth = new Hono();
 
 function toUserResponse(u: {
   id: number;
+  uuid: string | null;
   address: string | null;
   name: string;
   email: string | null;
@@ -47,6 +48,7 @@ function toUserResponse(u: {
 }) {
   return {
     id: u.id,
+    uuid: u.uuid,
     address: u.address,
     name: u.name,
     email: u.email,

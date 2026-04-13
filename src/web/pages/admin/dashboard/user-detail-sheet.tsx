@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BarChart3, DollarSign, KeyRound, Plus, Trash2, User } from "lucide-react";
+import { BarChart3, Check, Copy, DollarSign, KeyRound, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -40,6 +40,7 @@ import {
 import { SheetBody, SheetFooter, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
 import { Switch } from "@/web/components/ui/switch";
 import { WalletAddress } from "@/web/components/ui/wallet-address";
+import { useCopy } from "@/web/hooks/use-copy";
 
 import { CreditDialog } from "./credit-dialog";
 
@@ -60,6 +61,7 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
   const { data: userDetail } = useAdminUserDetail(user.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [creditOpen, setCreditOpen] = useState(false);
+  const { copy, copied } = useCopy();
 
   const isActive = user.status === 1;
 
@@ -152,6 +154,20 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
             <div className="flex items-start justify-between">
               <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">User #{user.id}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-xs text-muted-foreground">{user.uuid ?? "---"}</p>
+                  {user.uuid && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copy(user.uuid!)}
+                    >
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </Button>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {user.createdAt ? new Date(user.createdAt).toLocaleString() : "---"}
                 </p>

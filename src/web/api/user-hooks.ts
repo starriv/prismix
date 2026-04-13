@@ -90,6 +90,7 @@ export function useUserProfile() {
         API_USER_PROFILE,
         z.object({
           id: z.number(),
+          uuid: z.string().nullable().optional(),
           name: z.string(),
           email: z.string().nullable(),
           avatar: z.string().nullable(),

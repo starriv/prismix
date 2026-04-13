@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const userInfoSchema = z.object({
   id: z.number(),
+  uuid: z.string().nullable().optional(),
   address: z.string().nullable(),
   email: z.string().nullable(),
   avatar: z.string().nullable(),
@@ -228,6 +229,7 @@ export type UpdateAnnouncementBody = z.infer<typeof updateAnnouncementBody>;
 
 export const userPortalInfoSchema = z.object({
   id: z.number(),
+  uuid: z.string().nullable().optional(),
   address: z.string().nullable(),
   email: z.string().nullable(),
   name: z.string(),
@@ -296,6 +298,7 @@ export const walletTransactionSchema = z.object({
   id: z.number(),
   agentId: z.number(),
   userId: z.number().nullable(),
+  userUuid: z.string().nullable().optional(),
   type: z.string(),
   amount: z.string(),
   balanceBefore: z.string(),
@@ -314,6 +317,7 @@ export const withdrawOrderSchema = z.object({
   id: z.number(),
   agentId: z.number(),
   userId: z.number().nullable(),
+  userUuid: z.string().nullable().optional(),
   toAddress: z.string(),
   amount: z.string(),
   network: z.string(),

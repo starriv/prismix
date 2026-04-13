@@ -58,16 +58,19 @@ export default function PayAgentsPage() {
 
   // Draft filter state (UI controls)
   const [draftUser, setDraftUser] = useState("");
+  const [draftUserUuid, setDraftUserUuid] = useState("");
   const [draftAddress, setDraftAddress] = useState("");
 
   // Applied filter state (drives query)
   const [appliedUser, setAppliedUser] = useState("");
+  const [appliedUserUuid, setAppliedUserUuid] = useState("");
   const [appliedAddress, setAppliedAddress] = useState("");
   const [page, setPage] = useState(0);
 
   const { data: agents = [], isLoading } = usePayAgentsList({
     id: idFromUrl,
     userName: appliedUser || undefined,
+    userUuid: appliedUserUuid || undefined,
     address: appliedAddress || undefined,
     page,
   });
@@ -92,23 +95,28 @@ export default function PayAgentsPage() {
   const hasFilters =
     !!idFromUrl ||
     draftUser !== "" ||
+    draftUserUuid !== "" ||
     draftAddress !== "" ||
     appliedUser !== "" ||
+    appliedUserUuid !== "" ||
     appliedAddress !== "";
 
   const applyFilters = useCallback(() => {
     // Clear the ?id= URL filter once user performs a manual search
     if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setAppliedUser(draftUser.trim());
+    setAppliedUserUuid(draftUserUuid.trim());
     setAppliedAddress(draftAddress.trim());
     setPage(0);
-  }, [draftUser, draftAddress, searchParams, setSearchParams]);
+  }, [draftUser, draftUserUuid, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
     if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setDraftUser("");
+    setDraftUserUuid("");
     setDraftAddress("");
     setAppliedUser("");
+    setAppliedUserUuid("");
     setAppliedAddress("");
     setPage(0);
   }, [searchParams, setSearchParams]);
@@ -126,6 +134,10 @@ export default function PayAgentsPage() {
   );
   const handleAddressChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftAddress(e.target.value),
+    [],
+  );
+  const handleUserUuidChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftUserUuid(e.target.value),
     [],
   );
 
@@ -170,6 +182,13 @@ export default function PayAgentsPage() {
                 onChange={handleUserChange}
                 onKeyDown={handleKeyDown}
                 className="w-full sm:w-[180px]"
+              />
+              <Input
+                placeholder={t("agents.filter-uuid-ph")}
+                value={draftUserUuid}
+                onChange={handleUserUuidChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[240px]"
               />
               <Input
                 placeholder={t("agents.filter-address-ph")}
@@ -230,7 +249,7 @@ export default function PayAgentsPage() {
                             className="inline-flex items-center gap-1 text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {`#${agent.userId} ${agent.userName ?? ""}`}
+                            {agent.userUuid ?? `#${agent.userId} ${agent.userName ?? ""}`}
                             <ExternalLink className="h-3 w-3 shrink-0" />
                           </LocaleLink>
                         ) : (

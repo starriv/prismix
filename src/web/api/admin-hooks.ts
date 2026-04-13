@@ -109,6 +109,7 @@ export function useDeleteAdmin() {
 
 export function useAdminUsers(params?: {
   id?: number;
+  uuid?: string;
   name?: string;
   email?: string;
   address?: string;
@@ -116,6 +117,7 @@ export function useAdminUsers(params?: {
 }) {
   const qs = new URLSearchParams();
   if (params?.id) qs.set("id", String(params.id));
+  if (params?.uuid) qs.set("uuid", params.uuid);
   if (params?.name) qs.set("name", params.name);
   if (params?.email) qs.set("email", params.email);
   if (params?.address) qs.set("address", params.address);
@@ -448,9 +450,14 @@ export function useSendAnnouncement() {
   });
 }
 
-export function useAdminWithdrawals(params?: { status?: string; page?: number }) {
+export function useAdminWithdrawals(params?: {
+  status?: string;
+  userUuid?: string;
+  page?: number;
+}) {
   const qs = new URLSearchParams();
   if (params?.status && params.status !== "all") qs.set("status", params.status);
+  if (params?.userUuid) qs.set("userUuid", params.userUuid);
   if (params?.page) {
     qs.set("offset", String(params.page * DEFAULT_PAGE_SIZE));
     qs.set("limit", String(DEFAULT_PAGE_SIZE));

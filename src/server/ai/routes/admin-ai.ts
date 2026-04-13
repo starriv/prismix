@@ -15,6 +15,7 @@ import {
   aiProviderRepo,
   aiUsageLogRepo,
   settingsRepo,
+  userRepo,
 } from "@/server/repos";
 
 import { safeParseJsonArray } from "../lib/safe-json";
@@ -24,6 +25,18 @@ import adminAiModels from "./admin-ai-models";
 import adminAiProviders from "./admin-ai-providers";
 
 const adminAi = new Hono();
+
+async function resolveUserIdParam(
+  rawUserId: string | null | undefined,
+  rawUserUuid: string | null | undefined,
+) {
+  const userId = parseIntParam(rawUserId ?? undefined) ?? undefined;
+  const userUuid = rawUserUuid?.trim() || undefined;
+  if (userId != null || !userUuid) return userId;
+  const user = await userRepo.findByUuid(userUuid);
+  // Return -1 when UUID was provided but not found — prevents returning all users' data
+  return user?.id ?? -1;
+}
 
 // ── Mount sub-routers ──────────────────────────────────────────────────
 
@@ -67,7 +80,7 @@ adminAi.get("/usage/summary", async (c) => {
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
   const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
-  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(c, await aiUsageLogRepo.summary(from, to, consumerKeyId, userId));
 });
 
@@ -84,7 +97,7 @@ adminAi.get("/usage/recent", async (c) => {
   const rawStatusClass = c.req.query("statusClass");
   const statusClass =
     rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
-  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(
     c,
     await aiUsageLogRepo.findAll(limit, offset, {
@@ -104,7 +117,7 @@ adminAi.get("/usage/daily", async (c) => {
   getAdminSession(c);
   const days = Math.min(Number(c.req.query("days")) || 30, 90);
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
-  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(c, await aiUsageLogRepo.dailySummary(days, consumerKeyId, userId));
 });
 
@@ -124,7 +137,7 @@ adminAi.get("/usage/by-key", async (c) => {
   getAdminSession(c);
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
   const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
-  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(c, await aiUsageLogRepo.summaryByConsumerKey(from, to, userId));
 });
 

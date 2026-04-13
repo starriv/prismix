@@ -19,6 +19,10 @@ export const userRepo = {
     return queryOne(db.select().from(users).where(eq(users.id, id)));
   },
 
+  async findByUuid(uuid: string): Promise<User | undefined> {
+    return queryOne(db.select().from(users).where(eq(users.uuid, uuid)));
+  },
+
   async findByEmail(email: string): Promise<User | undefined> {
     return queryOne(db.select().from(users).where(eq(users.email, email.toLowerCase())));
   },
@@ -30,11 +34,12 @@ export const userRepo = {
   async findAll(
     limit = 50,
     offset = 0,
-    filters?: { id?: number; name?: string; email?: string; address?: string },
+    filters?: { id?: number; uuid?: string; name?: string; email?: string; address?: string },
   ): Promise<User[]> {
     const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
     const conditions = [];
     if (filters?.id) conditions.push(eq(users.id, filters.id));
+    if (filters?.uuid) conditions.push(eq(users.uuid, filters.uuid));
     if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
     if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
     if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));

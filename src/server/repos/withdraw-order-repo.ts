@@ -1,7 +1,7 @@
 /**
  * Withdraw order repository — CRUD + status transitions for the `withdraw_orders` table.
  */
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, ne } from "drizzle-orm";
 
 import {
   db,
@@ -10,9 +10,12 @@ import {
   queryAll,
   queryOne,
   returningOne,
+  users,
   type WithdrawOrder,
   withdrawOrders,
 } from "@/server/db";
+
+export type WithdrawOrderWithUser = WithdrawOrder & { userUuid: string | null };
 
 export const withdrawOrderRepo = {
   async create(data: NewWithdrawOrder): Promise<WithdrawOrder> {
@@ -52,18 +55,21 @@ export const withdrawOrderRepo = {
 
   async findAll(opts?: {
     status?: string;
+    userUuid?: string;
     limit?: number;
     offset?: number;
-  }): Promise<WithdrawOrder[]> {
+  }): Promise<WithdrawOrderWithUser[]> {
     const conditions = [];
     if (opts?.status) conditions.push(eq(withdrawOrders.status, opts.status));
+    if (opts?.userUuid) conditions.push(eq(users.uuid, opts.userUuid));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     return queryAll(
       db
-        .select()
+        .select({ ...getTableColumns(withdrawOrders), userUuid: users.uuid })
         .from(withdrawOrders)
+        .leftJoin(users, eq(withdrawOrders.userId, users.id))
         .where(whereClause)
         .orderBy(desc(withdrawOrders.createdAt))
         .limit(opts?.limit ?? 50)
