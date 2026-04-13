@@ -2639,10 +2639,12 @@
     "th": {
       "name": "Name",
       "prefix": "Key Prefix",
+      "user": "User",
       "agent": "Pay Agent",
       "status": "Status",
       "last-used": "Last Used"
     },
+    "filter-prefix-ph": "Search by key prefix",
     "form": {
       "name": "Key Name",
       "name-ph": "Enter key name",
@@ -2688,6 +2690,7 @@
       "keys": "Keys",
       "usage": "Usage",
       "logs": "Logs",
+      "errors": "Errors",
       "settings": "Settings",
       "wallet": "Wallet",
       "logout": "Sign Out"
@@ -2786,6 +2789,10 @@
         "latency": "Latency",
         "time": "Time"
       }
+    },
+    "errors": {
+      "title": "Errors",
+      "desc": "Your 4xx / 5xx error overview and trend"
     },
     "settings": {
       "title": "Settings",

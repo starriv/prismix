@@ -318,7 +318,7 @@ user.get("/logs", async (c) => {
   const offset = Math.max(Number(c.req.query("offset") ?? 0), 0);
   const modelId = c.req.query("modelId") || undefined;
   const rawStatusClass = c.req.query("statusClass");
-  const statusClass =
+  const statusClass: "4xx" | "5xx" | undefined =
     rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
 
   const filters = { userId: session.userId, modelId, statusClass };

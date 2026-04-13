@@ -30,6 +30,8 @@ export default function UserLogsPage() {
   // Applied + draft filter state
   const [appliedModel, setAppliedModel] = useState("all");
   const [draftModel, setDraftModel] = useState("all");
+  const [appliedStatus, setAppliedStatus] = useState("all");
+  const [draftStatus, setDraftStatus] = useState("all");
   const [page, setPage] = useState(0);
 
   const {
@@ -38,6 +40,7 @@ export default function UserLogsPage() {
     isFetching,
   } = useUserLogs({
     modelId: appliedModel !== "all" ? appliedModel : undefined,
+    statusClass: appliedStatus === "4xx" || appliedStatus === "5xx" ? appliedStatus : undefined,
     page,
     refetchInterval: LIVE_REFETCH_MS,
   });
@@ -55,16 +58,19 @@ export default function UserLogsPage() {
 
   const [selected, setSelected] = useState<AiUsageRecord | null>(null);
 
-  const hasFilters = draftModel !== "all";
+  const hasFilters = draftModel !== "all" || draftStatus !== "all";
 
   const applyFilters = useCallback(() => {
     setAppliedModel(draftModel);
+    setAppliedStatus(draftStatus);
     setPage(0);
-  }, [draftModel]);
+  }, [draftModel, draftStatus]);
 
   const resetFilters = useCallback(() => {
     setDraftModel("all");
+    setDraftStatus("all");
     setAppliedModel("all");
+    setAppliedStatus("all");
     setPage(0);
   }, []);
 
@@ -93,6 +99,17 @@ export default function UserLogsPage() {
                       {m}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={draftStatus} onValueChange={setDraftStatus}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ai-logs.filter.all-status")}</SelectItem>
+                  <SelectItem value="4xx">4xx</SelectItem>
+                  <SelectItem value="5xx">5xx</SelectItem>
                 </SelectContent>
               </Select>
 

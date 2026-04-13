@@ -2639,10 +2639,12 @@
     "th": {
       "name": "名称",
       "prefix": "密钥前缀",
+      "user": "用户",
       "agent": "Pay Agent",
       "status": "状态",
       "last-used": "最近使用"
     },
+    "filter-prefix-ph": "按密钥前缀搜索",
     "form": {
       "name": "密钥名称",
       "name-ph": "输入密钥名称",
@@ -2688,6 +2690,7 @@
       "keys": "密钥",
       "usage": "用量",
       "logs": "日志",
+      "errors": "错误",
       "settings": "设置",
       "wallet": "钱包",
       "logout": "退出登录"
@@ -2786,6 +2789,10 @@
         "latency": "延迟",
         "time": "时间"
       }
+    },
+    "errors": {
+      "title": "错误",
+      "desc": "查看您自己的 4xx / 5xx 错误概览与趋势"
     },
     "settings": {
       "title": "设置",
