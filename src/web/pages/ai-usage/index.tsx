@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import { keyBy } from "lodash-es";
 import { AlertTriangle, ArrowRight, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, BarChart3, Cpu, DollarSign, Zap } from "luci
 import { formatPercent, removeTailingZero } from "@/shared/number";
 import { useAiUsageByKey, useAiUsageDaily, useAiUsageSummary, useRelayKeys } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
+import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -22,6 +23,8 @@ import {
 } from "@/web/components/ui/table";
 import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
+const AiUsageDetailPage = lazy(() => import("@/web/pages/ai-usage-detail"));
+
 const DailyTrendChart = lazy(() =>
   import("@/web/pages/ai-usage/charts").then((m) => ({ default: m.DailyTrendChart })),
 );
@@ -32,6 +35,23 @@ const ModelDistributionChart = lazy(() =>
 const LIVE_REFETCH_MS = 5_000;
 
 export default function AiUsagePage() {
+  const [searchParams] = useSearchParams();
+  const keyParam = searchParams.get("key");
+
+  if (keyParam) {
+    return (
+      <Suspense fallback={null}>
+        <AiUsageDetailPage />
+      </Suspense>
+    );
+  }
+
+  return <AiUsageList />;
+}
+
+// ── List View ──────────────────────────────────────────────────────
+
+function AiUsageList() {
   const { t } = useTranslation();
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
   const { data: daily = [], isLoading: dailyLoading } = useAiUsageDaily(30, LIVE_REFETCH_MS);
@@ -193,9 +213,9 @@ export default function AiUsagePage() {
                           </TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                              <Link to={`/ai-usage/${row.consumerKeyId}`}>
+                              <LocaleLink to={`/admin/ai-usage?key=${row.consumerKeyId}`}>
                                 <ArrowRight className="h-3.5 w-3.5" />
-                              </Link>
+                              </LocaleLink>
                             </Button>
                           </TableCell>
                         </TableRow>

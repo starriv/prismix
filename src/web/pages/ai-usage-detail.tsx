@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import JsonView from "react18-json-view";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -48,8 +48,8 @@ const LIVE_REFETCH_MS = 5_000;
 
 export default function AiUsageDetailPage() {
   const { t } = useTranslation();
-  const { consumerKeyId } = useParams<{ consumerKeyId: string }>();
-  const keyId = Number(consumerKeyId);
+  const [searchParams] = useSearchParams();
+  const keyId = Number(searchParams.get("key"));
 
   const { data: relayKeys = [] } = useRelayKeys();
   const keyInfo = relayKeys.find((k) => k.id === keyId);

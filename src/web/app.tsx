@@ -57,7 +57,6 @@ const AiProvidersPage = lazy(() => import("./pages/ai-providers"));
 const AiModelsPage = lazy(() => import("./pages/ai-models"));
 const AiRelayPage = lazy(() => import("./pages/ai-endpoint"));
 const AiUsagePage = lazy(() => import("./pages/ai-usage"));
-const AiUsageDetailPage = lazy(() => import("./pages/ai-usage-detail"));
 const AiLogsPage = lazy(() => import("./pages/ai-logs"));
 const ConsumerKeysPage = lazy(() => import("./pages/consumer-keys"));
 const KeyProvidersPage = lazy(() => import("./pages/admin/key-providers"));
@@ -160,7 +159,6 @@ export function App() {
                 <Route path="ai-models" element={<AiModelsPage />} />
                 <Route path="ai-endpoint" element={<AiRelayPage />} />
                 <Route path="ai-usage" element={<AiUsagePage />} />
-                <Route path="ai-usage/:consumerKeyId" element={<AiUsageDetailPage />} />
                 <Route path="ai-logs" element={<AiLogsPage />} />
                 <Route path="consumer-keys" element={<ConsumerKeysPage />} />
                 <Route path="key-providers" element={<KeyProvidersPage />} />
