@@ -220,7 +220,7 @@ function TxRow({ tx, agentName }: { tx: PayAgentTransaction; agentName?: string 
       </TableCell>
       <TableCell className="text-xs max-w-[120px]">
         <LocaleLink
-          to="/admin/pay-agents"
+          to={`/admin/pay-agents?id=${tx.agentId}`}
           className="inline-flex items-center gap-1 text-primary hover:underline truncate"
         >
           {agentName ?? `Agent #${tx.agentId}`}

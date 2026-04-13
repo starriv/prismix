@@ -137,7 +137,7 @@ export default function ConsumerKeysPage() {
                       <TableCell className="font-mono text-xs">{k.apiKeyPrefix}&hellip;</TableCell>
                       <TableCell className="text-sm">
                         <LocaleLink
-                          to="/admin/pay-agents"
+                          to={`/admin/pay-agents?id=${k.agentId}`}
                           className="inline-flex items-center gap-1 text-primary hover:underline"
                         >
                           {agentNameById.get(k.agentId) ?? `Agent #${k.agentId}`}
@@ -161,7 +161,7 @@ export default function ConsumerKeysPage() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" asChild>
-                            <LocaleLink to={`/admin/ai-usage/${k.id}`}>
+                            <LocaleLink to={`/admin/ai-usage?key=${k.id}`}>
                               <BarChart3 className="h-3.5 w-3.5" />
                             </LocaleLink>
                           </Button>

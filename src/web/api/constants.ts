@@ -158,6 +158,8 @@ export const apiUserKeyDetail = (id: number) => `/api/user/keys/${id}`;
 export const apiUserKeyUsage = (id: number) => `/api/user/keys/${id}/usage`;
 export const API_USER_USAGE_SUMMARY = "/api/user/usage/summary";
 export const API_USER_USAGE_DAILY = "/api/user/usage/daily";
+export const API_USER_ERROR_OVERVIEW = "/api/user/usage/error-overview";
+export const API_USER_ERROR_DAILY = "/api/user/usage/error-daily";
 export const API_USER_LOGS = "/api/user/logs";
 export const apiUserRequestLog = (requestId: string) => `/api/user/logs/request/${requestId}`;
 

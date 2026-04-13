@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   BarChart3,
   Brain,
   FileText,
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { href: "/user/keys", labelKey: "user.nav.keys", icon: Key },
   { href: "/user/usage", labelKey: "user.nav.usage", icon: BarChart3 },
   { href: "/user/logs", labelKey: "user.nav.logs", icon: FileText },
+  { href: "/user/errors", labelKey: "user.nav.errors", icon: AlertTriangle },
   { href: "/user/settings", labelKey: "user.nav.settings", icon: Settings },
 ];
 

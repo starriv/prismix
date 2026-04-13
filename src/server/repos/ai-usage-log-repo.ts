@@ -319,7 +319,8 @@ export const aiUsageLogRepo = {
     }));
   },
 
-  async errorOverview(days = 30): Promise<ErrorOverview> {
+  async errorOverview(days = 30, userId?: number): Promise<ErrorOverview> {
+    const where = userId != null ? eq(aiUsageLogs.userId, userId) : undefined;
     const totals = await queryOne<{
       total4xx: string | null;
       total5xx: string | null;
@@ -333,7 +334,8 @@ export const aiUsageLogRepo = {
           last24h4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
           last24h5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
         })
-        .from(aiUsageLogs),
+        .from(aiUsageLogs)
+        .where(where),
     );
 
     const peaks = await queryAll<{
@@ -348,7 +350,12 @@ export const aiUsageLogRepo = {
           serverErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600)`,
         })
         .from(aiUsageLogs)
-        .where(gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`))
+        .where(
+          and(
+            gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`),
+            ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
+          ),
+        )
         .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
         .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
     );
@@ -376,7 +383,7 @@ export const aiUsageLogRepo = {
     };
   },
 
-  async errorDaily(days = 30): Promise<ErrorDailyRow[]> {
+  async errorDaily(days = 30, userId?: number): Promise<ErrorDailyRow[]> {
     return queryAll<ErrorDailyRow>(
       db
         .select({
@@ -386,7 +393,12 @@ export const aiUsageLogRepo = {
           totalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600)`,
         })
         .from(aiUsageLogs)
-        .where(gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`))
+        .where(
+          and(
+            gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`),
+            ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
+          ),
+        )
         .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
         .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
     );

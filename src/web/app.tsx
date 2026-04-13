@@ -73,6 +73,7 @@ const UserDashboardPage = lazy(() => import("./pages/user/index"));
 const UserKeysPage = lazy(() => import("./pages/user/keys"));
 const UserUsagePage = lazy(() => import("./pages/user/usage"));
 const UserLogsPage = lazy(() => import("./pages/user/logs"));
+const UserErrorsPage = lazy(() => import("./pages/user/errors"));
 const UserSettingsPage = lazy(() => import("./pages/user/settings"));
 const UserWalletPage = lazy(() => import("./pages/user/wallet"));
 const UserEndpointPage = lazy(() => import("./pages/user/endpoint"));
@@ -216,6 +217,7 @@ export function App() {
                 <Route path="keys" element={<UserKeysPage />} />
                 <Route path="usage" element={<UserUsagePage />} />
                 <Route path="logs" element={<UserLogsPage />} />
+                <Route path="errors" element={<UserErrorsPage />} />
                 <Route path="settings" element={<UserSettingsPage />} />
               </Route>
             </Route>

@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import {
   API_USER_ANNOUNCEMENTS,
+  API_USER_ERROR_DAILY,
+  API_USER_ERROR_OVERVIEW,
   API_USER_KEYS,
   API_USER_LOGS,
   API_USER_MODELS,
@@ -24,6 +26,8 @@ import {
 import { queryKeys } from "./query-keys";
 import {
   aiDailyUsageSchema,
+  aiErrorDailySchema,
+  aiErrorOverviewSchema,
   aiRequestLogSchema,
   aiUsageRecordSchema,
   aiUsageSummarySchema,
@@ -143,22 +147,40 @@ export function useUserUsageDaily(days = 30) {
   });
 }
 
+export function useUserErrorOverview(days = 30, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.userErrorOverview(days),
+    queryFn: () => userGet(`${API_USER_ERROR_OVERVIEW}?days=${days}`, aiErrorOverviewSchema),
+    refetchInterval,
+  });
+}
+
+export function useUserErrorDaily(days = 30, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.userErrorDaily(days),
+    queryFn: () => userGet(`${API_USER_ERROR_DAILY}?days=${days}`, z.array(aiErrorDailySchema)),
+    refetchInterval,
+  });
+}
+
 export { DEFAULT_PAGE_SIZE as USER_LOG_PAGE_SIZE };
 
 export function useUserLogs(opts?: {
   modelId?: string;
+  statusClass?: "4xx" | "5xx";
   page?: number;
   refetchInterval?: number | false;
 }) {
   const page = opts?.page ?? 0;
   const params = new URLSearchParams();
   if (opts?.modelId) params.set("modelId", opts.modelId);
+  if (opts?.statusClass) params.set("statusClass", opts.statusClass);
   params.set("limit", String(DEFAULT_PAGE_SIZE));
   params.set("offset", String(page * DEFAULT_PAGE_SIZE));
   const qs = params.toString();
 
   return useQuery({
-    queryKey: queryKeys.userLogs({ modelId: opts?.modelId, page }),
+    queryKey: queryKeys.userLogs({ modelId: opts?.modelId, statusClass: opts?.statusClass, page }),
     queryFn: () =>
       userGet(
         `${API_USER_LOGS}?${qs}`,

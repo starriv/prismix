@@ -143,8 +143,16 @@ export const queryKeys = {
   userKeys: () => ["user", "keys"] as const,
   userUsageSummary: () => ["user", "usage-summary"] as const,
   userUsageDaily: (days: number) => ["user", "usage-daily", days] as const,
-  userLogs: (params?: { modelId?: string; page?: number }) =>
-    ["user", "logs", params?.modelId, params?.page ?? 0] as const,
+  userErrorOverview: (days: number) => ["user", "error-overview", days] as const,
+  userErrorDaily: (days: number) => ["user", "error-daily", days] as const,
+  userLogs: (params?: { modelId?: string; statusClass?: "4xx" | "5xx"; page?: number }) =>
+    [
+      "user",
+      "logs",
+      params?.modelId ?? "all",
+      params?.statusClass ?? "all",
+      params?.page ?? 0,
+    ] as const,
   userRequestLog: (requestId: string) => ["user", "request-log", requestId] as const,
   userAnnouncements: () => ["user", "announcements"] as const,
 

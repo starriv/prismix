@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import { Plus, Search } from "lucide-react";
 
@@ -42,8 +43,15 @@ const AGENT_STATUS_COLORS: Record<string, string> = {
 
 export default function PayAgentsPage() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Open detail sheet from query string: ?id=123
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (idParam) setEditingId(Number(idParam));
+  }, [searchParams]);
 
   // Draft filter state (UI controls)
   const [draftUser, setDraftUser] = useState("");
@@ -239,7 +247,13 @@ export default function PayAgentsPage() {
       </div>
 
       {/* Detail / Edit Sheet */}
-      <Sheet open={!!editing} onOpenChange={() => setEditingId(null)}>
+      <Sheet
+        open={!!editing}
+        onOpenChange={() => {
+          setEditingId(null);
+          if (searchParams.has("id")) setSearchParams({}, { replace: true });
+        }}
+      >
         <SheetContent className="w-full sm:w-[480px]">
           <SheetHeader>
             <SheetTitle>{t("agents.edit-title")}</SheetTitle>

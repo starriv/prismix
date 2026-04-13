@@ -297,6 +297,18 @@ user.get("/usage/daily", async (c) => {
   return ok(c, daily);
 });
 
+user.get("/usage/error-overview", async (c) => {
+  const session = getUserSession(c);
+  const days = Math.min(Number(c.req.query("days") ?? 30), 90);
+  return ok(c, await aiUsageLogRepo.errorOverview(days, session.userId));
+});
+
+user.get("/usage/error-daily", async (c) => {
+  const session = getUserSession(c);
+  const days = Math.min(Number(c.req.query("days") ?? 30), 90);
+  return ok(c, await aiUsageLogRepo.errorDaily(days, session.userId));
+});
+
 // ── Logs ─────────────────────────────────────────────────────────
 
 // GET /logs — AI request logs (paginated, filterable)
@@ -305,8 +317,11 @@ user.get("/logs", async (c) => {
   const limit = Math.min(Number(c.req.query("limit") ?? 10), 100);
   const offset = Math.max(Number(c.req.query("offset") ?? 0), 0);
   const modelId = c.req.query("modelId") || undefined;
+  const rawStatusClass = c.req.query("statusClass");
+  const statusClass =
+    rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
 
-  const filters = { userId: session.userId, modelId };
+  const filters = { userId: session.userId, modelId, statusClass };
   const [items, total] = await Promise.all([
     aiUsageLogRepo.findAll(limit, offset, filters),
     aiUsageLogRepo.count(filters),
