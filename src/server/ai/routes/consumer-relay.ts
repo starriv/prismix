@@ -93,27 +93,41 @@ function respondWithConsumerError(
 
 consumerRelay.get("/v1/models", async (c) => {
   const consumer = getConsumerSession(c);
-  const rows = await aiModelRepo.findAllEnabled();
+  const requestId = getRequestId(c);
 
-  // Filter by consumer's allowed models (if ACL is set)
-  const filtered =
-    consumer.allowedModels.length > 0
-      ? rows.filter((r) =>
-          consumer.allowedModels.some((pattern) =>
-            pattern.endsWith("*")
-              ? r.model.modelId.startsWith(pattern.slice(0, -1))
-              : r.model.modelId === pattern,
-          ),
-        )
-      : rows;
+  try {
+    const rows = await aiModelRepo.findAllEnabled();
 
-  const data = filtered.map((r) => ({
-    id: r.model.modelId,
-    object: "model" as const,
-    created: Math.floor(new Date(r.model.createdAt).getTime() / 1000),
-    owned_by: r.provider.providerId,
-  }));
-  return c.json({ object: "list", data });
+    // Filter by consumer's allowed models (if ACL is set)
+    const filtered =
+      consumer.allowedModels.length > 0
+        ? rows.filter((r) =>
+            consumer.allowedModels.some((pattern) =>
+              pattern.endsWith("*")
+                ? r.model.modelId.startsWith(pattern.slice(0, -1))
+                : r.model.modelId === pattern,
+            ),
+          )
+        : rows;
+
+    const data = filtered.map((r) => ({
+      id: r.model.modelId,
+      object: "model" as const,
+      created: Math.floor(new Date(r.model.createdAt).getTime() / 1000),
+      owned_by: r.provider.providerId,
+    }));
+    return c.json({ object: "list", data });
+  } catch (err) {
+    log.gateway.error({ err, requestId }, "Unhandled error in models handler");
+    enqueueAiAccessLog({
+      requestId,
+      statusCode: 500,
+      error: err instanceof Error ? err.message : "Internal Server Error",
+      consumerKeyId: consumer.consumerId,
+      userId: consumer.userId,
+    });
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
 });
 
 // ── POST /v1/chat/completions ────────────────────────────────────────
@@ -122,6 +136,23 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+
+  try {
+    return await handleChatCompletions(c, consumer, requestId, start);
+  } catch (err) {
+    log.gateway.error({ err, requestId }, "Unhandled error in chat completions handler");
+    return respondWithConsumerError(c, consumer, requestId, start, 500, {
+      error: "Internal Server Error",
+    });
+  }
+});
+
+async function handleChatCompletions(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+): Promise<Response> {
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
 
   // -- 1. Validate request body --
@@ -638,7 +669,7 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   enqueueJob("ai-key-touch", { keyId: key.id, keyType: "admin" });
 
   return c.json(transformed);
-});
+}
 
 // ── ALL /v1/* — Generic passthrough proxy (must be LAST) ────────────
 
@@ -646,6 +677,23 @@ consumerRelay.all("/v1/*", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+
+  try {
+    return await handlePassthrough(c, consumer, requestId, start);
+  } catch (err) {
+    log.gateway.error({ err, requestId }, "Unhandled error in passthrough handler");
+    return respondWithConsumerError(c, consumer, requestId, start, 500, {
+      error: "Internal Server Error",
+    });
+  }
+});
+
+async function handlePassthrough(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+): Promise<Response> {
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
 
@@ -868,6 +916,6 @@ consumerRelay.all("/v1/*", async (c) => {
       },
     );
   }
-});
+}
 
 export default consumerRelay;

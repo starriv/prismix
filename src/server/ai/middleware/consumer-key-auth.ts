@@ -68,119 +68,129 @@ export const consumerKeyAuthMiddleware = createMiddleware<ConsumerEnv>(async (c,
     return c.json({ error }, statusCode as 401);
   };
 
-  // Support both OpenAI-style (Authorization: Bearer ska_) and Anthropic-style (x-api-key: ska_)
-  const authHeader = c.req.header("Authorization");
-  const apiKeyHeader = c.req.header("x-api-key");
-
-  let rawKey: string | undefined;
-  if (authHeader?.startsWith("Bearer ska_")) {
-    rawKey = authHeader.slice(7);
-  } else if (apiKeyHeader?.startsWith("ska_")) {
-    rawKey = apiKeyHeader;
-  }
-
-  if (!rawKey) {
-    return respondWithAuthError(401, "Unauthorized — requires a consumer API key (ska_)");
-  }
-  const hash = hashApiKey(rawKey);
-
-  const consumer = await relayConsumerKeyRepo.findByApiKeyHash(hash);
-  if (!consumer) {
-    return respondWithAuthError(401, "Invalid consumer API key");
-  }
-
-  // Consumer key status check
-  if (consumer.status !== "active") {
-    log.gateway.warn({ consumerId: consumer.id }, "Consumer key used but is suspended");
-    return respondWithAuthError(403, "Consumer key is suspended", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-
-  // Owning user status check (null userStatus = orphan key, allowed through)
-  if (consumer.userStatus === 2) {
-    log.gateway.warn(
-      { consumerId: consumer.id, userId: consumer.userId },
-      "Consumer key used but owning user is disabled",
-    );
-    return respondWithAuthError(403, "Account is disabled", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-
-  // Expiry check
-  if (consumer.expiresAt && new Date(consumer.expiresAt) < new Date()) {
-    return respondWithAuthError(403, "Consumer key has expired", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-
-  // Load linked pay-agent for balance
-  const agent = await payAgentRepo.findById(consumer.agentId);
-  if (!agent) {
-    return respondWithAuthError(403, "Linked pay-agent not found", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-  if (agent.status !== "active") {
-    return respondWithAuthError(403, "Linked pay-agent is suspended", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-  if (lte(agent.balance, "0")) {
-    return respondWithAuthError(402, "Agent balance exhausted. Please top up the pay-agent.", {
-      consumerKeyId: consumer.id,
-      userId: consumer.userId,
-    });
-  }
-
-  // Parse allowed models — fail-closed: reject if JSON is corrupted
-  let allowedModels: string[] = [];
   try {
-    const parsed = JSON.parse(consumer.allowedModels) as unknown;
-    if (Array.isArray(parsed)) {
-      allowedModels = parsed as string[];
-    } else {
+    // Support both OpenAI-style (Authorization: Bearer ska_) and Anthropic-style (x-api-key: ska_)
+    const authHeader = c.req.header("Authorization");
+    const apiKeyHeader = c.req.header("x-api-key");
+
+    let rawKey: string | undefined;
+    if (authHeader?.startsWith("Bearer ska_")) {
+      rawKey = authHeader.slice(7);
+    } else if (apiKeyHeader?.startsWith("ska_")) {
+      rawKey = apiKeyHeader;
+    }
+
+    if (!rawKey) {
+      return respondWithAuthError(401, "Unauthorized — requires a consumer API key (ska_)");
+    }
+    const hash = hashApiKey(rawKey);
+
+    const consumer = await relayConsumerKeyRepo.findByApiKeyHash(hash);
+    if (!consumer) {
+      return respondWithAuthError(401, "Invalid consumer API key");
+    }
+
+    // Consumer key status check
+    if (consumer.status !== "active") {
+      log.gateway.warn({ consumerId: consumer.id }, "Consumer key used but is suspended");
+      return respondWithAuthError(403, "Consumer key is suspended", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+
+    // Owning user status check (null userStatus = orphan key, allowed through)
+    if (consumer.userStatus === 2) {
+      log.gateway.warn(
+        { consumerId: consumer.id, userId: consumer.userId },
+        "Consumer key used but owning user is disabled",
+      );
+      return respondWithAuthError(403, "Account is disabled", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+
+    // Expiry check
+    if (consumer.expiresAt && new Date(consumer.expiresAt) < new Date()) {
+      return respondWithAuthError(403, "Consumer key has expired", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+
+    // Load linked pay-agent for balance
+    const agent = await payAgentRepo.findById(consumer.agentId);
+    if (!agent) {
+      return respondWithAuthError(403, "Linked pay-agent not found", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+    if (agent.status !== "active") {
+      return respondWithAuthError(403, "Linked pay-agent is suspended", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+    if (lte(agent.balance, "0")) {
+      return respondWithAuthError(402, "Agent balance exhausted. Please top up the pay-agent.", {
+        consumerKeyId: consumer.id,
+        userId: consumer.userId,
+      });
+    }
+
+    // Parse allowed models — fail-closed: reject if JSON is corrupted
+    let allowedModels: string[] = [];
+    try {
+      const parsed = JSON.parse(consumer.allowedModels) as unknown;
+      if (Array.isArray(parsed)) {
+        allowedModels = parsed as string[];
+      } else {
+        log.gateway.warn(
+          { consumerId: consumer.id },
+          "allowedModels is not an array — denying access",
+        );
+        return respondWithAuthError(500, "Consumer key configuration error", {
+          consumerKeyId: consumer.id,
+          userId: consumer.userId,
+        });
+      }
+    } catch {
       log.gateway.warn(
         { consumerId: consumer.id },
-        "allowedModels is not an array — denying access",
+        "allowedModels JSON parse failed — denying access",
       );
       return respondWithAuthError(500, "Consumer key configuration error", {
         consumerKeyId: consumer.id,
         userId: consumer.userId,
       });
     }
-  } catch {
-    log.gateway.warn(
-      { consumerId: consumer.id },
-      "allowedModels JSON parse failed — denying access",
-    );
-    return respondWithAuthError(500, "Consumer key configuration error", {
-      consumerKeyId: consumer.id,
+
+    c.set("consumer", {
+      consumerId: consumer.id,
       userId: consumer.userId,
+      agentId: consumer.agentId,
+      agentBalance: agent.balance,
+      markupPercent:
+        consumer.markupPercent ?? agent.defaultMarkupPercent ?? (await getGlobalDefaultMarkup()),
+      allowedModels,
+      rateLimitRpm: consumer.rateLimitRpm,
+      perPayLimit: agent.perPayLimit,
+      dailyLimit: agent.dailyLimit,
+      monthlyLimit: agent.monthlyLimit,
     });
+
+    await next();
+  } catch (err) {
+    log.gateway.error({ err, requestId }, "Consumer key auth middleware failed unexpectedly");
+    enqueueAiAccessLog({
+      requestId,
+      statusCode: 500,
+      error: err instanceof Error ? err.message : "Internal auth error",
+    });
+    return c.json({ error: "Internal Server Error" }, 500);
   }
-
-  c.set("consumer", {
-    consumerId: consumer.id,
-    userId: consumer.userId,
-    agentId: consumer.agentId,
-    agentBalance: agent.balance,
-    markupPercent:
-      consumer.markupPercent ?? agent.defaultMarkupPercent ?? (await getGlobalDefaultMarkup()),
-    allowedModels,
-    rateLimitRpm: consumer.rateLimitRpm,
-    perPayLimit: agent.perPayLimit,
-    dailyLimit: agent.dailyLimit,
-    monthlyLimit: agent.monthlyLimit,
-  });
-
-  await next();
 });
 
 /** Type-safe accessor for consumer session. */
