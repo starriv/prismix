@@ -11,12 +11,14 @@ import { z } from "zod";
 import { removeTailingZero } from "@/shared/number";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import {
+  usePayAgents,
   useRejectTopupOrder,
   useSettleTopupOrder,
   useTopupOrders,
 } from "@/web/api/pay-agent-hooks";
 import type { TopUpOrder } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
+import { InfoLinkRow, InfoRow } from "@/web/components/dashboard/info-row";
 import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { Button } from "@/web/components/ui/button";
@@ -63,6 +65,7 @@ import {
   TableRow,
 } from "@/web/components/ui/table";
 import { Textarea } from "@/web/components/ui/textarea";
+import { useChainRegistry } from "@/web/shared/chains";
 import { getDateLocale } from "@/web/shared/date-locale";
 
 const TOPUP_STATUS_COLORS = {
@@ -72,8 +75,16 @@ const TOPUP_STATUS_COLORS = {
   expired: "border-zinc-500/30 bg-zinc-500/10 text-zinc-600",
 };
 
+const REJECT_REASON_KEYS = [
+  "duplicate_payment",
+  "wrong_network",
+  "unsupported_token",
+  "payment_not_received",
+] as const;
+
 export default function AdminTopupOrdersPage() {
   const { t, i18n } = useTranslation();
+  const { getChainDisplayByNetworkId } = useChainRegistry();
   const [draftStatus, setDraftStatus] = useState("all");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
@@ -162,6 +173,7 @@ export default function AdminTopupOrdersPage() {
                     <TableHead>{t("common.th.amount")}</TableHead>
                     <TableHead>{t("common.th.network")}</TableHead>
                     <TableHead>{t("common.th.status")}</TableHead>
+                    <TableHead>{t("topup.detail.note")}</TableHead>
                     <TableHead>{t("common.th.time")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -183,10 +195,19 @@ export default function AdminTopupOrdersPage() {
                         ${removeTailingZero(order.amount)} USDC
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {order.network ?? "—"}
+                        {order.network
+                          ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
+                          : "—"}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={order.status} colorMap={statusColorMap} />
+                      </TableCell>
+                      <TableCell className="max-w-[240px] text-xs text-muted-foreground">
+                        {order.adminNote ? (
+                          <span className="line-clamp-2">{order.adminNote}</span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatDistanceToNow(new Date(order.createdAt), {
@@ -235,10 +256,13 @@ function TopupOrderDetailSheet({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { getChainDisplayByNetworkId } = useChainRegistry();
+  const { data: agents = [] } = usePayAgents();
   const [settleOpen, setSettleOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
 
   const isPending = order.status === "pending";
+  const agentName = agents.find((agent) => agent.id === order.agentId)?.name ?? `#${order.agentId}`;
 
   return (
     <>
@@ -275,7 +299,11 @@ function TopupOrderDetailSheet({
           <CardContent className="space-y-3">
             <InfoRow label={t("topup.detail.user-name")} value={order.userName || "—"} />
             <InfoRow label={t("topup.detail.user-uuid")} value={order.userUuid || "—"} />
-            <InfoRow label={t("topup.detail.agent-id")} value={`#${order.agentId}`} />
+            <InfoLinkRow
+              label={t("topup.detail.agent-id")}
+              href={`/admin/pay-agents?id=${order.agentId}`}
+              value={agentName}
+            />
             <InfoRow label={t("topup.detail.address")} value={order.toAddress || "—"} mono />
           </CardContent>
         </Card>
@@ -285,7 +313,14 @@ function TopupOrderDetailSheet({
             <CardTitle className="text-sm">{t("topup.detail.chain")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <InfoRow label={t("common.th.network")} value={order.network || "—"} />
+            <InfoRow
+              label={t("common.th.network")}
+              value={
+                order.network
+                  ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
+                  : "—"
+              }
+            />
             <InfoRow label={t("topup.detail.txhash")} value={order.txHash || "—"} mono />
             <InfoRow label={t("topup.detail.method")} value={order.paymentMethod || "—"} />
           </CardContent>
@@ -365,7 +400,7 @@ function SettleOrderDialog({
     resolver: zodResolver(settleSchema),
     defaultValues: {
       amount: order.amount,
-      note: `Admin settled top-up order #${order.id}`,
+      note: t("topup.action.settle-default-note", { id: order.id }),
     },
   });
 
@@ -460,6 +495,17 @@ function RejectOrderDialog({
     },
   });
 
+  const applyReason = useCallback(
+    (reasonKey: (typeof REJECT_REASON_KEYS)[number]) => {
+      form.setValue("note", t(`topup.reject-reason.${reasonKey}`), {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+    },
+    [form, t],
+  );
+
   const handleSubmit = useCallback(
     async (data: z.infer<typeof rejectSchema>) => {
       try {
@@ -483,6 +529,22 @@ function RejectOrderDialog({
         <DialogBody>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t("topup.action.common-reasons")}</p>
+                <div className="flex flex-wrap gap-2">
+                  {REJECT_REASON_KEYS.map((reasonKey) => (
+                    <Button
+                      key={reasonKey}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyReason(reasonKey)}
+                    >
+                      {t(`topup.reject-reason.${reasonKey}`)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <FormField
                 control={form.control}
                 name="note"
@@ -513,14 +575,5 @@ function RejectOrderDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function InfoRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={mono ? "font-mono text-xs break-all" : "text-sm"}>{value}</p>
-    </div>
   );
 }

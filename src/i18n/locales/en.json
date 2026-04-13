@@ -82,7 +82,7 @@
     "notifications": "Notifications",
     "topup-orders": "Top-up Orders",
     "ledger": "Transactions",
-    "withdraw-orders": "Withdrawals",
+    "withdraw-orders": "Withdrawal Orders",
     "fiat-configs": "Payment Methods",
     "webhooks": "Webhooks",
     "ai-gateway": "AI Gateway",
@@ -533,6 +533,25 @@
       "desc": "Review and manage user withdrawal requests",
       "card-title": "Orders",
       "empty": "No withdrawal orders",
+      "detail": {
+        "amount": "Amount",
+        "pending-hint": "This withdrawal is waiting for admin review.",
+        "readonly-hint": "This withdrawal has already been processed.",
+        "user": "User & Wallet",
+        "user-uuid": "User UUID",
+        "user-id": "User ID",
+        "agent-id": "Wallet Agent",
+        "address": "Withdrawal Address",
+        "chain": "Transfer",
+        "txhash": "Transaction Hash",
+        "fee": "Fee",
+        "timeline": "Timeline",
+        "created": "Created",
+        "updated": "Updated",
+        "reviewed": "Reviewed At",
+        "reviewer": "Reviewed By",
+        "note": "Note"
+      },
       "th": {
         "user": "User",
         "amount": "Amount",
@@ -2083,15 +2102,23 @@
       "created": "Created",
       "updated": "Updated",
       "expires": "Expires",
-      "note": "Admin Note"
+      "note": "Note"
     },
     "action": {
       "reject": "Reject Order",
       "settle": "Credit & Confirm",
+      "common-reasons": "Common Reasons",
+      "settle-default-note": "Admin settled top-up order #{{id}}",
       "settle-success": "Wallet credited and order confirmed.",
       "settle-error": "Failed to settle top-up order.",
       "reject-success": "Top-up order rejected.",
       "reject-error": "Failed to reject top-up order."
+    },
+    "reject-reason": {
+      "duplicate_payment": "Duplicate payment detected",
+      "wrong_network": "Deposit was sent on the wrong network",
+      "unsupported_token": "Unsupported token was deposited",
+      "payment_not_received": "No matching payment was received"
     }
   },
   "ai": {
@@ -2595,6 +2622,11 @@
     },
     "account-menu": {
       "fallback-name": "User",
+      "auth": {
+        "wallet": "Wallet",
+        "email": "Email",
+        "user": "User"
+      },
       "sections": {
         "account": "Account",
         "wallet": "Wallet"
@@ -2608,6 +2640,7 @@
       },
       "wallet": {
         "connected": "Wallet connected",
+        "not-connected": "Wallet not connected",
         "connect-hint": "Connect a wallet if you want to use onchain deposit and withdrawal flows.",
         "unsupported": "The connected wallet is on an unsupported network.",
         "switch-network": "Switch network",
@@ -2723,8 +2756,17 @@
       "deposit": "Deposit",
       "withdraw": "Withdraw",
       "deposit-title": "Deposit USDC",
-      "deposit-desc": "Create a deposit order first, then send USDC on a supported network. Paste the transaction hash for instant credit.",
-      "deposit-address": "Deposit Address",
+      "deposit-step-create": "Create Order",
+      "deposit-step-verify": "Verify Deposit",
+      "deposit-step-result": "Deposit Result",
+      "deposit-step-create-title": "Step 1. Create a deposit order",
+      "deposit-step-create-desc": "Choose the network and amount first. After the order is created, the dialog will switch to deposit verification.",
+      "deposit-step-verify-title": "Step 2. Send USDC and verify",
+      "deposit-step-verify-desc": "Send USDC to the generated address on the selected network, then paste the transaction hash for immediate credit.",
+      "deposit-view-address": "Address",
+      "deposit-qr-title": "Deposit address QR code",
+      "deposit-qr-card-title": "Scan To Deposit",
+      "deposit-qr-card-desc": "Use a wallet app to scan this code and fill the deposit address instantly.",
       "deposit-network": "Network",
       "deposit-copied": "Address copied!",
       "deposit-manual": "Verify by Transaction Hash",
@@ -2780,13 +2822,19 @@
         "platform": "Platform",
         "on_chain": "On-chain"
       },
-      "deposit-token": "Deposit Route",
       "deposit-create-order": "Create Deposit Order",
       "deposit-order-created": "Deposit order created. Auto-detection is active for the next hour.",
       "deposit-order-failed": "Failed to create deposit order",
+      "deposit-pending-block-title": "You already have a pending deposit order",
+      "deposit-pending-block-desc": "Complete pending order #{{orderId}} from the deposit orders list before creating a new one.",
       "deposit-order-active": "Waiting for {{amount}} USDC. Auto-detection runs in the background for up to 1 hour.",
-      "deposit-order-expiry": "For the lowest fee and fastest credit, paste the transaction hash right after sending.",
+      "deposit-order-ended": "This order can no longer be verified. Create a new order to continue depositing.",
       "deposit-auto-confirmed": "Deposit confirmed automatically: {{amount}} USDC credited.",
+      "deposit-result-summary": "{{amount}} USDC has been credited to your wallet.",
+      "deposit-result-network": "Deposit Network",
+      "deposit-result-amount": "Deposit Amount",
+      "deposit-create-new-order": "Create New Order",
+      "deposit-open-pending": "Open Pending Order",
       "deposit-orders": "Deposit Orders",
       "deposit-orders-empty": "No deposit orders yet"
     },

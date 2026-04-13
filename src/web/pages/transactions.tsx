@@ -91,61 +91,6 @@ export default function TransactionLedgerPage() {
       <Header title={t("ledger.title")} description={t("ledger.desc")} />
 
       <div className="p-4 md:p-8 space-y-4">
-        {/* Filters */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-          <Select value={draftType} onValueChange={setDraftType}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder={t("ledger.filter.type")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("ledger.filter.all-types")}</SelectItem>
-              <SelectItem value="top_up">{t("ledger.type.top_up")}</SelectItem>
-              <SelectItem value="ai_usage">{t("ledger.type.ai_usage")}</SelectItem>
-              <SelectItem value="withdraw">{t("ledger.type.withdraw")}</SelectItem>
-              <SelectItem value="payment">{t("ledger.type.payment")}</SelectItem>
-              <SelectItem value="admin_debit">{t("ledger.type.admin_debit")}</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={draftSource} onValueChange={setDraftSource}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder={t("ledger.filter.source")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("ledger.filter.all-sources")}</SelectItem>
-              <SelectItem value="platform">{t("ledger.source.platform")}</SelectItem>
-              <SelectItem value="on_chain">{t("ledger.source.on_chain")}</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={draftAgent} onValueChange={setDraftAgent}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={t("ledger.filter.agent")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("ledger.filter.all-agents")}</SelectItem>
-              {agents.map((a) => (
-                <SelectItem key={a.id} value={String(a.id)}>
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex gap-2">
-            <Button size="sm" onClick={applyFilters} onKeyDown={handleKeyDown}>
-              <Search className="mr-1 h-3.5 w-3.5" />
-              {t("common.btn.search")}
-            </Button>
-            {hasFilters && (
-              <Button size="sm" variant="outline" onClick={resetFilters}>
-                {t("common.btn.reset")}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Table */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -153,7 +98,60 @@ export default function TransactionLedgerPage() {
               {t("ledger.table-title")}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Select value={draftType} onValueChange={setDraftType}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder={t("ledger.filter.type")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ledger.filter.all-types")}</SelectItem>
+                  <SelectItem value="top_up">{t("ledger.type.top_up")}</SelectItem>
+                  <SelectItem value="ai_usage">{t("ledger.type.ai_usage")}</SelectItem>
+                  <SelectItem value="withdraw">{t("ledger.type.withdraw")}</SelectItem>
+                  <SelectItem value="payment">{t("ledger.type.payment")}</SelectItem>
+                  <SelectItem value="admin_debit">{t("ledger.type.admin_debit")}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={draftSource} onValueChange={setDraftSource}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder={t("ledger.filter.source")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ledger.filter.all-sources")}</SelectItem>
+                  <SelectItem value="platform">{t("ledger.source.platform")}</SelectItem>
+                  <SelectItem value="on_chain">{t("ledger.source.on_chain")}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={draftAgent} onValueChange={setDraftAgent}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder={t("ledger.filter.agent")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("ledger.filter.all-agents")}</SelectItem>
+                  {agents.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters} onKeyDown={handleKeyDown}>
+                  <Search className="mr-1 h-3.5 w-3.5" />
+                  {t("common.btn.search")}
+                </Button>
+                {hasFilters && (
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("common.btn.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {isLoading && txns.length === 0 ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -188,13 +186,14 @@ export default function TransactionLedgerPage() {
               </div>
             )}
 
-            {/* Pagination */}
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={txns.length}
-              pageSize={PAGE_SIZE}
-            />
+            <div className="pt-2">
+              <Pagination
+                page={page}
+                onPageChange={setPage}
+                currentCount={txns.length}
+                pageSize={PAGE_SIZE}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

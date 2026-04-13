@@ -266,6 +266,7 @@ export function useWalletTopupOrders(params?: {
   status?: string;
   limit?: number;
   offset?: number;
+  enabled?: boolean;
 }) {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set("status", params.status);
@@ -280,6 +281,7 @@ export function useWalletTopupOrders(params?: {
         `${API_USER_WALLET_TOPUP_ORDERS}${qs ? `?${qs}` : ""}`,
         userWalletTopupOrderListSchema,
       ),
+    enabled: params?.enabled ?? true,
   });
 }
 

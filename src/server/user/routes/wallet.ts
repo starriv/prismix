@@ -25,7 +25,7 @@ import {
   withdrawOrderRepo,
 } from "@/server/repos";
 import { SUPPORTED_PAYMENT_CHAIN_IDS } from "@/shared/circle-networks";
-import { gt, gte } from "@/shared/number";
+import { gt, gte, removeTailingZero, safePlus } from "@/shared/number";
 
 const USDC_DECIMALS = 6;
 const TOPUP_EXPIRES_IN_MS = 60 * 60 * 1000;
@@ -174,8 +174,18 @@ wallet.post("/topup", async (c) => {
     paymentMethod: "crypto",
   });
 
+  let startBlock: number | undefined;
+  try {
+    startBlock = Number((await getPublicClient(network).getBlockNumber()) + 1n);
+  } catch (err) {
+    log.blockchain.warn(
+      { err, network, orderId: order.id },
+      "Failed to capture top-up start block",
+    );
+  }
+
   // Enqueue the on-demand deposit scan
-  enqueueDepositScan(order.id);
+  enqueueDepositScan(order.id, startBlock);
 
   log.blockchain.info(
     { orderId: order.id, agentId, amount, network, toAddress },
@@ -259,12 +269,6 @@ wallet.post("/deposit/verify", async (c) => {
     return c.json({ error: `Network not supported for deposits: ${network}` }, 400);
   }
 
-  // Dedup check
-  const existing = await payAgentTransactionRepo.findByTxHash(txHash);
-  if (existing) {
-    return c.json({ error: "Transaction already verified" }, 409);
-  }
-
   // Get the user's single agent address
   const agent = await payAgentRepo.findById(agentId);
   if (!agent?.address) {
@@ -297,8 +301,7 @@ wallet.post("/deposit/verify", async (c) => {
   // ERC-20 Transfer event topic: keccak256("Transfer(address,address,uint256)")
   const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-  let amount = "0";
-  let matched = false;
+  const matchedTransfers: Array<{ amount: string; txKey: string }> = [];
 
   for (const logEntry of receipt.logs) {
     // Match USDC contract address
@@ -316,16 +319,35 @@ wallet.post("/deposit/verify", async (c) => {
 
     // Parse amount from data (uint256)
     const rawValue = BigInt(logEntry.data);
-    amount = formatUnits(rawValue, USDC_DECIMALS);
-    matched = true;
-    break;
+    matchedTransfers.push({
+      amount: removeTailingZero(formatUnits(rawValue, USDC_DECIMALS)),
+      txKey: `${txHash}:${logEntry.logIndex ?? 0}`,
+    });
   }
 
-  if (!matched) {
+  if (matchedTransfers.length === 0) {
     return c.json(
       { error: "No USDC transfer to your wallet address found in this transaction" },
       400,
     );
+  }
+
+  const existing = await payAgentTransactionRepo.findByTxHashes([
+    txHash,
+    ...matchedTransfers.map((entry) => entry.txKey),
+  ]);
+  const existingKeys = new Set(existing.map((entry) => entry.txHash).filter(Boolean));
+  const newTransfers = matchedTransfers.filter(
+    (entry) => !existingKeys.has(txHash) && !existingKeys.has(entry.txKey),
+  );
+
+  if (newTransfers.length === 0) {
+    return c.json({ error: "Transaction already verified" }, 409);
+  }
+
+  let amount = "0";
+  for (const entry of newTransfers) {
+    amount = removeTailingZero(safePlus(amount, entry.amount));
   }
 
   if (!gt(amount, "0")) {
@@ -334,24 +356,35 @@ wallet.post("/deposit/verify", async (c) => {
 
   // Credit balance
   const balanceBefore = agent.balance ?? "0";
-  const credited = await payAgentRepo.creditBalance(agentId, amount);
+  await payAgentRepo.creditBalance(agentId, amount);
 
-  // Insert transaction record
-  await payAgentTransactionRepo.insert({
-    agentId,
-    userId: session.userId,
-    type: "top_up",
-    amount,
-    balanceBefore,
-    balanceAfter: credited.balance,
-    txHash,
-    network,
-    source: "on_chain",
-    description: "Manual deposit verification",
-  });
+  let runningBalanceBefore = balanceBefore;
+  for (const entry of newTransfers) {
+    const balanceAfter = removeTailingZero(safePlus(runningBalanceBefore, entry.amount));
+    await payAgentTransactionRepo.insert({
+      agentId,
+      userId: session.userId,
+      type: "top_up",
+      amount: entry.amount,
+      balanceBefore: runningBalanceBefore,
+      balanceAfter,
+      txHash: entry.txKey,
+      network,
+      source: "on_chain",
+      description: "Manual deposit verification",
+    });
+    runningBalanceBefore = balanceAfter;
+  }
 
   log.blockchain.info(
-    { txHash, agentId, amount, network, userId: session.userId },
+    {
+      txHash,
+      agentId,
+      amount,
+      network,
+      userId: session.userId,
+      transferCount: newTransfers.length,
+    },
     "User verified deposit",
   );
 

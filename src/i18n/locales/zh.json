@@ -82,7 +82,7 @@
     "notifications": "通知中心",
     "topup-orders": "充值订单",
     "ledger": "交易记录",
-    "withdraw-orders": "提现管理",
+    "withdraw-orders": "提现订单",
     "fiat-configs": "收款方式",
     "webhooks": "Webhooks",
     "ai-gateway": "AI 网关",
@@ -533,6 +533,25 @@
       "desc": "审核和管理用户提现请求",
       "card-title": "订单列表",
       "empty": "暂无提现订单",
+      "detail": {
+        "amount": "金额",
+        "pending-hint": "该提现订单正在等待管理员审核。",
+        "readonly-hint": "该提现订单已经处理完成。",
+        "user": "用户与钱包",
+        "user-uuid": "用户 UUID",
+        "user-id": "用户 ID",
+        "agent-id": "关联钱包",
+        "address": "提现地址",
+        "chain": "转账信息",
+        "txhash": "交易哈希",
+        "fee": "手续费",
+        "timeline": "时间线",
+        "created": "创建时间",
+        "updated": "更新时间",
+        "reviewed": "审核时间",
+        "reviewer": "审核人",
+        "note": "备注"
+      },
       "th": {
         "user": "用户",
         "amount": "金额",
@@ -2083,15 +2102,23 @@
       "created": "创建时间",
       "updated": "更新时间",
       "expires": "过期时间",
-      "note": "管理员备注"
+      "note": "备注"
     },
     "action": {
       "reject": "拒绝订单",
       "settle": "入账并确认",
+      "common-reasons": "常见原因",
+      "settle-default-note": "管理员已处理充值订单 #{{id}}",
       "settle-success": "已完成上账并确认订单。",
       "settle-error": "处理充值订单失败。",
       "reject-success": "充值订单已拒绝。",
       "reject-error": "拒绝充值订单失败。"
+    },
+    "reject-reason": {
+      "duplicate_payment": "检测到重复付款",
+      "wrong_network": "充值使用了错误的网络",
+      "unsupported_token": "充值使用了不支持的代币",
+      "payment_not_received": "未收到匹配的付款"
     }
   },
   "ai": {
@@ -2595,6 +2622,11 @@
     },
     "account-menu": {
       "fallback-name": "用户",
+      "auth": {
+        "wallet": "钱包",
+        "email": "邮箱",
+        "user": "用户"
+      },
       "sections": {
         "account": "账户",
         "wallet": "钱包"
@@ -2608,6 +2640,7 @@
       },
       "wallet": {
         "connected": "钱包已连接",
+        "not-connected": "钱包未连接",
         "connect-hint": "如果你要使用链上充值和提现流程，请先连接钱包。",
         "unsupported": "当前连接的钱包网络不受支持。",
         "switch-network": "切换网络",
@@ -2723,8 +2756,17 @@
       "deposit": "充值",
       "withdraw": "提现",
       "deposit-title": "充值 USDC",
-      "deposit-desc": "请先创建充值订单，再在支持的网络上转入 USDC。转账后粘贴交易哈希可立即入账。",
-      "deposit-address": "充值地址",
+      "deposit-step-create": "创建订单",
+      "deposit-step-verify": "验证充值",
+      "deposit-step-result": "充值结果",
+      "deposit-step-create-title": "第 1 步：创建充值订单",
+      "deposit-step-create-desc": "先选择网络和金额。订单创建成功后，会自动切换到充值验证步骤。",
+      "deposit-step-verify-title": "第 2 步：转入 USDC 并验证",
+      "deposit-step-verify-desc": "在选定网络上向生成的地址转入 USDC，然后粘贴交易哈希即可立即入账。",
+      "deposit-view-address": "地址",
+      "deposit-qr-title": "充值地址二维码",
+      "deposit-qr-card-title": "扫码充值",
+      "deposit-qr-card-desc": "使用钱包应用扫描二维码，可快速填入充值地址。",
       "deposit-network": "网络",
       "deposit-copied": "地址已复制！",
       "deposit-manual": "通过交易哈希验证",
@@ -2780,13 +2822,19 @@
         "platform": "平台",
         "on_chain": "链上"
       },
-      "deposit-token": "充值路径",
       "deposit-create-order": "创建充值订单",
       "deposit-order-created": "充值订单已创建，未来 1 小时内会自动检测到账。",
       "deposit-order-failed": "创建充值订单失败",
+      "deposit-pending-block-title": "你还有待处理的充值订单",
+      "deposit-pending-block-desc": "请先在充值订单列表里完成待处理订单 #{{orderId}}，再创建新的充值订单。",
       "deposit-order-active": "正在等待 {{amount}} USDC。后台会在 1 小时内自动检测到账。",
-      "deposit-order-expiry": "为了更省成本也更快入账，建议转账后立即粘贴交易哈希。",
+      "deposit-order-ended": "这个订单已经不能继续验证，请新建一个充值订单后再继续。",
       "deposit-auto-confirmed": "已自动确认充值：{{amount}} USDC 已入账。",
+      "deposit-result-summary": "{{amount}} USDC 已成功充值到你的钱包。",
+      "deposit-result-network": "充值网络",
+      "deposit-result-amount": "充值金额",
+      "deposit-create-new-order": "新建充值订单",
+      "deposit-open-pending": "打开待处理订单",
       "deposit-orders": "充值订单",
       "deposit-orders-empty": "暂无充值订单"
     },

@@ -27,6 +27,7 @@ const transferEvent = parseAbiItem(
 
 interface ScanJobData {
   orderId: number;
+  startBlock?: number;
   lastScannedBlock?: number;
 }
 
@@ -35,7 +36,7 @@ let worker: Worker | null = null;
 
 /** Process a single scan iteration for a top-up order. */
 async function processScan(data: ScanJobData): Promise<void> {
-  const { orderId, lastScannedBlock } = data;
+  const { orderId, startBlock, lastScannedBlock } = data;
 
   // 1. Load order — bail if no longer pending
   const order = await topupOrderRepo.findById(orderId);
@@ -81,7 +82,7 @@ async function processScan(data: ScanJobData): Promise<void> {
 
   const fromBlock = lastScannedBlock
     ? BigInt(lastScannedBlock) + 1n
-    : latestBlock - LOOKBACK_BLOCKS;
+    : BigInt(startBlock ?? Number(latestBlock - LOOKBACK_BLOCKS));
 
   if (fromBlock > latestBlock) {
     // No new blocks — reschedule
@@ -107,26 +108,40 @@ async function processScan(data: ScanJobData): Promise<void> {
     return;
   }
 
-  // 6. Check for matching deposit
-  for (const rawLog of transferLogs) {
+  const matchedLogs = transferLogs.map((rawLog) => {
     const entry = rawLog as {
       transactionHash: string;
       args: { from: string; to: string; value: bigint };
       logIndex: number;
     };
 
-    const amount = removeTailingZero(formatUnits(entry.args.value, USDC_DECIMALS));
-    const txKey = `${entry.transactionHash}:${entry.logIndex}`;
+    return {
+      amount: removeTailingZero(formatUnits(entry.args.value, USDC_DECIMALS)),
+      transactionHash: entry.transactionHash,
+      txKey: `${entry.transactionHash}:${entry.logIndex}`,
+    };
+  });
 
-    // Dedup — skip if this tx already recorded
-    const existing = await payAgentTransactionRepo.findByTxHash(txKey);
-    if (existing) continue;
+  const existing = await payAgentTransactionRepo.findByTxHashes([
+    ...matchedLogs.map((entry) => entry.txKey),
+    ...matchedLogs.map((entry) => entry.transactionHash),
+  ]);
+  const existingKeys = new Set(existing.map((entry) => entry.txHash).filter(Boolean));
+  const newLogs = matchedLogs.filter(
+    (entry) => !existingKeys.has(entry.txKey) && !existingKeys.has(entry.transactionHash),
+  );
+
+  if (newLogs.length > 0) {
+    const firstTxKey = newLogs[0]!.txKey;
 
     // Found a deposit — confirm the order
-    const confirmed = await topupOrderRepo.confirm(orderId, { txHash: txKey });
+    const confirmed = await topupOrderRepo.confirm(orderId, { txHash: firstTxKey });
     if (!confirmed) {
       // Order was already confirmed/expired by another path (race)
-      log.blockchain.debug({ orderId, txKey }, "Order already transitioned, skipping credit");
+      log.blockchain.debug(
+        { orderId, txKey: firstTxKey },
+        "Order already transitioned, skipping credit",
+      );
       return;
     }
 
@@ -134,33 +149,50 @@ async function processScan(data: ScanJobData): Promise<void> {
     const agent = await payAgentRepo.findById(order.agentId);
     if (!agent) return;
 
-    const balanceBefore = agent.balance;
-    const balanceAfter = removeTailingZero(safePlus(balanceBefore, amount));
-    await payAgentRepo.creditBalance(order.agentId, amount);
+    let runningBalanceBefore = agent.balance;
+    let totalAmount = "0";
 
-    // Insert transaction record
-    await payAgentTransactionRepo.insert({
-      agentId: order.agentId,
-      type: "top_up",
-      amount,
-      balanceBefore,
-      balanceAfter,
-      description: "USDC deposit confirmed via top-up order",
-      txHash: txKey,
-      network,
-      source: "on_chain",
-    });
+    for (const entry of newLogs) {
+      const balanceAfter = removeTailingZero(safePlus(runningBalanceBefore, entry.amount));
+      await payAgentTransactionRepo.insert({
+        agentId: order.agentId,
+        type: "top_up",
+        amount: entry.amount,
+        balanceBefore: runningBalanceBefore,
+        balanceAfter,
+        description: "USDC deposit confirmed via top-up order",
+        txHash: entry.txKey,
+        network,
+        source: "on_chain",
+      });
+      runningBalanceBefore = balanceAfter;
+      totalAmount = removeTailingZero(safePlus(totalAmount, entry.amount));
+    }
+
+    await payAgentRepo.creditBalance(order.agentId, totalAmount);
 
     log.blockchain.info(
-      { orderId, agentId: order.agentId, amount, txHash: entry.transactionHash, network },
+      {
+        orderId,
+        agentId: order.agentId,
+        amount: totalAmount,
+        txHashes: newLogs.map((entry) => entry.txKey),
+        network,
+      },
       "Deposit confirmed for top-up order",
     );
 
     // Notify
     await emitNotification("topup.confirmed", {
-      title: `Top-up confirmed: ${amount} USDC`,
-      body: `Deposit for pay agent "${agent.name}" (${amount} USDC) has been confirmed on-chain.`,
-      metadata: { orderId, agentId: order.agentId, agentName: agent.name, amount, txHash: txKey },
+      title: `Top-up confirmed: ${totalAmount} USDC`,
+      body: `Deposit for pay agent "${agent.name}" (${totalAmount} USDC) has been confirmed on-chain.`,
+      metadata: {
+        orderId,
+        agentId: order.agentId,
+        agentName: agent.name,
+        amount: totalAmount,
+        txHash: firstTxKey,
+      },
     });
 
     return; // done — do not reschedule
@@ -188,12 +220,12 @@ function reschedule(orderId: number, lastScannedBlock?: number, ageMs = 0): void
 // ── Public API ──────────────────────────────────────────────────────
 
 /** Enqueue a deposit scan for a newly created top-up order. */
-export function enqueueDepositScan(orderId: number): void {
+export function enqueueDepositScan(orderId: number, startBlock?: number): void {
   if (!queue) {
     log.blockchain.warn({ orderId }, "Deposit scan queue not initialized, skipping");
     return;
   }
-  queue.add("scan", { orderId } satisfies ScanJobData, { delay: 0 }).catch((err) => {
+  queue.add("scan", { orderId, startBlock } satisfies ScanJobData, { delay: 0 }).catch((err) => {
     log.blockchain.error({ err, orderId }, "Failed to enqueue deposit scan");
   });
 }

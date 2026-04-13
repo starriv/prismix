@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Loader2, Search } from "lucide-react";
+import { ArrowRight, Check, Copy, ExternalLink, Loader2, Search } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
+import { ApiError } from "@/web/api/create-api-client";
 import { queryKeys } from "@/web/api/query-keys";
 import {
   useCreateWalletTopup,
   useVerifyDeposit,
   useWalletDepositInfo,
   useWalletTopupOrder,
+  useWalletTopupOrders,
 } from "@/web/api/user-hooks";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -31,16 +34,117 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/web/components/ui/select";
+import { useTheme } from "@/web/providers/theme-provider";
+import { explorerAddressUrl, useChainRegistry } from "@/web/shared/chains";
+import { cn } from "@/web/shared/utils";
+
+type DepositStep = "create" | "verify" | "result";
+
+const DEPOSIT_STEPS: Array<{ key: DepositStep; order: 1 | 2 | 3; labelKey: string }> = [
+  { key: "create", order: 1, labelKey: "user.wallet.deposit-step-create" },
+  { key: "verify", order: 2, labelKey: "user.wallet.deposit-step-verify" },
+  { key: "result", order: 3, labelKey: "user.wallet.deposit-step-result" },
+];
+
+function StepIndicator({
+  currentStep,
+  t,
+}: {
+  currentStep: DepositStep;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  return (
+    <div className="flex items-center gap-2 pt-2">
+      {DEPOSIT_STEPS.map((step, i) => {
+        const isCompleted =
+          (currentStep === "verify" && step.key === "create") ||
+          (currentStep === "result" && step.key !== "result");
+        const isActive = currentStep === step.key;
+
+        return (
+          <div key={step.key} className="flex flex-1 items-center gap-2">
+            <div
+              className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-colors",
+                isCompleted
+                  ? "border-foreground bg-foreground text-background"
+                  : isActive
+                    ? "border-foreground text-foreground"
+                    : "border-border text-muted-foreground",
+              )}
+            >
+              {isCompleted ? <Check className="h-3 w-3" /> : step.order}
+            </div>
+            <span
+              className={cn(
+                "text-xs",
+                isCompleted
+                  ? "font-medium text-foreground"
+                  : isActive
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground",
+              )}
+            >
+              {t(step.labelKey)}
+            </span>
+            {i < DEPOSIT_STEPS.length - 1 && <div className="h-px flex-1 bg-border" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusNotice({
+  status,
+  amount,
+  restartLabel,
+  onRestart,
+  t,
+}: {
+  status: "confirmed" | "expired" | "rejected";
+  amount?: string | null;
+  restartLabel: string;
+  onRestart: () => void;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const tone =
+    status === "confirmed"
+      ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300"
+      : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+
+  return (
+    <div className={cn("space-y-3 rounded-lg border p-4", tone)}>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{t(`topup.status.${status}`)}</p>
+        <p className="text-xs opacity-90">
+          {status === "confirmed"
+            ? t("user.wallet.deposit-auto-confirmed", { amount: amount ?? "0" })
+            : t("user.wallet.deposit-order-ended")}
+        </p>
+      </div>
+      {status !== "confirmed" && (
+        <Button type="button" variant="outline" onClick={onRestart}>
+          {restartLabel}
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function DepositDialog({
   open,
   onOpenChange,
+  initialOrderId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialOrderId?: number | null;
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { getChainDisplayByNetworkId } = useChainRegistry();
+  const { resolvedTheme } = useTheme();
   const { data: depositInfo } = useWalletDepositInfo(open);
   const createTopup = useCreateWalletTopup();
   const verifyDeposit = useVerifyDeposit();
@@ -49,14 +153,36 @@ export function DepositDialog({
   const [network, setNetwork] = useState("");
   const [orderId, setOrderId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const topupOrder = useWalletTopupOrder(orderId, open);
+  const [dismissedInitialOrder, setDismissedInitialOrder] = useState(false);
+  const [verifiedResult, setVerifiedResult] = useState<{ amount: string; network: string } | null>(
+    null,
+  );
+  const pendingOrders = useWalletTopupOrders({
+    status: "pending",
+    limit: 1,
+    enabled: open,
+  });
+  const resolvedOrderId = orderId ?? (dismissedInitialOrder ? null : initialOrderId) ?? null;
+  const topupOrder = useWalletTopupOrder(resolvedOrderId, open);
 
-  const activeOrder = topupOrder.data;
+  const activeOrder = topupOrder.data ?? null;
+  const blockingPendingOrder =
+    pendingOrders.data?.find((pendingOrder) => pendingOrder.status === "pending") ?? null;
+  const effectiveNetwork = activeOrder?.network ?? network;
   const depositAddress = activeOrder?.toAddress ?? depositInfo?.address ?? "";
   const selectedNetwork = useMemo(
-    () => depositInfo?.networks.find((net) => net.networkId === network),
-    [depositInfo, network],
+    () => depositInfo?.networks.find((net) => net.networkId === effectiveNetwork),
+    [depositInfo, effectiveNetwork],
   );
+  const explorerUrl = useMemo(
+    () =>
+      effectiveNetwork ? getChainDisplayByNetworkId(effectiveNetwork)?.explorerUrl : undefined,
+    [effectiveNetwork, getChainDisplayByNetworkId],
+  );
+  const explorerAddressHref = explorerUrl ? explorerAddressUrl(explorerUrl, depositAddress) : null;
+  const qrValue = useMemo(() => depositAddress.trim(), [depositAddress]);
+  const qrPanelBg = resolvedTheme === "dark" ? "#e4e4e7" : "#ffffff";
+  const confirmedRef = useRef<number | null>(null);
 
   const resetDialog = useCallback(() => {
     setAmount("");
@@ -64,6 +190,9 @@ export function DepositDialog({
     setNetwork("");
     setOrderId(null);
     setCopied(false);
+    setDismissedInitialOrder(false);
+    setVerifiedResult(null);
+    confirmedRef.current = null;
   }, []);
 
   const handleOpenChange = useCallback(
@@ -75,16 +204,15 @@ export function DepositDialog({
   );
 
   useEffect(() => {
-    if (topupOrder.data?.status !== "confirmed") return;
+    const data = topupOrder.data;
+    if (data?.status !== "confirmed" || !data.id) return;
+    if (confirmedRef.current === data.id) return;
+    confirmedRef.current = data.id;
 
     qc.invalidateQueries({ queryKey: queryKeys.userWallet() });
     qc.invalidateQueries({ queryKey: queryKeys.userWalletTransactions() });
-    toast.success(t("user.wallet.deposit-auto-confirmed", { amount: topupOrder.data.amount }));
-    const timer = window.setTimeout(() => {
-      handleOpenChange(false);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [topupOrder.data?.amount, topupOrder.data?.status, qc, t, handleOpenChange]);
+    toast.success(t("user.wallet.deposit-auto-confirmed", { amount: data.amount }));
+  }, [topupOrder.data?.id, topupOrder.data?.status, topupOrder.data?.amount, qc, t]);
 
   const handleCopy = useCallback(async () => {
     if (!depositAddress) return;
@@ -101,132 +229,354 @@ export function DepositDialog({
       setOrderId(order.id);
       toast.success(t("user.wallet.deposit-order-created"));
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        await pendingOrders.refetch();
+      }
       toast.error(err instanceof Error ? err.message : t("user.wallet.deposit-order-failed"));
     }
-  }, [amount, network, createTopup, t]);
+  }, [amount, network, createTopup, t, pendingOrders.refetch]);
 
   const handleVerify = useCallback(async () => {
-    if (!txHash || !network) return;
+    if (!txHash || !effectiveNetwork) return;
     try {
-      const result = await verifyDeposit.mutateAsync({ txHash, network });
+      const result = await verifyDeposit.mutateAsync({ txHash, network: effectiveNetwork });
       toast.success(t("user.wallet.deposit-verified", { amount: result.amount }));
       setTxHash("");
-      handleOpenChange(false);
+      setVerifiedResult({ amount: result.amount, network: effectiveNetwork });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("user.wallet.deposit-failed"));
     }
-  }, [txHash, network, verifyDeposit, t, handleOpenChange]);
+  }, [txHash, effectiveNetwork, verifyDeposit, t]);
+
+  const handleRestart = useCallback(() => {
+    setAmount("");
+    setNetwork("");
+    setTxHash("");
+    setOrderId(null);
+    setDismissedInitialOrder(true);
+  }, []);
+
+  const displayResult =
+    verifiedResult ??
+    (activeOrder?.status === "confirmed" && activeOrder.network
+      ? { amount: activeOrder.amount, network: activeOrder.network }
+      : null);
+  const currentStep: DepositStep = displayResult ? "result" : activeOrder ? "verify" : "create";
+  const showVerifyStep = currentStep === "verify";
+  const showResultStep = currentStep === "result";
+  const isOrderEnded = activeOrder?.status === "expired" || activeOrder?.status === "rejected";
+  const showBlockingPendingPrompt = !resolvedOrderId && !showResultStep && !!blockingPendingOrder;
+  const resultNetwork = useMemo(
+    () => depositInfo?.networks.find((net) => net.networkId === displayResult?.network),
+    [depositInfo, displayResult?.network],
+  );
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (showResultStep) {
+        handleOpenChange(false);
+        return;
+      }
+      if (showVerifyStep) {
+        if (isOrderEnded) {
+          handleRestart();
+          return;
+        }
+        await handleVerify();
+        return;
+      }
+      if (showBlockingPendingPrompt) return;
+      await handleCreateTopup();
+    },
+    [
+      showResultStep,
+      handleOpenChange,
+      showVerifyStep,
+      isOrderEnded,
+      handleRestart,
+      handleVerify,
+      showBlockingPendingPrompt,
+      handleCreateTopup,
+    ],
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent preventClose>
+      <DialogContent className="sm:max-w-lg" preventClose>
         <DialogHeader>
           <DialogTitle>{t("user.wallet.deposit-title")}</DialogTitle>
+          <StepIndicator currentStep={currentStep} t={t} />
         </DialogHeader>
-        <DialogBody className="space-y-4">
-          <p className="text-sm text-muted-foreground">{t("user.wallet.deposit-desc")}</p>
+        <form onSubmit={handleSubmit}>
+          <DialogBody>
+            <div className="min-h-[320px] space-y-4">
+              <div className={currentStep !== "create" ? "hidden" : "space-y-4"}>
+                {showBlockingPendingPrompt ? (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300">
+                    <p className="text-sm font-medium">
+                      {t("user.wallet.deposit-pending-block-title")}
+                    </p>
+                    <p className="mt-1 text-xs opacity-90">
+                      {t("user.wallet.deposit-pending-block-desc", {
+                        orderId: blockingPendingOrder?.id ?? "",
+                      })}
+                    </p>
+                  </div>
+                ) : null}
 
-          <div className="space-y-2">
-            <Label>{t("user.wallet.deposit-network")}</Label>
-            <Select value={network} onValueChange={setNetwork}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("user.wallet.deposit-network")} />
-              </SelectTrigger>
-              <SelectContent>
-                {depositInfo?.networks.map((net) => (
-                  <SelectItem key={net.networkId} value={net.networkId}>
-                    {net.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    {t("user.wallet.deposit-step-create-title")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("user.wallet.deposit-step-create-desc")}
+                  </p>
+                </div>
 
-          <div className="space-y-2">
-            <Label>{t("user.wallet.withdraw-amount")}</Label>
-            <Input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={t("user.wallet.withdraw-amount-ph")}
-              inputMode="decimal"
-            />
-          </div>
+                <div className="space-y-2">
+                  <Label>{t("user.wallet.deposit-network")}</Label>
+                  <Select value={network} onValueChange={setNetwork}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t("user.wallet.deposit-network")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {depositInfo?.networks.map((net) => (
+                        <SelectItem key={net.networkId} value={net.networkId}>
+                          {net.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-          <Button
-            onClick={handleCreateTopup}
-            disabled={!amount || !network || createTopup.isPending}
-            className="w-full"
-          >
-            {createTopup.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-            {t("user.wallet.deposit-create-order")}
-          </Button>
+                <div className="space-y-2">
+                  <Label>{t("user.wallet.withdraw-amount")}</Label>
+                  <Input
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder={t("user.wallet.withdraw-amount-ph")}
+                    inputMode="decimal"
+                  />
+                </div>
+              </div>
 
-          {/* Deposit Address */}
-          {depositAddress && (
-            <div className="space-y-2">
-              <Label>{t("user.wallet.deposit-address")}</Label>
-              <div className="flex items-center gap-2">
-                <Input readOnly value={depositAddress} className="font-mono text-xs" />
-                <Button variant="ghost" size="icon" className="shrink-0" onClick={handleCopy}>
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5 text-green-500" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+              <div className={!showVerifyStep ? "hidden" : "space-y-4"}>
+                {isOrderEnded && activeOrder ? (
+                  <StatusNotice
+                    status={activeOrder.status as "expired" | "rejected"}
+                    amount={activeOrder.amount}
+                    restartLabel={t("user.wallet.deposit-create-new-order")}
+                    onRestart={handleRestart}
+                    t={t}
+                  />
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">
+                        {t("user.wallet.deposit-step-verify-title")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("user.wallet.deposit-step-verify-desc")}
+                      </p>
+                    </div>
+
+                    {depositAddress && (
+                      <div className="rounded-2xl border bg-gradient-to-b from-muted/40 to-muted/10 p-4">
+                        <div className="space-y-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium">
+                                {t("user.wallet.deposit-qr-card-title")}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {t("user.wallet.deposit-qr-card-desc")}
+                              </p>
+                            </div>
+                            {selectedNetwork && (
+                              <Badge variant="outline" className="shrink-0 text-[11px]">
+                                {selectedNetwork.name}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="flex justify-center">
+                            <div className="rounded-[28px] bg-white p-4 dark:bg-zinc-200">
+                              <QRCodeSVG
+                                value={qrValue}
+                                size={180}
+                                marginSize={2}
+                                bgColor={qrPanelBg}
+                                fgColor="#111111"
+                                title={t("user.wallet.deposit-qr-title")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                {t("user.wallet.deposit-result-network")}
+                              </p>
+                              <p className="text-sm font-medium">{selectedNetwork?.name ?? "--"}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                {t("user.wallet.deposit-result-amount")}
+                              </p>
+                              <p className="text-sm font-medium">
+                                {(activeOrder?.amount ?? amount) || "--"} USDC
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              {t("user.wallet.deposit-view-address")}
+                            </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              {explorerAddressHref ? (
+                                <a
+                                  href={explorerAddressHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 break-all font-mono text-xs text-foreground underline underline-offset-4 decoration-foreground/40 transition-colors hover:text-foreground hover:decoration-foreground"
+                                >
+                                  {depositAddress}
+                                </a>
+                              ) : (
+                                <p className="flex-1 break-all font-mono text-xs text-foreground underline underline-offset-4 decoration-foreground/30">
+                                  {depositAddress}
+                                </p>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0"
+                                onClick={handleCopy}
+                              >
+                                {copied ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              {explorerAddressHref ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="shrink-0"
+                                  asChild
+                                >
+                                  <a
+                                    href={explorerAddressHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={t("common.a11y.external-link")}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeOrder && (
+                      <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                        <p>
+                          {t("user.wallet.deposit-order-active", { amount: activeOrder.amount })}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2 border-t pt-4">
+                      <p className="text-sm font-medium">{t("user.wallet.deposit-manual")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("user.wallet.deposit-manual-desc")}
+                      </p>
+                      <Input
+                        value={txHash}
+                        onChange={(e) => setTxHash(e.target.value)}
+                        placeholder={t("user.wallet.deposit-txhash-ph")}
+                        className="font-mono text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div
+                className={
+                  !showResultStep ? "hidden" : "flex min-h-[320px] items-center justify-center"
+                }
+              >
+                <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-400">
+                    <Check className="h-8 w-8" />
+                  </div>
+                  <p className="mt-4 text-base font-medium">
+                    {t("user.wallet.deposit-result-summary", {
+                      amount: displayResult?.amount ?? "0",
+                    })}
+                  </p>
+                  <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm text-muted-foreground">
+                        {t("user.wallet.deposit-result-network")}
+                      </p>
+                      <p className="text-sm font-medium text-right">
+                        {resultNetwork?.name ?? displayResult?.network ?? "--"}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm text-muted-foreground">
+                        {t("user.wallet.deposit-result-amount")}
+                      </p>
+                      <p className="text-sm font-medium text-right">
+                        {displayResult?.amount ?? "--"} USDC
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-
-          {selectedNetwork && (
-            <div className="space-y-2">
-              <Label>{t("user.wallet.deposit-token")}</Label>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {selectedNetwork.name}
-                </Badge>
-                <Badge variant="outline" className="text-xs font-mono">
-                  USDC: {selectedNetwork.usdcAddress.slice(0, 6)}…
-                  {selectedNetwork.usdcAddress.slice(-4)}
-                </Badge>
-              </div>
-            </div>
-          )}
-
-          {activeOrder && (
-            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-              <p>{t("user.wallet.deposit-order-active", { amount: activeOrder.amount })}</p>
-              <p>{t("user.wallet.deposit-order-expiry")}</p>
-            </div>
-          )}
-
-          {/* Manual Verification */}
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-sm font-medium">{t("user.wallet.deposit-manual")}</p>
-            <p className="text-xs text-muted-foreground">{t("user.wallet.deposit-manual-desc")}</p>
-            <div className="space-y-2">
-              <Input
-                value={txHash}
-                onChange={(e) => setTxHash(e.target.value)}
-                placeholder={t("user.wallet.deposit-txhash-ph")}
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            {t("common.btn.cancel")}
-          </Button>
-          <Button
-            onClick={handleVerify}
-            disabled={!txHash || !network || verifyDeposit.isPending || createTopup.isPending}
-          >
-            {verifyDeposit.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-            <Search className="mr-1 h-3.5 w-3.5" />
-            {t("user.wallet.deposit-verify")}
-          </Button>
-        </DialogFooter>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              {t("common.btn.cancel")}
+            </Button>
+            {showResultStep ? (
+              <Button type="submit">{t("common.btn.done")}</Button>
+            ) : !showVerifyStep ? (
+              <Button
+                type="submit"
+                disabled={showBlockingPendingPrompt || !amount || !network || createTopup.isPending}
+              >
+                {createTopup.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                <ArrowRight className="mr-1 h-3.5 w-3.5" />
+                {t("user.wallet.deposit-create-order")}
+              </Button>
+            ) : isOrderEnded ? (
+              <Button type="submit">{t("user.wallet.deposit-create-new-order")}</Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={
+                  !txHash || !effectiveNetwork || verifyDeposit.isPending || createTopup.isPending
+                }
+              >
+                {verifyDeposit.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {t("user.wallet.deposit-verify")}
+              </Button>
+            )}
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

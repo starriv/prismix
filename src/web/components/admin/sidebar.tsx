@@ -131,8 +131,8 @@ const navTree: NavEntry[] = [
     children: [
       { href: "/admin/pay-agents", labelKey: "nav.pay-agents", icon: Bot },
       { href: "/admin/topup-orders", labelKey: "nav.topup-orders", icon: Wallet },
-      { href: "/admin/transactions", labelKey: "nav.ledger", icon: CreditCard },
       { href: "/admin/withdraw-orders", labelKey: "nav.withdraw-orders", icon: ArrowUpFromLine },
+      { href: "/admin/transactions", labelKey: "nav.ledger", icon: CreditCard },
       { href: "/admin/fiat-configs", labelKey: "nav.fiat-configs", icon: Coins },
     ],
   },

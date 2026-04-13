@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
+import type { UserWalletTopupOrder } from "@/web/api/schemas";
 import { useUserWallet, useWalletDepositInfo } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { Button } from "@/web/components/ui/button";
@@ -24,8 +25,15 @@ export default function UserWalletPage() {
   const { getChainDisplayByNetworkId } = useChainRegistry();
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [selectedTopupOrderId, setSelectedTopupOrderId] = useState<number | null>(null);
 
   const handleDeposit = useCallback(() => {
+    setSelectedTopupOrderId(null);
+    setDepositOpen(true);
+  }, []);
+
+  const handleOpenPendingTopup = useCallback((order: UserWalletTopupOrder) => {
+    setSelectedTopupOrderId(order.id);
     setDepositOpen(true);
   }, []);
 
@@ -79,13 +87,17 @@ export default function UserWalletPage() {
         </Card>
 
         {/* Deposit Orders */}
-        <WalletTopupOrders />
+        <WalletTopupOrders onSelectOrder={handleOpenPendingTopup} />
 
         {/* Withdrawal Orders */}
         <PendingWithdrawals />
 
         {/* Deposit Dialog */}
-        <DepositDialog open={depositOpen} onOpenChange={setDepositOpen} />
+        <DepositDialog
+          open={depositOpen}
+          onOpenChange={setDepositOpen}
+          initialOrderId={selectedTopupOrderId}
+        />
 
         {/* Withdraw Dialog */}
         <WithdrawDialog

@@ -74,6 +74,13 @@ export const payAgentTransactionRepo = {
     );
   },
 
+  async findByTxHashes(txHashes: string[]): Promise<PayAgentTransaction[]> {
+    if (txHashes.length === 0) return [];
+    return queryAll(
+      db.select().from(payAgentTransactions).where(inArray(payAgentTransactions.txHash, txHashes)),
+    );
+  },
+
   /** Sum of spending (payments + AI usage) for a pay agent today (UTC day boundary). */
   async sumSpendingToday(agentId: number): Promise<string> {
     const startOfDay = new Date();

@@ -1,11 +1,15 @@
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatDistanceToNow } from "date-fns";
+import { ChevronRight } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
+import type { UserWalletTopupOrder } from "@/web/api/schemas";
 import { useWalletTopupOrders } from "@/web/api/user-hooks";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { Badge } from "@/web/components/ui/badge";
+import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import {
@@ -16,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/web/components/ui/table";
+import { useChainRegistry } from "@/web/shared/chains";
 import { getDateLocale } from "@/web/shared/date-locale";
 
 const STATUS_COLORS = {
@@ -25,9 +30,21 @@ const STATUS_COLORS = {
   expired: "border-zinc-500/30 bg-zinc-500/10 text-zinc-600",
 };
 
-export function WalletTopupOrders() {
+export function WalletTopupOrders({
+  onSelectOrder,
+}: {
+  onSelectOrder?: (order: UserWalletTopupOrder) => void;
+}) {
   const { t, i18n } = useTranslation();
+  const { getChainDisplayByNetworkId } = useChainRegistry();
   const { data: orders = [], isLoading } = useWalletTopupOrders({ limit: 10 });
+  const handleSelectOrder = useCallback(
+    (order: UserWalletTopupOrder) => {
+      if (order.status !== "pending") return;
+      onSelectOrder?.(order);
+    },
+    [onSelectOrder],
+  );
 
   const statusColorMap = Object.fromEntries(
     Object.entries(STATUS_COLORS).map(([key, className]) => [
@@ -61,7 +78,9 @@ export function WalletTopupOrders() {
                 <TableHead>{t("common.th.amount")}</TableHead>
                 <TableHead>{t("common.th.network")}</TableHead>
                 <TableHead>{t("common.th.status")}</TableHead>
+                <TableHead>{t("topup.detail.note")}</TableHead>
                 <TableHead>{t("common.th.time")}</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -74,7 +93,7 @@ export function WalletTopupOrders() {
                   <TableCell>
                     {order.network ? (
                       <Badge variant="outline" className="text-xs">
-                        {order.network}
+                        {getChainDisplayByNetworkId(order.network)?.name ?? order.network}
                       </Badge>
                     ) : (
                       "—"
@@ -83,11 +102,31 @@ export function WalletTopupOrders() {
                   <TableCell>
                     <StatusBadge status={order.status} colorMap={statusColorMap} />
                   </TableCell>
+                  <TableCell className="max-w-[220px] text-xs text-muted-foreground">
+                    {order.adminNote ? (
+                      <span className="line-clamp-2">{order.adminNote}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(order.createdAt), {
                       addSuffix: true,
                       locale: getDateLocale(i18n.language),
                     })}
+                  </TableCell>
+                  <TableCell className="w-[1%] whitespace-nowrap text-right">
+                    {order.status === "pending" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSelectOrder(order)}
+                      >
+                        {t("user.wallet.deposit-open-pending")}
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}
