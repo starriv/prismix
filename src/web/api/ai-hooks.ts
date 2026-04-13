@@ -363,6 +363,43 @@ export function useAiUsageDailyByKey(keyId: number, days = 30) {
   });
 }
 
+// ── AI Usage by User ─────────────────────────────────────────────────
+
+export function useAiUsageSummaryByUser(userId: number, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiUsageSummaryByUser(userId),
+    queryFn: () => get(`${API_AI_USAGE_SUMMARY}?userId=${userId}`, aiUsageSummarySchema),
+    refetchInterval,
+    enabled: userId > 0,
+  });
+}
+
+export function useAiUsageRecentByUser(userId: number, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiUsageRecentByUser(userId),
+    queryFn: () => get(`${API_AI_USAGE_RECENT}?userId=${userId}`, z.array(aiUsageRecordSchema)),
+    refetchInterval,
+    enabled: userId > 0,
+  });
+}
+
+export function useAiUsageDailyByUser(userId: number, days = 30) {
+  return useQuery({
+    queryKey: queryKeys.aiUsageDailyByUser(userId, days),
+    queryFn: () =>
+      get(`${API_AI_USAGE_DAILY}?userId=${userId}&days=${days}`, z.array(aiDailyUsageSchema)),
+    enabled: userId > 0,
+  });
+}
+
+export function useAiUsageByKeyForUser(userId: number) {
+  return useQuery({
+    queryKey: queryKeys.aiUsageByKeyForUser(userId),
+    queryFn: () => get(`${API_AI_USAGE_BY_KEY}?userId=${userId}`, z.array(aiUsageByKeySchema)),
+    enabled: userId > 0,
+  });
+}
+
 export function useAiLogs(opts?: {
   consumerKeyId?: number;
   modelId?: string;

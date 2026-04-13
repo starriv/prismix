@@ -16,6 +16,18 @@ export const userInfoSchema = z.object({
 });
 export type UserInfo = z.infer<typeof userInfoSchema>;
 
+export const walletInfoSchema = z.object({
+  agentId: z.number(),
+  balance: z.string(),
+  address: z.string().nullable(),
+  status: z.string(),
+});
+
+export const adminUserDetailSchema = userInfoSchema.extend({
+  wallet: walletInfoSchema.nullable(),
+});
+export type AdminUserDetail = z.infer<typeof adminUserDetailSchema>;
+
 /** @deprecated Use `userInfoSchema` / `UserInfo` instead */
 export const merchantSchema = userInfoSchema;
 /** @deprecated Use `UserInfo` instead */

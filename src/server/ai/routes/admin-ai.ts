@@ -67,7 +67,8 @@ adminAi.get("/usage/summary", async (c) => {
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
   const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
-  return ok(c, await aiUsageLogRepo.summary(from, to, consumerKeyId));
+  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  return ok(c, await aiUsageLogRepo.summary(from, to, consumerKeyId, userId));
 });
 
 adminAi.get("/usage/recent", async (c) => {
@@ -83,12 +84,14 @@ adminAi.get("/usage/recent", async (c) => {
   const rawStatusClass = c.req.query("statusClass");
   const statusClass =
     rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
+  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
   return ok(
     c,
     await aiUsageLogRepo.findAll(limit, offset, {
       from,
       to,
       consumerKeyId,
+      userId,
       modelId,
       providerId,
       statusCode,
@@ -101,7 +104,8 @@ adminAi.get("/usage/daily", async (c) => {
   getAdminSession(c);
   const days = Math.min(Number(c.req.query("days")) || 30, 90);
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
-  return ok(c, await aiUsageLogRepo.dailySummary(days, consumerKeyId));
+  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  return ok(c, await aiUsageLogRepo.dailySummary(days, consumerKeyId, userId));
 });
 
 adminAi.get("/usage/error-overview", async (c) => {
@@ -120,7 +124,8 @@ adminAi.get("/usage/by-key", async (c) => {
   getAdminSession(c);
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
   const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
-  return ok(c, await aiUsageLogRepo.summaryByConsumerKey(from, to));
+  const userId = parseIntParam(c.req.query("userId")) ?? undefined;
+  return ok(c, await aiUsageLogRepo.summaryByConsumerKey(from, to, userId));
 });
 
 // ── Request log detail (Redis-backed, opt-in) ──────────────────────

@@ -24,6 +24,7 @@ import {
 import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
 const AiUsageDetailPage = lazy(() => import("@/web/pages/ai-usage-detail"));
+const AiUsageUserDetailPage = lazy(() => import("@/web/pages/ai-usage-user-detail"));
 
 const DailyTrendChart = lazy(() =>
   import("@/web/pages/ai-usage/charts").then((m) => ({ default: m.DailyTrendChart })),
@@ -37,11 +38,20 @@ const LIVE_REFETCH_MS = 5_000;
 export default function AiUsagePage() {
   const [searchParams] = useSearchParams();
   const keyParam = searchParams.get("key");
+  const userParam = searchParams.get("user");
 
   if (keyParam) {
     return (
       <Suspense fallback={null}>
         <AiUsageDetailPage />
+      </Suspense>
+    );
+  }
+
+  if (userParam) {
+    return (
+      <Suspense fallback={null}>
+        <AiUsageUserDetailPage />
       </Suspense>
     );
   }

@@ -3,11 +3,12 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DollarSign, KeyRound, Plus, Trash2, User } from "lucide-react";
+import { BarChart3, DollarSign, KeyRound, Plus, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import {
+  useAdminUserDetail,
   useCreateUserAgent,
   useDeleteUser,
   useDisableUser,
@@ -16,6 +17,7 @@ import {
 } from "@/web/api/admin-hooks";
 import { usePayAgents } from "@/web/api/hooks";
 import type { UserInfo } from "@/web/api/schemas";
+import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -55,6 +57,7 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
   const deleteUser = useDeleteUser();
   const createAgent = useCreateUserAgent();
   const { data: agents = [] } = usePayAgents();
+  const { data: userDetail } = useAdminUserDetail(user.id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [creditOpen, setCreditOpen] = useState(false);
 
@@ -154,6 +157,11 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                  <LocaleLink to={`/admin/ai-usage?user=${user.id}`}>
+                    <BarChart3 className="h-3.5 w-3.5" />
+                  </LocaleLink>
+                </Button>
                 <span className="text-xs text-muted-foreground">
                   {isActive ? t("admin.users.status.active") : t("admin.users.status.disabled")}
                 </span>
@@ -268,7 +276,14 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">{t("admin.users.detail.wallet")}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">{t("admin.users.detail.balance")}</p>
+                <p className="text-2xl font-bold">
+                  {userDetail?.wallet?.balance ?? "---"}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">USDC</span>
+                </p>
+              </div>
               <Button size="sm" onClick={() => setCreditOpen(true)}>
                 <DollarSign className="mr-1 h-3.5 w-3.5" />
                 {t("admin.users.credit-title")}

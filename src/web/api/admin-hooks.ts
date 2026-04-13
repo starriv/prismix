@@ -30,6 +30,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from "./constants";
 import { queryKeys } from "./query-keys";
 import {
+  adminUserDetailSchema,
   type AllowedToken,
   allowedTokenSchema,
   type CircleNetworkEntry,
@@ -130,6 +131,14 @@ export function useAdminUsers(params?: {
 /** @deprecated Use `useAdminUsers` instead */
 export const useAdminMerchants = useAdminUsers;
 
+export function useAdminUserDetail(userId: number) {
+  return useQuery({
+    queryKey: queryKeys.adminUserDetail(userId),
+    queryFn: () => adminGet(apiAdminUserDetail(userId), adminUserDetailSchema),
+    enabled: userId > 0,
+  });
+}
+
 export function useAdminAllowedTokens() {
   return useQuery<AllowedToken[]>({
     queryKey: queryKeys.adminAllowedTokens(),
@@ -197,8 +206,9 @@ export function useCreateUserAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId: number) => adminPost(apiAdminUserCreateAgent(userId), {}, z.unknown()),
-    onSuccess: () => {
+    onSuccess: (_data, userId) => {
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      qc.invalidateQueries({ queryKey: queryKeys.adminUserDetail(userId) });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
@@ -235,8 +245,9 @@ export function useCreditUser() {
         body,
         z.object({ success: z.boolean(), balance: z.string() }),
       ),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      qc.invalidateQueries({ queryKey: queryKeys.adminUserDetail(vars.id) });
     },
   });
 }

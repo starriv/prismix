@@ -78,6 +78,7 @@ export const queryKeys = {
 
   // ── Admin (real admin / back-office) ─────────────────────────
   adminAdmins: () => ["admin", "admins"] as const,
+  adminUserDetail: (userId: number) => ["admin", "user-detail", userId] as const,
   adminUsers: (params?: { name?: string; email?: string; address?: string; page?: number }) =>
     [
       "admin",
@@ -118,6 +119,11 @@ export const queryKeys = {
   aiUsageRecentByKey: (keyId: number) => ["app", "ai-usage-recent", keyId] as const,
   aiUsageDailyByKey: (keyId: number, days: number) =>
     ["app", "ai-usage-daily", keyId, days] as const,
+  aiUsageSummaryByUser: (userId: number) => ["app", "ai-usage-summary", "user", userId] as const,
+  aiUsageRecentByUser: (userId: number) => ["app", "ai-usage-recent", "user", userId] as const,
+  aiUsageDailyByUser: (userId: number, days: number) =>
+    ["app", "ai-usage-daily", "user", userId, days] as const,
+  aiUsageByKeyForUser: (userId: number) => ["app", "ai-usage-by-key", "user", userId] as const,
   aiLogs: (params?: {
     consumerKeyId?: number;
     modelId?: string;

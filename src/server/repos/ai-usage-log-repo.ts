@@ -377,10 +377,15 @@ export const aiUsageLogRepo = {
   },
 
   /** Per-consumer-key aggregated usage for the overview "By Key" table. */
-  async summaryByConsumerKey(from?: Date, to?: Date): Promise<ConsumerKeyUsageRow[]> {
+  async summaryByConsumerKey(
+    from?: Date,
+    to?: Date,
+    userId?: number,
+  ): Promise<ConsumerKeyUsageRow[]> {
     const conditions = [sql`${aiUsageLogs.consumerKeyId} IS NOT NULL`];
     if (from) conditions.push(gte(aiUsageLogs.createdAt, from));
     if (to) conditions.push(lte(aiUsageLogs.createdAt, to));
+    if (userId != null) conditions.push(eq(aiUsageLogs.userId, userId));
 
     const rows = await queryAll<{
       consumerKeyId: number | null;
