@@ -57,14 +57,38 @@ async function getSupportedNetworks(): Promise<
   }>
 > {
   const networks = await networkRepo.findEnabledUsdcDepositNetworks();
-  return networks
-    .filter((network) => SUPPORTED_PAYMENT_CHAIN_IDS.has(network.chainId))
-    .map((network) => ({
-      chainId: network.chainId,
-      networkId: network.networkId,
-      name: network.name,
-      usdcAddress: network.usdcAddress,
-    }));
+  const filtered = networks.filter((network) => SUPPORTED_PAYMENT_CHAIN_IDS.has(network.chainId));
+
+  // TODO: remove after diagnosing empty-networks issue
+  if (filtered.length === 0) {
+    const enabledNetworks = await networkRepo.findEnabledNetworks();
+    const enabledTokens = await networkRepo.findEnabledTokens();
+    log.blockchain.warn(
+      {
+        enabledNetworkCount: enabledNetworks.length,
+        enabledNetworkChainIds: enabledNetworks.map((n) => n.chainId),
+        enabledTokenCount: enabledTokens.length,
+        enabledTokens: enabledTokens.map((t) => ({
+          symbol: t.symbol,
+          network: t.network,
+          hasAddress: !!t.contractAddress,
+          addressLen: t.contractAddress?.length ?? 0,
+        })),
+        usdcDepositNetworkCount: networks.length,
+        usdcDepositChainIds: networks.map((n) => n.chainId),
+        supportedPaymentChainIds: [...SUPPORTED_PAYMENT_CHAIN_IDS],
+        nodeEnv: process.env.NODE_ENV,
+      },
+      "deposit-info: getSupportedNetworks returned empty — diagnostic dump",
+    );
+  }
+
+  return filtered.map((network) => ({
+    chainId: network.chainId,
+    networkId: network.networkId,
+    name: network.name,
+    usdcAddress: network.usdcAddress,
+  }));
 }
 
 // ── GET / — wallet overview (single agent) ─────────────────────────
