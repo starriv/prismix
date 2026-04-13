@@ -4,13 +4,18 @@
  * - Honors incoming `X-Request-ID` header (end-to-end tracing from clients/load balancers)
  * - Falls back to a new UUIDv4 if no header is present
  * - Stores the ID on the Hono context via `c.set("requestId", ...)`
+ * - Stores the ID in AsyncLocalStorage so pino mixin can inject it automatically
  * - Echoes the ID back in the response `X-Request-ID` header
  */
 import crypto from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { Context, MiddlewareHandler } from "hono";
 
 const HEADER = "X-Request-ID";
+
+/** AsyncLocalStorage holding the current request ID. Used by pino mixin. */
+export const requestIdStore = new AsyncLocalStorage<string>();
 
 export function requestId(): MiddlewareHandler {
   return async (c, next) => {
@@ -22,7 +27,7 @@ export function requestId(): MiddlewareHandler {
         : crypto.randomUUID();
     c.set("requestId" as never, id);
     c.header(HEADER, id);
-    await next();
+    await requestIdStore.run(id, next);
   };
 }
 

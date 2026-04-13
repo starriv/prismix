@@ -118,7 +118,10 @@ consumerRelay.get("/v1/models", async (c) => {
     }));
     return c.json({ object: "list", data });
   } catch (err) {
-    log.gateway.error({ err, requestId }, "Unhandled error in models handler");
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in models handler",
+    );
     enqueueAiAccessLog({
       requestId,
       statusCode: 500,
@@ -140,7 +143,10 @@ consumerRelay.post("/v1/chat/completions", async (c) => {
   try {
     return await handleChatCompletions(c, consumer, requestId, start);
   } catch (err) {
-    log.gateway.error({ err, requestId }, "Unhandled error in chat completions handler");
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in chat completions handler",
+    );
     return respondWithConsumerError(c, consumer, requestId, start, 500, {
       error: "Internal Server Error",
     });
@@ -681,7 +687,10 @@ consumerRelay.all("/v1/*", async (c) => {
   try {
     return await handlePassthrough(c, consumer, requestId, start);
   } catch (err) {
-    log.gateway.error({ err, requestId }, "Unhandled error in passthrough handler");
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in passthrough handler",
+    );
     return respondWithConsumerError(c, consumer, requestId, start, 500, {
       error: "Internal Server Error",
     });

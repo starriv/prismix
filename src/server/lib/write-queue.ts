@@ -18,6 +18,7 @@ import { createJobQueue, type JobQueue } from "../queue";
 import { log } from "./logger";
 
 let _queue: JobQueue | null = null;
+let _queueWarnedAt = 0;
 
 // ── Micro-batch accumulator ──────────────────────────────────────────
 
@@ -50,24 +51,22 @@ export async function initWriteQueue(): Promise<JobQueue> {
   return _queue;
 }
 
-/** Get the write queue instance. */
-function getQueue(): JobQueue {
-  if (!_queue) {
-    // Should not happen — initWriteQueue() must be awaited during bootstrap
-    throw new Error("Write queue not initialized — call initWriteQueue() during bootstrap");
-  }
-  return _queue;
-}
-
 /**
  * Register a job handler on the write queue (single-item processing).
  * Must be called before any jobs of that type are enqueued.
+ *
+ * If the queue is not initialized, logs a warning and skips registration.
+ * Jobs of this type will be silently dropped until the queue is available.
  */
 export function registerWriteHandler(
   name: string,
   handler: (data: Record<string, unknown>) => Promise<void>,
 ): void {
-  getQueue().register(name, handler);
+  if (!_queue) {
+    log.queue.warn({ name }, "Write queue not initialized — handler registration skipped");
+    return;
+  }
+  _queue.register(name, handler);
 }
 
 /**
@@ -117,6 +116,10 @@ export function registerBatchHandler(
  *
  * If a batch handler is registered for this name, the payload is buffered
  * in memory for batched flushing. Otherwise, it goes through the BullMQ queue.
+ *
+ * If the queue is not initialized (bootstrap failed or still running),
+ * the job is silently dropped with a warning log. This prevents unhandled
+ * throws from crashing request handlers on the hot path.
  */
 export function enqueueJob(name: string, data: Record<string, unknown>): void {
   // Check batch mode first
@@ -131,8 +134,17 @@ export function enqueueJob(name: string, data: Record<string, unknown>): void {
     return;
   }
 
-  // Standard single-item queue
-  getQueue().enqueue(name, data);
+  // Standard single-item queue — graceful degradation if not initialized
+  if (!_queue) {
+    // Throttle warnings to once per 10s to avoid log flood under high QPS
+    const now = Date.now();
+    if (now - _queueWarnedAt > 10_000) {
+      _queueWarnedAt = now;
+      log.queue.warn({ name }, "Write queue not initialized — jobs are being dropped");
+    }
+    return;
+  }
+  _queue.enqueue(name, data);
 }
 
 export function getWriteQueueDepth(): number {
