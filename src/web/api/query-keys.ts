@@ -18,12 +18,19 @@ export const queryKeys = {
   // ── App ──────────────────────────────────────────────────────
   allowedTokens: () => ["app", "allowed-tokens"] as const,
   networks: () => ["app", "networks"] as const,
-  payAgents: (params?: { id?: number; userName?: string; address?: string; page?: number }) =>
+  payAgents: (params?: {
+    id?: number;
+    userName?: string;
+    userUuid?: string;
+    address?: string;
+    page?: number;
+  }) =>
     [
       "app",
       "pay-agents",
       params?.id ?? "all",
       params?.userName ?? "",
+      params?.userUuid ?? "",
       params?.address ?? "",
       params?.page ?? 0,
     ] as const,
@@ -66,8 +73,14 @@ export const queryKeys = {
   topupOrdersAll: () => ["app", "topup-orders"] as const,
   topupOrders: (params?: { status?: string; page?: number }) =>
     ["app", "topup-orders", params?.status ?? "all", params?.page ?? 0] as const,
-  adminWithdrawals: (params?: { status?: string; page?: number }) =>
-    ["app", "admin-withdrawals", params?.status ?? "all", params?.page ?? 0] as const,
+  adminWithdrawals: (params?: { status?: string; userUuid?: string; page?: number }) =>
+    [
+      "app",
+      "admin-withdrawals",
+      params?.status ?? "all",
+      params?.userUuid ?? "",
+      params?.page ?? 0,
+    ] as const,
   adminWithdrawalsPendingCount: () => ["app", "admin-withdrawals-pending-count"] as const,
   webhookEvents: () => ["app", "webhook-events"] as const,
   webhooks: () => ["app", "webhooks"] as const,
@@ -81,6 +94,7 @@ export const queryKeys = {
   adminUserDetail: (userId: number) => ["admin", "user-detail", userId] as const,
   adminUsers: (params?: {
     id?: number;
+    uuid?: string;
     name?: string;
     email?: string;
     address?: string;
@@ -90,6 +104,7 @@ export const queryKeys = {
       "admin",
       "users",
       params?.id ?? 0,
+      params?.uuid ?? "",
       params?.name ?? "",
       params?.email ?? "",
       params?.address ?? "",
@@ -155,8 +170,8 @@ export const queryKeys = {
   aiRequestLog: (requestId: string) => ["app", "ai-request-log", requestId] as const,
   aiRequestLogging: () => ["app", "ai-request-logging"] as const,
   aiDefaultMarkup: () => ["app", "ai-default-markup"] as const,
-  relayKeys: (params?: { prefix?: string; page?: number }) =>
-    ["app", "relay-keys", params?.prefix ?? "", params?.page ?? 0] as const,
+  relayKeys: (params?: { prefix?: string; userUuid?: string; page?: number }) =>
+    ["app", "relay-keys", params?.prefix ?? "", params?.userUuid ?? "", params?.page ?? 0] as const,
   relayKeysAll: () => ["app", "relay-keys"] as const,
   aiDiscoverModels: (providerId: number) => ["app", "ai-discover-models", providerId] as const,
 

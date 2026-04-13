@@ -39,7 +39,7 @@ export const userRepo = {
     const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
     const conditions = [];
     if (filters?.id) conditions.push(eq(users.id, filters.id));
-    if (filters?.uuid) conditions.push(eq(users.uuid, filters.uuid));
+    if (filters?.uuid) conditions.push(ilike(users.uuid, `%${esc(filters.uuid)}%`));
     if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
     if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
     if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));

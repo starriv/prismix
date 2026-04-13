@@ -42,7 +42,7 @@ export const relayConsumerKeyRepo = {
     const conditions = [];
     if (filters?.prefix)
       conditions.push(ilike(relayConsumerKeys.apiKeyPrefix, `%${esc(filters.prefix)}%`));
-    if (filters?.userUuid) conditions.push(eq(users.uuid, filters.userUuid));
+    if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
 
     const qb = db
       .select({ ...getTableColumns(relayConsumerKeys), userName: users.name, userUuid: users.uuid })

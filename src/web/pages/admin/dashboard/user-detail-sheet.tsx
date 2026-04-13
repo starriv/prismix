@@ -151,17 +151,19 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
       <SheetBody className="space-y-5">
         <Card>
           <CardContent className="pt-4 space-y-3">
-            <div className="flex items-start justify-between">
-              <div className="space-y-0.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs text-muted-foreground">User #{user.id}</p>
-                <div className="flex items-center gap-2">
-                  <p className="font-mono text-xs text-muted-foreground">{user.uuid ?? "---"}</p>
+                <div className="flex items-start gap-2">
+                  <p className="min-w-0 break-all font-mono text-xs text-muted-foreground">
+                    {user.uuid ?? "---"}
+                  </p>
                   {user.uuid && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-6 w-6 shrink-0"
                       onClick={() => copy(user.uuid!)}
                     >
                       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -172,7 +174,7 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
                   {user.createdAt ? new Date(user.createdAt).toLocaleString() : "---"}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
                   <LocaleLink to={`/admin/ai-usage?user=${user.id}`}>
                     <BarChart3 className="h-3.5 w-3.5" />

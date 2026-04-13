@@ -1,7 +1,7 @@
 /**
  * Withdraw order repository — CRUD + status transitions for the `withdraw_orders` table.
  */
-import { and, count, desc, eq, getTableColumns, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, ilike, ne } from "drizzle-orm";
 
 import {
   db,
@@ -16,6 +16,8 @@ import {
 } from "@/server/db";
 
 export type WithdrawOrderWithUser = WithdrawOrder & { userUuid: string | null };
+
+const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
 export const withdrawOrderRepo = {
   async create(data: NewWithdrawOrder): Promise<WithdrawOrder> {
@@ -61,7 +63,7 @@ export const withdrawOrderRepo = {
   }): Promise<WithdrawOrderWithUser[]> {
     const conditions = [];
     if (opts?.status) conditions.push(eq(withdrawOrders.status, opts.status));
-    if (opts?.userUuid) conditions.push(eq(users.uuid, opts.userUuid));
+    if (opts?.userUuid) conditions.push(ilike(users.uuid, `%${esc(opts.userUuid)}%`));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

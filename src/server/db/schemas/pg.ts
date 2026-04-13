@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -14,6 +12,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { generateUuidV7 } from "@/server/lib/uuid";
+
 // ── Users (end consumers) ─────────────────────────────────────────────
 
 export const users = pgTable(
@@ -21,8 +21,8 @@ export const users = pgTable(
   {
     id: serial("id").primaryKey(),
     uuid: text("uuid")
-      .default(sql`gen_random_uuid()::text`)
-      .$defaultFn(() => crypto.randomUUID()),
+      .default(sql`uuid_v7_text()`)
+      .$defaultFn(() => generateUuidV7()),
     email: text("email").unique(),
     name: text("name").notNull(),
     avatar: text("avatar"),

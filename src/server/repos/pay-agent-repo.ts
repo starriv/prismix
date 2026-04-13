@@ -37,7 +37,7 @@ export const payAgentRepo = {
     if (filters?.id) conditions.push(eq(payAgents.id, filters.id));
     if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
     if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
-    if (filters?.userUuid) conditions.push(eq(users.uuid, filters.userUuid));
+    if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
 
     const rows = await queryAll(
       db

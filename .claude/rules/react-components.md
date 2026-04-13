@@ -29,9 +29,19 @@ Server data → TanStack Query. Local UI → `useState`. No global store (no Red
 Two-layer state: `draft*` (UI controls) + `applied*` (drives query). Search button copies draft → applied + `setPage(0)`. Enter triggers search. Reset clears both.
 Page size: `DEFAULT_PAGE_SIZE` from `@/web/api/constants`. Pagination layout: `justify-between`, text labels, visible only when multi-page.
 
+When a new filter field is added, the implementation is not complete until all four layers are updated:
+
+1. draft/applied state
+2. hook params
+3. `URLSearchParams` in the hook
+4. `queryKeys` inputs
+
+If any of the four is missing, treat it as a bug.
+
 ❌ Query bound to draft state directly.
 ❌ Filter applied immediately on Select change.
 ❌ Hardcoded page size numbers.
+❌ Search input exists in UI, but clicking Search does not change the React Query key.
 
 ## Forms
 
@@ -42,12 +52,12 @@ Page size: `DEFAULT_PAGE_SIZE` from `@/web/api/constants`. Pagination layout: `j
 **Every** `.min()` / `.max()` / `.email()` / `.url()` / `.regex()` / `.refine()` that can surface to the user **must** pass an i18n key as message. `FormMessage` auto-translates keys containing `.` via `t()`.
 Keys live under `common.valid.*` in both locale files. If no existing key fits, add a new one — never inline English.
 
-| Instead of | Use |
-|---|---|
-| `.min(1)` | `.min(1, "common.valid.required")` |
-| `.email()` | `.email("common.valid.invalid-email")` |
-| `.url()` | `.url("common.valid.invalid-url")` |
-| `"Name is required"` | `"common.valid.name-required"` |
+| Instead of           | Use                                    |
+| -------------------- | -------------------------------------- |
+| `.min(1)`            | `.min(1, "common.valid.required")`     |
+| `.email()`           | `.email("common.valid.invalid-email")` |
+| `.url()`             | `.url("common.valid.invalid-url")`     |
+| `"Name is required"` | `"common.valid.name-required"`         |
 
 ❌ Bare Zod validators without i18n message (Zod defaults are English-only).
 ❌ Hardcoded English strings as validation messages.

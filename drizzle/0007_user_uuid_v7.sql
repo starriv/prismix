@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+--> statement-breakpoint
 CREATE OR REPLACE FUNCTION uuid_v7_text()
 RETURNS text
 LANGUAGE plpgsql
@@ -23,20 +24,5 @@ BEGIN
   );
 END;
 $$;
-
-BEGIN;
-
-UPDATE users
-SET uuid = uuid_v7_text();
-
-COMMIT;
-
-SELECT COUNT(*) AS users_missing_uuid
-FROM users
-WHERE uuid IS NULL;
-
-SELECT uuid, COUNT(*) AS duplicate_count
-FROM users
-WHERE uuid IS NOT NULL
-GROUP BY uuid
-HAVING COUNT(*) > 1;
+--> statement-breakpoint
+ALTER TABLE "users" ALTER COLUMN "uuid" SET DEFAULT uuid_v7_text();
