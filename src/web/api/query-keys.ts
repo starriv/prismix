@@ -133,7 +133,9 @@ export const queryKeys = {
   aiRequestLog: (requestId: string) => ["app", "ai-request-log", requestId] as const,
   aiRequestLogging: () => ["app", "ai-request-logging"] as const,
   aiDefaultMarkup: () => ["app", "ai-default-markup"] as const,
-  relayKeys: () => ["app", "relay-keys"] as const,
+  relayKeys: (params?: { prefix?: string; page?: number }) =>
+    ["app", "relay-keys", params?.prefix ?? "", params?.page ?? 0] as const,
+  relayKeysAll: () => ["app", "relay-keys"] as const,
   aiDiscoverModels: (providerId: number) => ["app", "ai-discover-models", providerId] as const,
 
   // ── User Portal ─────────────────────────────────────────────

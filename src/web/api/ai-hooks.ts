@@ -447,10 +447,15 @@ export function useUpdateAiDefaultMarkup() {
 
 // ── Relay Consumer Keys ───────────────────────────────────────────────
 
-export function useRelayKeys() {
+export function useRelayKeys(params?: { prefix?: string; page?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.prefix) qs.set("prefix", params.prefix);
+  if (params?.page) qs.set("page", String(params.page));
+  const url = qs.size ? `${API_RELAY_KEYS}?${qs}` : API_RELAY_KEYS;
+
   return useQuery({
-    queryKey: queryKeys.relayKeys(),
-    queryFn: () => get(API_RELAY_KEYS, z.array(relayConsumerKeySchema)),
+    queryKey: queryKeys.relayKeys(params),
+    queryFn: () => get(url, z.array(relayConsumerKeySchema)),
   });
 }
 
@@ -466,7 +471,7 @@ export function useCreateRelayKey() {
       initialBalance?: string;
     }) => post(API_RELAY_KEYS, body, relayConsumerKeySchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
@@ -488,7 +493,7 @@ export function useUpdateRelayKey() {
       allowedModels?: string[] | null;
     }) => put(apiRelayKeyDetail(id), body, relayConsumerKeySchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
     },
   });
 }
@@ -503,7 +508,7 @@ export function useDeleteRelayKey() {
   return useMutation({
     mutationFn: (id: number) => del(apiRelayKeyDetail(id), deleteRelayKeyResponseSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
@@ -521,7 +526,7 @@ export function useRotateRelayKey() {
     mutationFn: (id: number) =>
       post(apiRelayKeyRotate(id), {}, z.object({ apiKey: z.string(), apiKeyPrefix: z.string() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.relayKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
     },
   });
 }

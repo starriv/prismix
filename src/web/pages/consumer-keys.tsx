@@ -4,24 +4,25 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formatDistanceToNow } from "date-fns";
-import { BarChart3, Check, Copy, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { BarChart3, Check, Copy, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { match } from "ts-pattern";
 import { z } from "zod";
 
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import {
   useCreateRelayKey,
   useDeleteRelayKey,
-  usePayAgents,
   useRelayKeys,
   useRevealRelayKey,
 } from "@/web/api/hooks";
 import type { RelayConsumerKey } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
+import { Pagination } from "@/web/components/dashboard/pagination";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/web/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -52,17 +53,48 @@ import {
 
 export default function ConsumerKeysPage() {
   const { t } = useTranslation();
-  const { data: keys = [], isLoading } = useRelayKeys();
-  const { data: allAgents = [] } = usePayAgents();
   const deleteKey = useDeleteRelayKey();
   const revealKey = useRevealRelayKey();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RelayConsumerKey | null>(null);
 
-  // Build agent name lookup
-  const agentNameById = useMemo(() => new Map(allAgents.map((a) => [a.id, a.name])), [allAgents]);
+  // ── Filter + Pagination (draft / applied pattern) ──
+  const [draftPrefix, setDraftPrefix] = useState("");
+  const [appliedPrefix, setAppliedPrefix] = useState("");
+  const [page, setPage] = useState(0);
 
+  const { data: keys = [], isLoading } = useRelayKeys({
+    prefix: appliedPrefix || undefined,
+    page,
+  });
+
+  const hasFilters = draftPrefix !== "" || appliedPrefix !== "";
+
+  const applyFilters = useCallback(() => {
+    setAppliedPrefix(draftPrefix.trim());
+    setPage(0);
+  }, [draftPrefix]);
+
+  const resetFilters = useCallback(() => {
+    setDraftPrefix("");
+    setAppliedPrefix("");
+    setPage(0);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") applyFilters();
+    },
+    [applyFilters],
+  );
+
+  const handlePrefixChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDraftPrefix(e.target.value),
+    [],
+  );
+
+  // ── Actions ──
   const handleCopyKey = useCallback(
     async (id: number) => {
       try {
@@ -98,16 +130,41 @@ export default function ConsumerKeysPage() {
       <Header title={t("consumer-keys.title")} description={t("consumer-keys.desc")} />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            {t("consumer-keys.btn.new")}
+          </Button>
+        </div>
+
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <Button size="sm" onClick={() => setCreateOpen(true)} className="ml-auto">
-                <Plus className="h-4 w-4 mr-1" />
-                {t("consumer-keys.btn.new")}
-              </Button>
-            </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{t("consumer-keys.title")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Filter bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                placeholder={t("consumer-keys.filter-prefix-ph")}
+                value={draftPrefix}
+                onChange={handlePrefixChange}
+                onKeyDown={handleKeyDown}
+                className="w-full sm:w-[200px]"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters}>
+                  <Search className="mr-1 h-3.5 w-3.5" />
+                  {t("common.btn.search")}
+                </Button>
+                {hasFilters && (
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("common.btn.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
             {isLoading ? (
               <div className="space-y-3 py-4">
                 <Skeleton className="h-8 w-full" />
@@ -124,6 +181,7 @@ export default function ConsumerKeysPage() {
                   <TableRow>
                     <TableHead>{t("consumer-keys.th.name")}</TableHead>
                     <TableHead>{t("consumer-keys.th.prefix")}</TableHead>
+                    <TableHead>{t("consumer-keys.th.user")}</TableHead>
                     <TableHead>{t("consumer-keys.th.agent")}</TableHead>
                     <TableHead>{t("consumer-keys.th.status")}</TableHead>
                     <TableHead>{t("consumer-keys.th.last-used")}</TableHead>
@@ -135,12 +193,15 @@ export default function ConsumerKeysPage() {
                     <TableRow key={k.id}>
                       <TableCell className="font-medium">{k.name}</TableCell>
                       <TableCell className="font-mono text-xs">{k.apiKeyPrefix}&hellip;</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {k.userId ? `#${k.userId} ${k.userName ?? ""}` : "\u2014"}
+                      </TableCell>
                       <TableCell className="text-sm">
                         <LocaleLink
                           to={`/admin/pay-agents?id=${k.agentId}`}
                           className="inline-flex items-center gap-1 text-primary hover:underline"
                         >
-                          {agentNameById.get(k.agentId) ?? `Agent #${k.agentId}`}
+                          Agent #{k.agentId}
                           <ExternalLink className="h-3 w-3" />
                         </LocaleLink>
                       </TableCell>
@@ -189,6 +250,14 @@ export default function ConsumerKeysPage() {
                 </TableBody>
               </Table>
             )}
+
+            {/* Pagination */}
+            <Pagination
+              page={page}
+              onPageChange={setPage}
+              currentCount={keys.length}
+              pageSize={DEFAULT_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>

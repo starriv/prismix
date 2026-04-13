@@ -2,7 +2,7 @@
  * Relay Consumer Key repository — CRUD for consumer-facing API keys.
  * Balance is managed by the linked pay-agent; this repo has no balance ops.
  */
-import { and, desc, eq, getTableColumns } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ilike } from "drizzle-orm";
 
 import {
   db,
@@ -16,14 +16,38 @@ import {
   users,
 } from "@/server/db";
 
+const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
+
 /** Consumer key row with the owning user's status (null for orphan keys). */
 export type ConsumerKeyWithUserStatus = RelayConsumerKey & {
   userStatus: number | null;
 };
 
+/** Consumer key row joined with user name for admin list view. */
+export type ConsumerKeyWithUser = RelayConsumerKey & {
+  userName: string | null;
+};
+
 export const relayConsumerKeyRepo = {
   async findAllOrdered(): Promise<RelayConsumerKey[]> {
     return queryAll(db.select().from(relayConsumerKeys).orderBy(desc(relayConsumerKeys.createdAt)));
+  },
+
+  async findFiltered(
+    limit = 200,
+    offset = 0,
+    filters?: { prefix?: string },
+  ): Promise<ConsumerKeyWithUser[]> {
+    const conditions = [];
+    if (filters?.prefix)
+      conditions.push(ilike(relayConsumerKeys.apiKeyPrefix, `%${esc(filters.prefix)}%`));
+
+    const qb = db
+      .select({ ...getTableColumns(relayConsumerKeys), userName: users.name })
+      .from(relayConsumerKeys)
+      .leftJoin(users, eq(relayConsumerKeys.userId, users.id));
+    if (conditions.length) qb.where(and(...conditions));
+    return queryAll(qb.orderBy(desc(relayConsumerKeys.createdAt)).limit(limit).offset(offset));
   },
 
   async findByUserId(userId: number): Promise<RelayConsumerKey[]> {

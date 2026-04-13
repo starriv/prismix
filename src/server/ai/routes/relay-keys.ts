@@ -31,8 +31,11 @@ const relayKeys = new Hono();
 
 relayKeys.get("/", async (c) => {
   getAdminSession(c);
-  // Admin sees all consumer keys — no user scoping
-  const keys = await relayConsumerKeyRepo.findAllOrdered();
+  const prefix = c.req.query("prefix")?.trim() || undefined;
+  const page = Math.max(0, Number(c.req.query("page") ?? 0));
+  const limit = 200;
+
+  const keys = await relayConsumerKeyRepo.findFiltered(limit, page * limit, { prefix });
   return ok(
     c,
     keys.map(({ apiKeyHash: _h, encryptedKey: _e, ...rest }) => ({
