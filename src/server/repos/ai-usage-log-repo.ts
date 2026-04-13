@@ -84,6 +84,15 @@ export interface AiKeyUsageSummaryRow {
   upstreamCost: string;
 }
 
+export interface AiOwnerUsageTotals {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: string;
+  upstreamCost: string;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 interface UsageFilters {
@@ -202,6 +211,38 @@ export const aiUsageLogRepo = {
         estimatedCost: row.estimatedCost ?? "0",
         upstreamCost: row.upstreamCost ?? "0",
       }));
+  },
+
+  async totalsByOwnerId(ownerId: number): Promise<AiOwnerUsageTotals> {
+    const row = await queryOne<{
+      requests: number;
+      inputTokens: string | null;
+      outputTokens: string | null;
+      totalTokens: string | null;
+      estimatedCost: string | null;
+      upstreamCost: string | null;
+    }>(
+      db
+        .select({
+          requests: count(),
+          inputTokens: sum(aiUsageLogs.inputTokens),
+          outputTokens: sum(aiUsageLogs.outputTokens),
+          totalTokens: sum(aiUsageLogs.totalTokens),
+          estimatedCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)::text`,
+          upstreamCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.upstreamCost} AS NUMERIC)), 0)::text`,
+        })
+        .from(aiUsageLogs)
+        .where(eq(aiUsageLogs.keyOwnerId, ownerId)),
+    );
+
+    return {
+      requests: row?.requests ?? 0,
+      inputTokens: Number(row?.inputTokens ?? 0),
+      outputTokens: Number(row?.outputTokens ?? 0),
+      totalTokens: Number(row?.totalTokens ?? 0),
+      estimatedCost: row?.estimatedCost ?? "0",
+      upstreamCost: row?.upstreamCost ?? "0",
+    };
   },
 
   /** Aggregated usage summary (optionally filtered by consumer key, user, date range, etc.). */

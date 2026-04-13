@@ -1,7 +1,7 @@
 /**
  * AI Key repository — CRUD for `ai_keys` table.
  */
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, count, eq, gt, inArray } from "drizzle-orm";
 
 import {
   type AiKey,
@@ -71,6 +71,13 @@ export const aiKeyRepo = {
   /** Find all keys owned by a key provider. */
   async findByOwnerId(ownerId: number): Promise<AiKey[]> {
     return queryAll(db.select().from(aiKeys).where(eq(aiKeys.ownerId, ownerId)));
+  },
+
+  async countByOwnerId(ownerId: number): Promise<number> {
+    const row = await queryOne<{ total: number }>(
+      db.select({ total: count() }).from(aiKeys).where(eq(aiKeys.ownerId, ownerId)),
+    );
+    return row?.total ?? 0;
   },
 
   /** Delete all keys owned by a key provider. Returns deleted keys for pool invalidation. */

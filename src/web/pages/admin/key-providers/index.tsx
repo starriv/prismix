@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatDistanceToNow } from "date-fns";
-import { Plus } from "lucide-react";
+import { BarChart3, Plus } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import { useKeyProviders } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
@@ -75,6 +76,7 @@ export default function KeyProvidersPage() {
                     <TableHead>{t("admin.key-providers.th.keys")}</TableHead>
                     <TableHead>{t("common.th.status")}</TableHead>
                     <TableHead>{t("common.th.time")}</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -97,6 +99,13 @@ export default function KeyProvidersPage() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatDistanceToNow(new Date(p.createdAt), { addSuffix: true })}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" asChild>
+                          <LocaleLink to={`/admin/key-provider-usage-detail?id=${p.id}`}>
+                            <BarChart3 className="h-3.5 w-3.5" />
+                          </LocaleLink>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

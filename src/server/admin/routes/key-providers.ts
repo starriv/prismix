@@ -31,6 +31,31 @@ import { removeTailingZero, safeMinus, safePlus } from "@/shared/number";
 
 const keyProvidersRouter = new Hono();
 
+async function buildProviderSummary(id: number) {
+  const provider = await keyProviderRepo.findById(id);
+  if (!provider) return null;
+
+  const [keyCount, usageTotals, revenueShare] = await Promise.all([
+    aiKeyRepo.countByOwnerId(id),
+    aiUsageLogRepo.totalsByOwnerId(id),
+    keyProviderTransactionRepo.totalRevenueShareByProviderId(id),
+  ]);
+
+  return {
+    ...provider,
+    keyCount,
+    totals: {
+      requests: usageTotals.requests,
+      inputTokens: usageTotals.inputTokens,
+      outputTokens: usageTotals.outputTokens,
+      totalTokens: usageTotals.totalTokens,
+      consumerSpend: removeTailingZero(usageTotals.estimatedCost, 6),
+      upstreamCost: removeTailingZero(usageTotals.upstreamCost, 6),
+      revenueShare: removeTailingZero(revenueShare, 6),
+    },
+  };
+}
+
 // ── List all key providers ──────────────────────────────────────────
 
 keyProvidersRouter.get("/", async (c) => {
@@ -67,6 +92,16 @@ keyProvidersRouter.get("/txns", async (c) => {
 });
 
 // ── Get single key provider ─────────────────────────────────────────
+
+keyProvidersRouter.get("/:id/summary", async (c) => {
+  const id = parseIntParam(c.req.param("id"));
+  if (!id) return c.json({ error: "Invalid ID" }, 400);
+
+  const summary = await buildProviderSummary(id);
+  if (!summary) return c.json({ error: "Key provider not found" }, 404);
+
+  return ok(c, summary);
+});
 
 keyProvidersRouter.get("/:id", async (c) => {
   const id = parseIntParam(c.req.param("id"));

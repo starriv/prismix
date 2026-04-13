@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { KeyRound } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import { useKeyProviderTxns } from "@/web/api/hooks";
+import { Pagination } from "@/web/components/dashboard/pagination";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -15,21 +16,30 @@ import { PREVIEW_COUNT } from "./constants";
 export function TransactionList({
   providerId,
   keyLabels,
+  previewCount = PREVIEW_COUNT,
+  defaultExpanded = false,
+  paginated = false,
 }: {
   providerId: number;
   keyLabels?: Record<number, string>;
+  previewCount?: number;
+  defaultExpanded?: boolean;
+  paginated?: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: txns = [] } = useKeyProviderTxns(providerId);
-  const [expanded, setExpanded] = useState(false);
-  const displayTxns = expanded ? txns : txns.slice(0, PREVIEW_COUNT);
+  const [page, setPage] = useState(0);
+  const pageSize = paginated ? previewCount : 50;
+  const offset = useMemo(() => (paginated ? page * pageSize : 0), [page, pageSize, paginated]);
+  const { data: txns = [] } = useKeyProviderTxns(providerId, { limit: pageSize, offset });
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const displayTxns = paginated ? txns : expanded ? txns : txns.slice(0, previewCount);
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm">{t("admin.key-providers.detail.txns")}</CardTitle>
-          {txns.length > 0 && (
+          {!paginated && txns.length > 0 && (
             <Badge variant="secondary" className="text-xs">
               {txns.length}
             </Badge>
@@ -43,7 +53,9 @@ export function TransactionList({
           </p>
         ) : (
           <div className="space-y-2">
-            <div className={cn("space-y-2", expanded && "max-h-80 overflow-y-auto pr-1")}>
+            <div
+              className={cn("space-y-2", !paginated && expanded && "max-h-80 overflow-y-auto pr-1")}
+            >
               {displayTxns.map((tx) => (
                 <div key={tx.id} className="rounded-lg border bg-muted/30 px-3 py-2 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -76,7 +88,7 @@ export function TransactionList({
                 </div>
               ))}
             </div>
-            {txns.length > PREVIEW_COUNT && (
+            {!paginated && txns.length > previewCount && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -87,6 +99,14 @@ export function TransactionList({
                   ? t("admin.key-providers.detail.collapse")
                   : t("admin.key-providers.detail.view-all", { count: txns.length })}
               </Button>
+            )}
+            {paginated && (
+              <Pagination
+                page={page}
+                onPageChange={setPage}
+                currentCount={txns.length}
+                pageSize={pageSize}
+              />
             )}
           </div>
         )}

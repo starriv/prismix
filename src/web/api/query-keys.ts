@@ -99,8 +99,10 @@ export const queryKeys = {
 
   // ── Key Providers ────────────────────────────────────────────
   keyProviders: () => ["app", "key-providers"] as const,
+  keyProviderSummary: (providerId: number) => ["app", "key-provider-summary", providerId] as const,
   keyProviderDetail: (providerId: number) => ["app", "key-provider-detail", providerId] as const,
-  keyProviderTxns: (providerId: number) => ["app", "key-provider-txns", providerId] as const,
+  keyProviderTxns: (providerId: number, limit: number, offset: number) =>
+    ["app", "key-provider-txns", providerId, limit, offset] as const,
 
   // ── AI ───────────────────────────────────────────────────────
   aiProviders: () => ["app", "ai-providers"] as const,

@@ -111,6 +111,7 @@ export const apiAdminAnnouncementSend = (id: string) => `/api/admin/announcement
 // ── Key Providers (号池供应商) ────────────────────────────────────
 export const API_KEY_PROVIDERS = "/api/admin/key-providers";
 export const apiKeyProviderDetail = (id: number) => `/api/admin/key-providers/${id}`;
+export const apiKeyProviderSummary = (id: number) => `/api/admin/key-providers/${id}/summary`;
 export const apiKeyProviderAdjust = (id: number) => `/api/admin/key-providers/${id}/adjust`;
 export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 

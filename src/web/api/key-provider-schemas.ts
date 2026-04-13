@@ -69,6 +69,12 @@ export const keyProviderDetailSchema = keyProviderSchema.extend({
 });
 export type KeyProviderDetail = z.infer<typeof keyProviderDetailSchema>;
 
+export const keyProviderSummarySchema = keyProviderSchema.extend({
+  keyCount: z.number(),
+  totals: keyProviderTotalsSchema,
+});
+export type KeyProviderSummary = z.infer<typeof keyProviderSummarySchema>;
+
 export const createKeyProviderBody = z.object({
   name: z.string().min(1, "common.valid.name-required"),
   email: z.string().email("common.valid.invalid-email").optional().or(z.literal("")),

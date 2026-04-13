@@ -60,4 +60,20 @@ export const keyProviderTransactionRepo = {
         .map((row) => [row.keyId, row.totalRevenueShare ?? "0"]),
     );
   },
+
+  async totalRevenueShareByProviderId(providerId: number): Promise<string> {
+    const row = await queryAll<{ totalRevenueShare: string | null }>(
+      db
+        .select({
+          totalRevenueShare: sql<string>`COALESCE(SUM(CAST(${keyProviderTransactions.amount} AS NUMERIC)), 0)::text`,
+        })
+        .from(keyProviderTransactions)
+        .where(
+          sql`${keyProviderTransactions.providerId} = ${providerId} AND ${keyProviderTransactions.type} = 'revenue_share'`,
+        )
+        .limit(1),
+    );
+
+    return row[0]?.totalRevenueShare ?? "0";
+  },
 };

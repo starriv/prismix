@@ -61,6 +61,7 @@ const AiLogsPage = lazy(() => import("./pages/ai-logs"));
 const AiErrorsPage = lazy(() => import("./pages/ai-errors"));
 const ConsumerKeysPage = lazy(() => import("./pages/consumer-keys"));
 const KeyProvidersPage = lazy(() => import("./pages/admin/key-providers"));
+const KeyProviderUsageDetailPage = lazy(() => import("./pages/admin/key-provider-usage-detail"));
 const AdminGatewayPage = lazy(() => import("./pages/admin/gateway"));
 
 // User portal
@@ -165,6 +166,7 @@ export function App() {
                 <Route path="ai-errors" element={<AiErrorsPage />} />
                 <Route path="consumer-keys" element={<ConsumerKeysPage />} />
                 <Route path="key-providers" element={<KeyProvidersPage />} />
+                <Route path="key-provider-usage-detail" element={<KeyProviderUsageDetailPage />} />
                 <Route path="gateway" element={<AdminGatewayPage />} />
 
                 {/* Pay Agents */}
