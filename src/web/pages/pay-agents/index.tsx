@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
@@ -47,11 +47,13 @@ export default function PayAgentsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Open detail sheet from query string: ?id=123
-  useEffect(() => {
-    const idParam = searchParams.get("id");
-    if (idParam) setEditingId(Number(idParam));
-  }, [searchParams]);
+  // Read ?id= from URL to pre-filter by agent id
+  const idParam = searchParams.get("id");
+  const idFromUrl = idParam
+    ? Number.isFinite(Number(idParam))
+      ? Number(idParam)
+      : undefined
+    : undefined;
 
   // Draft filter state (UI controls)
   const [draftUser, setDraftUser] = useState("");
@@ -63,6 +65,7 @@ export default function PayAgentsPage() {
   const [page, setPage] = useState(0);
 
   const { data: agents = [], isLoading } = usePayAgentsList({
+    id: idFromUrl,
     userName: appliedUser || undefined,
     address: appliedAddress || undefined,
     page,
@@ -86,21 +89,28 @@ export default function PayAgentsPage() {
   );
 
   const hasFilters =
-    draftUser !== "" || draftAddress !== "" || appliedUser !== "" || appliedAddress !== "";
+    !!idFromUrl ||
+    draftUser !== "" ||
+    draftAddress !== "" ||
+    appliedUser !== "" ||
+    appliedAddress !== "";
 
   const applyFilters = useCallback(() => {
+    // Clear the ?id= URL filter once user performs a manual search
+    if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setAppliedUser(draftUser.trim());
     setAppliedAddress(draftAddress.trim());
     setPage(0);
-  }, [draftUser, draftAddress]);
+  }, [draftUser, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
+    if (searchParams.has("id")) setSearchParams({}, { replace: true });
     setDraftUser("");
     setDraftAddress("");
     setAppliedUser("");
     setAppliedAddress("");
     setPage(0);
-  }, []);
+  }, [searchParams, setSearchParams]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -247,13 +257,7 @@ export default function PayAgentsPage() {
       </div>
 
       {/* Detail / Edit Sheet */}
-      <Sheet
-        open={!!editing}
-        onOpenChange={() => {
-          setEditingId(null);
-          if (searchParams.has("id")) setSearchParams({}, { replace: true });
-        }}
-      >
+      <Sheet open={!!editing} onOpenChange={() => setEditingId(null)}>
         <SheetContent className="w-full sm:w-[480px]">
           <SheetHeader>
             <SheetTitle>{t("agents.edit-title")}</SheetTitle>

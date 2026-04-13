@@ -27,9 +27,10 @@ export const payAgentRepo = {
   async findAll(
     limit = 200,
     offset = 0,
-    filters?: { address?: string; userName?: string },
+    filters?: { id?: number; address?: string; userName?: string },
   ): Promise<PayAgentWithOwner[]> {
     const conditions = [];
+    if (filters?.id) conditions.push(eq(payAgents.id, filters.id));
     if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
     if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
 

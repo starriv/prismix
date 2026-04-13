@@ -48,8 +48,14 @@ export function usePayAgents() {
 /**
  * Paginated + filtered pay agent list — used by the pay-agents admin page.
  */
-export function usePayAgentsList(params: { userName?: string; address?: string; page?: number }) {
+export function usePayAgentsList(params: {
+  id?: number;
+  userName?: string;
+  address?: string;
+  page?: number;
+}) {
   const qp = new URLSearchParams();
+  if (params.id) qp.set("id", String(params.id));
   if (params.userName) qp.set("userName", params.userName);
   if (params.address) qp.set("address", params.address);
   const page = params.page ?? 0;

@@ -18,10 +18,11 @@ export const queryKeys = {
   // ── App ──────────────────────────────────────────────────────
   allowedTokens: () => ["app", "allowed-tokens"] as const,
   networks: () => ["app", "networks"] as const,
-  payAgents: (params?: { userName?: string; address?: string; page?: number }) =>
+  payAgents: (params?: { id?: number; userName?: string; address?: string; page?: number }) =>
     [
       "app",
       "pay-agents",
+      params?.id ?? "all",
       params?.userName ?? "",
       params?.address ?? "",
       params?.page ?? 0,

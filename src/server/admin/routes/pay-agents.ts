@@ -25,10 +25,11 @@ const payAgentsRouter = new Hono();
 payAgentsRouter.get("/", async (c) => {
   const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
+  const id = parseIntParam(c.req.query("id")) ?? undefined;
   const userName = c.req.query("userName") || undefined;
   const address = c.req.query("address") || undefined;
 
-  const agents = await payAgentRepo.findAll(limit, offset, { address, userName });
+  const agents = await payAgentRepo.findAll(limit, offset, { id, address, userName });
 
   return ok(c, agents);
 });
