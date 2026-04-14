@@ -17,6 +17,7 @@ import {
   createFiatConfigBody,
   rejectTopupOrderBody,
   reorderFiatConfigsBody,
+  settleTopupOrderBody,
   updateFiatConfigBody,
 } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
@@ -294,32 +295,40 @@ admin.put("/topup-orders/:id/settle", async (c) => {
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
 
-  const parsed = await parseBody(
-    c,
-    confirmTopupOrderBody.extend({
-      amount: confirmTopupOrderBody.shape.fiatAmount
-        .unwrap()
-        .regex(/^\d+(\.\d+)?$/, "Invalid amount format"),
-    }),
-  );
+  const parsed = await parseBody(c, settleTopupOrderBody);
   if (!parsed.ok) return parsed.response;
 
-  const amount = parsed.data.amount;
+  const creditAmount = parsed.data.amount;
   const description = parsed.data.note || `Admin settled top-up order #${id}`;
 
   try {
     const settled = await transaction(async (tx: any) => {
+      // Lock the order row inside the transaction to prevent concurrent settle
+      const [existingOrder] = await tx
+        .select()
+        .from(topUpOrders)
+        .where(and(eq(topUpOrders.id, id), eq(topUpOrders.status, "pending")))
+        .for("update");
+
+      if (!existingOrder) return null;
+
+      if (existingOrder.type === "fiat" && !parsed.data.fiatAmount) {
+        throw new Error("FIAT_AMOUNT_REQUIRED");
+      }
+
       const now = new Date();
+      const originalAmount = existingOrder.amount;
       const [confirmed] = await tx
         .update(topUpOrders)
         .set({
+          amount: creditAmount,
           status: "confirmed",
-          fiatAmount: parsed.data.fiatAmount,
+          fiatAmount: existingOrder.type === "fiat" ? parsed.data.fiatAmount : undefined,
           adminNote: description,
           confirmedAt: now,
           updatedAt: now,
         })
-        .where(and(eq(topUpOrders.id, id), eq(topUpOrders.status, "pending")))
+        .where(eq(topUpOrders.id, id))
         .returning();
 
       if (!confirmed) return null;
@@ -336,7 +345,7 @@ admin.put("/topup-orders/:id/settle", async (c) => {
       const [credited] = await tx
         .update(payAgents)
         .set({
-          balance: sql`CAST(CAST(${payAgents.balance} AS NUMERIC) + CAST(${amount} AS NUMERIC) AS TEXT)`,
+          balance: sql`CAST(CAST(${payAgents.balance} AS NUMERIC) + CAST(${creditAmount} AS NUMERIC) AS TEXT)`,
           status: "active",
           updatedAt: now,
         })
@@ -350,8 +359,8 @@ admin.put("/topup-orders/:id/settle", async (c) => {
         agentId: confirmed.agentId,
         userId: owner.id,
         type: "top_up",
-        amount,
-        balanceBefore: safeMinus(credited.balance, amount),
+        amount: creditAmount,
+        balanceBefore: safeMinus(credited.balance, creditAmount),
         balanceAfter: credited.balance,
         referenceType: "top_up_order",
         referenceId: confirmed.id,
@@ -363,6 +372,7 @@ admin.put("/topup-orders/:id/settle", async (c) => {
       return {
         order: confirmed,
         userId: owner.id,
+        originalAmount,
       };
     });
 
@@ -371,13 +381,25 @@ admin.put("/topup-orders/:id/settle", async (c) => {
     }
 
     log.admin.info(
-      { orderId: id, userId: settled.userId, agentId: settled.order.agentId, amount },
+      {
+        orderId: id,
+        userId: settled.userId,
+        agentId: settled.order.agentId,
+        creditAmount,
+        originalAmount: settled.originalAmount,
+        amountChanged: settled.originalAmount !== creditAmount,
+      },
       "Top-up order settled by admin",
     );
     return ok(c, settled.order);
   } catch (err) {
-    if (err instanceof Error && err.message === "ORDER_OWNER_WALLET_NOT_FOUND") {
-      return c.json({ error: "Order owner wallet not found" }, 404);
+    if (err instanceof Error) {
+      if (err.message === "FIAT_AMOUNT_REQUIRED") {
+        return c.json({ error: "Fiat amount is required for fiat top-up settlement" }, 400);
+      }
+      if (err.message === "ORDER_OWNER_WALLET_NOT_FOUND") {
+        return c.json({ error: "Order owner wallet not found" }, 404);
+      }
     }
     throw err;
   }

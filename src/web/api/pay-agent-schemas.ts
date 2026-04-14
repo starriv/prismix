@@ -117,6 +117,19 @@ export const confirmTopupBody = z.object({
 });
 export type ConfirmTopupBody = z.infer<typeof confirmTopupBody>;
 
+export const settleTopupBody = z.object({
+  amount: z
+    .string()
+    .min(1, "common.valid.required")
+    .regex(/^\d+(\.\d+)?$/, "common.valid.invalid-amount"),
+  fiatAmount: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, "common.valid.invalid-amount")
+    .optional(),
+  note: z.string().max(500).optional(),
+});
+export type SettleTopupBody = z.infer<typeof settleTopupBody>;
+
 export const rejectTopupBody = z.object({
   note: z.string().max(500).optional(),
 });

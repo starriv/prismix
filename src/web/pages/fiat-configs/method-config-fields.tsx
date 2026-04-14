@@ -49,9 +49,22 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
     onChange(next);
   }, [config, onChange]);
 
+  // Currency is shared across all methods
+  const currencyField = (
+    <div className="space-y-2">
+      <Label>{t("fiat.form.currency")}</Label>
+      <Input
+        value={config.currency ?? ""}
+        onChange={(e) => set("currency", e.target.value.toUpperCase())}
+        placeholder={t("fiat.form.currency-ph")}
+      />
+    </div>
+  );
+
   if (method === "bank_transfer") {
     return (
       <>
+        {currencyField}
         <div className="space-y-2">
           <Label>{t("fiat.form.bank-name")}</Label>
           <Input
@@ -91,6 +104,7 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
   if (method === "alipay" || method === "wechat") {
     return (
       <>
+        {currencyField}
         <div className="space-y-2">
           <Label>{t("fiat.form.account-id")}</Label>
           <Input
@@ -140,6 +154,7 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
   if (method === "paypal") {
     return (
       <>
+        {currencyField}
         <div className="space-y-2">
           <Label>{t("fiat.form.email")}</Label>
           <Input

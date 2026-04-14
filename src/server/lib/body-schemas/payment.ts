@@ -3,10 +3,11 @@
  */
 import { z } from "zod";
 
+import { PRICE_RE } from "@/shared/number";
+
 // ── Regex validators ────────────────────────────────────────────────
 
 const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
-const PRICE_RE = /^\d+(\.\d+)?$/;
 const MAX_BASE64_IMAGE_LENGTH = 5 * 1024 * 1024;
 
 /** Allowed MIME prefixes for base64 image uploads (no SVG — XSS risk). */
@@ -58,6 +59,28 @@ export const createTopupRequestBody = z.discriminatedUnion("type", [
 
 export const confirmTopupOrderBody = z.object({
   fiatAmount: z.string().max(50).optional(),
+  note: z.string().max(500).optional(),
+});
+
+/** Max amount an admin can credit in a single settle — sanity guard. */
+const MAX_SETTLE_AMOUNT = 1_000_000;
+
+export const settleTopupOrderBody = z.object({
+  amount: z
+    .string()
+    .min(1, "Amount is required")
+    .regex(PRICE_RE, "Invalid amount format")
+    .refine((v) => Number(v) > 0, "Amount must be greater than zero")
+    .refine((v) => Number(v) <= MAX_SETTLE_AMOUNT, `Amount must not exceed ${MAX_SETTLE_AMOUNT}`),
+  fiatAmount: z
+    .string()
+    .regex(PRICE_RE, "Invalid fiat amount format")
+    .refine((v) => Number(v) > 0, "Fiat amount must be greater than zero")
+    .refine(
+      (v) => Number(v) <= MAX_SETTLE_AMOUNT,
+      `Fiat amount must not exceed ${MAX_SETTLE_AMOUNT}`,
+    )
+    .optional(),
   note: z.string().max(500).optional(),
 });
 

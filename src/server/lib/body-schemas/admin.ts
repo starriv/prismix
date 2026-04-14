@@ -5,10 +5,11 @@
  */
 import { z } from "zod";
 
+import { PRICE_RE } from "@/shared/number";
+
 // ── Regex validators ────────────────────────────────────────────────
 
 const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
-const PRICE_RE = /^\d+(\.\d+)?$/;
 
 // ── Admin: Create Admin ────────────────────────────────────────────
 

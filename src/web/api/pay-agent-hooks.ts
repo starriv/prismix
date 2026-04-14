@@ -28,6 +28,7 @@ import {
   payAgentSchema,
   payAgentTransactionSchema,
   type RejectTopupBody,
+  type SettleTopupBody,
   topUpOrderListSchema,
   topUpOrderSchema,
   type UpdateAgentBody,
@@ -256,8 +257,8 @@ export function useRejectTopupOrder() {
 export function useSettleTopupOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, amount, note }: { id: number; amount: string; note?: string }) =>
-      put(apiTopupOrderSettle(id), { amount, note }, topUpOrderSchema),
+    mutationFn: ({ id, ...body }: SettleTopupBody & { id: number }) =>
+      put(apiTopupOrderSettle(id), body, topUpOrderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.topupOrdersAll() });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });

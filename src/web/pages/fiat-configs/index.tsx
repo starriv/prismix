@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { parseFiatConfigCurrency } from "@/shared/number";
 import { useFiatConfigs, useUpdateFiatConfig } from "@/web/api/hooks";
 import type { FiatConfig } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
@@ -41,6 +42,10 @@ export default function FiatConfigsPage() {
     }
   }
 
+  function getConfigCurrency(cfg: FiatConfig) {
+    return parseFiatConfigCurrency(cfg.config) ?? "—";
+  }
+
   return (
     <div>
       <Header title={t("fiat.title")} description={t("fiat.desc")} />
@@ -71,6 +76,7 @@ export default function FiatConfigsPage() {
                   <TableRow>
                     <TableHead>{t("fiat.th.display-name")}</TableHead>
                     <TableHead>{t("fiat.th.method")}</TableHead>
+                    <TableHead>{t("fiat.th.currency")}</TableHead>
                     <TableHead>{t("fiat.th.enabled")}</TableHead>
                     <TableHead>{t("fiat.th.actions")}</TableHead>
                   </TableRow>
@@ -82,6 +88,7 @@ export default function FiatConfigsPage() {
                       <TableCell>
                         <MethodBadge method={cfg.method} label={t(`fiat.method.${cfg.method}`)} />
                       </TableCell>
+                      <TableCell className="font-mono text-xs">{getConfigCurrency(cfg)}</TableCell>
                       <TableCell>
                         <Switch
                           checked={cfg.enabled}

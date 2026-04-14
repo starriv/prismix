@@ -39,6 +39,7 @@ import {
   withdrawOrderRepo,
 } from "@/server/repos";
 import { SUPPORTED_PAYMENT_CHAIN_IDS } from "@/shared/circle-networks";
+import { DEFAULT_CURRENCY_BY_METHOD, parseFiatConfigCurrency } from "@/shared/number";
 import { gt, gte, removeTailingZero, safePlus } from "@/shared/number";
 import { MIN_TOPUP_AMOUNT, SETTLEMENT_DECIMALS } from "@/shared/tokens";
 
@@ -93,6 +94,8 @@ async function serializeTopupOrder(order: TopUpOrder, includeFiatConfig = false)
     expiresAt: getTopupExpiresAt(order),
   };
 }
+
+const getFiatConfigCurrency = parseFiatConfigCurrency;
 
 /** Batch-serialize a list of orders — single query for all fiat configs to avoid N+1. */
 async function serializeTopupOrders(orders: TopUpOrder[]) {
@@ -244,7 +247,11 @@ wallet.post("/topup", async (c) => {
       amount,
       type: "fiat",
       fiatConfigId: config.id,
-      fiatCurrency: parsed.data.fiatCurrency ?? "USD",
+      fiatCurrency:
+        parsed.data.fiatCurrency ??
+        getFiatConfigCurrency(config.config) ??
+        DEFAULT_CURRENCY_BY_METHOD[config.method] ??
+        "USD",
       paymentMethod: config.method,
     });
 

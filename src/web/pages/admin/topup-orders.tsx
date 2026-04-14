@@ -90,6 +90,25 @@ function isImageSource(value: string) {
   );
 }
 
+function formatFiatAmount(amount: string | null | undefined, currency: string | null | undefined) {
+  if (!amount) return "—";
+  return `${removeTailingZero(amount)} ${currency || ""}`.trim();
+}
+
+function getOrderPrimaryAmount(order: TopUpOrder) {
+  if (order.type === "fiat" && order.status !== "confirmed") {
+    return {
+      value: formatFiatAmount(order.fiatAmount || order.amount, order.fiatCurrency),
+      unit: null,
+    };
+  }
+
+  return {
+    value: `$${removeTailingZero(order.amount)}`,
+    unit: "USDC",
+  };
+}
+
 export default function AdminTopupOrdersPage() {
   const { t, i18n } = useTranslation();
   const { getChainDisplayByNetworkId } = useChainRegistry();
@@ -187,52 +206,56 @@ export default function AdminTopupOrdersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.map((order) => (
-                    <TableRow
-                      key={order.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelected(order)}
-                    >
-                      <TableCell className="font-mono text-xs">#{order.id}</TableCell>
-                      <TableCell className="text-xs">
-                        <div>{order.userName ?? "—"}</div>
-                        <div className="text-muted-foreground font-mono">
-                          {order.userUuid ?? `Agent #${order.agentId}`}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        ${removeTailingZero(order.amount)} USDC
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {t(`user.wallet.type-${order.type}`)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {order.network
-                          ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
-                          : order.paymentMethod
-                            ? t(`fiat.method.${order.paymentMethod}`, {
-                                defaultValue: order.paymentMethod,
-                              })
-                            : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={order.status} colorMap={statusColorMap} />
-                      </TableCell>
-                      <TableCell className="max-w-[240px] text-xs text-muted-foreground">
-                        {order.adminNote ? (
-                          <span className="line-clamp-2">{order.adminNote}</span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(order.createdAt), {
-                          addSuffix: true,
-                          locale: getDateLocale(i18n.language),
-                        })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {orders.map((order) => {
+                    const primaryAmount = getOrderPrimaryAmount(order);
+                    return (
+                      <TableRow
+                        key={order.id}
+                        className="cursor-pointer"
+                        onClick={() => setSelected(order)}
+                      >
+                        <TableCell className="font-mono text-xs">#{order.id}</TableCell>
+                        <TableCell className="text-xs">
+                          <div>{order.userName ?? "—"}</div>
+                          <div className="text-muted-foreground font-mono">
+                            {order.userUuid ?? `Agent #${order.agentId}`}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {primaryAmount.value}
+                          {primaryAmount.unit ? ` ${primaryAmount.unit}` : ""}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {t(`user.wallet.type-${order.type}`)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {order.network
+                            ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
+                            : order.paymentMethod
+                              ? t(`fiat.method.${order.paymentMethod}`, {
+                                  defaultValue: order.paymentMethod,
+                                })
+                              : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={order.status} colorMap={statusColorMap} />
+                        </TableCell>
+                        <TableCell className="max-w-[240px] text-xs text-muted-foreground">
+                          {order.adminNote ? (
+                            <span className="line-clamp-2">{order.adminNote}</span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDistanceToNow(new Date(order.createdAt), {
+                            addSuffix: true,
+                            locale: getDateLocale(i18n.language),
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -279,6 +302,14 @@ function TopupOrderDetailSheet({
 
   const isPending = order.status === "pending";
   const agentName = agents.find((agent) => agent.id === order.agentId)?.name ?? `#${order.agentId}`;
+  const primaryAmount = getOrderPrimaryAmount(order);
+  const fiatAmountDisplay =
+    order.type === "fiat"
+      ? formatFiatAmount(
+          order.fiatAmount || (order.status !== "confirmed" ? order.amount : null),
+          order.fiatCurrency,
+        )
+      : "—";
 
   return (
     <>
@@ -296,8 +327,15 @@ function TopupOrderDetailSheet({
               <div>
                 <p className="text-xs text-muted-foreground">{t("topup.detail.amount")}</p>
                 <p className="text-2xl font-bold">
-                  ${removeTailingZero(order.amount)}{" "}
-                  <span className="text-sm font-normal text-muted-foreground">USDC</span>
+                  {primaryAmount.value}
+                  {primaryAmount.unit ? (
+                    <>
+                      {" "}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {primaryAmount.unit}
+                      </span>
+                    </>
+                  ) : null}
                 </p>
               </div>
               <StatusBadge status={order.status} colorMap={statusColorMap} />
@@ -355,7 +393,15 @@ function TopupOrderDetailSheet({
                         : "—"
                     }
                   />
-                  <InfoRow label={t("topup.detail.fiat-amount")} value={order.fiatAmount || "—"} />
+                  <InfoRow label={t("topup.detail.fiat-amount")} value={fiatAmountDisplay} />
+                  <InfoRow
+                    label={t("topup.detail.credit-amount")}
+                    value={
+                      order.status === "confirmed"
+                        ? `$${removeTailingZero(order.amount)} USDC`
+                        : "—"
+                    }
+                  />
                   {order.paymentProof ? (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">
@@ -434,8 +480,13 @@ function TopupOrderDetailSheet({
 const settleSchema = z.object({
   amount: z
     .string()
-    .min(1)
-    .regex(/^\d+(\.\d+)?$/),
+    .min(1, "common.valid.required")
+    .regex(/^\d+(\.\d+)?$/, "common.valid.invalid-amount"),
+  fiatAmount: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, "common.valid.invalid-amount")
+    .optional()
+    .or(z.literal("")),
   note: z.string().max(500).optional(),
 });
 
@@ -453,17 +504,24 @@ function SettleOrderDialog({
   const form = useForm<z.infer<typeof settleSchema>>({
     resolver: zodResolver(settleSchema),
     defaultValues: {
-      amount: order.amount,
+      amount: order.type === "fiat" ? "" : order.amount,
+      fiatAmount: order.type === "fiat" ? order.fiatAmount || order.amount : "",
       note: t("topup.action.settle-default-note", { id: order.id }),
     },
   });
 
   const handleSubmit = useCallback(
     async (data: z.infer<typeof settleSchema>) => {
+      if (order.type === "fiat" && !data.fiatAmount) {
+        form.setError("fiatAmount", { type: "manual", message: t("common.valid.required") });
+        return;
+      }
+
       try {
         await settleOrder.mutateAsync({
           id: order.id,
           amount: data.amount,
+          fiatAmount: order.type === "fiat" ? data.fiatAmount || undefined : undefined,
           note: data.note || undefined,
         });
         toast.success(t("topup.action.settle-success", {}));
@@ -473,7 +531,7 @@ function SettleOrderDialog({
         toast.error(err instanceof Error ? err.message : t("topup.action.settle-error"));
       }
     },
-    [settleOrder, order.id, t, onClose, onDone],
+    [form, settleOrder, order.id, order.type, t, onClose, onDone],
   );
 
   return (
@@ -485,15 +543,42 @@ function SettleOrderDialog({
         <DialogBody>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              {order.type === "fiat" ? (
+                <FormField
+                  control={form.control}
+                  name="fiatAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("topup.action.settle-fiat-amount")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} inputMode="decimal" />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("topup.action.settle-fiat-hint", { currency: order.fiatCurrency })}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : null}
               <FormField
                 control={form.control}
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("common.th.amount")}</FormLabel>
+                    <FormLabel>
+                      {order.type === "fiat"
+                        ? t("topup.action.settle-credit-amount")
+                        : t("common.th.amount")}
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} inputMode="decimal" />
                     </FormControl>
+                    {order.type === "fiat" ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("topup.action.settle-credit-hint")}
+                      </p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

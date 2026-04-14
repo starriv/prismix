@@ -69,3 +69,31 @@ export const lte = (a: NumInput, b: NumInput): boolean => new BigNumber(a).lte(b
 // ─── BigNumber factory ────────────────────────────────────────────────────────
 
 export const toBig = (input: NumInput): BigNumber => new BigNumber(input);
+
+// ─── validators ──────────────────────────────────────────────────────────────
+
+/** Matches a non-negative decimal number string, e.g. "0", "1.23", "100". */
+export const PRICE_RE = /^\d+(\.\d+)?$/;
+
+// ─── fiat helpers ────────────────────────────────────────────────────────────
+
+/** Default currency by payment method — used when config has no explicit currency. */
+export const DEFAULT_CURRENCY_BY_METHOD: Record<string, string> = {
+  alipay: "CNY",
+  wechat: "CNY",
+  bank_transfer: "USD",
+  paypal: "USD",
+};
+
+/** Extract the `currency` field from a fiat config JSON blob. Returns null if missing/invalid. */
+export function parseFiatConfigCurrency(configRaw: string): string | null {
+  try {
+    const parsed = JSON.parse(configRaw) as Record<string, unknown>;
+    const currency = String(parsed.currency ?? "")
+      .trim()
+      .toUpperCase();
+    return currency || null;
+  } catch {
+    return null;
+  }
+}
