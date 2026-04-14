@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,6 +20,12 @@ import {
 } from "@/web/api/hooks";
 import type { AiProvider, AiProviderUpstream } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/web/components/ui/card";
@@ -48,14 +55,6 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 // ── AWS Bedrock regions (runtime endpoints) ─────────────────────────
 
@@ -639,6 +638,105 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
       );
     }
   }, [deleteTarget, deleteUpstream, provider, t]);
+  const columns = useMemo<ColumnDef<AiProviderUpstream>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("ai-providers.upstreams.th.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "upstreamId",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.upstreamId}
+          </DataTableBadge>
+        ),
+        header: t("ai-providers.upstreams.th.upstream-id"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "kind",
+        cell: ({ row }) => <DataTableBadge variant="outline">{row.original.kind}</DataTableBadge>,
+        header: t("ai-providers.upstreams.th.kind"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "baseUrl",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[280px]" mono truncate>
+            {row.original.baseUrl}
+          </DataTableText>
+        ),
+        header: t("ai-providers.upstreams.th.base-url"),
+        meta: { headerClassName: "w-[24%]" },
+      },
+      {
+        accessorKey: "priority",
+        cell: ({ row }) => <DataTableText>{row.original.priority}</DataTableText>,
+        header: t("ai-providers.upstreams.th.priority"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        accessorKey: "weight",
+        cell: ({ row }) => <DataTableText>{row.original.weight}</DataTableText>,
+        header: t("ai-providers.upstreams.th.weight"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        accessorKey: "enabled",
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.enabled}
+            onCheckedChange={(enabled) => {
+              void updateUpstream
+                .mutateAsync({ providerId: provider.id, id: row.original.id, enabled })
+                .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
+                .catch((err) =>
+                  toast.error(
+                    err instanceof Error
+                      ? err.message
+                      : t("ai-providers.toast.upstream-update-error"),
+                  ),
+                );
+            }}
+          />
+        ),
+        header: t("ai-providers.upstreams.th.enabled"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditTarget(row.original)}
+              aria-label={t("common.btn.edit")}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteTarget(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[8%]", ...dataTableMeta.right },
+      },
+    ],
+    [provider.id, t, updateUpstream],
+  );
 
   return (
     <>
@@ -654,87 +752,20 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : sortedUpstreams.length === 0 ? (
+        {sortedUpstreams.length === 0 && !isLoading ? (
           <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
             {t("ai-providers.upstreams.empty")}
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("ai-providers.upstreams.th.name")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.upstream-id")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.kind")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.base-url")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.priority")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.weight")}</TableHead>
-                <TableHead>{t("ai-providers.upstreams.th.enabled")}</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedUpstreams.map((upstream) => (
-                <TableRow key={upstream.id}>
-                  <TableCell className="font-medium">{upstream.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-mono text-xs">
-                      {upstream.upstreamId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{upstream.kind}</Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[280px] truncate font-mono text-xs">
-                    {upstream.baseUrl}
-                  </TableCell>
-                  <TableCell>{upstream.priority}</TableCell>
-                  <TableCell>{upstream.weight}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={upstream.enabled}
-                      onCheckedChange={(enabled) => {
-                        updateUpstream
-                          .mutateAsync({ providerId: provider.id, id: upstream.id, enabled })
-                          .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
-                          .catch((err) =>
-                            toast.error(
-                              err instanceof Error
-                                ? err.message
-                                : t("ai-providers.toast.upstream-update-error"),
-                            ),
-                          );
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditTarget(upstream)}
-                        aria-label={t("common.btn.edit")}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTarget(upstream)}
-                        aria-label={t("common.btn.delete")}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={columns}
+            data={sortedUpstreams}
+            emptyText={t("ai-providers.upstreams.empty")}
+            getRowId={(row) => String(row.id)}
+            loading={isLoading}
+            showPagination={false}
+            tableClassName="min-w-[980px]"
+          />
         )}
       </div>
 

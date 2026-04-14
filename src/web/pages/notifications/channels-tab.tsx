@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Loader2, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,18 +12,15 @@ import {
   useUpdateNotificationConfig,
 } from "@/web/api/hooks";
 import type { NotificationConfig } from "@/web/api/schemas";
-import { Badge } from "@/web/components/ui/badge";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
 import { Switch } from "@/web/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 import { ConfigDialog } from "./config-dialog";
 import { DeleteConfigDialog } from "./delete-config-dialog";
@@ -40,27 +38,124 @@ export function ChannelsTab() {
   const [editing, setEditing] = useState<NotificationConfig | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<NotificationConfig | null>(null);
 
-  async function handleToggleEnabled(config: NotificationConfig, checked: boolean) {
-    try {
-      await updateConfig.mutateAsync({ id: config.id, enabled: checked });
-      toast.success(t("notif.toast.updated"));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("notif.toast.update-error"));
-    }
-  }
-
-  async function handleTest(id: number) {
-    try {
-      const result = await testConfig.mutateAsync(id);
-      if (result.success) {
-        toast.success(result.message || t("notif.toast.test-ok"));
-      } else {
-        toast.error(result.message || t("notif.toast.test-fail"));
+  const handleToggleEnabled = useCallback(
+    async (config: NotificationConfig, checked: boolean) => {
+      try {
+        await updateConfig.mutateAsync({ id: config.id, enabled: checked });
+        toast.success(t("notif.toast.updated"));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t("notif.toast.update-error"));
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("notif.toast.test-fail"));
-    }
-  }
+    },
+    [updateConfig, t],
+  );
+
+  const handleTest = useCallback(
+    async (id: number) => {
+      try {
+        const result = await testConfig.mutateAsync(id);
+        if (result.success) {
+          toast.success(result.message || t("notif.toast.test-ok"));
+        } else {
+          toast.error(result.message || t("notif.toast.test-fail"));
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t("notif.toast.test-fail"));
+      }
+    },
+    [testConfig, t],
+  );
+
+  const columns = useMemo<ColumnDef<NotificationConfig>[]>(
+    () => [
+      {
+        accessorKey: "label",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.label || "-"}</DataTableText>
+        ),
+        header: t("notif.th.label"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "channel",
+        cell: ({ row }) => (
+          <DataTableBadge variant="outline">
+            {channelLabels[row.original.channel] ?? row.original.channel}
+          </DataTableBadge>
+        ),
+        header: t("notif.th.channel"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "target",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[200px]" mono truncate>
+            {row.original.target}
+          </DataTableText>
+        ),
+        header: t("notif.th.target"),
+        meta: { headerClassName: "w-[24%]" },
+      },
+      {
+        accessorKey: "events",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary">{row.original.events.length}</DataTableBadge>
+        ),
+        header: t("notif.th.events"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "enabled",
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.enabled}
+            onCheckedChange={(checked) => void handleToggleEnabled(row.original, checked)}
+          />
+        ),
+        header: t("notif.th.enabled"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => void handleTest(row.original.id)}
+              disabled={testConfig.isPending}
+              aria-label={t("common.a11y.test")}
+            >
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setEditing(row.original)}
+              aria-label={t("common.btn.edit")}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive"
+              onClick={() => setDeleteTarget(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: t("notif.th.actions"),
+        meta: { headerClassName: "w-[20%]", ...dataTableMeta.right },
+      },
+    ],
+    [handleToggleEnabled, handleTest, channelLabels, testConfig.isPending, t],
+  );
 
   return (
     <div className="space-y-4 mt-4">
@@ -73,84 +168,15 @@ export function ChannelsTab() {
 
       <Card>
         <CardContent className="pt-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <span className="animate-spin">
-                <Loader2 className="h-5 w-5 text-muted-foreground" />
-              </span>
-            </div>
-          ) : configs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              {t("notif.table-empty")}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("notif.th.label")}</TableHead>
-                  <TableHead>{t("notif.th.channel")}</TableHead>
-                  <TableHead>{t("notif.th.target")}</TableHead>
-                  <TableHead>{t("notif.th.events")}</TableHead>
-                  <TableHead>{t("notif.th.enabled")}</TableHead>
-                  <TableHead>{t("notif.th.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {configs.map((cfg) => (
-                  <TableRow key={cfg.id}>
-                    <TableCell className="font-medium">{cfg.label || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{channelLabels[cfg.channel] ?? cfg.channel}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs max-w-[200px] truncate">
-                      {cfg.target}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{cfg.events.length}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={cfg.enabled}
-                        onCheckedChange={(checked) => handleToggleEnabled(cfg, checked)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleTest(cfg.id)}
-                          disabled={testConfig.isPending}
-                          aria-label={t("common.a11y.test")}
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setEditing(cfg)}
-                          aria-label={t("common.btn.edit")}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => setDeleteTarget(cfg)}
-                          aria-label={t("common.btn.delete")}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            data={configs}
+            emptyText={t("notif.table-empty")}
+            getRowId={(row) => String(row.id)}
+            loading={isLoading}
+            showPagination={false}
+            tableClassName="min-w-[920px]"
+          />
         </CardContent>
       </Card>
 

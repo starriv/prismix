@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Link2, Loader2, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,8 +18,14 @@ import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import type { Announcement, CreateAnnouncementBody } from "@/web/api/schemas";
 import { createAnnouncementBody } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
-import { Pagination } from "@/web/components/dashboard/pagination";
-import { Badge } from "@/web/components/ui/badge";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -40,22 +46,18 @@ import {
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
 import { MarkdownRenderer } from "@/web/components/ui/markdown";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/web/components/ui/tabs";
 import { Textarea } from "@/web/components/ui/textarea";
-import { getDateLocale } from "@/web/shared/date-locale";
 
 export default function AdminAnnouncementsPage() {
   const { t, i18n } = useTranslation();
-  const [page, setPage] = useState(0);
-  const { data: announcements = [], isLoading } = useAdminAnnouncements({ page });
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+  const { data: announcements = [], isLoading } = useAdminAnnouncements({
+    page: pagination.pageIndex,
+  });
   const deleteAnnouncement = useDeleteAnnouncement();
   const sendAnnouncement = useSendAnnouncement();
 
@@ -86,6 +88,108 @@ export default function AdminAnnouncementsPage() {
     setSendTarget(null);
   };
 
+  const columns = useMemo<ColumnDef<Announcement>[]>(
+    () => [
+      {
+        accessorKey: "title",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[200px] font-medium" truncate>
+            {row.original.title}
+          </DataTableText>
+        ),
+        header: t("admin.announce.th.title"),
+        meta: { headerClassName: "w-[28%] text-xs" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <DataTableBadge
+            variant={row.original.status === "sent" ? "default" : "outline"}
+            className={
+              row.original.status === "sent"
+                ? "border-green-500/20 bg-green-500/10 text-green-600"
+                : undefined
+            }
+          >
+            {t(`admin.announce.status.${row.original.status}`)}
+          </DataTableBadge>
+        ),
+        header: t("admin.announce.th.status"),
+        meta: { headerClassName: "w-[12%] text-xs" },
+      },
+      {
+        accessorKey: "createdBy",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.createdBy}
+          </DataTableText>
+        ),
+        header: t("admin.announce.th.created-by"),
+        meta: { headerClassName: "w-[18%] text-xs" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+        ),
+        header: t("admin.announce.th.created-at"),
+        meta: { headerClassName: "w-[14%] text-xs" },
+      },
+      {
+        accessorKey: "sentAt",
+        cell: ({ row }) =>
+          row.original.sentAt ? (
+            <DataTableRelativeTime language={i18n.language} value={row.original.sentAt} />
+          ) : (
+            <DataTableText muted>—</DataTableText>
+          ),
+        header: t("admin.announce.th.sent-at"),
+        meta: { headerClassName: "w-[14%] text-xs" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setEditing(row.original)}
+              aria-label={t("common.btn.edit")}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-primary"
+              onClick={() => setSendTarget(row.original)}
+              aria-label={t("common.a11y.send")}
+            >
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive"
+              onClick={() => setDeleteTarget(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: t("admin.announce.th.actions"),
+        meta: {
+          headerClassName: "w-[14%] text-right text-xs",
+          ...dataTableMeta.right,
+        },
+      },
+    ],
+    [i18n.language, t],
+  );
+
   return (
     <div>
       <Header title={t("admin.announce.title")} description={t("admin.announce.desc")} />
@@ -102,107 +206,21 @@ export default function AdminAnnouncementsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <span className="animate-spin">
-                  <Loader2 className="h-5 w-5 text-muted-foreground" />
-                </span>
-              </div>
-            ) : announcements.length === 0 ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">
-                {t("admin.announce.table-empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">{t("admin.announce.th.title")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.announce.th.status")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.announce.th.created-by")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.announce.th.created-at")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.announce.th.sent-at")}</TableHead>
-                    <TableHead className="text-xs text-right">
-                      {t("admin.announce.th.actions")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {announcements.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium max-w-[200px] truncate">
-                        {a.title}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={a.status === "sent" ? "default" : "outline"}
-                          className={
-                            a.status === "sent"
-                              ? "bg-green-500/10 text-green-600 border-green-500/20"
-                              : ""
-                          }
-                        >
-                          {t(`admin.announce.status.${a.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">
-                        {a.createdBy}
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {formatDistanceToNow(new Date(a.createdAt), {
-                          addSuffix: true,
-                          locale: getDateLocale(i18n.language),
-                        })}
-                      </TableCell>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {a.sentAt
-                          ? formatDistanceToNow(new Date(a.sentAt), {
-                              addSuffix: true,
-                              locale: getDateLocale(i18n.language),
-                            })
-                          : "\u2014"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setEditing(a)}
-                            aria-label={t("common.btn.edit")}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-primary"
-                            onClick={() => setSendTarget(a)}
-                            aria-label={t("common.a11y.send")}
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => setDeleteTarget(a)}
-                            aria-label={t("common.btn.delete")}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={announcements.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={announcements}
+              emptyText={t("admin.announce.table-empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              pageCount={getHeuristicPageCount(
+                pagination.pageIndex,
+                announcements.length,
+                DEFAULT_PAGE_SIZE,
+              )}
+              pagination={pagination}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>

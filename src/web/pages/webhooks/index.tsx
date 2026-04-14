@@ -1,13 +1,19 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ExternalLink, Loader2, MoreHorizontal, Plus, RotateCcw, Send, Trash2 } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ExternalLink, MoreHorizontal, Plus, RotateCcw, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTestWebhook, useWebhookEvents, useWebhooks } from "@/web/api/hooks";
 import type { WebhookEndpoint } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
-import { Badge } from "@/web/components/ui/badge";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
 import {
@@ -17,14 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/web/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 import { CreateWebhookDialog } from "./create-webhook-dialog";
 import { DeliveryLogSheet } from "./delivery-log-sheet";
@@ -71,6 +69,93 @@ export default function WebhooksPage() {
     },
     [testWebhook, t],
   );
+  const columns = useMemo<ColumnDef<WebhookEndpoint>[]>(
+    () => [
+      {
+        accessorKey: "url",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[280px]" mono truncate>
+            {row.original.url}
+          </DataTableText>
+        ),
+        header: t("webhook.form.url"),
+        meta: { headerClassName: "w-[30%]" },
+      },
+      {
+        accessorKey: "description",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[200px]" truncate>
+            {row.original.description || "-"}
+          </DataTableText>
+        ),
+        header: t("webhook.form.description"),
+        meta: { headerClassName: "w-[24%]" },
+      },
+      {
+        accessorKey: "events",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary">{row.original.events.length}</DataTableBadge>
+        ),
+        header: t("webhook.card.events"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => <EndpointStatusBadge status={row.original.status} t={t} />,
+        header: t("webhook.card.status"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t("common.a11y.actions")}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void handleTest(row.original.id)}>
+                  <Send className="mr-2 h-3.5 w-3.5" />
+                  {t("webhook.btn.test")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDeliveriesEndpoint(row.original)}>
+                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                  {t("webhook.deliveries.title")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setEditing(row.original)}>
+                  {t("webhook.dialog-title-edit")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRotateTarget(row.original)}>
+                  <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                  {t("webhook.btn.rotate")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  {t("webhook.btn.delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+        enableHiding: false,
+        header: t("common.th.actions"),
+        meta: { headerClassName: "w-[14%]", ...dataTableMeta.right },
+      },
+    ],
+    [handleTest, t],
+  );
 
   return (
     <div>
@@ -86,87 +171,15 @@ export default function WebhooksPage() {
 
         <Card>
           <CardContent className="pt-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <span className="animate-spin">
-                  <Loader2 className="h-5 w-5 text-muted-foreground" />
-                </span>
-              </div>
-            ) : endpoints.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                {t("webhook.table-empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("webhook.form.url")}</TableHead>
-                    <TableHead>{t("webhook.form.description")}</TableHead>
-                    <TableHead>{t("webhook.card.events")}</TableHead>
-                    <TableHead>{t("webhook.card.status")}</TableHead>
-                    <TableHead className="text-right">{t("common.th.actions")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {endpoints.map((ep) => (
-                    <TableRow key={ep.id}>
-                      <TableCell className="font-mono text-xs max-w-[280px] truncate">
-                        {ep.url}
-                      </TableCell>
-                      <TableCell className="text-sm max-w-[200px] truncate">
-                        {ep.description || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{ep.events.length}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <EndpointStatusBadge status={ep.status} t={t} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={t("common.a11y.actions")}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleTest(ep.id)}>
-                              <Send className="h-3.5 w-3.5 mr-2" />
-                              {t("webhook.btn.test")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDeliveriesEndpoint(ep)}>
-                              <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                              {t("webhook.deliveries.title")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setEditing(ep)}>
-                              {t("webhook.dialog-title-edit")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setRotateTarget(ep)}>
-                              <RotateCcw className="h-3.5 w-3.5 mr-2" />
-                              {t("webhook.btn.rotate")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => setDeleteTarget(ep)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" />
-                              {t("webhook.btn.delete")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <DataTable
+              columns={columns}
+              data={endpoints}
+              emptyText={t("webhook.table-empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              showPagination={false}
+              tableClassName="min-w-[900px]"
+            />
           </CardContent>
         </Card>
       </div>

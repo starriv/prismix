@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Shield, Shuffle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,7 +12,12 @@ import {
   useDeleteAdmin,
 } from "@/web/api/admin-hooks";
 import { Header } from "@/web/components/dashboard/header";
-import { Badge } from "@/web/components/ui/badge";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import {
   Card,
@@ -38,14 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/web/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 import { useAdminAuthContext } from "@/web/providers/admin-auth-provider";
 
@@ -58,7 +56,7 @@ export default function AdminMembersPage() {
 
   const isPrimaryAdmin = currentAdmin?.id === 1;
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
     try {
       await deleteAdmin.mutateAsync(deleteTarget.id);
@@ -67,7 +65,88 @@ export default function AdminMembersPage() {
     } catch {
       toast.error(t("admin.admins.toast.delete-error"));
     }
-  };
+  }, [deleteTarget, deleteAdmin, t]);
+
+  const columns = useMemo<ColumnDef<AdminMember>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        cell: ({ row }) => <DataTableText>{row.original.id}</DataTableText>,
+        header: t("common.th.id"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        accessorKey: "name",
+        cell: ({ row }) => <DataTableText>{row.original.name}</DataTableText>,
+        header: t("admin.admins.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        id: "providers",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.identities.map((identity) => (
+              <DataTableBadge key={identity.id} variant="outline">
+                {identity.provider}
+              </DataTableBadge>
+            ))}
+          </div>
+        ),
+        header: t("admin.admins.provider"),
+        meta: { headerClassName: "w-[28%]" },
+      },
+      {
+        id: "account",
+        cell: ({ row }) => (
+          <DataTableText mono>
+            {row.original.identities.map((identity) => identity.providerAccountId).join(", ") ||
+              "—"}
+          </DataTableText>
+        ),
+        header: t("admin.admins.account"),
+        meta: { headerClassName: "w-[32%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) =>
+          isPrimaryAdmin ? (
+            <div className="text-right">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive"
+                onClick={() => setDeleteTarget(row.original)}
+                disabled={admins.length <= 1}
+                aria-label={t("common.btn.delete")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground"
+                    disabled
+                    aria-label={t("common.btn.delete")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("admin.admins.only-primary-can-delete")}</TooltipContent>
+            </Tooltip>
+          ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[14%]", ...dataTableMeta.right },
+      },
+    ],
+    [isPrimaryAdmin, admins.length, t],
+  );
 
   return (
     <div>
@@ -87,78 +166,15 @@ export default function AdminMembersPage() {
             <CardDescription>{t("admin.admins.desc")}</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground py-4">{t("auth.loading")}</p>
-            ) : admins.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">{t("admin.admins.empty")}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="py-2 pr-4">ID</TableHead>
-                      <TableHead className="py-2 pr-4">{t("admin.admins.name")}</TableHead>
-                      <TableHead className="py-2 pr-4">{t("admin.admins.provider")}</TableHead>
-                      <TableHead className="py-2 pr-4">{t("admin.admins.account")}</TableHead>
-                      <TableHead className="py-2" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {admins.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell className="py-2 pr-4">{a.id}</TableCell>
-                        <TableCell className="py-2 pr-4">{a.name}</TableCell>
-                        <TableCell className="py-2 pr-4">
-                          <div className="flex gap-1 flex-wrap">
-                            {a.identities.map((i) => (
-                              <Badge key={i.id} variant="outline" className="text-xs">
-                                {i.provider}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-2 pr-4 font-mono text-xs">
-                          {a.identities.map((i) => i.providerAccountId).join(", ") || "—"}
-                        </TableCell>
-                        <TableCell className="py-2">
-                          {isPrimaryAdmin ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive"
-                              onClick={() => setDeleteTarget(a)}
-                              disabled={admins.length <= 1}
-                              aria-label={t("common.btn.delete")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-muted-foreground"
-                                    disabled
-                                    aria-label={t("common.btn.delete")}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t("admin.admins.only-primary-can-delete")}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <DataTable
+              columns={columns}
+              data={admins}
+              emptyText={isLoading ? t("auth.loading") : t("admin.admins.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              showPagination={false}
+              tableClassName="min-w-[920px]"
+            />
           </CardContent>
         </Card>
       </div>
@@ -298,8 +314,10 @@ function AddAdminDialog() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="siwe">Wallet (SIWE)</SelectItem>
-                  <SelectItem value="credentials">Email</SelectItem>
+                  <SelectItem value="siwe">{t("admin.login-strategies.siwe.title")}</SelectItem>
+                  <SelectItem value="credentials">
+                    {t("admin.login-strategies.credentials.title")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

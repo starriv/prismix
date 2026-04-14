@@ -1,11 +1,19 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Key, Plus } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Copy, Key, MoreHorizontal, Plus, RotateCw, ShieldOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useApiKeys, useDeleteApiKey, useRevokeApiKey, useRotateApiKey } from "@/web/api/hooks";
 import type { ApiKey, ApiKeyWithSecret } from "@/web/api/schemas";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableRelativeTime,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import {
   Card,
@@ -15,19 +23,23 @@ import {
   CardTitle,
 } from "@/web/components/ui/card";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/web/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/web/components/ui/dropdown-menu";
 
 import {
   ConfirmActionDialogContent,
   CreateKeyDialogContent,
   SecretDisplayDialogContent,
 } from "./api-key-dialogs";
-import { ApiKeyRow } from "./api-key-row";
 import { AuthGuideCard } from "./auth-guide-card";
 
 export function ApiKeysTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: apiKeys = [], isLoading } = useApiKeys();
   const [createOpen, setCreateOpen] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null);
@@ -94,6 +106,111 @@ export function ApiKeysTab() {
   }, []);
 
   const isPending = revokeApiKey.isPending || rotateApiKey.isPending || deleteApiKey.isPending;
+  const columns = useMemo<ColumnDef<ApiKey>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("settings.api-keys.th.name"),
+        meta: { headerClassName: "w-[22%]" },
+      },
+      {
+        accessorKey: "clientId",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.clientId}
+          </DataTableText>
+        ),
+        header: t("settings.api-keys.th.client-id"),
+        meta: { headerClassName: "w-[28%]" },
+      },
+      {
+        accessorKey: "lastUsedAt",
+        cell: ({ row }) =>
+          row.original.lastUsedAt ? (
+            <DataTableRelativeTime language={i18n.language} value={row.original.lastUsedAt} muted />
+          ) : (
+            <DataTableText muted nowrap>
+              {t("settings.api-keys.never-used")}
+            </DataTableText>
+          ),
+        header: t("settings.api-keys.th.last-used"),
+        meta: { headerClassName: "w-[20%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <DataTableBadge variant={row.original.status === "active" ? "default" : "destructive"}>
+            {row.original.status === "active"
+              ? t("common.status.active")
+              : t("common.status.disabled")}
+          </DataTableBadge>
+        ),
+        header: t("settings.api-keys.th.status"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => {
+          const isActive = row.original.status === "active";
+          return (
+            <div className="text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label={t("common.a11y.actions")}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {isActive && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleCopyClientId(row.original.clientId)}>
+                        <Copy className="mr-2 h-3.5 w-3.5" />
+                        {t("settings.api-keys.action.copy-id")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setConfirmAction({ type: "rotate", key: row.original })}
+                      >
+                        <RotateCw className="mr-2 h-3.5 w-3.5" />
+                        {t("settings.api-keys.action.rotate")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setConfirmAction({ type: "revoke", key: row.original })}
+                        className="text-destructive"
+                      >
+                        <ShieldOff className="mr-2 h-3.5 w-3.5" />
+                        {t("settings.api-keys.action.revoke")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setConfirmAction({ type: "delete", key: row.original })}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    {t("settings.api-keys.action.delete")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+        enableHiding: false,
+        header: t("settings.api-keys.th.actions"),
+        meta: { headerClassName: "w-[16%]", ...dataTableMeta.right },
+      },
+    ],
+    [handleCopyClientId, t],
+  );
 
   return (
     <div className="mt-4 space-y-4">
@@ -115,39 +232,21 @@ export function ApiKeysTab() {
           </Button>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : apiKeys.length === 0 ? (
+          {!isLoading && apiKeys.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Key className="h-10 w-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm text-muted-foreground">{t("settings.api-keys.table-empty")}</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("settings.api-keys.th.name")}</TableHead>
-                  <TableHead>{t("settings.api-keys.th.client-id")}</TableHead>
-                  <TableHead>{t("settings.api-keys.th.last-used")}</TableHead>
-                  <TableHead>{t("settings.api-keys.th.status")}</TableHead>
-                  <TableHead className="w-12">{t("settings.api-keys.th.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {apiKeys.map((key) => (
-                  <ApiKeyRow
-                    key={key.id}
-                    apiKey={key}
-                    onCopyClientId={handleCopyClientId}
-                    onAction={setConfirmAction}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={columns}
+              data={apiKeys}
+              emptyText={t("settings.api-keys.table-empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              showPagination={false}
+              tableClassName="min-w-[900px]"
+            />
           )}
         </CardContent>
       </Card>

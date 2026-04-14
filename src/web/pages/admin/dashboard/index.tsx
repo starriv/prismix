@@ -2,28 +2,23 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Search } from "lucide-react";
 
 import { useAdminUsers } from "@/web/api/admin-hooks";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { Header } from "@/web/components/dashboard/header";
-import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import {
+  DataTable,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Input } from "@/web/components/ui/input";
 import { Sheet, SheetContent } from "@/web/components/ui/sheet";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
-import { getDateLocale } from "@/web/shared/date-locale";
 
 import { USER_STATUS_COLORS, USER_STATUS_KEYS } from "./constants";
 import { UserDetailSheet } from "./user-detail-sheet";
@@ -51,7 +46,10 @@ export default function AdminDashboardPage() {
   const [appliedName, setAppliedName] = useState("");
   const [appliedEmail, setAppliedEmail] = useState("");
   const [appliedAddress, setAppliedAddress] = useState("");
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
 
   const { data: users = [], isLoading } = useAdminUsers({
     id: idFromUrl,
@@ -59,7 +57,7 @@ export default function AdminDashboardPage() {
     name: appliedName || undefined,
     email: appliedEmail || undefined,
     address: appliedAddress || undefined,
-    page,
+    page: pagination.pageIndex,
   });
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -99,7 +97,7 @@ export default function AdminDashboardPage() {
     setAppliedName(draftName.trim());
     setAppliedEmail(draftEmail.trim());
     setAppliedAddress(draftAddress.trim());
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [draftUuid, draftName, draftEmail, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
@@ -112,7 +110,7 @@ export default function AdminDashboardPage() {
     setAppliedName("");
     setAppliedEmail("");
     setAppliedAddress("");
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [searchParams, setSearchParams]);
 
   const handleKeyDown = useCallback(
@@ -137,6 +135,69 @@ export default function AdminDashboardPage() {
   const handleAddressChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftAddress(e.target.value),
     [],
+  );
+
+  const columns = useMemo<ColumnDef<(typeof users)[number]>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        cell: ({ row }) => <DataTableText muted>{row.original.id}</DataTableText>,
+        header: t("admin.users.th.id"),
+        meta: { headerClassName: "w-[8%] text-xs" },
+      },
+      {
+        accessorKey: "uuid",
+        cell: ({ row }) => <DataTableText mono>{row.original.uuid ?? "---"}</DataTableText>,
+        header: t("admin.users.th.uuid"),
+        meta: { headerClassName: "w-[22%] text-xs" },
+      },
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("admin.users.th.name"),
+        meta: { headerClassName: "w-[16%] text-xs" },
+      },
+      {
+        accessorKey: "email",
+        cell: ({ row }) => <DataTableText>{row.original.email ?? "---"}</DataTableText>,
+        header: t("admin.users.th.email"),
+        meta: { headerClassName: "w-[20%] text-xs" },
+      },
+      {
+        accessorKey: "address",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.address
+              ? `${row.original.address.slice(0, 6)}...${row.original.address.slice(-4)}`
+              : "---"}
+          </DataTableText>
+        ),
+        header: t("admin.users.th.address"),
+        meta: { headerClassName: "w-[14%] text-xs" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <StatusBadge status={String(row.original.status)} colorMap={userStatusColorMap} />
+        ),
+        header: t("admin.users.th.status"),
+        meta: { headerClassName: "w-[10%] text-xs" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) =>
+          row.original.createdAt ? (
+            <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+          ) : (
+            <DataTableText muted>---</DataTableText>
+          ),
+        header: t("common.th.time"),
+        meta: { headerClassName: "w-[10%] text-xs" },
+      },
+    ],
+    [i18n.language, t, userStatusColorMap],
   );
 
   return (
@@ -193,69 +254,22 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Table */}
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : users.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t("admin.users.empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">{t("admin.users.th.id")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.users.th.uuid")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.users.th.name")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.users.th.email")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.users.th.address")}</TableHead>
-                    <TableHead className="text-xs">{t("admin.users.th.status")}</TableHead>
-                    <TableHead className="text-xs">{t("common.th.time")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow
-                      key={user.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedId(user.id)}
-                    >
-                      <TableCell className="text-xs">{user.id}</TableCell>
-                      <TableCell className="font-mono text-xs">{user.uuid ?? "---"}</TableCell>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell className="text-xs">{user.email ?? "---"}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {user.address
-                          ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}`
-                          : "---"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={String(user.status)} colorMap={userStatusColorMap} />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {user.createdAt
-                          ? formatDistanceToNow(new Date(user.createdAt), {
-                              addSuffix: true,
-                              locale: getDateLocale(i18n.language),
-                            })
-                          : "---"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Pagination */}
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={users.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={users}
+              emptyText={t("admin.users.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              onRowClick={(row) => setSelectedId(row.id)}
+              pageCount={getHeuristicPageCount(
+                pagination.pageIndex,
+                users.length,
+                DEFAULT_PAGE_SIZE,
+              )}
+              pagination={pagination}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { Network, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,12 @@ import {
 } from "@/web/api/admin-hooks";
 import type { AllowedToken } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -43,14 +50,6 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { useLocaleNavigate } from "@/web/hooks/use-locale";
 import { useChainRegistry } from "@/web/shared/chains";
 
@@ -65,37 +64,124 @@ export default function AdminTokensPage() {
 
   const enabledNetworkIds = new Set(networks.filter((n) => n.enabled).map((n) => n.networkId));
 
-  function networkDisplayName(networkId: string): string {
-    const display = byNetworkId[networkId] ?? getChainDisplayByNetworkId(networkId);
-    return display?.name ?? networkId;
-  }
+  const networkDisplayName = useCallback(
+    (networkId: string): string => {
+      const display = byNetworkId[networkId] ?? getChainDisplayByNetworkId(networkId);
+      return display?.name ?? networkId;
+    },
+    [byNetworkId, getChainDisplayByNetworkId],
+  );
 
-  function isNetworkEnabled(networkId: string): boolean {
-    return enabledNetworkIds.has(networkId);
-  }
+  const isNetworkEnabled = useCallback(
+    (networkId: string): boolean => {
+      return enabledNetworkIds.has(networkId);
+    },
+    [enabledNetworkIds],
+  );
 
-  const handleToggle = async (token: AllowedToken) => {
-    // Block enabling token if its network is disabled
-    if (!token.enabled && !isNetworkEnabled(token.network)) {
-      toast.error(t("admin.tokens.toast.network-disabled"));
-      return;
-    }
-    try {
-      await updateToken.mutateAsync({ id: token.id, enabled: !token.enabled });
-      toast.success(t("admin.tokens.toast.updated"));
-    } catch {
-      toast.error(t("admin.tokens.toast.update-error"));
-    }
-  };
+  const handleToggle = useCallback(
+    async (token: AllowedToken) => {
+      // Block enabling token if its network is disabled
+      if (!token.enabled && !isNetworkEnabled(token.network)) {
+        toast.error(t("admin.tokens.toast.network-disabled"));
+        return;
+      }
+      try {
+        await updateToken.mutateAsync({ id: token.id, enabled: !token.enabled });
+        toast.success(t("admin.tokens.toast.updated"));
+      } catch {
+        toast.error(t("admin.tokens.toast.update-error"));
+      }
+    },
+    [updateToken, t, isNetworkEnabled],
+  );
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteToken.mutateAsync(id);
-      toast.success(t("admin.tokens.toast.deleted"));
-    } catch {
-      toast.error(t("admin.tokens.toast.delete-error"));
-    }
-  };
+  const handleDelete = useCallback(
+    async (id: number) => {
+      try {
+        await deleteToken.mutateAsync(id);
+        toast.success(t("admin.tokens.toast.deleted"));
+      } catch {
+        toast.error(t("admin.tokens.toast.delete-error"));
+      }
+    },
+    [deleteToken, t],
+  );
+
+  const columns = useMemo<ColumnDef<AllowedToken>[]>(
+    () => [
+      {
+        accessorKey: "symbol",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.symbol}
+          </DataTableBadge>
+        ),
+        header: t("admin.tokens.th.symbol"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "network",
+        cell: ({ row }) => (
+          <DataTableBadge variant="outline">
+            {networkDisplayName(row.original.network)}
+          </DataTableBadge>
+        ),
+        header: t("admin.tokens.th.network"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "contractAddress",
+        cell: ({ row }) => (
+          <span className="flex items-center gap-1.5">
+            <DataTableText className="max-w-[200px]" mono truncate>
+              {row.original.contractAddress || "-"}
+            </DataTableText>
+            {row.original.contractAddress &&
+              getKnownAddress(row.original.symbol, row.original.network) ===
+                row.original.contractAddress && (
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-green-500" />
+              )}
+          </span>
+        ),
+        header: t("admin.tokens.th.contract"),
+        meta: { headerClassName: "w-[36%]" },
+      },
+      {
+        accessorKey: "enabled",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={row.original.enabled}
+              onCheckedChange={() => handleToggle(row.original)}
+              disabled={!row.original.enabled && !isNetworkEnabled(row.original.network)}
+            />
+            {!isNetworkEnabled(row.original.network) && (
+              <DataTableText className="text-[10px]" muted>
+                {t("admin.tokens.network-off")}
+              </DataTableText>
+            )}
+          </div>
+        ),
+        header: t("admin.tokens.th.status"),
+        meta: { headerClassName: "w-[20%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button variant="ghost" size="sm" onClick={() => handleDelete(row.original.id)}>
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[12%]", ...dataTableMeta.right },
+      },
+    ],
+    [handleToggle, handleDelete, networkDisplayName, isNetworkEnabled, t],
+  );
 
   return (
     <div>
@@ -116,69 +202,15 @@ export default function AdminTokensPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {tokens.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                {t("admin.tokens.empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("admin.tokens.th.symbol")}</TableHead>
-                    <TableHead>{t("admin.tokens.th.network")}</TableHead>
-                    <TableHead>{t("admin.tokens.th.contract")}</TableHead>
-                    <TableHead>{t("admin.tokens.th.status")}</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tokens.map((tk) => (
-                    <TableRow key={tk.id}>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono">
-                          {tk.symbol}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {networkDisplayName(tk.network)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs max-w-[200px] truncate">
-                            {tk.contractAddress || "-"}
-                          </span>
-                          {tk.contractAddress &&
-                            getKnownAddress(tk.symbol, tk.network) === tk.contractAddress && (
-                              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-green-500" />
-                            )}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={tk.enabled}
-                            onCheckedChange={() => handleToggle(tk)}
-                            disabled={!tk.enabled && !isNetworkEnabled(tk.network)}
-                          />
-                          {!isNetworkEnabled(tk.network) && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {t("admin.tokens.network-off")}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(tk.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <DataTable
+              columns={columns}
+              data={tokens}
+              emptyText={t("admin.tokens.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={false}
+              showPagination={false}
+              tableClassName="min-w-[900px]"
+            />
           </CardContent>
         </Card>
       </div>

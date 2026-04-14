@@ -3,12 +3,10 @@ import JsonView from "react18-json-view";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
-import { formatDistanceToNow } from "date-fns";
 import { keyBy } from "lodash-es";
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   BarChart3,
   Check,
   ChevronDown,
@@ -30,28 +28,27 @@ import {
   useRelayKeys,
 } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
+import { DataTable } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { ScrollArea } from "@/web/components/ui/scroll-area";
 import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { DailyTrendChart, ModelDistributionChart } from "@/web/pages/ai-usage/charts";
-import { formatTokens, StatCard, StatusBadge } from "@/web/pages/ai-usage/helpers";
+import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
+
+import {
+  buildAiUsageByKeyColumns,
+  buildAiUsageModelColumns,
+  buildAiUsageRecentColumns,
+} from "./ai-usage/columns";
 
 const RECENT_COLLAPSED_LIMIT = 10;
 const LIVE_REFETCH_MS = 5_000;
 
 export default function AiUsageUserDetailPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const userId = Number(searchParams.get("user"));
 
@@ -72,16 +69,16 @@ export default function AiUsageUserDetailPage() {
 
   const [recentExpanded, setRecentExpanded] = useState(false);
   const toggleRecent = useCallback(() => setRecentExpanded((v) => !v), []);
-  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
-  const toggleRequestDetail = useCallback(
-    (requestId: string | null) =>
-      setExpandedRequestId((prev) => (prev === requestId ? null : requestId)),
-    [],
-  );
   const visibleRecent = recentExpanded ? recent : recent.slice(0, RECENT_COLLAPSED_LIMIT);
   const hasMore = recent.length > RECENT_COLLAPSED_LIMIT;
 
   const userName = userDetail?.name ?? `User #${userId}`;
+  const byKeyColumns = React.useMemo(() => buildAiUsageByKeyColumns({ keyMap, t }), [keyMap, t]);
+  const byModelColumns = React.useMemo(() => buildAiUsageModelColumns(t), [t]);
+  const recentColumns = React.useMemo(
+    () => buildAiUsageRecentColumns({ language: i18n.language, t }),
+    [i18n.language, t],
+  );
 
   return (
     <div>
@@ -196,60 +193,15 @@ export default function AiUsageUserDetailPage() {
                 <CardTitle className="text-sm">{t("ai-usage.by-key.title")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("ai-usage.th.key-name")}</TableHead>
-                      <TableHead className="text-right">{t("ai-usage.th.requests")}</TableHead>
-                      <TableHead className="text-right">{t("ai-usage.th.input")}</TableHead>
-                      <TableHead className="text-right">{t("ai-usage.th.output")}</TableHead>
-                      <TableHead className="text-right">{t("ai-usage.th.total")}</TableHead>
-                      <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
-                      <TableHead className="w-[48px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {byKeyData.map((row) => {
-                      const keyInfo = keyMap[row.consumerKeyId];
-                      return (
-                        <TableRow key={row.consumerKeyId}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {keyInfo?.name ?? `Key #${row.consumerKeyId}`}
-                              {keyInfo && (
-                                <Badge variant="outline" className="font-mono text-xs">
-                                  {keyInfo.apiKeyPrefix}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {row.requests}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {formatTokens(row.inputTokens)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {formatTokens(row.outputTokens)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {formatTokens(row.totalTokens)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            ${removeTailingZero(row.estimatedCost, 4)}
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                              <LocaleLink to={`/admin/ai-usage?key=${row.consumerKeyId}`}>
-                                <ArrowRight className="h-3.5 w-3.5" />
-                              </LocaleLink>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={byKeyColumns}
+                  data={byKeyData}
+                  emptyText={t("ai-usage.detail.daily-empty")}
+                  getRowId={(row) => String(row.consumerKeyId)}
+                  loading={false}
+                  showPagination={false}
+                  tableClassName="min-w-[720px]"
+                />
               </CardContent>
             </Card>
           )
@@ -262,42 +214,15 @@ export default function AiUsageUserDetailPage() {
               <CardTitle className="text-sm">{t("ai-usage.by-model.title")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("ai-usage.th.provider")}</TableHead>
-                    <TableHead>{t("ai-usage.th.model")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.requests")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.input")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.output")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.total")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.byModel.map((row) => (
-                    <TableRow key={`${row.providerId}-${row.modelId}`}>
-                      <TableCell className="text-sm font-medium">{row.providerId}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.modelId}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {row.requests}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.inputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.outputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.totalTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        ${removeTailingZero(row.estimatedCost, 4)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={byModelColumns}
+                data={summary.byModel}
+                emptyText={t("ai-usage.detail.daily-empty")}
+                getRowId={(row) => `${row.providerId}-${row.modelId}`}
+                loading={false}
+                showPagination={false}
+                tableClassName="min-w-[860px]"
+              />
             </CardContent>
           </Card>
         )}
@@ -308,7 +233,7 @@ export default function AiUsageUserDetailPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-sm">{t("ai-usage.recent.title")}</CardTitle>
-                <span className="relative flex h-2 w-2" title="Live">
+                <span className="relative flex h-2 w-2" title={t("ai-logs.live")}>
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
                 </span>
@@ -334,68 +259,18 @@ export default function AiUsageUserDetailPage() {
             ) : (
               <>
                 <ScrollArea className={recentExpanded ? "max-h-[600px]" : undefined}>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t("ai-usage.th.model")}</TableHead>
-                        <TableHead>{t("ai-usage.th.upstream")}</TableHead>
-                        <TableHead className="text-right">{t("ai-usage.th.tokens")}</TableHead>
-                        <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
-                        <TableHead className="text-right">{t("ai-usage.th.latency")}</TableHead>
-                        <TableHead>{t("ai-usage.th.status")}</TableHead>
-                        <TableHead>{t("ai-usage.th.time")}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visibleRecent.map((row) => (
-                        <React.Fragment key={row.id}>
-                          <TableRow
-                            className={
-                              row.requestId ? "cursor-pointer hover:bg-muted/50" : undefined
-                            }
-                            onClick={
-                              row.requestId ? () => toggleRequestDetail(row.requestId) : undefined
-                            }
-                          >
-                            <TableCell className="font-mono text-xs">
-                              {row.modelId ?? "-"}
-                            </TableCell>
-                            <TableCell className="max-w-[220px]">
-                              <div className="truncate text-xs">
-                                {row.upstreamName ?? row.upstreamBaseUrl ?? "-"}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-xs tabular-nums">
-                              {formatTokens(row.totalTokens)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-xs tabular-nums">
-                              {row.estimatedCost
-                                ? `$${removeTailingZero(row.estimatedCost, 6)}`
-                                : "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-xs tabular-nums">
-                              {row.latencyMs != null ? `${row.latencyMs}ms` : "-"}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge code={row.statusCode} error={row.error} />
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDistanceToNow(new Date(row.createdAt), {
-                                addSuffix: true,
-                              })}
-                            </TableCell>
-                          </TableRow>
-                          {expandedRequestId === row.requestId && row.requestId && (
-                            <TableRow className="bg-muted/30 hover:bg-muted/30">
-                              <TableCell colSpan={7} className="p-0">
-                                <RequestLogDetail requestId={row.requestId} />
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <DataTable
+                    columns={recentColumns}
+                    data={visibleRecent}
+                    emptyText={t("ai-usage.recent.empty")}
+                    getRowId={(row) => String(row.id)}
+                    loading={false}
+                    renderExpandedRow={(row) =>
+                      row.requestId ? <RequestLogDetail requestId={row.requestId} /> : null
+                    }
+                    showPagination={false}
+                    tableClassName="min-w-[900px]"
+                  />
                 </ScrollArea>
                 {hasMore && (
                   <div className="flex justify-center pt-3 border-t mt-3">

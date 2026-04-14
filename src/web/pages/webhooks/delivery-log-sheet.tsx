@@ -1,24 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { useRetryWebhookDelivery, useWebhookDeliveries } from "@/web/api/hooks";
 import type { WebhookDelivery, WebhookEndpoint } from "@/web/api/schemas";
+import {
+  DataTable,
+  dataTableMeta,
+  DataTableRelativeTime,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
-import { getDateLocale } from "@/web/shared/date-locale";
 
 import { DeliveryStatusBadge } from "./webhook-helpers";
 
@@ -32,21 +29,44 @@ interface DeliveryLogSheetProps {
 
 export function DeliveryLogSheet({ endpoint, onClose, locale }: DeliveryLogSheetProps) {
   const { t } = useTranslation();
-  const [page, setPage] = useState(0);
-  const { data, isLoading } = useWebhookDeliveries(endpoint?.id ?? null, page);
+
+  return (
+    <Sheet open={!!endpoint} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="w-full sm:w-[520px]">
+        <SheetHeader>
+          <SheetTitle>{t("webhook.deliveries.title")}</SheetTitle>
+          {endpoint && (
+            <p className="truncate font-mono text-xs text-muted-foreground">{endpoint.url}</p>
+          )}
+        </SheetHeader>
+        <SheetBody>
+          {endpoint ? <DeliveryLogSheetContent endpoint={endpoint} locale={locale} /> : null}
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DeliveryLogSheetContent({
+  endpoint,
+  locale,
+}: {
+  endpoint: WebhookEndpoint;
+  locale: string;
+}) {
+  const { t } = useTranslation();
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+  const { data, isLoading } = useWebhookDeliveries(endpoint.id, pagination.pageIndex);
   const retryDelivery = useRetryWebhookDelivery();
 
   const deliveries = data?.items ?? [];
   const total = data?.total ?? 0;
 
-  // Reset page when endpoint changes
-  useEffect(() => {
-    setPage(0);
-  }, [endpoint?.id]);
-
   const handleRetry = useCallback(
     async (delivery: WebhookDelivery) => {
-      if (!endpoint) return;
       try {
         await retryDelivery.mutateAsync({
           endpointId: endpoint.id,
@@ -60,106 +80,92 @@ export function DeliveryLogSheet({ endpoint, onClose, locale }: DeliveryLogSheet
     [endpoint, retryDelivery, t],
   );
 
-  const handlePrev = useCallback(() => {
-    setPage((p) => Math.max(0, p - 1));
-  }, []);
+  const columns = useMemo<ColumnDef<WebhookDelivery>[]>(
+    () => [
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={locale} value={row.original.createdAt} />
+        ),
+        header: t("webhook.deliveries.th.time"),
+        meta: { headerClassName: "w-[22%]" },
+      },
+      {
+        accessorKey: "eventType",
+        cell: ({ row }) => <DataTableText mono>{row.original.eventType}</DataTableText>,
+        header: t("webhook.deliveries.th.event"),
+        meta: { headerClassName: "w-[20%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => <DeliveryStatusBadge status={row.original.status} t={t} />,
+        header: t("webhook.deliveries.th.status"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "latencyMs",
+        cell: ({ row }) => (
+          <DataTableText muted>
+            {row.original.latencyMs != null ? `${row.original.latencyMs}ms` : "-"}
+          </DataTableText>
+        ),
+        header: t("webhook.deliveries.th.latency"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "attempts",
+        cell: ({ row }) => <DataTableText>{row.original.attempts}</DataTableText>,
+        header: t("webhook.deliveries.th.attempts"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="text-right">
+            {row.original.status === "failed" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={retryDelivery.isPending}
+                onClick={() => void handleRetry(row.original)}
+                aria-label={t("common.a11y.refresh")}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        ),
+        enableHiding: false,
+        header: t("webhook.deliveries.th.actions"),
+        meta: { headerClassName: "w-[20%]", ...dataTableMeta.right },
+      },
+    ],
+    [locale, handleRetry, retryDelivery.isPending, t],
+  );
 
-  const handleNext = useCallback(() => {
-    setPage((p) => p + 1);
-  }, []);
+  if (isLoading && deliveries.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <span className="animate-spin">
+          <Loader2 className="h-5 w-5 text-muted-foreground" />
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <Sheet open={!!endpoint} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:w-[520px]">
-        <SheetHeader>
-          <SheetTitle>{t("webhook.deliveries.title")}</SheetTitle>
-          {endpoint && (
-            <p className="text-xs font-mono text-muted-foreground truncate">{endpoint.url}</p>
-          )}
-        </SheetHeader>
-        <SheetBody>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <span className="animate-spin">
-                <Loader2 className="h-5 w-5 text-muted-foreground" />
-              </span>
-            </div>
-          ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              {t("webhook.deliveries.empty")}
-            </p>
-          ) : (
-            <div className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("webhook.deliveries.th.time")}</TableHead>
-                    <TableHead>{t("webhook.deliveries.th.event")}</TableHead>
-                    <TableHead>{t("webhook.deliveries.th.status")}</TableHead>
-                    <TableHead>{t("webhook.deliveries.th.latency")}</TableHead>
-                    <TableHead>{t("webhook.deliveries.th.attempts")}</TableHead>
-                    <TableHead>{t("webhook.deliveries.th.actions")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {deliveries.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(d.createdAt), {
-                          addSuffix: true,
-                          locale: getDateLocale(locale),
-                        })}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono">{d.eventType}</TableCell>
-                      <TableCell>
-                        <DeliveryStatusBadge status={d.status} t={t} />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {d.latencyMs != null ? `${d.latencyMs}ms` : "-"}
-                      </TableCell>
-                      <TableCell className="text-xs">{d.attempts}</TableCell>
-                      <TableCell>
-                        {d.status === "failed" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={retryDelivery.isPending}
-                            onClick={() => handleRetry(d)}
-                            aria-label={t("common.a11y.refresh")}
-                          >
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {/* Pagination */}
-              {(page > 0 || deliveries.length === DEFAULT_PAGE_SIZE) && (
-                <div className="flex items-center justify-between">
-                  <Button variant="outline" size="sm" disabled={page === 0} onClick={handlePrev}>
-                    {t("common.pagination.prev")}
-                  </Button>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {t("common.pagination.page", { page: page + 1 })}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={deliveries.length < DEFAULT_PAGE_SIZE}
-                    onClick={handleNext}
-                  >
-                    {t("common.pagination.next")}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
+    <DataTable
+      columns={columns}
+      data={deliveries}
+      emptyText={t("webhook.deliveries.empty")}
+      getRowId={(row) => String(row.id)}
+      loading={isLoading}
+      manualPagination
+      onPaginationChange={setPagination}
+      pagination={pagination}
+      rowCount={total}
+      tableClassName="min-w-[760px]"
+    />
   );
 }

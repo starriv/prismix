@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Ban, CheckCircle2, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { match } from "ts-pattern";
@@ -13,8 +13,13 @@ import { usePayAgents } from "@/web/api/pay-agent-hooks";
 import type { WithdrawOrder } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { InfoLinkRow, InfoRow } from "@/web/components/dashboard/info-row";
-import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import {
+  DataTable,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -41,18 +46,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/web/components/ui/sheet";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { Textarea } from "@/web/components/ui/textarea";
 import { useChainRegistry } from "@/web/shared/chains";
-import { getDateLocale } from "@/web/shared/date-locale";
 
 const WITHDRAW_STATUS_COLORS = {
   pending: "border-yellow-500/30 bg-yellow-500/10 text-yellow-600",
@@ -71,7 +66,10 @@ export default function AdminWithdrawOrdersPage() {
   const [appliedStatus, setAppliedStatus] = useState("all");
   const [draftUserUuid, setDraftUserUuid] = useState("");
   const [appliedUserUuid, setAppliedUserUuid] = useState("");
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
   const [selected, setSelected] = useState<WithdrawOrder | null>(null);
 
   const withdrawStatusColorMap = useMemo(
@@ -88,7 +86,7 @@ export default function AdminWithdrawOrdersPage() {
   const { data: orders = [], isLoading } = useAdminWithdrawals({
     status: appliedStatus !== "all" ? appliedStatus : undefined,
     userUuid: appliedUserUuid || undefined,
-    page,
+    page: pagination.pageIndex,
   });
 
   const hasFilters = draftStatus !== "all" || draftUserUuid !== "" || appliedUserUuid !== "";
@@ -96,7 +94,7 @@ export default function AdminWithdrawOrdersPage() {
   const applyFilters = useCallback(() => {
     setAppliedStatus(draftStatus);
     setAppliedUserUuid(draftUserUuid.trim());
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [draftStatus, draftUserUuid]);
 
   const resetFilters = useCallback(() => {
@@ -104,7 +102,7 @@ export default function AdminWithdrawOrdersPage() {
     setAppliedStatus("all");
     setDraftUserUuid("");
     setAppliedUserUuid("");
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, []);
 
   const handleKeyDown = useCallback(
@@ -117,6 +115,85 @@ export default function AdminWithdrawOrdersPage() {
   const handleUserUuidChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftUserUuid(e.target.value),
     [],
+  );
+  const columns = useMemo<ColumnDef<WithdrawOrder>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        cell: ({ row }) => <DataTableText mono>#{row.original.id}</DataTableText>,
+        header: t("common.th.id"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        id: "user",
+        cell: ({ row }) => (
+          <div>
+            <DataTableText>{row.original.userName ?? "—"}</DataTableText>
+            <DataTableText mono muted>
+              {row.original.userUuid ??
+                (row.original.userId ? `User #${row.original.userId}` : "—")}
+            </DataTableText>
+          </div>
+        ),
+        header: t("admin.withdraw.th.user"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "amount",
+        cell: ({ row }) => (
+          <DataTableText mono>{`$${removeTailingZero(row.original.amount)} USDC`}</DataTableText>
+        ),
+        header: t("admin.withdraw.th.amount"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "type",
+        cell: ({ row }) => (
+          <DataTableText>{t(`user.wallet.type-${row.original.type}`)}</DataTableText>
+        ),
+        header: t("admin.withdraw.th.type"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "network",
+        cell: ({ row }) => (
+          <DataTableText muted>
+            {row.original.network
+              ? (getChainDisplayByNetworkId(row.original.network)?.name ?? row.original.network)
+              : row.original.paymentMethod || "—"}
+          </DataTableText>
+        ),
+        header: t("common.th.network"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <StatusBadge status={row.original.status} colorMap={withdrawStatusColorMap} />
+        ),
+        header: t("admin.withdraw.th.status"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "failReason",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[240px]" muted truncate>
+            {row.original.failReason || "—"}
+          </DataTableText>
+        ),
+        header: t("admin.withdraw.detail.note"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+        ),
+        header: t("admin.withdraw.th.time"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+    ],
+    [getChainDisplayByNetworkId, i18n.language, t, withdrawStatusColorMap],
   );
 
   return (
@@ -167,84 +244,22 @@ export default function AdminWithdrawOrdersPage() {
               </div>
             </div>
 
-            {/* Table */}
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t("admin.withdraw.empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[60px]">ID</TableHead>
-                    <TableHead>{t("admin.withdraw.th.user")}</TableHead>
-                    <TableHead>{t("admin.withdraw.th.amount")}</TableHead>
-                    <TableHead>{t("admin.withdraw.th.type")}</TableHead>
-                    <TableHead>{t("common.th.network")}</TableHead>
-                    <TableHead>{t("admin.withdraw.th.status")}</TableHead>
-                    <TableHead>{t("admin.withdraw.detail.note")}</TableHead>
-                    <TableHead>{t("admin.withdraw.th.time")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((order) => (
-                    <TableRow
-                      key={order.id}
-                      className="cursor-pointer"
-                      onClick={() => setSelected(order)}
-                    >
-                      <TableCell className="font-mono text-xs">#{order.id}</TableCell>
-                      <TableCell className="text-xs">
-                        <div>{order.userName ?? "—"}</div>
-                        <div className="text-muted-foreground font-mono">
-                          {order.userUuid ?? (order.userId ? `User #${order.userId}` : "—")}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        ${removeTailingZero(order.amount)} USDC
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {t(`user.wallet.type-${order.type}`)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {order.network
-                          ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
-                          : order.paymentMethod || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={order.status} colorMap={withdrawStatusColorMap} />
-                      </TableCell>
-                      <TableCell className="max-w-[240px] text-xs text-muted-foreground">
-                        {order.failReason ? (
-                          <span className="line-clamp-2">{order.failReason}</span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(order.createdAt), {
-                          addSuffix: true,
-                          locale: getDateLocale(i18n.language),
-                        })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Pagination */}
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={orders.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={orders}
+              emptyText={t("admin.withdraw.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              onRowClick={setSelected}
+              pageCount={getHeuristicPageCount(
+                pagination.pageIndex,
+                orders.length,
+                DEFAULT_PAGE_SIZE,
+              )}
+              pagination={pagination}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangle, ArrowLeft, Pencil, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +12,12 @@ import {
   useUpdateAiModel,
 } from "@/web/api/hooks";
 import type { AiModel, AiProvider } from "@/web/api/schemas";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/web/components/ui/card";
@@ -23,16 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/web/components/ui/dialog";
-import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 import { ModelFormDialog } from "./model-form-dialog";
 import { SyncPricesDialog } from "./sync-prices-dialog";
@@ -133,6 +131,144 @@ export function ProviderModelList({
       toast.error(t("ai-models.toast.delete-error"));
     }
   }, [zeroPriceModels, batchDelete, provider.id, t]);
+  const columns = useMemo<ColumnDef<AiModel>[]>(
+    () => [
+      {
+        id: "select",
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selected.has(row.original.id)}
+            onCheckedChange={() => handleToggleSelect(row.original.id)}
+            aria-label={t("common.a11y.select-row", { name: row.original.name })}
+          />
+        ),
+        enableHiding: false,
+        header: () => (
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={handleToggleAll}
+            aria-label={t("common.a11y.select-all")}
+          />
+        ),
+        meta: { headerClassName: "w-10" },
+      },
+      {
+        accessorKey: "modelId",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.modelId}
+          </DataTableBadge>
+        ),
+        header: t("ai-models.th.model-id"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("ai-models.th.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "inputPrice",
+        cell: ({ row }) => (
+          <DataTableText
+            mono
+            numeric
+            className={
+              row.original.inputPrice === "0" && row.original.outputPrice === "0"
+                ? "text-yellow-600"
+                : undefined
+            }
+          >
+            ${row.original.inputPrice}
+          </DataTableText>
+        ),
+        header: t("ai-models.th.input-price"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "outputPrice",
+        cell: ({ row }) => (
+          <DataTableText
+            mono
+            numeric
+            className={
+              row.original.inputPrice === "0" && row.original.outputPrice === "0"
+                ? "text-yellow-600"
+                : undefined
+            }
+          >
+            ${row.original.outputPrice}
+          </DataTableText>
+        ),
+        header: t("ai-models.th.output-price"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "capabilities",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.capabilities.map((capability) => (
+              <DataTableBadge key={capability} variant="outline">
+                {capability}
+              </DataTableBadge>
+            ))}
+          </div>
+        ),
+        header: t("ai-models.th.capabilities"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "enabled",
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.enabled}
+            onCheckedChange={() => void handleToggle(row.original)}
+            disabled={updateModel.isPending}
+          />
+        ),
+        header: t("ai-models.th.enabled"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditTarget(row.original)}
+              aria-label={t("common.btn.edit")}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteTarget(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[12%]", ...dataTableMeta.right },
+      },
+    ],
+    [
+      allSelected,
+      handleToggle,
+      handleToggleAll,
+      handleToggleSelect,
+      selected,
+      t,
+      updateModel.isPending,
+    ],
+  );
 
   return (
     <>
@@ -200,110 +336,20 @@ export function ProviderModelList({
           </div>
         </CardHeader>
         <CardContent>
-          {modelsLoading ? (
-            <div className="space-y-3 py-4">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : models.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">{t("ai-models.empty")}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={handleToggleAll}
-                      aria-label="Select all"
-                    />
-                  </TableHead>
-                  <TableHead>{t("ai-models.th.model-id")}</TableHead>
-                  <TableHead>{t("ai-models.th.name")}</TableHead>
-                  <TableHead>{t("ai-models.th.input-price")}</TableHead>
-                  <TableHead>{t("ai-models.th.output-price")}</TableHead>
-                  <TableHead>{t("ai-models.th.capabilities")}</TableHead>
-                  <TableHead>{t("ai-models.th.enabled")}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {models.map((m) => {
-                  const isZeroPrice = m.inputPrice === "0" && m.outputPrice === "0";
-                  return (
-                    <TableRow
-                      key={m.id}
-                      className={isZeroPrice ? "bg-yellow-50/50 dark:bg-yellow-950/10" : undefined}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selected.has(m.id)}
-                          onCheckedChange={() => handleToggleSelect(m.id)}
-                          aria-label={`Select ${m.name}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {m.modelId}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{m.name}</TableCell>
-                      <TableCell className="font-mono text-xs tabular-nums">
-                        {isZeroPrice ? (
-                          <span className="text-yellow-600">${m.inputPrice}</span>
-                        ) : (
-                          <>${m.inputPrice}</>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs tabular-nums">
-                        {isZeroPrice ? (
-                          <span className="text-yellow-600">${m.outputPrice}</span>
-                        ) : (
-                          <>${m.outputPrice}</>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {m.capabilities.map((cap) => (
-                            <Badge key={cap} variant="outline" className="text-xs">
-                              {cap}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={m.enabled}
-                          onCheckedChange={() => handleToggle(m)}
-                          disabled={updateModel.isPending}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditTarget(m)}
-                            aria-label={t("common.btn.edit")}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteTarget(m)}
-                            aria-label={t("common.btn.delete")}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            data={models}
+            emptyText={t("ai-models.empty")}
+            getRowId={(row) => String(row.id)}
+            loading={modelsLoading}
+            rowClassName={(row) =>
+              row.inputPrice === "0" && row.outputPrice === "0"
+                ? "bg-yellow-50/50 dark:bg-yellow-950/10"
+                : undefined
+            }
+            showPagination={false}
+            tableClassName="min-w-[1080px]"
+          />
         </CardContent>
       </Card>
 

@@ -80,12 +80,17 @@
       "refresh": "刷新",
       "send": "发送",
       "test": "测试",
-      "actions": "操作"
+      "actions": "操作",
+      "select-all": "全选",
+      "select-row": "选择 {{name}}"
     },
     "valid": {
       "password-weak": "密码需 10 位以上，含大小写字母和数字",
       "required": "此字段为必填项",
       "invalid-amount": "请输入有效金额"
+    },
+    "error": {
+      "load-failed": "加载详情失败。"
     }
   },
   "nav": {
@@ -446,7 +451,20 @@
         "txns": "分润记录",
         "no-txns": "暂无分润记录",
         "view-all": "查看全部 ({{count}})",
-        "collapse": "收起"
+        "collapse": "收起",
+        "cost": "上游成本",
+        "profit": "分润金额",
+        "requests": "请求数",
+        "by-key": "按 Key 明细",
+        "chart-title": "各 Key 成本与分润对比",
+        "no-keys": "暂无分配给此供应商的 Key。"
+      },
+      "report": {
+        "title": "{{name}} 报告",
+        "title-fallback": "号池供应商报告",
+        "desc": "详细的对账和 Key 维度盈利分析。",
+        "back": "返回号池供应商",
+        "invalid-id": "缺少或无效的供应商 ID。"
       },
       "txn-type": {
         "revenue_share": "分润收入",

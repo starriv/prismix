@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Ban, CheckCircle2, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { match } from "ts-pattern";
@@ -20,8 +20,8 @@ import {
 import type { TopUpOrder } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { InfoLinkRow, InfoRow } from "@/web/components/dashboard/info-row";
-import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -56,18 +56,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/web/components/ui/sheet";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { Textarea } from "@/web/components/ui/textarea";
 import { useChainRegistry } from "@/web/shared/chains";
-import { getDateLocale } from "@/web/shared/date-locale";
 
 const TOPUP_STATUS_COLORS = {
   pending: "border-yellow-500/30 bg-yellow-500/10 text-yellow-600",
@@ -114,12 +104,15 @@ export default function AdminTopupOrdersPage() {
   const { getChainDisplayByNetworkId } = useChainRegistry();
   const [draftStatus, setDraftStatus] = useState("all");
   const [status, setStatus] = useState("all");
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
   const [selected, setSelected] = useState<TopUpOrder | null>(null);
 
   const { data, isLoading } = useTopupOrders({
     status: status !== "all" ? status : undefined,
-    page,
+    page: pagination.pageIndex,
   });
 
   const statusColorMap = useMemo(
@@ -135,16 +128,102 @@ export default function AdminTopupOrdersPage() {
 
   const applyFilters = useCallback(() => {
     setStatus(draftStatus);
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [draftStatus]);
 
   const resetFilters = useCallback(() => {
     setDraftStatus("all");
     setStatus("all");
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, []);
 
   const orders = data?.items ?? [];
+  const columns = useMemo<ColumnDef<TopUpOrder>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        cell: ({ row }) => <DataTableText mono>#{row.original.id}</DataTableText>,
+        header: t("common.th.id"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        id: "user",
+        cell: ({ row }) => (
+          <div>
+            <DataTableText>{row.original.userName ?? "—"}</DataTableText>
+            <DataTableText mono muted>
+              {row.original.userUuid ?? `Agent #${row.original.agentId}`}
+            </DataTableText>
+          </div>
+        ),
+        header: t("common.th.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        id: "amount",
+        cell: ({ row }) => {
+          const primaryAmount = getOrderPrimaryAmount(row.original);
+          return (
+            <DataTableText mono>
+              {primaryAmount.value}
+              {primaryAmount.unit ? ` ${primaryAmount.unit}` : ""}
+            </DataTableText>
+          );
+        },
+        header: t("common.th.amount"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "type",
+        cell: ({ row }) => (
+          <DataTableText>{t(`user.wallet.type-${row.original.type}`)}</DataTableText>
+        ),
+        header: t("topup.detail.type"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "network",
+        cell: ({ row }) => (
+          <DataTableText muted>
+            {row.original.network
+              ? (getChainDisplayByNetworkId(row.original.network)?.name ?? row.original.network)
+              : row.original.paymentMethod
+                ? t(`fiat.method.${row.original.paymentMethod}`, {
+                    defaultValue: row.original.paymentMethod,
+                  })
+                : "—"}
+          </DataTableText>
+        ),
+        header: t("common.th.network"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => <StatusBadge status={row.original.status} colorMap={statusColorMap} />,
+        header: t("common.th.status"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "adminNote",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[240px]" muted truncate>
+            {row.original.adminNote || "—"}
+          </DataTableText>
+        ),
+        header: t("topup.detail.note"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+        ),
+        header: t("common.th.time"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+    ],
+    [getChainDisplayByNetworkId, i18n.language, statusColorMap, t],
+  );
 
   return (
     <div>
@@ -181,90 +260,18 @@ export default function AdminTopupOrdersPage() {
               </div>
             </div>
 
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t("topup.table-empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>{t("common.th.name")}</TableHead>
-                    <TableHead>{t("common.th.amount")}</TableHead>
-                    <TableHead>{t("topup.detail.type")}</TableHead>
-                    <TableHead>{t("common.th.network")}</TableHead>
-                    <TableHead>{t("common.th.status")}</TableHead>
-                    <TableHead>{t("topup.detail.note")}</TableHead>
-                    <TableHead>{t("common.th.time")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((order) => {
-                    const primaryAmount = getOrderPrimaryAmount(order);
-                    return (
-                      <TableRow
-                        key={order.id}
-                        className="cursor-pointer"
-                        onClick={() => setSelected(order)}
-                      >
-                        <TableCell className="font-mono text-xs">#{order.id}</TableCell>
-                        <TableCell className="text-xs">
-                          <div>{order.userName ?? "—"}</div>
-                          <div className="text-muted-foreground font-mono">
-                            {order.userUuid ?? `Agent #${order.agentId}`}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {primaryAmount.value}
-                          {primaryAmount.unit ? ` ${primaryAmount.unit}` : ""}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {t(`user.wallet.type-${order.type}`)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {order.network
-                            ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
-                            : order.paymentMethod
-                              ? t(`fiat.method.${order.paymentMethod}`, {
-                                  defaultValue: order.paymentMethod,
-                                })
-                              : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={order.status} colorMap={statusColorMap} />
-                        </TableCell>
-                        <TableCell className="max-w-[240px] text-xs text-muted-foreground">
-                          {order.adminNote ? (
-                            <span className="line-clamp-2">{order.adminNote}</span>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDistanceToNow(new Date(order.createdAt), {
-                            addSuffix: true,
-                            locale: getDateLocale(i18n.language),
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={orders.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={orders}
+              emptyText={t("topup.table-empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              onRowClick={setSelected}
+              pagination={pagination}
+              rowCount={data?.total ?? 0}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>

@@ -80,12 +80,17 @@
       "refresh": "Refresh",
       "send": "Send",
       "test": "Test",
-      "actions": "Actions"
+      "actions": "Actions",
+      "select-all": "Select all",
+      "select-row": "Select {{name}}"
     },
     "valid": {
       "password-weak": "Password must be 10+ chars with upper, lower, and digit",
       "required": "This field is required",
       "invalid-amount": "Please enter a valid amount"
+    },
+    "error": {
+      "load-failed": "Failed to load details."
     }
   },
   "nav": {
@@ -446,7 +451,20 @@
         "txns": "Revenue History",
         "no-txns": "No revenue records yet",
         "view-all": "View All ({{count}})",
-        "collapse": "Collapse"
+        "collapse": "Collapse",
+        "cost": "Upstream cost",
+        "profit": "Revenue share",
+        "requests": "Requests",
+        "by-key": "By key",
+        "chart-title": "Cost vs revenue share by key",
+        "no-keys": "No keys assigned to this provider."
+      },
+      "report": {
+        "title": "{{name}} Report",
+        "title-fallback": "Key Provider Report",
+        "desc": "Detailed reconciliation and key-level profitability.",
+        "back": "Back to key providers",
+        "invalid-id": "Missing or invalid provider ID."
       },
       "txn-type": {
         "revenue_share": "Revenue Share",

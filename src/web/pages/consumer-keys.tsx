@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { BarChart3, Check, Copy, ExternalLink, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { match } from "ts-pattern";
@@ -18,9 +18,15 @@ import {
 } from "@/web/api/hooks";
 import type { RelayConsumerKey } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
-import { Pagination } from "@/web/components/dashboard/pagination";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
-import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -41,18 +47,9 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 export default function ConsumerKeysPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const deleteKey = useDeleteRelayKey();
   const revealKey = useRevealRelayKey();
 
@@ -64,12 +61,15 @@ export default function ConsumerKeysPage() {
   const [draftUserUuid, setDraftUserUuid] = useState("");
   const [appliedPrefix, setAppliedPrefix] = useState("");
   const [appliedUserUuid, setAppliedUserUuid] = useState("");
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
 
   const { data: keys = [], isLoading } = useRelayKeys({
     prefix: appliedPrefix || undefined,
     userUuid: appliedUserUuid || undefined,
-    page,
+    page: pagination.pageIndex,
   });
 
   const hasFilters =
@@ -78,7 +78,7 @@ export default function ConsumerKeysPage() {
   const applyFilters = useCallback(() => {
     setAppliedPrefix(draftPrefix.trim());
     setAppliedUserUuid(draftUserUuid.trim());
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [draftPrefix, draftUserUuid]);
 
   const resetFilters = useCallback(() => {
@@ -86,7 +86,7 @@ export default function ConsumerKeysPage() {
     setDraftUserUuid("");
     setAppliedPrefix("");
     setAppliedUserUuid("");
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, []);
 
   const handleKeyDown = useCallback(
@@ -136,6 +136,113 @@ export default function ConsumerKeysPage() {
 
   const handleCloseDelete = useCallback(() => setDeleteTarget(null), []);
 
+  const columns = useMemo<ColumnDef<RelayConsumerKey>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("consumer-keys.th.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "apiKeyPrefix",
+        cell: ({ row }) => <DataTableText mono>{row.original.apiKeyPrefix}...</DataTableText>,
+        header: t("consumer-keys.th.prefix"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "userUuid",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.userUuid ??
+              (row.original.userId
+                ? `#${row.original.userId} ${row.original.userName ?? ""}`
+                : "—")}
+          </DataTableText>
+        ),
+        header: t("consumer-keys.th.user"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "agentId",
+        cell: ({ row }) => (
+          <LocaleLink
+            to={`/admin/pay-agents?id=${row.original.agentId}`}
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            Agent #{row.original.agentId}
+            <ExternalLink className="h-3 w-3" />
+          </LocaleLink>
+        ),
+        header: t("consumer-keys.th.agent"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <DataTableBadge
+            variant={match(row.original.status)
+              .with("active", () => "default" as const)
+              .otherwise(() => "destructive" as const)}
+          >
+            {t(`consumer-keys.status.${row.original.status}`)}
+          </DataTableBadge>
+        ),
+        header: t("consumer-keys.th.status"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "lastUsedAt",
+        cell: ({ row }) =>
+          row.original.lastUsedAt ? (
+            <DataTableRelativeTime language={i18n.language} value={row.original.lastUsedAt} />
+          ) : (
+            <DataTableText muted>{t("consumer-keys.never")}</DataTableText>
+          ),
+        header: t("consumer-keys.th.last-used"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button variant="ghost" size="sm" asChild>
+              <LocaleLink to={`/admin/ai-usage?key=${row.original.id}`}>
+                <BarChart3 className="h-3.5 w-3.5" />
+              </LocaleLink>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCopyKey(row.original.id)}
+              disabled={revealKey.isPending}
+              aria-label={t("common.btn.copy")}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: {
+          headerClassName: "w-[96px]",
+          ...dataTableMeta.right,
+        },
+      },
+    ],
+    [handleCopyKey, handleDelete, i18n.language, revealKey.isPending, t],
+  );
+
   return (
     <div>
       <Header title={t("consumer-keys.title")} description={t("consumer-keys.desc")} />
@@ -182,99 +289,21 @@ export default function ConsumerKeysPage() {
               </div>
             </div>
 
-            {/* Table */}
-            {isLoading ? (
-              <div className="space-y-3 py-4">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </div>
-            ) : keys.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                {t("consumer-keys.empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("consumer-keys.th.name")}</TableHead>
-                    <TableHead>{t("consumer-keys.th.prefix")}</TableHead>
-                    <TableHead>{t("consumer-keys.th.user")}</TableHead>
-                    <TableHead>{t("consumer-keys.th.agent")}</TableHead>
-                    <TableHead>{t("consumer-keys.th.status")}</TableHead>
-                    <TableHead>{t("consumer-keys.th.last-used")}</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {keys.map((k) => (
-                    <TableRow key={k.id}>
-                      <TableCell className="font-medium">{k.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{k.apiKeyPrefix}&hellip;</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {k.userUuid ?? (k.userId ? `#${k.userId} ${k.userName ?? ""}` : "\u2014")}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <LocaleLink
-                          to={`/admin/pay-agents?id=${k.agentId}`}
-                          className="inline-flex items-center gap-1 text-primary hover:underline"
-                        >
-                          Agent #{k.agentId}
-                          <ExternalLink className="h-3 w-3" />
-                        </LocaleLink>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={match(k.status)
-                            .with("active", () => "default" as const)
-                            .otherwise(() => "destructive" as const)}
-                        >
-                          {t(`consumer-keys.status.${k.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {k.lastUsedAt
-                          ? formatDistanceToNow(new Date(k.lastUsedAt), { addSuffix: true })
-                          : t("consumer-keys.never")}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" asChild>
-                            <LocaleLink to={`/admin/ai-usage?key=${k.id}`}>
-                              <BarChart3 className="h-3.5 w-3.5" />
-                            </LocaleLink>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCopyKey(k.id)}
-                            disabled={revealKey.isPending}
-                            aria-label={t("common.btn.copy")}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(k)}
-                            aria-label={t("common.btn.delete")}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Pagination */}
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={keys.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={keys}
+              emptyText={t("consumer-keys.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              pageCount={getHeuristicPageCount(
+                pagination.pageIndex,
+                keys.length,
+                DEFAULT_PAGE_SIZE,
+              )}
+              pagination={pagination}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>
@@ -335,13 +364,17 @@ function CreateKeyDialog({
     defaultValues: { name: "", initialBalance: "", markupPercent: "" },
   });
 
-  useEffect(() => {
-    if (!open) {
-      form.reset({ name: "", initialBalance: "", markupPercent: "" });
-      setCreatedKey(null);
-      setCopied(false);
-    }
-  }, [open, form]);
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        form.reset({ name: "", initialBalance: "", markupPercent: "" });
+        setCreatedKey(null);
+        setCopied(false);
+      }
+      onOpenChange(nextOpen);
+    },
+    [form, onOpenChange],
+  );
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
@@ -368,7 +401,7 @@ function CreateKeyDialog({
   // After creation: show the key (matches pay-agents ApiKeyDialog pattern)
   if (createdKey) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent preventClose>
           <DialogHeader>
             <DialogTitle>{t("consumer-keys.dialog.created-title")}</DialogTitle>
@@ -403,7 +436,7 @@ function CreateKeyDialog({
 
   // Before creation: form
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent preventClose>
         <DialogHeader>
           <DialogTitle>{t("consumer-keys.dialog.create-title")}</DialogTitle>

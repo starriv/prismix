@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { useApplySyncPrices, usePreviewSyncPrices } from "@/web/api/hooks";
-import { Badge } from "@/web/components/ui/badge";
+import { DataTable, DataTableBadge } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Checkbox } from "@/web/components/ui/checkbox";
 import {
@@ -16,14 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/web/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { cn } from "@/web/shared/utils";
 
 export function SyncPricesDialog({
@@ -58,7 +51,7 @@ export function SyncPricesDialog({
     }
   }, [preview.data]);
 
-  const diffs = preview.data ?? [];
+  const diffs = useMemo(() => preview.data ?? [], [preview.data]);
   const allSelected = diffs.length > 0 && selected.size === diffs.length;
 
   const handleToggleAll = useCallback(() => {
@@ -86,6 +79,49 @@ export function SyncPricesDialog({
       toast.error(t("ai-models.toast.sync-error"));
     }
   }, [selected, apply, providerId, t, onOpenChange]);
+  const columns = useMemo<ColumnDef<(typeof diffs)[number]>[]>(
+    () => [
+      {
+        id: "select",
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selected.has(row.original.id)}
+            onCheckedChange={() => handleToggleOne(row.original.id)}
+          />
+        ),
+        enableHiding: false,
+        header: () => <Checkbox checked={allSelected} onCheckedChange={handleToggleAll} />,
+        meta: { headerClassName: "w-8" },
+      },
+      {
+        accessorKey: "modelId",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.modelId}
+          </DataTableBadge>
+        ),
+        header: t("ai-models.sync.th-model"),
+        meta: { headerClassName: "w-[34%]" },
+      },
+      {
+        accessorKey: "oldInputPrice",
+        cell: ({ row }) => (
+          <PriceCell oldVal={row.original.oldInputPrice} newVal={row.original.newInputPrice} />
+        ),
+        header: t("ai-models.sync.th-input-price"),
+        meta: { headerClassName: "w-[29%] text-right" },
+      },
+      {
+        accessorKey: "oldOutputPrice",
+        cell: ({ row }) => (
+          <PriceCell oldVal={row.original.oldOutputPrice} newVal={row.original.newOutputPrice} />
+        ),
+        header: t("ai-models.sync.th-output-price"),
+        meta: { headerClassName: "w-[29%] text-right" },
+      },
+    ],
+    [selected, allSelected, handleToggleAll, handleToggleOne, t],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -108,43 +144,15 @@ export function SyncPricesDialog({
               <p className="text-sm text-muted-foreground">{t("ai-models.sync.no-diff")}</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8">
-                    <Checkbox checked={allSelected} onCheckedChange={handleToggleAll} />
-                  </TableHead>
-                  <TableHead>{t("ai-models.sync.th-model")}</TableHead>
-                  <TableHead className="text-right">{t("ai-models.sync.th-input-price")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("ai-models.sync.th-output-price")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {diffs.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(d.id)}
-                        onCheckedChange={() => handleToggleOne(d.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {d.modelId}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <PriceCell oldVal={d.oldInputPrice} newVal={d.newInputPrice} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <PriceCell oldVal={d.oldOutputPrice} newVal={d.newOutputPrice} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={columns}
+              data={diffs}
+              emptyText={t("ai-models.sync.no-diff")}
+              getRowId={(row) => String(row.id)}
+              loading={false}
+              showPagination={false}
+              tableClassName="min-w-[720px]"
+            />
           )}
         </DialogBody>
         {diffs.length > 0 && (

@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
+import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
 import { Search } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
-import { PAGE_SIZE, useAiLogs, useAiRequestLog, useRelayKeys } from "@/web/api/hooks";
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
+import { useAiLogs, useAiRequestLog, useRelayKeys } from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
-import { DataTable } from "@/web/components/dashboard/data-table";
 import { Header } from "@/web/components/dashboard/header";
+import { DataTable, getHeuristicPageCount } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -94,6 +97,17 @@ export default function AiLogsPage() {
   }, [setAppliedKey, setAppliedModel, setAppliedStatus, setPage]);
 
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
+  const pagination = useMemo<PaginationState>(
+    () => ({ pageIndex: page, pageSize: DEFAULT_PAGE_SIZE }),
+    [page],
+  );
+  const handlePaginationChange = useCallback<OnChangeFn<PaginationState>>(
+    (updater) => {
+      const next = functionalUpdate(updater, pagination);
+      setPage(next.pageIndex);
+    },
+    [pagination, setPage],
+  );
 
   return (
     <div>
@@ -172,17 +186,18 @@ export default function AiLogsPage() {
             <DataTable
               columns={columns}
               data={logs}
-              rowKey={(r) => r.id}
               emptyText={t("ai-logs.table-empty")}
+              getRowId={(row) => String(row.id)}
               loading={
                 isLoading
                   ? { initial: true, fetching: false }
                   : { initial: false, fetching: isFetching }
               }
+              manualPagination
               onRowClick={setSelected}
-              page={page}
-              onPageChange={setPage}
-              pageSize={PAGE_SIZE}
+              onPaginationChange={handlePaginationChange}
+              pageCount={getHeuristicPageCount(page, logs.length, DEFAULT_PAGE_SIZE)}
+              pagination={pagination}
             />
           </CardContent>
         </Card>

@@ -1,33 +1,31 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef } from "@tanstack/react-table";
 import { BarChart3, Plus } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import { useKeyProviders } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableRelativeTime,
+  DataTableText,
+} from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
-import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
 import { Sheet, SheetContent } from "@/web/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 import { KEY_PROVIDER_STATUS_COLORS } from "./constants";
 import { CreateKeyProviderDialog } from "./create-dialog";
 import { KeyProviderDetailSheet } from "./detail-sheet";
 
 export default function KeyProvidersPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: providers = [] } = useKeyProviders();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -47,6 +45,72 @@ export default function KeyProvidersPage() {
     () => (editingId ? (providers.find((p) => p.id === editingId) ?? null) : null),
     [editingId, providers],
   );
+  const columns = useMemo<ColumnDef<(typeof providers)[number]>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("common.th.name"),
+        meta: { headerClassName: "w-[22%]" },
+      },
+      {
+        accessorKey: "revenueSharePercent",
+        cell: ({ row }) => <DataTableText>{row.original.revenueSharePercent}%</DataTableText>,
+        header: t("admin.key-providers.th.share"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "balance",
+        cell: ({ row }) => (
+          <DataTableText mono>{`$${removeTailingZero(row.original.balance)}`}</DataTableText>
+        ),
+        header: t("admin.key-providers.th.balance"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "keyCount",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary">{row.original.keyCount ?? 0}</DataTableBadge>
+        ),
+        header: t("admin.key-providers.th.keys"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => (
+          <StatusBadge status={row.original.status} colorMap={keyProviderStatusMap} />
+        ),
+        header: t("common.th.status"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+        ),
+        header: t("common.th.time"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button variant="ghost" size="sm" asChild onClick={(event) => event.stopPropagation()}>
+              <LocaleLink to={`/admin/key-provider-usage-detail?id=${row.original.id}`}>
+                <BarChart3 className="h-3.5 w-3.5" />
+              </LocaleLink>
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[10%]", ...dataTableMeta.right },
+      },
+    ],
+    [i18n.language, keyProviderStatusMap, t],
+  );
 
   return (
     <div>
@@ -62,56 +126,16 @@ export default function KeyProvidersPage() {
 
         <Card>
           <CardContent>
-            {providers.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                {t("admin.key-providers.table-empty")}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("common.th.name")}</TableHead>
-                    <TableHead>{t("admin.key-providers.th.share")}</TableHead>
-                    <TableHead>{t("admin.key-providers.th.balance")}</TableHead>
-                    <TableHead>{t("admin.key-providers.th.keys")}</TableHead>
-                    <TableHead>{t("common.th.status")}</TableHead>
-                    <TableHead>{t("common.th.time")}</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {providers.map((p) => (
-                    <TableRow
-                      key={p.id}
-                      className="cursor-pointer"
-                      onClick={() => setEditingId(p.id)}
-                    >
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.revenueSharePercent}%</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        ${removeTailingZero(p.balance)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{p.keyCount ?? 0}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={p.status} colorMap={keyProviderStatusMap} />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(p.createdAt), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" asChild>
-                          <LocaleLink to={`/admin/key-provider-usage-detail?id=${p.id}`}>
-                            <BarChart3 className="h-3.5 w-3.5" />
-                          </LocaleLink>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <DataTable
+              columns={columns}
+              data={providers}
+              emptyText={t("admin.key-providers.table-empty")}
+              getRowId={(row) => String(row.id)}
+              loading={false}
+              onRowClick={(row) => setEditingId(row.id)}
+              showPagination={false}
+              tableClassName="min-w-[900px]"
+            />
           </CardContent>
         </Card>
       </div>

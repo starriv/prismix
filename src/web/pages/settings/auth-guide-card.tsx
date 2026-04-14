@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, ShieldCheck } from "lucide-react";
 
+import { DataTable, DataTableBadge, DataTableText } from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -9,14 +12,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/web/components/ui/collapsible";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 const AUTH_METHODS = [
   {
@@ -38,6 +33,41 @@ const AUTH_METHODS = [
 
 export function AuthGuideCard() {
   const { t } = useTranslation();
+  const columns = useMemo<ColumnDef<(typeof AUTH_METHODS)[number]>[]>(
+    () => [
+      {
+        accessorKey: "method",
+        cell: ({ row }) => (
+          <DataTableBadge variant="outline" className="font-mono">
+            {row.original.method}
+          </DataTableBadge>
+        ),
+        header: t("settings.api-keys.auth-guide.th.method"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "header",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.header}
+          </DataTableText>
+        ),
+        header: t("settings.api-keys.auth-guide.th.header"),
+        meta: { headerClassName: "w-[36%]" },
+      },
+      {
+        accessorKey: "example",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[300px]" mono muted truncate>
+            {row.original.example}
+          </DataTableText>
+        ),
+        header: t("settings.api-keys.auth-guide.th.example"),
+        meta: { headerClassName: "w-[46%]" },
+      },
+    ],
+    [t],
+  );
 
   return (
     <Collapsible asChild>
@@ -64,32 +94,15 @@ export function AuthGuideCard() {
         <CollapsibleContent>
           <CardContent className="space-y-4">
             <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("settings.api-keys.auth-guide.th.method")}</TableHead>
-                    <TableHead>{t("settings.api-keys.auth-guide.th.header")}</TableHead>
-                    <TableHead>{t("settings.api-keys.auth-guide.th.example")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {AUTH_METHODS.map((m) => (
-                    <TableRow key={m.method}>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {m.method}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {m.header}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[300px] truncate">
-                        {m.example}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={columns}
+                data={[...AUTH_METHODS]}
+                emptyText=""
+                getRowId={(row) => row.method}
+                loading={false}
+                showPagination={false}
+                tableClassName="min-w-[760px]"
+              />
             </div>
             <p className="text-xs text-muted-foreground">
               {t("settings.api-keys.auth-guide.priority")}

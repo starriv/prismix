@@ -2,14 +2,20 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { ExternalLink, Plus, Search } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { usePayAgentsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
-import { Pagination } from "@/web/components/dashboard/pagination";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
+import {
+  DataTable,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -23,15 +29,6 @@ import {
 } from "@/web/components/ui/dialog";
 import { Input } from "@/web/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 import { PayAgentDetailSheet } from "./agent-detail-sheet";
 import { CreatePayAgentForm } from "./create-agent-form";
@@ -43,7 +40,7 @@ const AGENT_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PayAgentsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -65,14 +62,17 @@ export default function PayAgentsPage() {
   const [appliedUser, setAppliedUser] = useState("");
   const [appliedUserUuid, setAppliedUserUuid] = useState("");
   const [appliedAddress, setAppliedAddress] = useState("");
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
 
   const { data: agents = [], isLoading } = usePayAgentsList({
     id: idFromUrl,
     userName: appliedUser || undefined,
     userUuid: appliedUserUuid || undefined,
     address: appliedAddress || undefined,
-    page,
+    page: pagination.pageIndex,
   });
 
   const agentStatusMap = useMemo(
@@ -107,7 +107,7 @@ export default function PayAgentsPage() {
     setAppliedUser(draftUser.trim());
     setAppliedUserUuid(draftUserUuid.trim());
     setAppliedAddress(draftAddress.trim());
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [draftUser, draftUserUuid, draftAddress, searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
@@ -118,7 +118,7 @@ export default function PayAgentsPage() {
     setAppliedUser("");
     setAppliedUserUuid("");
     setAppliedAddress("");
-    setPage(0);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [searchParams, setSearchParams]);
 
   const handleKeyDown = useCallback(
@@ -139,6 +139,80 @@ export default function PayAgentsPage() {
   const handleUserUuidChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => setDraftUserUuid(e.target.value),
     [],
+  );
+
+  const columns = useMemo<ColumnDef<(typeof agents)[number]>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        cell: ({ row }) => <DataTableText muted>{row.original.id}</DataTableText>,
+        header: t("admin.users.th.id"),
+        meta: { headerClassName: "w-[8%] text-xs" },
+      },
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("agents.th.name"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "userUuid",
+        cell: ({ row }) =>
+          row.original.userId ? (
+            <LocaleLink
+              to={`/admin/users?id=${row.original.userId}`}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {row.original.userUuid ?? `#${row.original.userId} ${row.original.userName ?? ""}`}
+              <ExternalLink className="h-3 w-3 shrink-0" />
+            </LocaleLink>
+          ) : (
+            <DataTableText muted>—</DataTableText>
+          ),
+        header: t("agents.th.user"),
+        meta: { headerClassName: "w-[22%]" },
+      },
+      {
+        accessorKey: "address",
+        cell: ({ row }) => (
+          <DataTableText mono muted>
+            {row.original.address
+              ? `${row.original.address.slice(0, 6)}...${row.original.address.slice(-4)}`
+              : "—"}
+          </DataTableText>
+        ),
+        header: t("agents.th.address"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "balance",
+        cell: ({ row }) => (
+          <DataTableText mono>
+            {removeTailingZero(row.original.balance)} {TOKEN_SYMBOL}
+          </DataTableText>
+        ),
+        header: t("agents.th.balance"),
+        meta: { headerClassName: "w-[12%]" },
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => <StatusBadge status={row.original.status} colorMap={agentStatusMap} />,
+        header: t("agents.th.status"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} muted />
+        ),
+        header: t("agents.th.created"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+    ],
+    [agentStatusMap, t],
   );
 
   return (
@@ -211,77 +285,22 @@ export default function PayAgentsPage() {
               </div>
             </div>
 
-            {/* Table */}
-            {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : agents.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">{t("agents.empty")}</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">{t("admin.users.th.id")}</TableHead>
-                    <TableHead>{t("agents.th.name")}</TableHead>
-                    <TableHead>{t("agents.th.user")}</TableHead>
-                    <TableHead>{t("agents.th.address")}</TableHead>
-                    <TableHead>{t("agents.th.balance")}</TableHead>
-                    <TableHead>{t("agents.th.status")}</TableHead>
-                    <TableHead>{t("agents.th.created")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agents.map((agent) => (
-                    <TableRow
-                      key={agent.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setEditingId(agent.id)}
-                    >
-                      <TableCell className="text-xs">{agent.id}</TableCell>
-                      <TableCell className="font-medium">{agent.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {agent.userId ? (
-                          <LocaleLink
-                            to={`/admin/users?id=${agent.userId}`}
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {agent.userUuid ?? `#${agent.userId} ${agent.userName ?? ""}`}
-                            <ExternalLink className="h-3 w-3 shrink-0" />
-                          </LocaleLink>
-                        ) : (
-                          "\u2014"
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {agent.address
-                          ? `${agent.address.slice(0, 6)}...${agent.address.slice(-4)}`
-                          : "\u2014"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {removeTailingZero(agent.balance)} {TOKEN_SYMBOL}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={agent.status} colorMap={agentStatusMap} />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(agent.createdAt).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {/* Pagination */}
-            <Pagination
-              page={page}
-              onPageChange={setPage}
-              currentCount={agents.length}
-              pageSize={DEFAULT_PAGE_SIZE}
+            <DataTable
+              columns={columns}
+              data={agents}
+              emptyText={t("agents.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              manualPagination
+              onPaginationChange={setPagination}
+              onRowClick={(row) => setEditingId(row.id)}
+              pageCount={getHeuristicPageCount(
+                pagination.pageIndex,
+                agents.length,
+                DEFAULT_PAGE_SIZE,
+              )}
+              pagination={pagination}
+              tableClassName="min-w-[980px]"
             />
           </CardContent>
         </Card>

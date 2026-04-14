@@ -1,18 +1,24 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { ArrowDownLeft, ArrowUpRight, ExternalLink, Receipt, Search, Zap } from "lucide-react";
 import { match } from "ts-pattern";
 
 import { removeTailingZero } from "@/shared/number";
+import { TOKEN_SYMBOL } from "@/shared/tokens";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { usePayAgents, usePayAgentTxnsList } from "@/web/api/hooks";
 import type { PayAgentTransaction } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
-import { Pagination } from "@/web/components/dashboard/pagination";
+import {
+  DataTable,
+  DataTableBadge,
+  DataTableRelativeTime,
+  DataTableText,
+  getHeuristicPageCount,
+} from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
-import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -22,20 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/web/components/ui/select";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 
 const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 export default function TransactionLedgerPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: agents = [] } = usePayAgents();
 
   // Draft filters
@@ -47,7 +44,10 @@ export default function TransactionLedgerPage() {
   const [type, setType] = useState<string | undefined>();
   const [agentId, setAgentId] = useState<number | undefined>();
   const [source, setSource] = useState<string | undefined>();
-  const [page, setPage] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  });
 
   const {
     data: txns = [],
@@ -57,34 +57,118 @@ export default function TransactionLedgerPage() {
     type,
     agentId,
     source,
-    page,
+    page: pagination.pageIndex,
   });
 
-  const hasFilters = draftType !== "all" || draftAgent !== "all" || draftSource !== "all";
+  const hasFilters =
+    draftType !== "all" ||
+    draftAgent !== "all" ||
+    draftSource !== "all" ||
+    type !== undefined ||
+    agentId !== undefined ||
+    source !== undefined;
 
-  function applyFilters() {
+  const applyFilters = useCallback(() => {
     setType(draftType !== "all" ? draftType : undefined);
     setAgentId(draftAgent !== "all" ? Number(draftAgent) : undefined);
     setSource(draftSource !== "all" ? draftSource : undefined);
-    setPage(0);
-  }
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [draftType, draftAgent, draftSource]);
 
-  function resetFilters() {
+  const resetFilters = useCallback(() => {
     setDraftType("all");
     setDraftAgent("all");
     setDraftSource("all");
     setType(undefined);
     setAgentId(undefined);
     setSource(undefined);
-    setPage(0);
-  }
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, []);
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") applyFilters();
-  }
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") applyFilters();
+    },
+    [applyFilters],
+  );
 
-  // Agent name lookup
-  const agentMap = new Map(agents.map((a) => [a.id, a.name]));
+  const columns = useMemo<ColumnDef<PayAgentTransaction>[]>(() => {
+    const agentMap = new Map(agents.map((agent) => [agent.id, agent.name]));
+
+    return [
+      {
+        accessorKey: "type",
+        cell: ({ row }) => <TxTypeBadge type={row.original.type} />,
+        header: t("common.th.type"),
+        meta: { headerClassName: "w-[140px] text-xs" },
+      },
+      {
+        accessorKey: "amount",
+        cell: ({ row }) => {
+          const isCredit = row.original.type === "top_up";
+          return (
+            <DataTableText mono nowrap className={isCredit ? "text-green-600" : "text-red-500"}>
+              {isCredit ? "+" : "-"}
+              {removeTailingZero(row.original.amount)} {TOKEN_SYMBOL}
+            </DataTableText>
+          );
+        },
+        header: t("common.th.amount"),
+        meta: { headerClassName: "w-[136px] text-xs" },
+      },
+      {
+        accessorKey: "balanceAfter",
+        cell: ({ row }) => (
+          <DataTableText mono muted nowrap>
+            {removeTailingZero(row.original.balanceBefore)} →{" "}
+            {removeTailingZero(row.original.balanceAfter)}
+          </DataTableText>
+        ),
+        header: t("ledger.th.balance"),
+        meta: { headerClassName: "w-[176px] text-xs" },
+      },
+      {
+        accessorKey: "agentId",
+        cell: ({ row }) => (
+          <LocaleLink
+            to={`/admin/pay-agents?id=${row.original.agentId}`}
+            className="inline-flex max-w-full items-center gap-1 overflow-hidden text-primary hover:underline"
+          >
+            <span className="truncate">
+              {agentMap.get(row.original.agentId) ?? `Agent #${row.original.agentId}`}
+            </span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </LocaleLink>
+        ),
+        header: t("ledger.th.wallet"),
+        meta: { headerClassName: "w-[180px] text-xs" },
+      },
+      {
+        accessorKey: "source",
+        cell: ({ row }) => <SourceBadge source={row.original.source} />,
+        header: t("common.th.source"),
+        meta: { headerClassName: "w-[108px] text-xs" },
+      },
+      {
+        id: "detail",
+        cell: ({ row }) => (
+          <div className="max-w-0 text-xs text-muted-foreground">
+            <TxDetail tx={row.original} />
+          </div>
+        ),
+        header: t("ledger.th.detail"),
+        meta: { headerClassName: "text-xs" },
+      },
+      {
+        accessorKey: "createdAt",
+        cell: ({ row }) => (
+          <DataTableRelativeTime language={i18n.language} value={row.original.createdAt} />
+        ),
+        header: t("common.th.time"),
+        meta: { headerClassName: "w-[124px] text-xs" },
+      },
+    ];
+  }, [agents, i18n.language, t]);
 
   return (
     <div>
@@ -152,93 +236,26 @@ export default function TransactionLedgerPage() {
               </div>
             </div>
 
-            {isLoading && txns.length === 0 ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : txns.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">{t("ledger.empty")}</p>
-            ) : (
-              <div className="relative overflow-x-auto">
-                <Table className="table-fixed min-w-[1080px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px] text-xs">{t("common.th.type")}</TableHead>
-                      <TableHead className="w-[136px] text-xs">{t("common.th.amount")}</TableHead>
-                      <TableHead className="w-[176px] text-xs">{t("ledger.th.balance")}</TableHead>
-                      <TableHead className="w-[180px] text-xs">{t("ledger.th.wallet")}</TableHead>
-                      <TableHead className="w-[108px] text-xs">{t("common.th.source")}</TableHead>
-                      <TableHead className="text-xs">{t("ledger.th.detail")}</TableHead>
-                      <TableHead className="w-[124px] text-xs">{t("common.th.time")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {txns.map((tx) => (
-                      <TxRow key={tx.id} tx={tx} agentName={agentMap.get(tx.agentId)} />
-                    ))}
-                  </TableBody>
-                </Table>
-                {isFetching && (
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-primary/40" />
-                )}
-              </div>
-            )}
-
-            <div className="pt-2">
-              <Pagination
-                page={page}
-                onPageChange={setPage}
-                currentCount={txns.length}
-                pageSize={PAGE_SIZE}
-              />
-            </div>
+            <DataTable
+              columns={columns}
+              data={txns}
+              emptyText={t("ledger.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={
+                isLoading
+                  ? { initial: true, fetching: false }
+                  : { initial: false, fetching: isFetching }
+              }
+              manualPagination
+              onPaginationChange={setPagination}
+              pageCount={getHeuristicPageCount(pagination.pageIndex, txns.length, PAGE_SIZE)}
+              pagination={pagination}
+              tableClassName="min-w-[1080px]"
+            />
           </CardContent>
         </Card>
       </div>
     </div>
-  );
-}
-
-// ── Transaction Row ──────────────────────────────────────────────
-
-function TxRow({ tx, agentName }: { tx: PayAgentTransaction; agentName?: string }) {
-  const isCredit = tx.type === "top_up";
-
-  return (
-    <TableRow>
-      <TableCell>
-        <TxTypeBadge type={tx.type} />
-      </TableCell>
-      <TableCell className="font-mono text-xs whitespace-nowrap">
-        <span className={isCredit ? "text-green-600" : "text-red-500"}>
-          {isCredit ? "+" : "-"}
-          {removeTailingZero(tx.amount)} USDC
-        </span>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-        {removeTailingZero(tx.balanceBefore)} → {removeTailingZero(tx.balanceAfter)}
-      </TableCell>
-      <TableCell className="max-w-0 text-xs">
-        <LocaleLink
-          to={`/admin/pay-agents?id=${tx.agentId}`}
-          className="inline-flex max-w-full items-center gap-1 overflow-hidden text-primary hover:underline"
-        >
-          <span className="truncate">{agentName ?? `Agent #${tx.agentId}`}</span>
-          <ExternalLink className="h-3 w-3 shrink-0" />
-        </LocaleLink>
-      </TableCell>
-      <TableCell>
-        <SourceBadge source={tx.source} />
-      </TableCell>
-      <TableCell className="max-w-0 text-xs text-muted-foreground">
-        <TxDetail tx={tx} />
-      </TableCell>
-      <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-        {formatDistanceToNow(new Date(tx.createdAt), { addSuffix: true })}
-      </TableCell>
-    </TableRow>
   );
 }
 
@@ -280,19 +297,19 @@ function TxTypeBadge({ type }: { type: string }) {
     }));
 
   return (
-    <Badge variant="outline" className={`text-xs ${config.className}`}>
+    <DataTableBadge variant="outline" className={config.className}>
       {config.icon}
       {config.label}
-    </Badge>
+    </DataTableBadge>
   );
 }
 
 function SourceBadge({ source }: { source: string }) {
   const { t } = useTranslation();
   return (
-    <Badge variant="outline" className="text-xs">
+    <DataTableBadge variant="outline">
       {source === "on_chain" ? t("ledger.source.on_chain") : t("ledger.source.platform")}
-    </Badge>
+    </DataTableBadge>
   );
 }
 
