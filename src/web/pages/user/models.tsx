@@ -1,24 +1,23 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeft, Brain, Info, Sparkles } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 
 import { useUserModels } from "@/web/api/user-hooks";
 import type { UserModel, UserModelProvider } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
+import {
+  DataTable,
+  DataTableBadge,
+  dataTableMeta,
+  DataTableText,
+} from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { cn } from "@/web/shared/utils";
 
 export default function UserModelsPage() {
@@ -151,6 +150,61 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
 
 function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: () => void }) {
   const { t } = useTranslation();
+  const columns = useMemo<ColumnDef<UserModel>[]>(
+    () => [
+      {
+        accessorKey: "modelId",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.modelId}
+          </DataTableBadge>
+        ),
+        header: t("user-models.th.model-id"),
+      },
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("user-models.th.name"),
+      },
+      {
+        accessorKey: "consumerInputPrice",
+        cell: ({ row }) => (
+          <DataTableText mono numeric>
+            ${row.original.consumerInputPrice}
+          </DataTableText>
+        ),
+        header: t("user-models.th.input-price"),
+        meta: dataTableMeta.right,
+      },
+      {
+        accessorKey: "consumerOutputPrice",
+        cell: ({ row }) => (
+          <DataTableText mono numeric>
+            ${row.original.consumerOutputPrice}
+          </DataTableText>
+        ),
+        header: t("user-models.th.output-price"),
+        meta: dataTableMeta.right,
+      },
+      {
+        id: "capabilities",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1">
+            {row.original.capabilities.map((cap) => (
+              <DataTableBadge key={cap} variant="outline">
+                {cap}
+              </DataTableBadge>
+            ))}
+          </div>
+        ),
+        header: t("user-models.th.capabilities"),
+        meta: dataTableMeta.wrap,
+      },
+    ],
+    [t],
+  );
 
   return (
     <Card>
@@ -178,51 +232,13 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
         </div>
       </CardHeader>
       <CardContent>
-        {provider.models.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">{t("user-models.empty")}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("user-models.th.model-id")}</TableHead>
-                <TableHead>{t("user-models.th.name")}</TableHead>
-                <TableHead>{t("user-models.th.input-price")}</TableHead>
-                <TableHead>{t("user-models.th.output-price")}</TableHead>
-                <TableHead>{t("user-models.th.capabilities")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {provider.models.map((m) => (
-                <ModelRow key={m.modelId} model={m} />
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        <DataTable
+          columns={columns}
+          data={provider.models}
+          emptyText={t("user-models.empty")}
+          tableClassName="min-w-[760px]"
+        />
       </CardContent>
     </Card>
-  );
-}
-
-function ModelRow({ model }: { model: UserModel }) {
-  return (
-    <TableRow>
-      <TableCell>
-        <Badge variant="secondary" className="font-mono text-xs">
-          {model.modelId}
-        </Badge>
-      </TableCell>
-      <TableCell className="font-medium">{model.name}</TableCell>
-      <TableCell className="font-mono text-xs tabular-nums">${model.consumerInputPrice}</TableCell>
-      <TableCell className="font-mono text-xs tabular-nums">${model.consumerOutputPrice}</TableCell>
-      <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {model.capabilities.map((cap) => (
-            <Badge key={cap} variant="outline" className="text-xs">
-              {cap}
-            </Badge>
-          ))}
-        </div>
-      </TableCell>
-    </TableRow>
   );
 }

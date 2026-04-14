@@ -308,7 +308,7 @@ export const userWalletTopupOrderSchema = z.object({
   agentId: z.number(),
   amount: z.string(),
   fiatAmount: z.string().nullable().optional(),
-  fiatCurrency: z.string(),
+  fiatCurrency: z.string().nullable().optional(),
   type: z.enum(["crypto", "fiat"]),
   fiatConfigId: z.number().nullable().optional(),
   fiatConfig: fiatConfigSchema.nullable().optional(),
@@ -327,7 +327,10 @@ export const userWalletTopupOrderSchema = z.object({
 });
 export type UserWalletTopupOrder = z.infer<typeof userWalletTopupOrderSchema>;
 
-export const userWalletTopupOrderListSchema = z.array(userWalletTopupOrderSchema);
+export const userWalletTopupOrderListSchema = z.object({
+  items: z.array(userWalletTopupOrderSchema),
+  total: z.number(),
+});
 export type UserWalletTopupOrderList = z.infer<typeof userWalletTopupOrderListSchema>;
 
 export const verifyDepositResultSchema = z.object({
@@ -349,9 +352,15 @@ export const walletTransactionSchema = z.object({
   txHash: z.string().nullable(),
   network: z.string().nullable(),
   source: z.string(),
-  createdAt: z.string(),
+  createdAt: z.string().or(z.number()),
 });
 export type WalletTransaction = z.infer<typeof walletTransactionSchema>;
+
+export const walletTransactionListSchema = z.object({
+  items: z.array(walletTransactionSchema),
+  total: z.number(),
+});
+export type WalletTransactionList = z.infer<typeof walletTransactionListSchema>;
 
 // ── Withdraw Orders ─────────────────────────────────────────────
 
@@ -379,6 +388,12 @@ export const withdrawOrderSchema = z.object({
   createdAt: z.string(),
 });
 export type WithdrawOrder = z.infer<typeof withdrawOrderSchema>;
+
+export const withdrawOrderListSchema = z.object({
+  items: z.array(withdrawOrderSchema),
+  total: z.number(),
+});
+export type WithdrawOrderList = z.infer<typeof withdrawOrderListSchema>;
 
 export const createWithdrawBody = z.discriminatedUnion("type", [
   z.object({

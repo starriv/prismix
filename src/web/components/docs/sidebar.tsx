@@ -122,7 +122,7 @@ export function DocsSidebarContent({ onNavigate }: { onNavigate?: () => void }) 
 
 export function DocsSidebar() {
   return (
-    <aside className="hidden md:flex h-screen w-64 flex-col border-r bg-card">
+    <aside className="hidden h-full w-64 flex-col border-r bg-card md:flex">
       <DocsSidebarContent />
     </aside>
   );

@@ -1,7 +1,7 @@
 /**
  * Pay Agent transaction repository — ledger records for pay agent balance changes.
  */
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import {
   db,
@@ -62,6 +62,22 @@ export const payAgentTransactionRepo = {
         .limit(limit)
         .offset(offset),
     );
+  },
+
+  async countFiltered(filters: PayAgentTransactionFilters): Promise<number> {
+    const conditions = [];
+    if (filters.agentId) conditions.push(eq(payAgentTransactions.agentId, filters.agentId));
+    if (filters.agentIds?.length)
+      conditions.push(inArray(payAgentTransactions.agentId, filters.agentIds));
+    if (filters.userId) conditions.push(eq(payAgentTransactions.userId, filters.userId));
+    if (filters.type) conditions.push(eq(payAgentTransactions.type, filters.type));
+    if (filters.source) conditions.push(eq(payAgentTransactions.source, filters.source));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const row = await queryOne<{ total: number }>(
+      db.select({ total: count() }).from(payAgentTransactions).where(whereClause),
+    );
+    return row?.total ?? 0;
   },
 
   async deleteByAgentId(agentId: number): Promise<void> {

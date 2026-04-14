@@ -1,8 +1,7 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
-import { ArrowRight, Brain, DollarSign, Hash, Key, Sparkles, Wallet, Zap } from "lucide-react";
+import { ArrowRight, Brain, DollarSign, Hash, Key, Sparkles, Wallet } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import {
@@ -14,20 +13,17 @@ import {
 } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatCard } from "@/web/components/dashboard/stat-card";
+import { DataTable } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Skeleton } from "@/web/components/ui/skeleton";
+
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
-import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
-import { getDateLocale } from "@/web/shared/date-locale";
+  buildUserDashboardDailyColumns,
+  buildUserDashboardRecentRequestColumns,
+} from "./dashboard-columns";
+import { formatUserTokens } from "./table-helpers";
 
 const UserVolumeChart = lazy(() => import("@/web/pages/user/dashboard/volume-chart"));
 
@@ -58,6 +54,11 @@ function UserDashboardContent() {
   const activeKeys = keys.filter((k) => k.status === "active");
   const recentRequests = (logsData?.items ?? []).slice(0, 5);
   const daily7 = useMemo(() => daily.slice(-7), [daily]);
+  const dailyColumns = useMemo(() => buildUserDashboardDailyColumns(t), [t]);
+  const recentRequestColumns = useMemo(
+    () => buildUserDashboardRecentRequestColumns({ language: i18n.language, t }),
+    [i18n.language, t],
+  );
 
   const isEmpty = !summaryLoading && (!summary || summary.totalRequests === 0);
 
@@ -79,7 +80,7 @@ function UserDashboardContent() {
         />
         <StatCard
           title={t("user.dash.requests")}
-          value={summaryLoading ? "\u2014" : formatTokens(summary?.totalRequests ?? 0)}
+          value={summaryLoading ? "\u2014" : formatUserTokens(summary?.totalRequests ?? 0)}
           subtitle={t("user.dash.all-time")}
           icon={Hash}
         />
@@ -117,28 +118,12 @@ function UserDashboardContent() {
                 <CardTitle className="text-sm">{t("user.dash.daily-title")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("user.usage.th.date")}</TableHead>
-                      <TableHead>{t("user.usage.th.requests")}</TableHead>
-                      <TableHead>{t("user.usage.th.tokens")}</TableHead>
-                      <TableHead>{t("user.usage.th.spend")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {daily7.map((row) => (
-                      <TableRow key={row.date}>
-                        <TableCell className="text-xs whitespace-nowrap">
-                          {row.date.slice(0, 10)}
-                        </TableCell>
-                        <TableCell>{row.requests.toLocaleString()}</TableCell>
-                        <TableCell>{Number(row.totalTokens).toLocaleString()}</TableCell>
-                        <TableCell>${removeTailingZero(row.estimatedCost)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={dailyColumns}
+                  data={daily7}
+                  emptyText={t("ai-usage.recent.empty")}
+                  tableClassName="min-w-[420px]"
+                />
               </CardContent>
             </Card>
           )}
@@ -150,43 +135,12 @@ function UserDashboardContent() {
                 <CardTitle>{t("user.dash.recent-title")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("user.logs.th.model")}</TableHead>
-                      <TableHead>{t("user.logs.th.tokens")}</TableHead>
-                      <TableHead>{t("user.logs.th.cost")}</TableHead>
-                      <TableHead>{t("user.logs.th.status")}</TableHead>
-                      <TableHead>{t("user.logs.th.time")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentRequests.map((req) => (
-                      <TableRow key={req.id}>
-                        <TableCell className="font-mono text-xs">
-                          {req.modelId ?? "\u2014"}
-                        </TableCell>
-                        <TableCell className="text-xs tabular-nums">
-                          {formatTokens(req.totalTokens)}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {req.estimatedCost
-                            ? `$${removeTailingZero(req.estimatedCost)}`
-                            : "\u2014"}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge code={req.statusCode} error={null} />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {formatDistanceToNow(new Date(req.createdAt), {
-                            addSuffix: true,
-                            locale: getDateLocale(i18n.language),
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  columns={recentRequestColumns}
+                  data={recentRequests}
+                  emptyText={t("ai-usage.recent.empty")}
+                  tableClassName="min-w-[560px]"
+                />
               </CardContent>
             </Card>
           )}

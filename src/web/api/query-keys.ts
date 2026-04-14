@@ -203,4 +203,9 @@ export const queryKeys = {
     ["user", "wallet-txns", params] as const,
   userWalletWithdrawals: (params?: Record<string, unknown>) =>
     ["user", "wallet-withdrawals", params] as const,
+  userWalletTopupOrdersAll: () => ["user", "wallet-topup-orders"] as const,
+  userWalletTopupOrders: (params?: Record<string, unknown>) =>
+    ["user", "wallet-topup-orders", params] as const,
+  userWalletTopupOrder: (orderId: number) =>
+    ["user", "wallet-topup-orders", "detail", orderId] as const,
 } as const;

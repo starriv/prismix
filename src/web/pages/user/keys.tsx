@@ -1,14 +1,13 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatDistanceToNow } from "date-fns";
 import { Check, Copy, Key, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import type { UserKey } from "@/web/api/schemas";
 import { useCreateUserKey, useRevealUserKey, useUserKeys } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
-import { Badge } from "@/web/components/ui/badge";
+import { DataTable } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -21,16 +20,9 @@ import {
 } from "@/web/components/ui/dialog";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
-import { cn } from "@/web/shared/utils";
+
+import { buildUserKeyColumns } from "./key-columns";
+import { buildKeyStatusColorMap } from "./table-helpers";
 
 export default function UserKeysPage() {
   const { t } = useTranslation();
@@ -58,19 +50,7 @@ export default function UserKeysPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : keys.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t("user.keys.empty")}
-              </p>
-            ) : (
-              <KeyTable keys={keys} />
-            )}
+            <KeyTable keys={keys} loading={isLoading} />
           </CardContent>
         </Card>
 
@@ -200,8 +180,8 @@ function CreateKeyDialog({
 
 // ── Key Table with copy ──────────────────────────────────────────
 
-function KeyTable({ keys }: { keys: UserKey[] }) {
-  const { t } = useTranslation();
+function KeyTable({ keys, loading }: { keys: UserKey[]; loading: boolean }) {
+  const { t, i18n } = useTranslation();
   const revealKey = useRevealUserKey();
 
   const handleCopy = useCallback(
@@ -216,53 +196,26 @@ function KeyTable({ keys }: { keys: UserKey[] }) {
     },
     [revealKey, t],
   );
+  const keyStatusColorMap = useMemo(() => buildKeyStatusColorMap(t), [t]);
+  const columns = useMemo(
+    () =>
+      buildUserKeyColumns({
+        handleCopy,
+        isCopyPending: revealKey.isPending,
+        keyStatusColorMap,
+        language: i18n.language,
+        t,
+      }),
+    [handleCopy, i18n.language, keyStatusColorMap, revealKey.isPending, t],
+  );
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("user.keys.th.name")}</TableHead>
-          <TableHead>{t("user.keys.th.prefix")}</TableHead>
-          <TableHead>{t("user.keys.th.status")}</TableHead>
-          <TableHead>{t("user.keys.th.created")}</TableHead>
-          <TableHead />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {keys.map((k) => (
-          <TableRow key={k.id}>
-            <TableCell className="font-medium">{k.name}</TableCell>
-            <TableCell className="font-mono text-xs">{k.apiKeyPrefix}...</TableCell>
-            <TableCell>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-xs",
-                  k.status === "active"
-                    ? "border-green-500/30 bg-green-500/10 text-green-600"
-                    : "border-yellow-500/30 bg-yellow-500/10 text-yellow-600",
-                )}
-              >
-                {t(`user.keys.status.${k.status}`)}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-xs whitespace-nowrap">
-              {formatDistanceToNow(new Date(k.createdAt), { addSuffix: true })}
-            </TableCell>
-            <TableCell>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => handleCopy(k.id)}
-                disabled={revealKey.isPending}
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <DataTable
+      columns={columns}
+      data={keys}
+      emptyText={t("user.keys.empty")}
+      loading={loading}
+      tableClassName="min-w-[620px]"
+    />
   );
 }

@@ -45,8 +45,8 @@ import {
   userWalletTopupOrderListSchema,
   userWalletTopupOrderSchema,
   verifyDepositResultSchema,
-  walletTransactionSchema,
-  withdrawOrderSchema,
+  walletTransactionListSchema,
+  withdrawOrderListSchema,
 } from "./schemas";
 import type {
   CreateWalletTopupBody,
@@ -260,14 +260,14 @@ export function useCreateWalletTopup() {
         userWalletTopupOrderSchema,
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+      qc.invalidateQueries({ queryKey: queryKeys.userWalletTopupOrdersAll() });
     },
   });
 }
 
 export function useWalletTopupOrder(orderId: number | null, enabled = true) {
   return useQuery({
-    queryKey: [...queryKeys.userWalletDepositInfo(), "topup-order", orderId ?? 0],
+    queryKey: queryKeys.userWalletTopupOrder(orderId ?? 0),
     queryFn: () => userGet(apiUserWalletTopupOrder(orderId!), userWalletTopupOrderSchema),
     enabled: enabled && orderId !== null,
     refetchInterval: (query) => {
@@ -291,13 +291,14 @@ export function useWalletTopupOrders(params?: {
   const qs = searchParams.toString();
 
   return useQuery({
-    queryKey: ["user", "wallet-topup-orders", params ?? {}],
+    queryKey: queryKeys.userWalletTopupOrders(params ?? {}),
     queryFn: () =>
       userGet(
         `${API_USER_WALLET_TOPUP_ORDERS}${qs ? `?${qs}` : ""}`,
         userWalletTopupOrderListSchema,
       ),
     enabled: params?.enabled ?? true,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -309,7 +310,7 @@ export function useVerifyDeposit() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.userWallet() });
       qc.invalidateQueries({ queryKey: queryKeys.userWalletTransactions() });
-      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+      qc.invalidateQueries({ queryKey: queryKeys.userWalletTopupOrdersAll() });
     },
   });
 }
@@ -320,9 +321,9 @@ export function useSubmitFiatTopupProof() {
     mutationFn: ({ id, ...body }: SubmitFiatTopupProofBody & { id: number }) =>
       userPut(apiUserWalletTopupProof(id), body, userWalletTopupOrderSchema),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+      qc.invalidateQueries({ queryKey: queryKeys.userWalletTopupOrdersAll() });
       qc.invalidateQueries({
-        queryKey: [...queryKeys.userWalletDepositInfo(), "topup-order", vars.id],
+        queryKey: queryKeys.userWalletTopupOrder(vars.id),
       });
     },
   });
@@ -337,10 +338,7 @@ export function useWalletTransactions(params?: { type?: string; limit?: number; 
   return useQuery({
     queryKey: queryKeys.userWalletTransactions(params),
     queryFn: () =>
-      userGet(
-        `${API_USER_WALLET_TRANSACTIONS}${qs ? `?${qs}` : ""}`,
-        z.array(walletTransactionSchema),
-      ),
+      userGet(`${API_USER_WALLET_TRANSACTIONS}${qs ? `?${qs}` : ""}`, walletTransactionListSchema),
     placeholderData: keepPreviousData,
   });
 }
@@ -375,6 +373,7 @@ export function useWalletWithdrawals(params?: {
   return useQuery({
     queryKey: queryKeys.userWalletWithdrawals(params),
     queryFn: () =>
-      userGet(`${API_USER_WALLET_WITHDRAWALS}${qs ? `?${qs}` : ""}`, z.array(withdrawOrderSchema)),
+      userGet(`${API_USER_WALLET_WITHDRAWALS}${qs ? `?${qs}` : ""}`, withdrawOrderListSchema),
+    placeholderData: keepPreviousData,
   });
 }

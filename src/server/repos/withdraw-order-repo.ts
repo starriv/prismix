@@ -58,6 +58,19 @@ export const withdrawOrderRepo = {
     );
   },
 
+  async countByUser(userId: number, excludeStatus?: string): Promise<number> {
+    const conditions = [eq(withdrawOrders.userId, userId)];
+    if (excludeStatus) conditions.push(ne(withdrawOrders.status, excludeStatus));
+
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(withdrawOrders)
+        .where(and(...conditions)),
+    );
+    return row?.total ?? 0;
+  },
+
   async findAll(opts?: {
     status?: string;
     userUuid?: string;
@@ -111,7 +124,7 @@ export const withdrawOrderRepo = {
           ...(opts?.reviewedBy != null && { reviewedBy: opts.reviewedBy, reviewedAt: now }),
           updatedAt: now,
         })
-        .where(eq(withdrawOrders.id, id)),
+        .where(and(eq(withdrawOrders.id, id), eq(withdrawOrders.status, "pending"))),
     );
   },
 

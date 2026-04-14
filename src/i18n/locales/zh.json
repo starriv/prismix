@@ -23,6 +23,7 @@
       "suspended": "已暂停"
     },
     "th": {
+      "id": "ID",
       "type": "类型",
       "amount": "金额",
       "status": "状态",
@@ -30,7 +31,8 @@
       "name": "名称",
       "source": "来源",
       "network": "网络",
-      "token": "代币"
+      "token": "代币",
+      "remark": "备注"
     },
     "btn": {
       "confirm": "确认",
@@ -54,9 +56,18 @@
       "wrong-network": "网络错误"
     },
     "pagination": {
+      "first": "第一页",
+      "last": "最后一页",
       "prev": "上一页",
       "next": "下一页",
-      "page": "第 {{page}} 页"
+      "page": "第 {{page}} 页",
+      "rowsPerPage": "每页行数"
+    },
+    "table": {
+      "columns": "列",
+      "hide": "隐藏",
+      "sortAsc": "升序",
+      "sortDesc": "降序"
     },
     "mobile": {
       "open-menu": "打开菜单"

@@ -120,7 +120,7 @@ export function UserSidebarContent({ onNavigate }: { onNavigate?: () => void }) 
 
 export function UserSidebar() {
   return (
-    <aside className="hidden md:flex h-screen w-64 flex-col border-r bg-card">
+    <aside className="hidden h-full w-64 flex-col border-r bg-card md:flex">
       <UserSidebarContent />
     </aside>
   );

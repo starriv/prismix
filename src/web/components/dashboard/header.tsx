@@ -15,7 +15,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   const { currentLang, toggleLang } = useLanguageSwitch();
 
   return (
-    <div className="flex items-center justify-between border-b px-4 py-4 md:px-8 md:py-5">
+    <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b bg-background px-4 py-4 md:px-8 md:py-5">
       <div className="min-w-0">
         <h2 className="truncate text-lg font-semibold tracking-tight md:text-xl">{title}</h2>
         {description && (

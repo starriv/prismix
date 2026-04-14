@@ -1,9 +1,15 @@
-import { Badge } from "@/web/components/ui/badge";
-import { cn } from "@/web/shared/utils";
+import { DataTableBadge } from "@/web/components/data-table";
+
+export interface StatusBadgeConfig {
+  className: string;
+  label: string;
+}
+
+export type StatusBadgeColorMap = Record<string, StatusBadgeConfig>;
 
 interface StatusBadgeProps {
   status: string;
-  colorMap: Record<string, { label: string; className: string }>;
+  colorMap: StatusBadgeColorMap;
   fallbackLabel?: string;
 }
 
@@ -14,8 +20,8 @@ export function StatusBadge({ status, colorMap, fallbackLabel }: StatusBadgeProp
   };
 
   return (
-    <Badge variant="outline" className={cn("text-xs", config.className)}>
+    <DataTableBadge variant="outline" className={config.className}>
       {config.label}
-    </Badge>
+    </DataTableBadge>
   );
 }

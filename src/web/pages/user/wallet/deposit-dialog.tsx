@@ -168,12 +168,14 @@ export function DepositDialog({
     limit: 1,
     enabled: open,
   });
+  const refetchPendingOrders = pendingOrders.refetch;
   const resolvedOrderId = orderId ?? (dismissedInitialOrder ? null : initialOrderId) ?? null;
   const topupOrder = useWalletTopupOrder(resolvedOrderId, open);
+  const activeTopupOrder = topupOrder.data;
 
-  const activeOrder = topupOrder.data ?? null;
+  const activeOrder = activeTopupOrder ?? null;
   const blockingPendingOrder =
-    pendingOrders.data?.find((pendingOrder) => pendingOrder.status === "pending") ?? null;
+    pendingOrders.data?.items.find((pendingOrder) => pendingOrder.status === "pending") ?? null;
   const effectiveNetwork = activeOrder?.network ?? network;
   const depositAddress = activeOrder?.toAddress ?? depositInfo?.address ?? "";
   const selectedNetwork = useMemo(
@@ -219,15 +221,14 @@ export function DepositDialog({
   );
 
   useEffect(() => {
-    const data = topupOrder.data;
-    if (data?.status !== "confirmed" || !data.id) return;
-    if (confirmedRef.current === data.id) return;
-    confirmedRef.current = data.id;
+    if (activeTopupOrder?.status !== "confirmed" || !activeTopupOrder.id) return;
+    if (confirmedRef.current === activeTopupOrder.id) return;
+    confirmedRef.current = activeTopupOrder.id;
 
     qc.invalidateQueries({ queryKey: queryKeys.userWallet() });
     qc.invalidateQueries({ queryKey: queryKeys.userWalletTransactions() });
-    toast.success(t("user.wallet.deposit-auto-confirmed", { amount: data.amount }));
-  }, [topupOrder.data?.id, topupOrder.data?.status, topupOrder.data?.amount, qc, t]);
+    toast.success(t("user.wallet.deposit-auto-confirmed", { amount: activeTopupOrder.amount }));
+  }, [activeTopupOrder, qc, t]);
 
   const handleCopy = useCallback(async () => {
     if (!depositAddress) return;
@@ -266,11 +267,11 @@ export function DepositDialog({
       toast.success(t("user.wallet.deposit-order-created"));
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        await pendingOrders.refetch();
+        await refetchPendingOrders();
       }
       toast.error(err instanceof Error ? err.message : t("user.wallet.deposit-order-failed"));
     }
-  }, [amount, network, createTopup, isAmountValid, t, pendingOrders.refetch]);
+  }, [amount, network, createTopup, isAmountValid, t, refetchPendingOrders]);
 
   const handleVerify = useCallback(async () => {
     if (!txHash || !effectiveNetwork) return;

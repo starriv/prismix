@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
@@ -5,23 +6,21 @@ import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
 import { formatPercent, removeTailingZero } from "@/shared/number";
 import { useUserUsageDaily, useUserUsageSummary } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
+import { DataTable } from "@/web/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Skeleton } from "@/web/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/web/components/ui/table";
 import { DailyTrendChart, ModelDistributionChart } from "@/web/pages/ai-usage/charts";
-import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
+import { StatCard } from "@/web/pages/ai-usage/helpers";
+
+import { formatUserTokens } from "./table-helpers";
+import { buildUserUsageModelColumns, buildUserUsageProviderColumns } from "./usage-columns";
 
 export default function UserUsagePage() {
   const { t } = useTranslation();
   const { data: summary, isLoading: summaryLoading } = useUserUsageSummary();
   const { data: daily = [], isLoading: dailyLoading } = useUserUsageDaily(30);
+  const providerColumns = useMemo(() => buildUserUsageProviderColumns(t), [t]);
+  const modelColumns = useMemo(() => buildUserUsageModelColumns(t), [t]);
 
   return (
     <div>
@@ -39,19 +38,19 @@ export default function UserUsagePage() {
           <StatCard
             icon={Cpu}
             label={t("ai-usage.stats.input-tokens")}
-            value={formatTokens(summary?.totalInputTokens ?? 0)}
+            value={formatUserTokens(summary?.totalInputTokens ?? 0)}
             loading={summaryLoading}
           />
           <StatCard
             icon={Cpu}
             label={t("ai-usage.stats.output-tokens")}
-            value={formatTokens(summary?.totalOutputTokens ?? 0)}
+            value={formatUserTokens(summary?.totalOutputTokens ?? 0)}
             loading={summaryLoading}
           />
           <StatCard
             icon={BarChart3}
             label={t("ai-usage.stats.total-tokens")}
-            value={formatTokens(summary?.totalTokens ?? 0)}
+            value={formatUserTokens(summary?.totalTokens ?? 0)}
             loading={summaryLoading}
           />
           <StatCard
@@ -114,40 +113,12 @@ export default function UserUsagePage() {
               <CardTitle className="text-sm">{t("ai-usage.by-provider.title")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("ai-usage.th.provider")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.requests")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.input")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.output")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.total")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.byProvider.map((row) => (
-                    <TableRow key={row.providerId}>
-                      <TableCell className="text-sm font-medium">{row.providerId}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {row.requests}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.inputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.outputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.totalTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        ${removeTailingZero(row.estimatedCost, 4)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={providerColumns}
+                data={summary.byProvider}
+                emptyText={t("ai-usage.recent.empty")}
+                tableClassName="min-w-[720px]"
+              />
             </CardContent>
           </Card>
         )}
@@ -159,42 +130,12 @@ export default function UserUsagePage() {
               <CardTitle className="text-sm">{t("ai-usage.by-model.title")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("ai-usage.th.provider")}</TableHead>
-                    <TableHead>{t("ai-usage.th.model")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.requests")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.input")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.output")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.total")}</TableHead>
-                    <TableHead className="text-right">{t("ai-usage.th.cost")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.byModel.map((row) => (
-                    <TableRow key={`${row.providerId}-${row.modelId}`}>
-                      <TableCell className="text-sm font-medium">{row.providerId}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.modelId}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {row.requests}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.inputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.outputTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        {formatTokens(row.totalTokens)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
-                        ${removeTailingZero(row.estimatedCost, 4)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={modelColumns}
+                data={summary.byModel}
+                emptyText={t("ai-usage.recent.empty")}
+                tableClassName="min-w-[860px]"
+              />
             </CardContent>
           </Card>
         )}

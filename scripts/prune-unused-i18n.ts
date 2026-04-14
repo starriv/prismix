@@ -187,7 +187,12 @@ function collectUsages(files: string[]) {
         collectFromExpression(node.arguments[0], exact, patterns);
       }
 
-      if (ts.isJsxAttribute(node) && KEY_ATTRS.has(node.name.text) && node.initializer) {
+      if (
+        ts.isJsxAttribute(node) &&
+        ts.isIdentifier(node.name) &&
+        KEY_ATTRS.has(node.name.text) &&
+        node.initializer
+      ) {
         if (ts.isStringLiteral(node.initializer)) {
           addExact(exact, node.initializer.text);
         } else if (

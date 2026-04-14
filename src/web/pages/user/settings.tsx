@@ -153,9 +153,9 @@ export default function UserSettingsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">{t("user.settings.wallet-title")}</CardTitle>
-            <CardDescription>{t("user.settings.wallet-desc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <CardDescription className="-mt-1">{t("user.settings.wallet-desc")}</CardDescription>
             <div>
               <Label>{t("user.settings.wallet-address")}</Label>
               {wallet?.address ? (

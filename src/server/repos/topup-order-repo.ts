@@ -15,7 +15,8 @@ import {
 } from "@/server/db";
 
 /** All columns except `paymentProof` — avoids transferring up to 5 MB base64 in list queries. */
-const { paymentProof: _pp, ...topUpOrderListColumns } = getTableColumns(topUpOrders);
+const { paymentProof, ...topUpOrderListColumns } = getTableColumns(topUpOrders);
+void paymentProof;
 
 export const topupOrderRepo = {
   async findById(id: number): Promise<TopUpOrder | undefined> {
@@ -78,6 +79,19 @@ export const topupOrderRepo = {
 
     const row = await queryOne<{ total: number }>(
       db.select({ total: count() }).from(topUpOrders).where(whereClause),
+    );
+    return row?.total ?? 0;
+  },
+
+  async countByAgent(agentId: number, status?: string): Promise<number> {
+    const conditions = [eq(topUpOrders.agentId, agentId)];
+    if (status) conditions.push(eq(topUpOrders.status, status));
+
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(topUpOrders)
+        .where(and(...conditions)),
     );
     return row?.total ?? 0;
   },

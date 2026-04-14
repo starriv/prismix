@@ -6,7 +6,6 @@
  */
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { compact, keyBy, uniq } from "lodash-es";
 import type { Address } from "viem";
 import { formatUnits } from "viem";
 
@@ -99,10 +98,6 @@ const getFiatConfigCurrency = parseFiatConfigCurrency;
 
 /** Batch-serialize a list of orders — single query for all fiat configs to avoid N+1. */
 async function serializeTopupOrders(orders: TopUpOrder[]) {
-  const fiatConfigIds = compact(uniq(orders.map((o) => o.fiatConfigId)));
-  const configMap =
-    fiatConfigIds.length > 0 ? keyBy(await fiatConfigRepo.findByIds(fiatConfigIds), "id") : {};
-
   return orders.map((order) => ({
     ...order,
     fiatConfig: null,
@@ -307,8 +302,15 @@ wallet.get("/topup", async (c) => {
   const offset = parsePaginationOffset(c.req.query("offset"));
   const status = c.req.query("status") || undefined;
 
-  const orders = await topupOrderRepo.findByAgent(agentId, { status, limit, offset });
-  return ok(c, await serializeTopupOrders(orders));
+  const [orders, total] = await Promise.all([
+    topupOrderRepo.findByAgent(agentId, { status, limit, offset }),
+    topupOrderRepo.countByAgent(agentId, status),
+  ]);
+
+  return ok(c, {
+    items: await serializeTopupOrders(orders),
+    total,
+  });
 });
 
 // ── POST /deposit/verify — manual txHash verification ───────────────
@@ -473,8 +475,13 @@ wallet.get("/transactions", async (c) => {
   const offset = parsePaginationOffset(c.req.query("offset"));
   const type = c.req.query("type") || undefined;
 
-  const transactions = await payAgentTransactionRepo.findFiltered({ agentId, type }, limit, offset);
-  return ok(c, transactions);
+  const filters = { agentId, type };
+  const [transactions, total] = await Promise.all([
+    payAgentTransactionRepo.findFiltered(filters, limit, offset),
+    payAgentTransactionRepo.countFiltered(filters),
+  ]);
+
+  return ok(c, { items: transactions, total });
 });
 
 // ── POST /withdraw — submit withdrawal request (pending admin approval) ──
@@ -573,12 +580,16 @@ wallet.get("/withdrawals", async (c) => {
   const offset = parsePaginationOffset(c.req.query("offset"));
   const excludeStatus = c.req.query("excludeStatus");
 
-  const orders = await withdrawOrderRepo.findByUser(session.userId, {
-    excludeStatus,
-    limit,
-    offset,
-  });
-  return ok(c, orders);
+  const [orders, total] = await Promise.all([
+    withdrawOrderRepo.findByUser(session.userId, {
+      excludeStatus,
+      limit,
+      offset,
+    }),
+    withdrawOrderRepo.countByUser(session.userId, excludeStatus),
+  ]);
+
+  return ok(c, { items: orders, total });
 });
 
 // ── Error handler ───────────────────────────────────────────────────

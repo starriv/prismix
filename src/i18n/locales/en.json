@@ -23,6 +23,7 @@
       "suspended": "Suspended"
     },
     "th": {
+      "id": "ID",
       "type": "Type",
       "amount": "Amount",
       "status": "Status",
@@ -30,7 +31,8 @@
       "name": "Name",
       "source": "Source",
       "network": "Network",
-      "token": "Token"
+      "token": "Token",
+      "remark": "Remark"
     },
     "btn": {
       "confirm": "Confirm",
@@ -54,9 +56,18 @@
       "wrong-network": "Wrong Network"
     },
     "pagination": {
+      "first": "First page",
+      "last": "Last page",
       "prev": "Previous",
       "next": "Next",
-      "page": "Page {{page}}"
+      "page": "Page {{page}}",
+      "rowsPerPage": "Rows per page"
+    },
+    "table": {
+      "columns": "Columns",
+      "hide": "Hide",
+      "sortAsc": "Ascending",
+      "sortDesc": "Descending"
     },
     "mobile": {
       "open-menu": "Open menu"

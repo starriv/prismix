@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 
@@ -22,8 +22,17 @@ export function SidebarLayout({ sidebar, mobileSidebar, trailing }: SidebarLayou
   const { isMobile, isOpen, toggle, close } = useMobileSidebar();
   const { toggleLang } = useLanguageSwitch();
 
+  // Prevent page-level scroll — all scrolling happens inside <main>
+  useEffect(() => {
+    const html = document.documentElement;
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = "";
+    };
+  }, []);
+
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Skip-to-content link — visible only on keyboard focus */}
       <a
         href="#main-content"
@@ -34,7 +43,7 @@ export function SidebarLayout({ sidebar, mobileSidebar, trailing }: SidebarLayou
 
       {sidebar}
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isMobile && (
           <div className="flex items-center justify-between border-b bg-background px-4 py-3">
             <Button
@@ -61,7 +70,10 @@ export function SidebarLayout({ sidebar, mobileSidebar, trailing }: SidebarLayou
           </div>
         )}
 
-        <main id="main-content" className="flex-1 overflow-auto">
+        <main
+          id="main-content"
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+        >
           <Outlet />
         </main>
       </div>
