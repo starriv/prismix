@@ -74,7 +74,8 @@ export const withdrawOrders = s.withdrawOrders;
 export const keyProviders = s.keyProviders;
 export const keyProviderTransactions = s.keyProviderTransactions;
 export const aiProviders = s.aiProviders;
-export const aiProviderUpstreams = s.aiProviderUpstreams;
+export const aiUpstreams = s.aiUpstreams;
+export const aiUpstreamAssignments = s.aiUpstreamAssignments;
 export const aiModels = s.aiModels;
 export const aiKeys = s.aiKeys;
 export const aiGuardrailConfigs = s.aiGuardrailConfigs;
@@ -89,7 +90,8 @@ export type {
   AiKey,
   AiModel,
   AiProvider,
-  AiProviderUpstream,
+  AiUpstream,
+  AiUpstreamAssignment,
   AiUsageLog,
   AllowedToken,
   Announcement,
@@ -104,7 +106,8 @@ export type {
   NewAiKey,
   NewAiModel,
   NewAiProvider,
-  NewAiProviderUpstream,
+  NewAiUpstream,
+  NewAiUpstreamAssignment,
   NewAiUsageLog,
   NewAllowedToken,
   NewAnnouncement,

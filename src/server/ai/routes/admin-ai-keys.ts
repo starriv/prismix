@@ -12,7 +12,13 @@ import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiProviderRepo, aiProviderUpstreamRepo, keyProviderRepo } from "@/server/repos";
+import {
+  aiKeyRepo,
+  aiProviderRepo,
+  aiUpstreamAssignmentRepo,
+  aiUpstreamRepo,
+  keyProviderRepo,
+} from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
@@ -44,7 +50,7 @@ router.get("/keys", async (c) => {
 
   const upstreamIds = compact(uniq(keys.map((k) => k.upstreamId))) as number[];
   const upstreamMap = new Map<number, { name: string; upstreamId: string }>();
-  const upstreamRows = await aiProviderUpstreamRepo.findByIds(upstreamIds);
+  const upstreamRows = await aiUpstreamRepo.findByIds(upstreamIds);
   for (const u of upstreamRows) {
     upstreamMap.set(u.id, { name: u.name, upstreamId: u.upstreamId });
   }
@@ -73,9 +79,20 @@ router.post("/keys", async (c) => {
   }
 
   if (upstreamId != null) {
-    const upstream = await aiProviderUpstreamRepo.findById(upstreamId);
-    if (!upstream || upstream.providerId !== providerId || !upstream.enabled) {
-      return c.json({ error: "Upstream not found, disabled, or does not belong to provider" }, 400);
+    const upstream = await aiUpstreamRepo.findById(upstreamId);
+    if (!upstream || !upstream.enabled) {
+      return c.json({ error: "Upstream not found or disabled" }, 400);
+    }
+    // Verify the upstream is assigned to this provider
+    const assignment = await aiUpstreamAssignmentRepo.findByProviderAndUpstreamId(
+      providerId,
+      upstreamId,
+    );
+    if (!assignment || !assignment.enabled) {
+      return c.json(
+        { error: "Upstream not assigned to this provider or assignment is disabled" },
+        400,
+      );
     }
   }
 
@@ -114,9 +131,20 @@ router.put("/keys/:id", async (c) => {
   if (!parsed.ok) return parsed.response;
 
   if (parsed.data.upstreamId != null) {
-    const upstream = await aiProviderUpstreamRepo.findById(parsed.data.upstreamId);
-    if (!upstream || upstream.providerId !== existing.providerId || !upstream.enabled) {
-      return c.json({ error: "Upstream not found, disabled, or does not belong to provider" }, 400);
+    const upstream = await aiUpstreamRepo.findById(parsed.data.upstreamId);
+    if (!upstream || !upstream.enabled) {
+      return c.json({ error: "Upstream not found or disabled" }, 400);
+    }
+    // Verify the upstream is assigned to this provider
+    const assignment = await aiUpstreamAssignmentRepo.findByProviderAndUpstreamId(
+      existing.providerId,
+      parsed.data.upstreamId,
+    );
+    if (!assignment || !assignment.enabled) {
+      return c.json(
+        { error: "Upstream not assigned to this provider or assignment is disabled" },
+        400,
+      );
     }
   }
 
@@ -179,7 +207,19 @@ router.post("/keys/:id/test", async (c) => {
 
   const start = Date.now();
   try {
-    const upstream = key.upstreamId ? await aiProviderUpstreamRepo.findById(key.upstreamId) : null;
+    const upstream = key.upstreamId ? await aiUpstreamRepo.findById(key.upstreamId) : null;
+    if (key.upstreamId != null) {
+      const assignment = await aiUpstreamAssignmentRepo.findByProviderAndUpstreamId(
+        key.providerId,
+        key.upstreamId,
+      );
+      if (!upstream || !upstream.enabled || !assignment || !assignment.enabled) {
+        return c.json(
+          { success: false, error: "Bound upstream is unavailable for this provider" },
+          400,
+        );
+      }
+    }
     const baseUrl = upstream?.baseUrl ?? provider.baseUrl;
     const { headers, url } = buildProviderAuth(provider, plainKey, `${baseUrl}/models`);
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });

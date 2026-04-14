@@ -1,0 +1,25 @@
+{
+  "id": "prismix-env-001",
+  "name": "Prismix Local",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3456/api",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "consumerApiKey",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}

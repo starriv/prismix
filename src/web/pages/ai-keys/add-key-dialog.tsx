@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { useAiProviderUpstreams, useCreateAiKey } from "@/web/api/hooks";
+import { useAiProviderAssignments, useCreateAiKey } from "@/web/api/hooks";
 import type { AiProvider, KeyProvider } from "@/web/api/schemas";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -92,7 +92,11 @@ export function AddKeyDialog({
   const watchedProviderId = form.watch("providerId");
   const selectedProvider = providers.find((p) => p.id === watchedProviderId);
   const isSigV4 = selectedProvider?.authType === "sigv4";
-  const { data: upstreams = [] } = useAiProviderUpstreams(watchedProviderId);
+  const { data: assignments = [] } = useAiProviderAssignments(watchedProviderId);
+  const availableAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.enabled && assignment.upstream.enabled),
+    [assignments],
+  );
 
   useEffect(() => {
     form.setValue("upstreamId", null);
@@ -160,9 +164,12 @@ export function AddKeyDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="legacy">{t("ai.form.upstream-legacy")}</SelectItem>
-                        {upstreams.map((upstream) => (
-                          <SelectItem key={upstream.id} value={String(upstream.id)}>
-                            {upstream.name}
+                        {availableAssignments.map((assignment) => (
+                          <SelectItem
+                            key={assignment.upstream.id}
+                            value={String(assignment.upstream.id)}
+                          >
+                            {assignment.upstream.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

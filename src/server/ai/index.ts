@@ -34,6 +34,7 @@ export { default as adminAiRouter } from "./routes/admin-ai";
 export { default as adminAiProvidersRouter } from "./routes/admin-ai-providers";
 export { default as adminAiModelsRouter } from "./routes/admin-ai-models";
 export { default as adminAiKeysRouter } from "./routes/admin-ai-keys";
+export { default as adminAiUpstreamsRouter } from "./routes/admin-ai-upstreams";
 export { default as aiRelayRouter } from "./routes/relay";
 export { default as aiMcpRouter } from "./routes/mcp";
 export { default as consumerRelayRouter } from "./routes/consumer-relay";

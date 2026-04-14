@@ -1,25 +1,26 @@
 /**
- * AI provider CRUD routes.
+ * AI provider CRUD + upstream assignment routes.
  * Mounted under /api/admin/ai (auth applied by parent).
  */
 import { Hono } from "hono";
 
+import { emit } from "@/server/events";
 import {
   createAiProviderBody,
-  createAiProviderUpstreamBody,
+  createAiUpstreamAssignmentBody,
   updateAiProviderBody,
-  updateAiProviderUpstreamBody,
+  updateAiUpstreamAssignmentBody,
 } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiProviderRepo, aiProviderUpstreamRepo, aiUsageLogRepo } from "@/server/repos";
+import { aiProviderRepo, aiUpstreamAssignmentRepo, aiUpstreamRepo } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { seedDefaultProviders } from "../lib/seed-providers";
 import { invalidateUpstreamCache } from "../lib/upstream-routing";
-import { formatProvider, formatProviderUpstream } from "./admin-ai-helpers";
+import { formatProvider, formatUpstream } from "./admin-ai-helpers";
 
 const router = new Hono();
 
@@ -35,98 +36,17 @@ router.get("/providers", async (c) => {
     all = await aiProviderRepo.findAll();
   }
 
-  return ok(c, all.map(formatProvider));
-});
+  const counts = await aiUpstreamAssignmentRepo.countByProviderIds(
+    all.map((provider) => provider.id),
+  );
 
-router.get("/upstreams/overview", async (c) => {
-  getAdminSession(c);
-  const hours = Math.min(Math.max(Number(c.req.query("hours")) || 24, 1), 24 * 30);
-  const providers = await aiProviderRepo.findAll();
-  const providerMap = new Map(providers.map((provider) => [provider.id, provider]));
-  const upstreams = await Promise.all(
-    providers.map((provider) => aiProviderUpstreamRepo.findByProviderId(provider.id)),
-  ).then((groups) => groups.flat());
-
-  const upstreamIds = upstreams.map((upstream) => upstream.id);
-  const keyCounts = await aiKeyRepo.countByUpstreamIds(upstreamIds);
-  const keyCountMap = new Map(keyCounts.map((row) => [row.upstreamId, row]));
-  const usageRows = await aiUsageLogRepo.upstreamOverview(hours);
-  const usageMap = new Map(usageRows.map((row) => [row.upstreamId, row]));
-
-  const latestMap = await aiUsageLogRepo.findLatestByUpstreamIds(upstreamIds);
-
-  const items = upstreams.map((upstream) => {
-    const provider = providerMap.get(upstream.providerId);
-    const keyStat = keyCountMap.get(upstream.id);
-    const usage = usageMap.get(upstream.id);
-    const latest = latestMap.get(upstream.id);
-    const totalErrors = (usage?.clientErrors24h ?? 0) + (usage?.serverErrors24h ?? 0);
-    const errorRate24h = usage && usage.requests24h > 0 ? totalErrors / usage.requests24h : 0;
-
-    let healthStatus: "healthy" | "degraded" | "idle" | "no-key" | "disabled";
-    if (!upstream.enabled) {
-      healthStatus = "disabled";
-    } else if ((keyStat?.enabledKeys ?? 0) === 0) {
-      healthStatus = "no-key";
-    } else if (!usage || usage.requests24h === 0) {
-      healthStatus = "idle";
-    } else if ((usage.serverErrors24h ?? 0) > 0 || errorRate24h >= 0.2) {
-      healthStatus = "degraded";
-    } else {
-      healthStatus = "healthy";
-    }
-
-    return {
-      id: upstream.id,
-      providerDbId: upstream.providerId,
-      providerId: provider?.providerId ?? null,
-      providerName: provider?.name ?? null,
-      name: upstream.name,
-      upstreamId: upstream.upstreamId,
-      baseUrl: upstream.baseUrl,
-      kind: upstream.kind,
-      enabled: upstream.enabled,
-      priority: upstream.priority,
-      weight: upstream.weight,
-      totalKeys: keyStat?.totalKeys ?? 0,
-      enabledKeys: keyStat?.enabledKeys ?? 0,
-      requests24h: usage?.requests24h ?? 0,
-      clientErrors24h: usage?.clientErrors24h ?? 0,
-      serverErrors24h: usage?.serverErrors24h ?? 0,
-      totalTokens24h: usage?.totalTokens24h ?? 0,
-      avgLatencyMs24h: usage?.avgLatencyMs24h ?? 0,
-      errorRate24h,
-      lastSeenAt: usage?.lastSeenAt ?? null,
-      lastStatusCode: latest?.statusCode ?? null,
-      lastError: latest?.error ?? null,
-      healthStatus,
-      updatedAt: upstream.updatedAt,
-      createdAt: upstream.createdAt,
-    };
-  });
-
-  return ok(c, {
-    totals: {
-      totalUpstreams: items.length,
-      enabledUpstreams: items.filter((item) => item.enabled).length,
-      activeUpstreams24h: items.filter((item) => item.requests24h > 0).length,
-      degradedUpstreams24h: items.filter((item) => item.healthStatus === "degraded").length,
-    },
-    upstreams: items,
-  });
-});
-
-router.get("/upstreams/:id/recent", async (c) => {
-  getAdminSession(c);
-  const id = Number(c.req.param("id"));
-  if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
-
-  const upstream = await aiProviderUpstreamRepo.findById(id);
-  if (!upstream) return c.json({ error: "Upstream not found" }, 404);
-
-  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 10, 1), 50);
-  const logs = await aiUsageLogRepo.findAll(limit, 0, { upstreamId: id });
-  return ok(c, logs);
+  return ok(
+    c,
+    all.map((provider) => ({
+      ...formatProvider(provider),
+      upstreamCount: counts.get(provider.id) ?? 0,
+    })),
+  );
 });
 
 router.post("/providers", async (c) => {
@@ -163,6 +83,18 @@ router.put("/providers/:id", async (c) => {
   if (authConfig !== undefined) updates.authConfig = JSON.stringify(authConfig);
 
   const updated = await aiProviderRepo.update(id, updates);
+
+  if (
+    parsed.data.baseUrl !== undefined ||
+    parsed.data.upstreamRoutingStrategy !== undefined ||
+    parsed.data.loadBalanceStrategy !== undefined
+  ) {
+    invalidateUpstreamCache(id);
+    invalidateKeyPool(id);
+    emit("ai.upstream-cache-invalidated", null, { providerId: id });
+    emit("ai.key-pool-invalidated", null, { providerId: id });
+  }
+
   return ok(c, formatProvider(updated!));
 });
 
@@ -179,6 +111,8 @@ router.delete("/providers/:id", async (c) => {
   return ok(c, { success: true });
 });
 
+// ── Provider ↔ Upstream Assignments ──────────────────────────────────
+
 router.get("/providers/:id/upstreams", async (c) => {
   getAdminSession(c);
   const id = Number(c.req.param("id"));
@@ -187,8 +121,20 @@ router.get("/providers/:id/upstreams", async (c) => {
   const provider = await aiProviderRepo.findById(id);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
-  const rows = await aiProviderUpstreamRepo.findByProviderId(id);
-  return ok(c, rows.map(formatProviderUpstream));
+  const assignments = await aiUpstreamAssignmentRepo.findByProviderId(id);
+  return ok(
+    c,
+    assignments.map((a) => ({
+      id: a.id,
+      providerId: a.providerId,
+      upstream: formatUpstream(a.upstream),
+      priority: a.priority,
+      weight: a.weight,
+      enabled: a.enabled,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+    })),
+  );
 });
 
 router.post("/providers/:id/upstreams", async (c) => {
@@ -199,86 +145,94 @@ router.post("/providers/:id/upstreams", async (c) => {
   const provider = await aiProviderRepo.findById(id);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
-  const parsed = await parseBody(c, createAiProviderUpstreamBody);
+  const parsed = await parseBody(c, createAiUpstreamAssignmentBody);
   if (!parsed.ok) return parsed.response;
 
-  const existing = await aiProviderUpstreamRepo.findByProviderAndUpstreamId(
+  const upstream = await aiUpstreamRepo.findById(parsed.data.upstreamId);
+  if (!upstream) return c.json({ error: "Upstream not found" }, 404);
+
+  const existing = await aiUpstreamAssignmentRepo.findByProviderAndUpstreamId(
     id,
     parsed.data.upstreamId,
   );
-  if (existing) return c.json({ error: "Upstream ID already exists for this provider" }, 409);
+  if (existing) return c.json({ error: "Upstream already assigned to this provider" }, 409);
 
-  const created = await aiProviderUpstreamRepo.create({
+  const created = await aiUpstreamAssignmentRepo.create({
     providerId: id,
     upstreamId: parsed.data.upstreamId,
-    name: parsed.data.name,
-    baseUrl: parsed.data.baseUrl,
-    kind: parsed.data.kind ?? "custom",
     priority: parsed.data.priority ?? 100,
     weight: parsed.data.weight ?? 1,
     enabled: parsed.data.enabled ?? true,
-    metadata: JSON.stringify(parsed.data.metadata ?? {}),
   });
 
   invalidateUpstreamCache(id);
   invalidateKeyPool(id);
+  emit("ai.upstream-cache-invalidated", null, { providerId: id });
+  emit("ai.key-pool-invalidated", null, { providerId: id });
 
   log.auth.info(
-    { providerId: provider.providerId, upstreamId: created.upstreamId },
-    "AI provider upstream created",
+    { providerId: provider.providerId, upstreamId: upstream.upstreamId },
+    "Upstream assigned to provider",
   );
-  return ok(c, formatProviderUpstream(created), 201);
+  return ok(c, created, 201);
 });
 
-router.put("/providers/:providerId/upstreams/:upstreamDbId", async (c) => {
+router.put("/providers/:providerId/upstreams/:assignmentId", async (c) => {
   getAdminSession(c);
   const providerId = Number(c.req.param("providerId"));
-  const upstreamDbId = Number(c.req.param("upstreamDbId"));
-  if (Number.isNaN(providerId) || Number.isNaN(upstreamDbId)) {
+  const assignmentId = Number(c.req.param("assignmentId"));
+  if (Number.isNaN(providerId) || Number.isNaN(assignmentId)) {
     return c.json({ error: "Invalid id" }, 400);
   }
 
   const provider = await aiProviderRepo.findById(providerId);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
-  const existing = await aiProviderUpstreamRepo.findById(upstreamDbId);
+  const existing = await aiUpstreamAssignmentRepo.findById(assignmentId);
   if (!existing || existing.providerId !== providerId) {
-    return c.json({ error: "Upstream not found" }, 404);
+    return c.json({ error: "Assignment not found" }, 404);
   }
 
-  const parsed = await parseBody(c, updateAiProviderUpstreamBody);
+  const parsed = await parseBody(c, updateAiUpstreamAssignmentBody);
   if (!parsed.ok) return parsed.response;
 
-  const updates: Record<string, unknown> = { ...parsed.data };
-  if (parsed.data.metadata !== undefined) updates.metadata = JSON.stringify(parsed.data.metadata);
-
-  const updated = await aiProviderUpstreamRepo.update(upstreamDbId, updates);
+  const updated = await aiUpstreamAssignmentRepo.update(assignmentId, parsed.data);
 
   invalidateUpstreamCache(providerId);
   invalidateKeyPool(providerId);
+  emit("ai.upstream-cache-invalidated", null, { providerId });
+  emit("ai.key-pool-invalidated", null, { providerId });
 
-  return ok(c, formatProviderUpstream(updated!));
+  return ok(c, updated);
 });
 
-router.delete("/providers/:providerId/upstreams/:upstreamDbId", async (c) => {
+router.delete("/providers/:providerId/upstreams/:assignmentId", async (c) => {
   getAdminSession(c);
   const providerId = Number(c.req.param("providerId"));
-  const upstreamDbId = Number(c.req.param("upstreamDbId"));
-  if (Number.isNaN(providerId) || Number.isNaN(upstreamDbId)) {
+  const assignmentId = Number(c.req.param("assignmentId"));
+  if (Number.isNaN(providerId) || Number.isNaN(assignmentId)) {
     return c.json({ error: "Invalid id" }, 400);
   }
 
-  const existing = await aiProviderUpstreamRepo.findById(upstreamDbId);
+  const existing = await aiUpstreamAssignmentRepo.findById(assignmentId);
   if (!existing || existing.providerId !== providerId) {
-    return c.json({ error: "Upstream not found" }, 404);
+    return c.json({ error: "Assignment not found" }, 404);
   }
 
-  await aiProviderUpstreamRepo.delete(upstreamDbId);
+  // Null out keys bound to this upstream for this provider
+  const affectedKeys = await aiUpstreamAssignmentRepo.nullKeysForAssignment(
+    providerId,
+    existing.upstreamId,
+  );
+
+  await aiUpstreamAssignmentRepo.delete(assignmentId);
 
   invalidateUpstreamCache(providerId);
   invalidateKeyPool(providerId);
+  emit("ai.upstream-cache-invalidated", null, { providerId });
+  emit("ai.key-pool-invalidated", null, { providerId });
 
-  return ok(c, { success: true });
+  return ok(c, { success: true, affectedKeys });
 });
 
 export default router;

@@ -23,6 +23,7 @@ import { globalMarkupCache } from "../middleware/consumer-key-auth";
 import adminAiKeys from "./admin-ai-keys";
 import adminAiModels from "./admin-ai-models";
 import adminAiProviders from "./admin-ai-providers";
+import adminAiUpstreams from "./admin-ai-upstreams";
 
 const adminAi = new Hono();
 
@@ -41,6 +42,7 @@ async function resolveUserIdParam(
 // ── Mount sub-routers ──────────────────────────────────────────────────
 
 adminAi.route("/", adminAiProviders);
+adminAi.route("/", adminAiUpstreams);
 adminAi.route("/", adminAiModels);
 adminAi.route("/", adminAiKeys);
 

@@ -4,24 +4,23 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { countBy } from "lodash-es";
 import { ArrowLeft, Pencil, Plus, Server, Sparkles, Trash2 } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import {
+  useAiProviderAssignments,
   useAiProviders,
-  useAiProviderUpstreams,
-  useAiUpstreamsOverview,
+  useAiUpstreams,
   useCreateAiProvider,
-  useCreateAiProviderUpstream,
+  useCreateAiProviderAssignment,
   useDeleteAiProvider,
-  useDeleteAiProviderUpstream,
+  useDeleteAiProviderAssignment,
   useUpdateAiProvider,
-  useUpdateAiProviderUpstream,
+  useUpdateAiProviderAssignment,
 } from "@/web/api/hooks";
-import type { AiProvider, AiProviderUpstream } from "@/web/api/schemas";
+import type { AiProvider, AiUpstreamAssignment } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import {
   DataTable,
@@ -111,20 +110,22 @@ const providerFormSchema = z
   });
 type ProviderFormValues = z.infer<typeof providerFormSchema>;
 
-const upstreamFormSchema = z.object({
-  upstreamId: z
-    .string()
-    .min(1, "common.valid.required")
-    .regex(/^[a-z0-9-]+$/, "common.valid.required"),
-  name: z.string().min(1, "common.valid.name-required"),
-  baseUrl: z.string().url("common.valid.invalid-url"),
-  kind: z.enum(["official", "reseller", "openrouter", "custom"]),
+const assignUpstreamFormSchema = z.object({
+  upstreamId: z.coerce.number().min(1, "common.valid.required"),
   priority: z.coerce.number().int().min(0).max(10_000),
   weight: z.coerce.number().int().min(0).max(100),
   enabled: z.boolean(),
 });
-type UpstreamFormInput = z.input<typeof upstreamFormSchema>;
-type UpstreamFormValues = z.output<typeof upstreamFormSchema>;
+type AssignUpstreamFormInput = z.input<typeof assignUpstreamFormSchema>;
+type AssignUpstreamFormValues = z.output<typeof assignUpstreamFormSchema>;
+
+const editAssignmentFormSchema = z.object({
+  priority: z.coerce.number().int().min(0).max(10_000),
+  weight: z.coerce.number().int().min(0).max(100),
+  enabled: z.boolean(),
+});
+type EditAssignmentFormInput = z.input<typeof editAssignmentFormSchema>;
+type EditAssignmentFormValues = z.output<typeof editAssignmentFormSchema>;
 
 // ── Page ────────────────────────────────────────────────────────────
 
@@ -178,17 +179,6 @@ function ProviderGrid({
 }) {
   const { t } = useTranslation();
 
-  // Get upstream counts per provider from overview
-  const {
-    data: overview,
-    isLoading: overviewLoading,
-    isError: overviewError,
-  } = useAiUpstreamsOverview();
-  const upstreamCounts = useMemo(() => {
-    if (!overview) return {};
-    return countBy(overview.upstreams, "providerDbId");
-  }, [overview]);
-
   if (loading) {
     return (
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -220,8 +210,7 @@ function ProviderGrid({
         <ProviderCard
           key={provider.id}
           provider={provider}
-          upstreamCount={overview ? (upstreamCounts[provider.id] ?? 0) : null}
-          upstreamState={overviewLoading ? "loading" : overviewError ? "unavailable" : "ready"}
+          upstreamCount={provider.upstreamCount ?? 0}
           onClick={() => onSelect(provider)}
         />
       ))}
@@ -232,24 +221,18 @@ function ProviderGrid({
 function ProviderCard({
   provider,
   upstreamCount,
-  upstreamState,
   onClick,
 }: {
   provider: AiProvider;
-  upstreamCount: number | null;
-  upstreamState: "loading" | "unavailable" | "ready";
+  upstreamCount: number;
   onClick: () => void;
 }) {
   const { t } = useTranslation();
 
   const upstreamLabel =
-    upstreamState === "loading"
-      ? t("ai-providers.card.loading")
-      : upstreamState === "unavailable"
-        ? t("ai-providers.card.unavailable")
-        : upstreamCount && upstreamCount > 0
-          ? t("ai-providers.card.upstreams", { count: upstreamCount })
-          : t("ai-providers.card.no-upstreams");
+    upstreamCount > 0
+      ? t("ai-providers.card.upstreams", { count: upstreamCount })
+      : t("ai-providers.card.no-upstreams");
 
   return (
     <button
@@ -466,66 +449,78 @@ function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: ()
 
 function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
   const { t } = useTranslation();
-  const { data: upstreams = [], isLoading } = useAiProviderUpstreams(provider.id);
-  const updateUpstream = useUpdateAiProviderUpstream();
-  const deleteUpstream = useDeleteAiProviderUpstream();
+  const { data: assignments = [], isLoading } = useAiProviderAssignments(provider.id);
+  const updateAssignment = useUpdateAiProviderAssignment();
+  const deleteAssignment = useDeleteAiProviderAssignment();
 
-  const [editTarget, setEditTarget] = useState<AiProviderUpstream | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<AiProviderUpstream | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<AiUpstreamAssignment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AiUpstreamAssignment | null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
 
-  const sortedUpstreams = useMemo(
+  const sortedAssignments = useMemo(
     () =>
-      [...upstreams].sort(
-        (a, b) => a.priority - b.priority || b.weight - a.weight || a.name.localeCompare(b.name),
+      [...assignments].sort(
+        (a, b) =>
+          a.priority - b.priority ||
+          b.weight - a.weight ||
+          a.upstream.name.localeCompare(b.upstream.name),
       ),
-    [upstreams],
+    [assignments],
   );
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
     try {
-      await deleteUpstream.mutateAsync({ providerId: provider.id, id: deleteTarget.id });
+      await deleteAssignment.mutateAsync({
+        providerId: provider.id,
+        assignmentId: deleteTarget.id,
+      });
       toast.success(t("ai-providers.toast.upstream-deleted"));
       setDeleteTarget(null);
-    } catch (err) {
+    } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : t("ai-providers.toast.upstream-delete-error"),
       );
     }
-  }, [deleteTarget, deleteUpstream, provider, t]);
+  }, [deleteTarget, deleteAssignment, provider, t]);
 
-  const columns = useMemo<ColumnDef<AiProviderUpstream>[]>(
+  const columns = useMemo<ColumnDef<AiUpstreamAssignment>[]>(
     () => [
       {
-        accessorKey: "name",
+        accessorFn: (a) => a.upstream.name,
+        id: "name",
         cell: ({ row }) => (
-          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+          <DataTableText className="font-medium">{row.original.upstream.name}</DataTableText>
         ),
         header: t("ai-providers.upstreams.th.name"),
         meta: { headerClassName: "w-[18%]" },
       },
       {
-        accessorKey: "upstreamId",
+        accessorFn: (a) => a.upstream.upstreamId,
+        id: "upstreamId",
         cell: ({ row }) => (
           <DataTableBadge variant="secondary" className="font-mono">
-            {row.original.upstreamId}
+            {row.original.upstream.upstreamId}
           </DataTableBadge>
         ),
         header: t("ai-providers.upstreams.th.upstream-id"),
         meta: { headerClassName: "w-[16%]" },
       },
       {
-        accessorKey: "kind",
-        cell: ({ row }) => <DataTableBadge variant="outline">{row.original.kind}</DataTableBadge>,
+        accessorFn: (a) => a.upstream.kind,
+        id: "kind",
+        cell: ({ row }) => (
+          <DataTableBadge variant="outline">{row.original.upstream.kind}</DataTableBadge>
+        ),
         header: t("ai-providers.upstreams.th.kind"),
         meta: { headerClassName: "w-[10%]" },
       },
       {
-        accessorKey: "baseUrl",
+        accessorFn: (a) => a.upstream.baseUrl,
+        id: "baseUrl",
         cell: ({ row }) => (
           <DataTableText className="max-w-[280px]" mono truncate>
-            {row.original.baseUrl}
+            {row.original.upstream.baseUrl}
           </DataTableText>
         ),
         header: t("ai-providers.upstreams.th.base-url"),
@@ -549,10 +544,14 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           <Switch
             checked={row.original.enabled}
             onCheckedChange={(enabled) => {
-              void updateUpstream
-                .mutateAsync({ providerId: provider.id, id: row.original.id, enabled })
+              void updateAssignment
+                .mutateAsync({
+                  providerId: provider.id,
+                  assignmentId: row.original.id,
+                  enabled,
+                })
                 .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
-                .catch((err) =>
+                .catch((err: unknown) =>
                   toast.error(
                     err instanceof Error
                       ? err.message
@@ -592,7 +591,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         meta: { headerClassName: "w-[8%]", ...dataTableMeta.right },
       },
     ],
-    [provider.id, t, updateUpstream],
+    [provider.id, t, updateAssignment],
   );
 
   return (
@@ -604,21 +603,21 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
               <CardTitle className="text-sm">{t("ai-providers.upstreams.section-title")}</CardTitle>
               <p className="text-sm text-muted-foreground">{t("ai-providers.upstreams.desc")}</p>
             </div>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" onClick={() => setAssignOpen(true)}>
               <Plus className="mr-1 h-4 w-4" />
-              {t("ai-providers.btn.new-upstream")}
+              {t("ai-providers.btn.assign-upstream")}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {sortedUpstreams.length === 0 && !isLoading ? (
+          {sortedAssignments.length === 0 && !isLoading ? (
             <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
               {t("ai-providers.upstreams.empty")}
             </div>
           ) : (
             <DataTable
               columns={columns}
-              data={sortedUpstreams}
+              data={sortedAssignments}
               emptyText={t("ai-providers.upstreams.empty")}
               getRowId={(row) => String(row.id)}
               loading={isLoading}
@@ -629,11 +628,16 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         </CardContent>
       </Card>
 
-      <UpstreamFormDialog provider={provider} open={createOpen} onOpenChange={setCreateOpen} />
-
-      <UpstreamFormDialog
+      <AssignUpstreamDialog
         provider={provider}
-        upstream={editTarget}
+        existingAssignments={assignments}
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+      />
+
+      <EditAssignmentDialog
+        provider={provider}
+        assignment={editTarget}
         open={!!editTarget}
         onOpenChange={(v) => {
           if (!v) setEditTarget(null);
@@ -653,7 +657,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           <DialogBody>
             <p className="text-sm text-muted-foreground">
               {t("ai-providers.dialog.delete-upstream-body", {
-                name: deleteTarget?.name ?? "",
+                name: deleteTarget?.upstream.name ?? "",
               })}
             </p>
           </DialogBody>
@@ -664,7 +668,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={deleteUpstream.isPending}
+              disabled={deleteAssignment.isPending}
             >
               {t("common.btn.delete")}
             </Button>
@@ -966,31 +970,37 @@ function ProviderFormDialog({
   );
 }
 
-// ── Upstream Form Dialog ────────────────────────────────────────────
+// ── Assign Upstream Dialog ──────────────────────────────────────────
 
-function UpstreamFormDialog({
+function AssignUpstreamDialog({
   provider,
-  upstream,
+  existingAssignments,
   open,
   onOpenChange,
 }: {
   provider: AiProvider | null;
-  upstream?: AiProviderUpstream | null;
+  existingAssignments: AiUpstreamAssignment[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const createUpstream = useCreateAiProviderUpstream();
-  const updateUpstream = useUpdateAiProviderUpstream();
-  const isEdit = !!upstream;
+  const { data: allUpstreams = [] } = useAiUpstreams();
+  const createAssignment = useCreateAiProviderAssignment();
 
-  const form = useForm<UpstreamFormInput, unknown, UpstreamFormValues>({
-    resolver: zodResolver(upstreamFormSchema),
+  const assignedUpstreamIds = useMemo(
+    () => new Set(existingAssignments.map((a) => a.upstream.id)),
+    [existingAssignments],
+  );
+
+  const availableUpstreams = useMemo(
+    () => allUpstreams.filter((u) => !assignedUpstreamIds.has(u.id)),
+    [allUpstreams, assignedUpstreamIds],
+  );
+
+  const form = useForm<AssignUpstreamFormInput, unknown, AssignUpstreamFormValues>({
+    resolver: zodResolver(assignUpstreamFormSchema),
     defaultValues: {
-      upstreamId: "",
-      name: "",
-      baseUrl: "",
-      kind: "custom",
+      upstreamId: 0,
       priority: 100,
       weight: 1,
       enabled: true,
@@ -998,48 +1008,26 @@ function UpstreamFormDialog({
   });
 
   useEffect(() => {
-    if (!open) return;
-    if (upstream) {
-      form.reset({
-        upstreamId: upstream.upstreamId,
-        name: upstream.name,
-        baseUrl: upstream.baseUrl,
-        kind: upstream.kind as UpstreamFormValues["kind"],
-        priority: upstream.priority,
-        weight: upstream.weight,
-        enabled: upstream.enabled,
-      });
-      return;
+    if (open) {
+      form.reset({ upstreamId: 0, priority: 100, weight: 1, enabled: true });
     }
-    form.reset({
-      upstreamId: "",
-      name: "",
-      baseUrl: provider?.baseUrl ?? "",
-      kind: "custom",
-      priority: 100,
-      weight: 1,
-      enabled: true,
-    });
-  }, [form, open, provider?.baseUrl, upstream]);
+  }, [form, open]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     if (!provider) return;
     try {
-      if (upstream) {
-        await updateUpstream.mutateAsync({ providerId: provider.id, id: upstream.id, ...values });
-        toast.success(t("ai-providers.toast.upstream-updated"));
-      } else {
-        await createUpstream.mutateAsync({ providerId: provider.id, ...values });
-        toast.success(t("ai-providers.toast.upstream-created"));
-      }
+      await createAssignment.mutateAsync({
+        providerId: provider.id,
+        upstreamId: values.upstreamId,
+        priority: values.priority,
+        weight: values.weight,
+        enabled: values.enabled,
+      });
+      toast.success(t("ai-providers.toast.upstream-assigned"));
       onOpenChange(false);
-    } catch (err) {
+    } catch (err: unknown) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : isEdit
-            ? t("ai-providers.toast.upstream-update-error")
-            : t("ai-providers.toast.upstream-create-error"),
+        err instanceof Error ? err.message : t("ai-providers.toast.upstream-assign-error"),
       );
     }
   });
@@ -1048,11 +1036,7 @@ function UpstreamFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent preventClose>
         <DialogHeader>
-          <DialogTitle>
-            {isEdit
-              ? t("ai-providers.dialog.edit-upstream-title")
-              : t("ai-providers.dialog.add-upstream-title")}
-          </DialogTitle>
+          <DialogTitle>{t("ai-providers.dialog.assign-upstream-title")}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={handleSubmit}>
@@ -1062,77 +1046,32 @@ function UpstreamFormDialog({
                 name="upstreamId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.upstreams.form.upstream-id")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t("ai-providers.upstreams.form.upstream-id-ph")}
-                        {...field}
-                        disabled={isEdit}
-                      />
-                    </FormControl>
+                    <FormLabel>{t("ai-providers.upstreams.form.upstream")}</FormLabel>
+                    <Select
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={t("ai-providers.upstreams.form.upstream-ph")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableUpstreams.map((u) => (
+                          <SelectItem key={u.id} value={String(u.id)}>
+                            {u.name} ({u.upstreamId})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {availableUpstreams.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.upstreams.form.no-available")}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("ai-providers.upstreams.form.name")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t("ai-providers.upstreams.form.name-ph")} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="baseUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("ai-providers.upstreams.form.base-url")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t("ai-providers.upstreams.form.base-url-ph")}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid gap-4 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="kind"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("ai-providers.upstreams.form.kind")}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="official">
-                            {t("ai-providers.upstreams.kind.official")}
-                          </SelectItem>
-                          <SelectItem value="reseller">
-                            {t("ai-providers.upstreams.kind.reseller")}
-                          </SelectItem>
-                          <SelectItem value="openrouter">
-                            {t("ai-providers.upstreams.kind.openrouter")}
-                          </SelectItem>
-                          <SelectItem value="custom">
-                            {t("ai-providers.upstreams.kind.custom")}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="priority"
@@ -1197,8 +1136,156 @@ function UpstreamFormDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.btn.cancel")}
               </Button>
-              <Button type="submit" disabled={createUpstream.isPending || updateUpstream.isPending}>
-                {isEdit ? t("common.btn.save") : t("ai-providers.btn.create-upstream")}
+              <Button type="submit" disabled={createAssignment.isPending}>
+                {t("ai-providers.btn.assign-upstream")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Edit Assignment Dialog ──────────────────────────────────────────
+
+function EditAssignmentDialog({
+  provider,
+  assignment,
+  open,
+  onOpenChange,
+}: {
+  provider: AiProvider | null;
+  assignment: AiUpstreamAssignment | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const updateAssignment = useUpdateAiProviderAssignment();
+
+  const form = useForm<EditAssignmentFormInput, unknown, EditAssignmentFormValues>({
+    resolver: zodResolver(editAssignmentFormSchema),
+    defaultValues: {
+      priority: 100,
+      weight: 1,
+      enabled: true,
+    },
+  });
+
+  useEffect(() => {
+    if (!open || !assignment) return;
+    form.reset({
+      priority: assignment.priority,
+      weight: assignment.weight,
+      enabled: assignment.enabled,
+    });
+  }, [form, open, assignment]);
+
+  const handleSubmit = form.handleSubmit(async (values) => {
+    if (!provider || !assignment) return;
+    try {
+      await updateAssignment.mutateAsync({
+        providerId: provider.id,
+        assignmentId: assignment.id,
+        priority: values.priority,
+        weight: values.weight,
+        enabled: values.enabled,
+      });
+      toast.success(t("ai-providers.toast.upstream-updated"));
+      onOpenChange(false);
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : t("ai-providers.toast.upstream-update-error"),
+      );
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent preventClose>
+        <DialogHeader>
+          <DialogTitle>{t("ai-providers.dialog.edit-upstream-title")}</DialogTitle>
+        </DialogHeader>
+        {assignment && (
+          <div className="px-6 pb-2">
+            <p className="text-sm text-muted-foreground">
+              {assignment.upstream.name}{" "}
+              <Badge variant="secondary" className="ml-1 font-mono text-xs">
+                {assignment.upstream.upstreamId}
+              </Badge>
+            </p>
+          </div>
+        )}
+        <Form {...form}>
+          <form onSubmit={handleSubmit}>
+            <DialogBody className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.upstreams.form.priority")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={10000}
+                          value={typeof field.value === "number" ? field.value : ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="weight"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.upstreams.form.weight")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={typeof field.value === "number" ? field.value : ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="enabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <FormLabel>{t("ai-providers.upstreams.form.enabled")}</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {t("common.btn.cancel")}
+              </Button>
+              <Button type="submit" disabled={updateAssignment.isPending}>
+                {t("common.btn.save")}
               </Button>
             </DialogFooter>
           </form>

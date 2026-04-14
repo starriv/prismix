@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindAllProviders = vi.fn();
-const mockFindUpstreamsByProviderId = vi.fn();
+const mockFindAllUpstreams = vi.fn();
 const mockFindUpstreamById = vi.fn();
+const mockCountAssignmentsByUpstreamIds = vi.fn();
 const mockCountByUpstreamIds = vi.fn();
 const mockUpstreamOverview = vi.fn();
 const mockFindUsageLogs = vi.fn();
@@ -15,20 +15,20 @@ vi.mock("@/server/middleware/auth", () => ({
 
 vi.mock("@/server/repos", () => ({
   aiProviderRepo: {
-    findAll: (...args: unknown[]) => mockFindAllProviders(...args),
+    findAll: vi.fn().mockResolvedValue([]),
     findById: vi.fn(),
-    findByProviderId: vi.fn(),
+  },
+  aiUpstreamRepo: {
+    findAll: (...args: unknown[]) => mockFindAllUpstreams(...args),
+    findById: (...args: unknown[]) => mockFindUpstreamById(...args),
+    findByUpstreamId: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   },
-  aiProviderUpstreamRepo: {
-    findByProviderId: (...args: unknown[]) => mockFindUpstreamsByProviderId(...args),
-    findById: (...args: unknown[]) => mockFindUpstreamById(...args),
-    findByProviderAndUpstreamId: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+  aiUpstreamAssignmentRepo: {
+    findByUpstreamId: vi.fn().mockResolvedValue([]),
+    countByUpstreamIds: (...args: unknown[]) => mockCountAssignmentsByUpstreamIds(...args),
   },
   aiKeyRepo: {
     countByUpstreamIds: (...args: unknown[]) => mockCountByUpstreamIds(...args),
@@ -46,6 +46,7 @@ vi.mock("@/server/ai/lib/key-balancer", () => ({
 
 vi.mock("@/server/ai/lib/upstream-routing", () => ({
   invalidateUpstreamCache: vi.fn(),
+  invalidateUpstreamCacheForUpstream: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/server/lib/logger", () => ({
@@ -54,16 +55,16 @@ vi.mock("@/server/lib/logger", () => ({
   },
 }));
 
-const { default: router } = await import("@/server/ai/routes/admin-ai-providers");
+const { default: router } = await import("@/server/ai/routes/admin-ai-upstreams");
 
 const app = new Hono();
 app.route("/", router);
 
 describe("admin ai upstream routes", () => {
   beforeEach(() => {
-    mockFindAllProviders.mockReset();
-    mockFindUpstreamsByProviderId.mockReset();
+    mockFindAllUpstreams.mockReset();
     mockFindUpstreamById.mockReset();
+    mockCountAssignmentsByUpstreamIds.mockReset();
     mockCountByUpstreamIds.mockReset();
     mockUpstreamOverview.mockReset();
     mockFindUsageLogs.mockReset();
@@ -71,35 +72,24 @@ describe("admin ai upstream routes", () => {
   });
 
   it("returns upstream overview rows with derived health and latest status", async () => {
-    mockFindAllProviders.mockResolvedValue([
-      {
-        id: 7,
-        providerId: "anthropic",
-        name: "Anthropic",
-      },
-    ]);
-    mockFindUpstreamsByProviderId.mockResolvedValue([
+    mockFindAllUpstreams.mockResolvedValue([
       {
         id: 11,
-        providerId: 7,
         upstreamId: "friend-a",
         name: "Friend A",
         baseUrl: "https://friend-a.example.com",
         kind: "reseller",
         enabled: true,
-        priority: 10,
-        weight: 1,
+        metadata: "{}",
         createdAt: new Date("2026-04-10T00:00:00Z"),
         updatedAt: new Date("2026-04-13T00:00:00Z"),
       },
     ]);
+    mockCountAssignmentsByUpstreamIds.mockResolvedValue(new Map([[11, 2]]));
     mockCountByUpstreamIds.mockResolvedValue([{ upstreamId: 11, totalKeys: 2, enabledKeys: 1 }]);
     mockUpstreamOverview.mockResolvedValue([
       {
         upstreamId: 11,
-        providerId: "anthropic",
-        upstreamName: "Friend A",
-        upstreamBaseUrl: "https://friend-a.example.com",
         requests24h: 12,
         clientErrors24h: 1,
         serverErrors24h: 3,
@@ -137,6 +127,7 @@ describe("admin ai upstream routes", () => {
           lastStatusCode: number | null;
           enabledKeys: number;
           requests24h: number;
+          assignmentCount: number;
         }>;
       };
     };
@@ -156,15 +147,19 @@ describe("admin ai upstream routes", () => {
       lastStatusCode: 502,
       enabledKeys: 1,
       requests24h: 12,
+      assignmentCount: 2,
     });
   });
 
   it("returns recent logs for a specific upstream", async () => {
     mockFindUpstreamById.mockResolvedValue({
       id: 11,
-      providerId: 7,
       upstreamId: "friend-a",
       name: "Friend A",
+      baseUrl: "https://friend-a.example.com",
+      kind: "reseller",
+      enabled: true,
+      metadata: "{}",
     });
     mockFindUsageLogs.mockResolvedValue([
       {

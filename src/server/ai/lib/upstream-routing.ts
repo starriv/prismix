@@ -1,7 +1,7 @@
-import type { AiProvider, AiProviderUpstream } from "@/server/db";
+import type { AiProvider } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { weightedShuffle } from "@/server/lib/weighted-shuffle";
-import { aiProviderUpstreamRepo } from "@/server/repos";
+import { aiUpstreamAssignmentRepo, type AssignmentWithUpstream } from "@/server/repos";
 
 export interface UpstreamTarget {
   id: number | null;
@@ -32,10 +32,21 @@ const upstreamCache = new Map<number, CachedUpstreams>();
 
 /**
  * Invalidate upstream cache for a provider.
- * Call after upstream CRUD operations.
+ * Call after assignment CRUD operations.
  */
 export function invalidateUpstreamCache(providerId: number): void {
   upstreamCache.delete(providerId);
+}
+
+/**
+ * Invalidate upstream cache for all providers assigned to a global upstream.
+ * Call after global upstream update/delete.
+ */
+export async function invalidateUpstreamCacheForUpstream(upstreamId: number): Promise<void> {
+  const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(upstreamId);
+  for (const assignment of assignments) {
+    upstreamCache.delete(assignment.providerId);
+  }
 }
 
 /**
@@ -47,33 +58,29 @@ export function clearUpstreamCache(): void {
 
 // ── Target builders ─────────────────────────────────────────────────
 
-function toTarget(
-  provider: AiProvider,
-  upstream: AiProviderUpstream | null,
-  priorityFallback = 1000,
-): UpstreamTarget {
-  if (!upstream) {
-    return {
-      id: null,
-      upstreamId: "legacy",
-      name: `${provider.name} Default`,
-      baseUrl: provider.baseUrl,
-      kind: "official",
-      priority: priorityFallback,
-      weight: 1,
-      isLegacy: true,
-    };
-  }
-
+function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): UpstreamTarget {
   return {
-    id: upstream.id,
-    upstreamId: upstream.upstreamId,
-    name: upstream.name,
-    baseUrl: upstream.baseUrl,
-    kind: upstream.kind,
-    priority: upstream.priority,
-    weight: upstream.weight,
+    id: assignment.upstream.id,
+    upstreamId: assignment.upstream.upstreamId,
+    name: assignment.upstream.name,
+    baseUrl: assignment.upstream.baseUrl,
+    kind: assignment.upstream.kind,
+    priority: assignment.priority,
+    weight: assignment.weight,
     isLegacy: false,
+  };
+}
+
+function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): UpstreamTarget {
+  return {
+    id: null,
+    upstreamId: "legacy",
+    name: `${provider.name} Default`,
+    baseUrl: provider.baseUrl,
+    kind: "official",
+    priority: priorityFallback,
+    weight: 1,
+    isLegacy: true,
   };
 }
 
@@ -89,15 +96,15 @@ export async function resolveUpstreamCandidates(provider: AiProvider): Promise<U
     // Clone so weighted-random shuffle doesn't mutate cache
     targets = [...cached.targets];
   } else {
-    const upstreams = await aiProviderUpstreamRepo.findEnabledByProviderId(provider.id);
-    const built = upstreams.map((upstream) => toTarget(provider, upstream));
+    const assignments = await aiUpstreamAssignmentRepo.findEnabledByProviderId(provider.id);
+    const built = assignments.map((a) => toTarget(provider, a));
 
     // Always include legacy target if no explicit upstreams exist,
     // so the relay still attempts provider.baseUrl and produces a clear error.
     if (built.length === 0) {
-      built.push(toTarget(provider, null));
+      built.push(toLegacyTarget(provider));
     } else if (provider.baseUrl) {
-      built.push(toTarget(provider, null));
+      built.push(toLegacyTarget(provider));
     }
 
     upstreamCache.set(provider.id, { targets: built, loadedAt: now });

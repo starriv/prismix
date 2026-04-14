@@ -64,17 +64,12 @@ export const updateAiProviderBody = z.object({
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 
-export const createAiProviderUpstreamBody = z.object({
-  upstreamId: z
-    .string()
-    .min(1)
-    .max(50)
-    .regex(/^[a-z0-9-]+$/, "Upstream ID must be lowercase alphanumeric with hyphens"),
+// ── AI: Global Upstreams ─────────────────────────────────────────────
+
+export const createAiUpstreamBody = z.object({
   name: z.string().min(1).max(100),
   baseUrl: safeUrlSchema,
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
-  priority: z.number().int().min(0).max(10000).optional(),
-  weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
   metadata: z
     .record(z.string(), z.unknown())
@@ -82,17 +77,30 @@ export const createAiProviderUpstreamBody = z.object({
     .optional(),
 });
 
-export const updateAiProviderUpstreamBody = z.object({
+export const updateAiUpstreamBody = z.object({
   name: z.string().min(1).max(100).optional(),
   baseUrl: safeUrlSchema.optional(),
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
-  priority: z.number().int().min(0).max(10000).optional(),
-  weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
   metadata: z
     .record(z.string(), z.unknown())
     .refine((v) => JSON.stringify(v).length <= 4096, "Metadata must be under 4 KB")
     .optional(),
+});
+
+// ── AI: Upstream Assignments (provider ↔ upstream junction) ──────────
+
+export const createAiUpstreamAssignmentBody = z.object({
+  upstreamId: z.number().int().positive(),
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const updateAiUpstreamAssignmentBody = z.object({
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
 });
 
 // ── AI: Models ─────────────────────────────────────────────────────────

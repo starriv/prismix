@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { Activity, Plus, RefreshCw, Trash2 } from "lucide-react";
 
-import { useAiProviderUpstreams } from "@/web/api/hooks";
+import { useAiProviderAssignments } from "@/web/api/hooks";
 import type { AiKey, AiProvider } from "@/web/api/schemas";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -54,7 +54,7 @@ export function ProviderPoolCard({
 }) {
   const strategy = provider?.loadBalanceStrategy ?? "round-robin";
   const showPool = totalCount > 1;
-  const { data: upstreams = [] } = useAiProviderUpstreams(provider?.id ?? 0);
+  const { data: assignments = [] } = useAiProviderAssignments(provider?.id ?? 0);
 
   return (
     <Card>
@@ -201,11 +201,20 @@ export function ProviderPoolCard({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="legacy">{t("ai.form.upstream-legacy")}</SelectItem>
-                      {upstreams.map((upstream) => (
-                        <SelectItem key={upstream.id} value={String(upstream.id)}>
-                          {upstream.name}
-                        </SelectItem>
-                      ))}
+                      {assignments
+                        .filter(
+                          (assignment) =>
+                            (assignment.enabled && assignment.upstream.enabled) ||
+                            assignment.upstream.id === k.upstreamId,
+                        )
+                        .map((assignment) => (
+                          <SelectItem
+                            key={assignment.upstream.id}
+                            value={String(assignment.upstream.id)}
+                          >
+                            {assignment.upstream.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <Badge

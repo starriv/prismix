@@ -1,0 +1,1098 @@
+{
+  "info": {
+    "_postman_id": "prismix-collection-001",
+    "name": "Prismix API",
+    "description": "Prismix AI Gateway API collection. Includes admin AI management, relay, consumer gateway, and system endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "Health & Metrics",
+      "description": "Public health check and admin-only metrics endpoints.",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Combined liveness + readiness check. Returns 200 when DB and Redis are reachable, 503 otherwise."
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prometheus",
+              "host": ["{{baseUrl}}"],
+              "path": ["prometheus"]
+            },
+            "description": "Prometheus exposition format metrics (public for scraping)."
+          }
+        },
+        {
+          "name": "System Metrics (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics"]
+            },
+            "description": "Full system metrics including DB stats, sessions, SSE listeners, AI streams, write queue, rate limiter, and memory usage. Admin auth required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin AI",
+      "description": "AI provider, upstream, model, and key management endpoints. All require admin JWT.",
+      "item": [
+        {
+          "name": "Providers",
+          "description": "AI provider CRUD. Providers represent upstream AI services (OpenAI, Anthropic, etc.).",
+          "item": [
+            {
+              "name": "List Providers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers"]
+                },
+                "description": "List all AI providers. Auto-seeds default providers on first access after a database reset."
+              }
+            },
+            {
+              "name": "Create Provider",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"providerId\": \"openai\",\n  \"name\": \"OpenAI\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"apiFormat\": \"openai\",\n  \"authType\": \"bearer\",\n  \"authConfig\": {},\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"priority\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers"]
+                },
+                "description": "Create a new AI provider. providerId must be unique, lowercase alphanumeric with hyphens. apiFormat: openai | anthropic | gemini | azure-openai | bedrock. authType: bearer | api-key | sigv4."
+              }
+            },
+            {
+              "name": "Update Provider",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"OpenAI (Updated)\",\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"weighted-random\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Update an existing AI provider. All fields are optional."
+              }
+            },
+            {
+              "name": "Delete Provider",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Delete an AI provider and cascade-delete its upstream assignments."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Global Upstreams",
+          "description": "Global AI upstream CRUD. Upstreams represent distinct API endpoints (e.g. official OpenAI, a reseller, OpenRouter). Providers are assigned to upstreams via the assignment endpoints.",
+          "item": [
+            {
+              "name": "List Upstreams",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams"]
+                },
+                "description": "List all global upstreams."
+              }
+            },
+            {
+              "name": "Create Upstream",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"upstreamId\": \"openai-official\",\n  \"name\": \"OpenAI Official\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"kind\": \"official\",\n  \"enabled\": true,\n  \"metadata\": {}\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams"]
+                },
+                "description": "Create a new global upstream. upstreamId must be unique, lowercase alphanumeric with hyphens. kind: official | reseller | openrouter | custom (default: custom). baseUrl is validated against SSRF (no private/internal addresses). metadata must be under 4 KB."
+              }
+            },
+            {
+              "name": "Get Upstream Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
+                  ]
+                },
+                "description": "Get upstream detail including its provider assignments (which providers use this upstream, with priority/weight/enabled per assignment)."
+              }
+            },
+            {
+              "name": "Update Upstream",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"OpenAI Official (Updated)\",\n  \"kind\": \"official\",\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
+                  ]
+                },
+                "description": "Update an existing global upstream. All fields optional. Invalidates upstream routing cache and key pools for all providers assigned to this upstream."
+              }
+            },
+            {
+              "name": "Delete Upstream",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
+                  ]
+                },
+                "description": "Delete a global upstream. Cascade-deletes assignments; keys bound to this upstream have upstreamId set to NULL."
+              }
+            },
+            {
+              "name": "Upstream Health Overview",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams/overview?hours=24",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams", "overview"],
+                  "query": [
+                    {
+                      "key": "hours",
+                      "value": "24",
+                      "description": "Lookback window (1-720, default 24)"
+                    }
+                  ]
+                },
+                "description": "Health overview for all upstreams. Returns totals (total/enabled/active/degraded) and per-upstream stats: assignmentCount, key counts, 24h request/error/token counts, error rate, health status (healthy | degraded | idle | no-key | disabled)."
+              }
+            },
+            {
+              "name": "Upstream Recent Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/upstreams/:id/recent?limit=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "upstreams", ":id", "recent"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "10",
+                      "description": "Max results (1-50, default 10)"
+                    }
+                  ]
+                },
+                "description": "Recent usage logs for a specific upstream."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Provider Upstream Assignments",
+          "description": "M:N provider-upstream assignment management. Assign shared upstreams to providers with per-assignment priority, weight, and enabled toggle.",
+          "item": [
+            {
+              "name": "List Provider Assignments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/upstreams",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "upstreams"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "List all upstream assignments for a provider. Each assignment includes the nested upstream object, priority, weight, and enabled status."
+              }
+            },
+            {
+              "name": "Create Assignment",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"upstreamId\": 1,\n  \"priority\": 100,\n  \"weight\": 1,\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/upstreams",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "upstreams"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Assign a global upstream to a provider. upstreamId: numeric ID of an existing upstream. priority: 0-10000 (default 100, lower = higher priority). weight: 0-100 (default 1, for weighted-random strategy). Returns 409 if the upstream is already assigned to this provider."
+              }
+            },
+            {
+              "name": "Update Assignment",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priority\": 50,\n  \"weight\": 2,\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:providerId/upstreams/:assignmentId",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":providerId", "upstreams", ":assignmentId"],
+                  "variable": [
+                    {
+                      "key": "providerId",
+                      "value": "1",
+                      "description": "Provider internal numeric ID"
+                    },
+                    {
+                      "key": "assignmentId",
+                      "value": "1",
+                      "description": "Assignment internal numeric ID"
+                    }
+                  ]
+                },
+                "description": "Update an existing provider-upstream assignment. All fields optional. Invalidates upstream routing cache and key pool for the provider."
+              }
+            },
+            {
+              "name": "Remove Assignment",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:providerId/upstreams/:assignmentId",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":providerId", "upstreams", ":assignmentId"],
+                  "variable": [
+                    {
+                      "key": "providerId",
+                      "value": "1",
+                      "description": "Provider internal numeric ID"
+                    },
+                    {
+                      "key": "assignmentId",
+                      "value": "1",
+                      "description": "Assignment internal numeric ID"
+                    }
+                  ]
+                },
+                "description": "Remove an upstream assignment from a provider. Keys bound to this upstream for the provider have upstreamId set to NULL. Returns { success: true, affectedKeys: N }."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Models",
+          "description": "AI model CRUD, discovery, and price sync.",
+          "item": [
+            {
+              "name": "List Provider Models",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "models"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "List all models registered under a provider."
+              }
+            },
+            {
+              "name": "Discover Models",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/discover-models",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "discover-models"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Fetch available models from the upstream provider API. Requires at least one API key configured. Returns models with their registration status and LiteLLM pricing data."
+              }
+            },
+            {
+              "name": "Create Model",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modelId\": \"gpt-4o\",\n  \"name\": \"GPT-4o\",\n  \"contextWindow\": 128000,\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"capabilities\": [\"chat\", \"vision\"],\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "models"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Register a new model under a provider. Prices are per million tokens."
+              }
+            },
+            {
+              "name": "Batch Create Models",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"models\": [\n    {\n      \"modelId\": \"gpt-4o-mini\",\n      \"name\": \"GPT-4o Mini\",\n      \"contextWindow\": 128000,\n      \"inputPrice\": \"0.15\",\n      \"outputPrice\": \"0.6\"\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/batch",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "models", "batch"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Batch create models for a provider (up to 500). Used by discover-and-add flow."
+              }
+            },
+            {
+              "name": "Update Model",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"GPT-4o (Updated)\",\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/models/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "models", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Model internal numeric ID" }
+                  ]
+                },
+                "description": "Update an existing model. All fields optional."
+              }
+            },
+            {
+              "name": "Delete Model",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/models/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "models", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Model internal numeric ID" }
+                  ]
+                },
+                "description": "Delete a model by its internal numeric ID."
+              }
+            },
+            {
+              "name": "Batch Delete Models",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ids\": [1, 2, 3]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/models/batch-delete",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "models", "batch-delete"]
+                },
+                "description": "Batch delete models by their internal numeric IDs."
+              }
+            },
+            {
+              "name": "Sync Prices Preview",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/sync-prices/preview",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "models", "sync-prices", "preview"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Preview price changes from LiteLLM pricing catalog for a provider's models."
+              }
+            },
+            {
+              "name": "Sync Prices Apply",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modelIds\": [1, 2]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/sync-prices/apply",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "providers", ":id", "models", "sync-prices", "apply"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                  ]
+                },
+                "description": "Apply selected price updates from LiteLLM catalog. Pass model internal IDs to update."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Keys",
+          "description": "AI API key management. Keys are bound to a provider and optionally to an upstream.",
+          "item": [
+            {
+              "name": "List Keys",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/keys",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "keys"]
+                },
+                "description": "List all AI API keys (encrypted key and hash excluded). Enriched with provider name, owner name, upstream name/slug."
+              }
+            },
+            {
+              "name": "Create Key",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"providerId\": 1,\n  \"upstreamId\": 1,\n  \"name\": \"OpenAI Key #1\",\n  \"apiKey\": \"sk-proj-abc123...\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/keys",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "keys"]
+                },
+                "description": "Create a new AI API key. providerId is required. upstreamId is optional (null = unbound); if provided, the upstream must be assigned to the provider. apiKey is encrypted at rest."
+              }
+            },
+            {
+              "name": "Update Key",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"OpenAI Key #1 (Updated)\",\n  \"enabled\": true,\n  \"weight\": 1,\n  \"upstreamId\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/keys/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "keys", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                  ]
+                },
+                "description": "Update an existing AI API key. Can reassign to a different upstream (must be assigned to the key's provider)."
+              }
+            },
+            {
+              "name": "Delete Key",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/keys/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "keys", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                  ]
+                },
+                "description": "Delete an AI API key."
+              }
+            },
+            {
+              "name": "Test Key Connectivity",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/keys/:id/test",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "keys", ":id", "test"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                  ]
+                },
+                "description": "Test an AI API key by hitting the upstream /models endpoint. Returns success status, latency, and HTTP status code."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog",
+          "description": "Aggregated model catalog across all enabled providers.",
+          "item": [
+            {
+              "name": "Get Catalog",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/catalog",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "catalog"]
+                },
+                "description": "Get the aggregated model catalog across all enabled providers. Each entry includes model info, provider name, pricing, capabilities, and whether an API key is configured."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usage & Logs",
+          "description": "AI usage analytics, daily summaries, error overviews, and request log details.",
+          "item": [
+            {
+              "name": "Usage Summary",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/summary?from=2024-01-01&to=2024-12-31",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "summary"],
+                  "query": [
+                    { "key": "from", "value": "2024-01-01", "description": "ISO date (optional)" },
+                    { "key": "to", "value": "2024-12-31", "description": "ISO date (optional)" },
+                    {
+                      "key": "consumerKeyId",
+                      "value": "",
+                      "description": "Filter by consumer key (optional)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "userId",
+                      "value": "",
+                      "description": "Filter by user ID (optional)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "userUuid",
+                      "value": "",
+                      "description": "Filter by user UUID (optional)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Aggregated usage summary for a date range."
+              }
+            },
+            {
+              "name": "Recent Usage Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/recent?limit=20&offset=0",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "recent"],
+                  "query": [
+                    { "key": "limit", "value": "20" },
+                    { "key": "offset", "value": "0" },
+                    { "key": "modelId", "value": "", "disabled": true },
+                    { "key": "providerId", "value": "", "disabled": true },
+                    { "key": "statusCode", "value": "", "disabled": true },
+                    {
+                      "key": "statusClass",
+                      "value": "",
+                      "description": "4xx or 5xx",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Paginated list of recent AI usage log entries with optional filters."
+              }
+            },
+            {
+              "name": "Daily Summary",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/daily?days=30",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "daily"],
+                  "query": [
+                    { "key": "days", "value": "30", "description": "Number of days (max 90)" }
+                  ]
+                },
+                "description": "Daily usage summary for charts."
+              }
+            },
+            {
+              "name": "Error Overview",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/error-overview?days=30",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "error-overview"],
+                  "query": [{ "key": "days", "value": "30" }]
+                },
+                "description": "Error breakdown overview for the past N days."
+              }
+            },
+            {
+              "name": "Error Daily",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/error-daily?days=30",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "error-daily"],
+                  "query": [{ "key": "days", "value": "30" }]
+                },
+                "description": "Daily error counts for error trend charts."
+              }
+            },
+            {
+              "name": "Usage By Consumer Key",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/by-key",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "by-key"],
+                  "query": [
+                    { "key": "from", "value": "", "disabled": true },
+                    { "key": "to", "value": "", "disabled": true }
+                  ]
+                },
+                "description": "Usage summary grouped by consumer key."
+              }
+            },
+            {
+              "name": "Request Log Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/usage/request/:requestId",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "usage", "request", ":requestId"],
+                  "variable": [
+                    { "key": "requestId", "value": "req_abc123", "description": "Request ID" }
+                  ]
+                },
+                "description": "Get full request/response body for a specific request (Redis-backed, opt-in, time-limited)."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settings",
+          "description": "AI gateway settings: request logging toggle and default markup.",
+          "item": [
+            {
+              "name": "Get Request Logging",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/settings/request-logging",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "settings", "request-logging"]
+                },
+                "description": "Get the current request logging toggle state."
+              }
+            },
+            {
+              "name": "Set Request Logging",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/settings/request-logging",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "settings", "request-logging"]
+                },
+                "description": "Enable or disable request/response body logging (stored in Redis)."
+              }
+            },
+            {
+              "name": "Get Default Markup",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/settings/default-markup",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "settings", "default-markup"]
+                },
+                "description": "Get the default markup percentage applied to consumer key billing."
+              }
+            },
+            {
+              "name": "Set Default Markup",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"defaultMarkupPercent\": 20\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/settings/default-markup",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "settings", "default-markup"]
+                },
+                "description": "Set the default markup percentage (0-1000). Resets in-memory cache immediately."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin AI Relay",
+      "description": "OpenAI-compatible relay endpoints (admin JWT auth). Proxies requests to upstream providers with model fallback, key rotation, and cost tracking.",
+      "item": [
+        {
+          "name": "List Models (OpenAI-compat)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai/relay/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "ai", "relay", "v1", "models"]
+            },
+            "description": "OpenAI-compatible GET /v1/models endpoint. Returns all enabled models in OpenAI list format."
+          }
+        },
+        {
+          "name": "Chat Completions",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, how are you?\" }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 256\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai/relay/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "ai", "relay", "v1", "chat", "completions"]
+            },
+            "description": "OpenAI-compatible POST /v1/chat/completions. Supports streaming (stream: true), model fallback chains, input guardrails, semantic caching, and automatic cost tracking."
+          }
+        },
+        {
+          "name": "Generic Passthrough (v1/*)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"input\": \"Translate 'Hello' to French.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/ai/relay/v1/embeddings",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "ai", "relay", "v1", "embeddings"]
+            },
+            "description": "Generic passthrough for any /v1/* endpoint not matched by specific handlers (e.g. /v1/embeddings, /v1/messages). Forwards request body as-is to the upstream provider. Requires a 'model' field in the body."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer Gateway",
+      "description": "Consumer-facing AI gateway endpoints. Authenticated via ska_ consumer API keys (Bearer token). Includes balance gate, model ACL, and post-request billing.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{consumerApiKey}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "List Models (Consumer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["gateway", "ai", "endpoint", "v1", "models"]
+            },
+            "description": "OpenAI-compatible model list filtered by the consumer key's allowed models ACL."
+          }
+        },
+        {
+          "name": "Chat Completions (Consumer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, how are you?\" }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 256\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["gateway", "ai", "endpoint", "v1", "chat", "completions"]
+            },
+            "description": "Consumer chat completions with balance gate, model ACL, spending limits (per-pay, daily, monthly), guardrails, and automatic billing."
+          }
+        },
+        {
+          "name": "Generic Passthrough (Consumer v1/*)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"input\": \"Translate 'Hello' to French.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/embeddings",
+              "host": ["{{baseUrl}}"],
+              "path": ["gateway", "ai", "endpoint", "v1", "embeddings"]
+            },
+            "description": "Consumer generic passthrough for any /v1/* endpoint. Same billing and ACL as chat completions."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Relay Consumer Keys",
+      "description": "Admin management of consumer API keys (ska_ keys) for the AI gateway.",
+      "item": [
+        {
+          "name": "List Consumer Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys?page=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "prefix", "value": "", "disabled": true },
+                { "key": "userUuid", "value": "", "disabled": true }
+              ]
+            },
+            "description": "List consumer API keys with optional prefix and userUuid filters."
+          }
+        },
+        {
+          "name": "Get Consumer Key Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Consumer key internal numeric ID" }
+              ]
+            },
+            "description": "Get detail for a specific consumer key."
+          }
+        },
+        {
+          "name": "Create Consumer Key",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Consumer Key\",\n  \"description\": \"For testing\",\n  \"markupPercent\": 20,\n  \"rateLimitRpm\": 60,\n  \"allowedModels\": [\"gpt-4o\", \"claude-*\"],\n  \"initialBalance\": \"10.00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys"]
+            },
+            "description": "Create a new consumer API key. Returns the raw API key (only shown once). Optionally link to a userId for user-wallet billing. initialBalance credits the agent wallet on creation."
+          }
+        },
+        {
+          "name": "Update Consumer Key",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Key Name\",\n  \"status\": \"active\",\n  \"markupPercent\": 25\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Consumer key internal numeric ID" }
+              ]
+            },
+            "description": "Update a consumer key. Can change name, status, markup, rate limit, allowed models, and agent assignment."
+          }
+        },
+        {
+          "name": "Reveal Consumer Key",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys/:id/reveal",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys", ":id", "reveal"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Consumer key internal numeric ID" }
+              ]
+            },
+            "description": "Reveal the full consumer API key (decrypted from storage)."
+          }
+        },
+        {
+          "name": "Rotate Consumer Key",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys/:id/rotate",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys", ":id", "rotate"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Consumer key internal numeric ID" }
+              ]
+            },
+            "description": "Rotate the consumer API key. Generates a new key and invalidates the old one. Returns the new raw key."
+          }
+        },
+        {
+          "name": "Delete Consumer Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/relay-keys/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "relay-keys", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Consumer key internal numeric ID" }
+              ]
+            },
+            "description": "Delete a consumer key."
+          }
+        }
+      ]
+    }
+  ]
+}

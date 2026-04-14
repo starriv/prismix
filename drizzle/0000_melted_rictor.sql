@@ -20,6 +20,7 @@ CREATE TABLE "ai_guardrail_configs" (
 CREATE TABLE "ai_keys" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"provider_id" integer NOT NULL,
+	"upstream_id" integer,
 	"owner_id" integer,
 	"name" text NOT NULL,
 	"encrypted_key" text NOT NULL,
@@ -60,22 +61,54 @@ CREATE TABLE "ai_providers" (
 	"auth_config" text DEFAULT '{}' NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"load_balance_strategy" text DEFAULT 'round-robin' NOT NULL,
+	"upstream_routing_strategy" text DEFAULT 'priority' NOT NULL,
 	"icon_url" text,
 	"updated_at" timestamp NOT NULL,
 	"created_at" timestamp NOT NULL,
 	CONSTRAINT "ai_providers_provider_id_unique" UNIQUE("provider_id")
 );
 --> statement-breakpoint
+CREATE TABLE "ai_upstream_assignments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"provider_id" integer NOT NULL,
+	"upstream_id" integer NOT NULL,
+	"priority" integer DEFAULT 100 NOT NULL,
+	"weight" integer DEFAULT 1 NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	"created_at" timestamp NOT NULL,
+	CONSTRAINT "ai_upstream_assignments_provider_id_upstream_id_unique" UNIQUE("provider_id","upstream_id")
+);
+--> statement-breakpoint
+CREATE TABLE "ai_upstreams" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"upstream_id" text NOT NULL,
+	"name" text NOT NULL,
+	"base_url" text NOT NULL,
+	"kind" text DEFAULT 'custom' NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"metadata" text DEFAULT '{}' NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	"created_at" timestamp NOT NULL,
+	CONSTRAINT "ai_upstreams_upstream_id_unique" UNIQUE("upstream_id")
+);
+--> statement-breakpoint
 CREATE TABLE "ai_usage_logs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"key_id" integer,
+	"key_owner_id" integer,
 	"consumer_key_id" integer,
 	"user_id" integer,
 	"provider_id" text,
 	"model_id" text,
+	"upstream_id" integer,
+	"upstream_name" text,
+	"upstream_base_url" text,
 	"input_tokens" integer DEFAULT 0 NOT NULL,
 	"output_tokens" integer DEFAULT 0 NOT NULL,
 	"total_tokens" integer DEFAULT 0 NOT NULL,
+	"cache_creation_input_tokens" integer DEFAULT 0 NOT NULL,
+	"cache_read_input_tokens" integer DEFAULT 0 NOT NULL,
 	"estimated_cost" text,
 	"upstream_cost" text,
 	"markup_percent" real,
@@ -308,6 +341,8 @@ CREATE TABLE "top_up_orders" (
 	"amount" text NOT NULL,
 	"fiat_amount" text,
 	"fiat_currency" text DEFAULT 'USD' NOT NULL,
+	"type" text DEFAULT 'crypto' NOT NULL,
+	"fiat_config_id" integer,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"payment_method" text,
 	"payment_proof" text,
@@ -323,6 +358,7 @@ CREATE TABLE "top_up_orders" (
 --> statement-breakpoint
 CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"uuid" text NOT NULL,
 	"email" text,
 	"name" text NOT NULL,
 	"avatar" text,
@@ -369,9 +405,14 @@ CREATE TABLE "withdraw_orders" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"agent_id" integer NOT NULL,
 	"user_id" integer,
-	"to_address" text NOT NULL,
+	"type" text DEFAULT 'crypto' NOT NULL,
+	"fiat_config_id" integer,
+	"payment_method" text,
+	"user_note" text,
+	"admin_note" text,
+	"to_address" text,
 	"amount" text NOT NULL,
-	"network" text NOT NULL,
+	"network" text,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"tx_hash" text,
 	"fee" text,
@@ -383,21 +424,29 @@ CREATE TABLE "withdraw_orders" (
 );
 --> statement-breakpoint
 ALTER TABLE "ai_keys" ADD CONSTRAINT "ai_keys_provider_id_ai_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."ai_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_keys" ADD CONSTRAINT "ai_keys_upstream_id_ai_upstreams_id_fk" FOREIGN KEY ("upstream_id") REFERENCES "public"."ai_upstreams"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_keys" ADD CONSTRAINT "ai_keys_owner_id_key_providers_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."key_providers"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_models" ADD CONSTRAINT "ai_models_provider_id_ai_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."ai_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_upstream_assignments" ADD CONSTRAINT "ai_upstream_assignments_provider_id_ai_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."ai_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_upstream_assignments" ADD CONSTRAINT "ai_upstream_assignments_upstream_id_ai_upstreams_id_fk" FOREIGN KEY ("upstream_id") REFERENCES "public"."ai_upstreams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "relay_consumer_keys" ADD CONSTRAINT "relay_consumer_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "relay_consumer_keys" ADD CONSTRAINT "relay_consumer_keys_agent_id_pay_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."pay_agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "top_up_orders" ADD CONSTRAINT "top_up_orders_agent_id_pay_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."pay_agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "users" ADD CONSTRAINT "users_agent_id_pay_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."pay_agents"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "withdraw_orders" ADD CONSTRAINT "withdraw_orders_agent_id_pay_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."pay_agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_ai_keys_provider_id" ON "ai_keys" USING btree ("provider_id");--> statement-breakpoint
+CREATE INDEX "idx_ai_keys_upstream_id" ON "ai_keys" USING btree ("upstream_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_models_provider_id" ON "ai_models" USING btree ("provider_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_providers_provider_id" ON "ai_providers" USING btree ("provider_id");--> statement-breakpoint
+CREATE INDEX "idx_ai_upstream_assignments_provider_id" ON "ai_upstream_assignments" USING btree ("provider_id");--> statement-breakpoint
+CREATE INDEX "idx_ai_upstream_assignments_upstream_id" ON "ai_upstream_assignments" USING btree ("upstream_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_usage_logs_created_at" ON "ai_usage_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_ai_usage_logs_provider_id" ON "ai_usage_logs" USING btree ("provider_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_usage_logs_consumer_key" ON "ai_usage_logs" USING btree ("consumer_key_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_usage_logs_user_id" ON "ai_usage_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_ai_usage_logs_key_id" ON "ai_usage_logs" USING btree ("key_id");--> statement-breakpoint
+CREATE INDEX "idx_ai_usage_logs_key_owner_id" ON "ai_usage_logs" USING btree ("key_owner_id");--> statement-breakpoint
+CREATE INDEX "idx_ai_usage_logs_upstream_id" ON "ai_usage_logs" USING btree ("upstream_id");--> statement-breakpoint
 CREATE INDEX "idx_announcements_status" ON "announcements" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_announcements_created_at" ON "announcements" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_api_keys_secret_hash" ON "api_keys" USING btree ("secret_hash");--> statement-breakpoint
@@ -420,6 +469,7 @@ CREATE INDEX "idx_relay_consumer_keys_user_id" ON "relay_consumer_keys" USING bt
 CREATE INDEX "idx_relay_consumer_keys_agent_id" ON "relay_consumer_keys" USING btree ("agent_id");--> statement-breakpoint
 CREATE INDEX "idx_top_up_orders_agent_id" ON "top_up_orders" USING btree ("agent_id");--> statement-breakpoint
 CREATE INDEX "idx_top_up_orders_status" ON "top_up_orders" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "users_uuid_unique" ON "users" USING btree ("uuid");--> statement-breakpoint
 CREATE INDEX "idx_webhook_deliveries_endpoint_id" ON "webhook_deliveries" USING btree ("endpoint_id");--> statement-breakpoint
 CREATE INDEX "idx_webhook_deliveries_status" ON "webhook_deliveries" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_webhook_deliveries_event_id" ON "webhook_deliveries" USING btree ("event_id");--> statement-breakpoint

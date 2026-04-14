@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -22,7 +21,6 @@ export const users = pgTable(
     id: serial("id").primaryKey(),
     uuid: text("uuid")
       .notNull()
-      .default(sql`uuid_v7_text()`)
       .$defaultFn(() => generateUuidV7()),
     email: text("email").unique(),
     name: text("name").notNull(),
@@ -527,21 +525,38 @@ export const aiProviders = pgTable(
   (t) => [index("idx_ai_providers_provider_id").on(t.providerId)],
 );
 
-export const aiProviderUpstreams = pgTable(
-  "ai_provider_upstreams",
+export const aiUpstreams = pgTable("ai_upstreams", {
+  id: serial("id").primaryKey(),
+  upstreamId: text("upstream_id")
+    .notNull()
+    .unique()
+    .$defaultFn(() => generateUuidV7()),
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull(),
+  kind: text("kind").notNull().default("custom"), // "official" | "reseller" | "openrouter" | "custom"
+  enabled: boolean("enabled").notNull().default(true),
+  metadata: text("metadata").notNull().default("{}"),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  createdAt: timestamp("created_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const aiUpstreamAssignments = pgTable(
+  "ai_upstream_assignments",
   {
     id: serial("id").primaryKey(),
     providerId: integer("provider_id")
       .notNull()
       .references(() => aiProviders.id, { onDelete: "cascade" }),
-    upstreamId: text("upstream_id").notNull(),
-    name: text("name").notNull(),
-    baseUrl: text("base_url").notNull(),
-    kind: text("kind").notNull().default("custom"),
+    upstreamId: integer("upstream_id")
+      .notNull()
+      .references(() => aiUpstreams.id, { onDelete: "cascade" }),
     priority: integer("priority").notNull().default(100),
     weight: integer("weight").notNull().default(1),
     enabled: boolean("enabled").notNull().default(true),
-    metadata: text("metadata").notNull().default("{}"),
     updatedAt: timestamp("updated_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -551,7 +566,8 @@ export const aiProviderUpstreams = pgTable(
   },
   (t) => [
     unique().on(t.providerId, t.upstreamId),
-    index("idx_ai_provider_upstreams_provider_id").on(t.providerId),
+    index("idx_ai_upstream_assignments_provider_id").on(t.providerId),
+    index("idx_ai_upstream_assignments_upstream_id").on(t.upstreamId),
   ],
 );
 
@@ -591,7 +607,7 @@ export const aiKeys = pgTable(
     providerId: integer("provider_id")
       .notNull()
       .references(() => aiProviders.id, { onDelete: "cascade" }),
-    upstreamId: integer("upstream_id").references(() => aiProviderUpstreams.id, {
+    upstreamId: integer("upstream_id").references(() => aiUpstreams.id, {
       onDelete: "set null",
     }),
     ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }), // key provider (密钥合作方)
@@ -741,8 +757,10 @@ export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type NewWebhookDelivery = typeof webhookDeliveries.$inferInsert;
 export type AiProvider = typeof aiProviders.$inferSelect;
 export type NewAiProvider = typeof aiProviders.$inferInsert;
-export type AiProviderUpstream = typeof aiProviderUpstreams.$inferSelect;
-export type NewAiProviderUpstream = typeof aiProviderUpstreams.$inferInsert;
+export type AiUpstream = typeof aiUpstreams.$inferSelect;
+export type NewAiUpstream = typeof aiUpstreams.$inferInsert;
+export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;
+export type NewAiUpstreamAssignment = typeof aiUpstreamAssignments.$inferInsert;
 export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
 export type AiKey = typeof aiKeys.$inferSelect;

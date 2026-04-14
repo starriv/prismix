@@ -95,7 +95,6 @@ export interface AiOwnerUsageTotals {
 
 export interface UpstreamUsageOverviewRow {
   upstreamId: number;
-  providerId: string | null;
   upstreamName: string | null;
   upstreamBaseUrl: string | null;
   requests24h: number;
@@ -218,7 +217,6 @@ export const aiUsageLogRepo = {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
     const rows = await queryAll<{
       upstreamId: number | null;
-      providerId: string | null;
       upstreamName: string | null;
       upstreamBaseUrl: string | null;
       requests24h: number;
@@ -231,9 +229,8 @@ export const aiUsageLogRepo = {
       db
         .select({
           upstreamId: aiUsageLogs.upstreamId,
-          providerId: aiUsageLogs.providerId,
-          upstreamName: aiUsageLogs.upstreamName,
-          upstreamBaseUrl: aiUsageLogs.upstreamBaseUrl,
+          upstreamName: sql<string | null>`MAX(${aiUsageLogs.upstreamName})`,
+          upstreamBaseUrl: sql<string | null>`MAX(${aiUsageLogs.upstreamBaseUrl})`,
           requests24h: count(),
           clientErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 THEN 1 ELSE 0 END)`,
           serverErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 THEN 1 ELSE 0 END)`,
@@ -243,19 +240,13 @@ export const aiUsageLogRepo = {
         })
         .from(aiUsageLogs)
         .where(and(isNotNull(aiUsageLogs.upstreamId), gte(aiUsageLogs.createdAt, since)))
-        .groupBy(
-          aiUsageLogs.upstreamId,
-          aiUsageLogs.providerId,
-          aiUsageLogs.upstreamName,
-          aiUsageLogs.upstreamBaseUrl,
-        ),
+        .groupBy(aiUsageLogs.upstreamId),
     );
 
     return rows
       .filter((row): row is typeof row & { upstreamId: number } => row.upstreamId != null)
       .map((row) => ({
         upstreamId: row.upstreamId,
-        providerId: row.providerId ?? null,
         upstreamName: row.upstreamName ?? null,
         upstreamBaseUrl: row.upstreamBaseUrl ?? null,
         requests24h: Number(row.requests24h ?? 0),

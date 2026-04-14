@@ -14,39 +14,47 @@ export const aiProviderSchema = z.object({
   loadBalanceStrategy: z.string().optional().default("round-robin"),
   upstreamRoutingStrategy: z.string().optional().default("priority"),
   iconUrl: z.string().nullable().optional(),
+  upstreamCount: z.number().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 
-export const aiProviderUpstreamSchema = z.object({
+// ── AI Upstreams (global) ──────────────────────────────────────
+
+export const aiUpstreamSchema = z.object({
   id: z.number(),
-  providerId: z.number(),
   upstreamId: z.string(),
   name: z.string(),
   baseUrl: z.string(),
   kind: z.string(),
-  priority: z.number(),
-  weight: z.number(),
   enabled: z.coerce.boolean(),
   metadata: z.record(z.string(), z.unknown()),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
-export type AiProviderUpstream = z.infer<typeof aiProviderUpstreamSchema>;
+export type AiUpstream = z.infer<typeof aiUpstreamSchema>;
+
+export const aiUpstreamAssignmentSchema = z.object({
+  id: z.number(),
+  providerId: z.number(),
+  upstream: aiUpstreamSchema,
+  priority: z.number(),
+  weight: z.number(),
+  enabled: z.coerce.boolean(),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiUpstreamAssignment = z.infer<typeof aiUpstreamAssignmentSchema>;
 
 export const aiUpstreamOverviewItemSchema = z.object({
   id: z.number(),
-  providerDbId: z.number(),
-  providerId: z.string().nullable(),
-  providerName: z.string().nullable(),
-  name: z.string(),
   upstreamId: z.string(),
+  name: z.string(),
   baseUrl: z.string(),
   kind: z.string(),
   enabled: z.coerce.boolean(),
-  priority: z.number(),
-  weight: z.number(),
+  assignmentCount: z.number(),
   totalKeys: z.number(),
   enabledKeys: z.number(),
   requests24h: z.number(),
