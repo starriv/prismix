@@ -267,6 +267,37 @@ Color:    inherits currentColor (auto light/dark)`}</CodeBlock>
         </div>
       </DocSection>
 
+      {/* Dialog Layering */}
+      <DocSection title={t("docs.brand.dialogs.title")}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {t("docs.brand.dialogs.desc")}
+        </p>
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("docs.brand.dialogs.th.rule")}</TableHead>
+                <TableHead>{t("docs.brand.dialogs.th.guideline")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(["cap-borders", "use-surface-cards", "card-style", "keep-focus"] as const).map(
+                (k) => (
+                  <TableRow key={k}>
+                    <TableCell className="text-sm font-medium">
+                      {t(`docs.brand.dialogs.rows.${k}.rule`)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t(`docs.brand.dialogs.rows.${k}.guideline`)}
+                    </TableCell>
+                  </TableRow>
+                ),
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </DocSection>
+
       {/* Voice & Tone */}
       <DocSection title={t("docs.brand.voice.title")}>
         <div className="rounded-lg border">

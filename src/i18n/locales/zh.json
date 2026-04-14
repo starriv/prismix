@@ -72,7 +72,9 @@
       "actions": "操作"
     },
     "valid": {
-      "password-weak": "密码需 10 位以上，含大小写字母和数字"
+      "password-weak": "密码需 10 位以上，含大小写字母和数字",
+      "required": "此字段为必填项",
+      "invalid-amount": "请输入有效金额"
     }
   },
   "nav": {
@@ -1807,6 +1809,32 @@
           }
         }
       },
+      "dialogs": {
+        "title": "Dialog 分层",
+        "desc": "弹窗内容优先保持扁平。如果内容区已经出现两层以上边框包裹，不再继续加描边容器，改用无边框、弱底色的分区卡片来区分信息块。",
+        "th": {
+          "rule": "规则",
+          "guideline": "说明"
+        },
+        "rows": {
+          "cap-borders": {
+            "rule": "边框层级最多两层",
+            "guideline": "超过两层会让弹窗显得拥挤、厚重，优先删除内层边框。"
+          },
+          "use-surface-cards": {
+            "rule": "改用表面分区卡片",
+            "guideline": "当信息块需要明显区分时，使用无边框卡片，通过圆角、留白和轻微底色区分，而不是继续套框。"
+          },
+          "card-style": {
+            "rule": "卡片底色保持克制",
+            "guideline": "使用 secondary/accent 这类弱底色，优先保证分区可见，但不要压过表单控件和正文。"
+          },
+          "keep-focus": {
+            "rule": "只突出主操作区",
+            "guideline": "收款信息、说明、用户输入可以分区，但同一弹窗里只保留一个最强视觉焦点。"
+          }
+        }
+      },
       "voice": {
         "title": "语气与风格",
         "th": {
@@ -2041,6 +2069,7 @@
     "th": {
       "display-name": "显示名称",
       "method": "方式",
+      "currency": "币种",
       "enabled": "启用",
       "actions": "操作"
     },
@@ -2054,6 +2083,8 @@
       "method": "收款方式",
       "display-name": "显示名称",
       "display-name-ph": "例如 支付宝 - 张三",
+      "currency": "币种",
+      "currency-ph": "例如 CNY、USD、HKD",
       "bank-name": "银行名称",
       "bank-name-ph": "例如 中国银行",
       "account-name": "账户名",
@@ -2112,6 +2143,7 @@
       "txhash": "链上交易哈希",
       "method": "支付方式",
       "fiat-amount": "法币金额",
+      "credit-amount": "入账金额",
       "payment-proof": "付款凭证",
       "timeline": "时间线",
       "created": "创建时间",
@@ -2124,6 +2156,10 @@
       "settle": "入账并确认",
       "common-reasons": "常见原因",
       "settle-default-note": "管理员已处理充值订单 #{{id}}",
+      "settle-fiat-amount": "实付法币金额",
+      "settle-fiat-hint": "记录用户实际支付的法币金额（{{currency}}）。",
+      "settle-credit-amount": "入账 USDC",
+      "settle-credit-hint": "该金额会实际增加到用户钱包余额（USDC）。",
       "settle-success": "已完成上账并确认订单。",
       "settle-error": "处理充值订单失败。",
       "reject-success": "充值订单已拒绝。",
@@ -2744,9 +2780,15 @@
       "title": "设置",
       "desc": "管理您的个人资料",
       "profile-title": "个人资料",
+      "wallet-title": "钱包地址",
+      "wallet-desc": "查看你的链上钱包地址和当前支持的区块链网络。",
       "name-label": "名称",
       "email-label": "邮箱",
       "uuid-label": "UUID",
+      "wallet-address": "地址",
+      "wallet-address-empty": "暂未生成可用的钱包地址。",
+      "wallet-networks": "支持的区块链",
+      "wallet-networks-empty": "暂时没有可用的链上网络。",
       "save": "保存更改",
       "toast": {
         "updated": "个人资料已更新"
@@ -2768,6 +2810,7 @@
       "title": "钱包",
       "desc": "管理你的 USDC 余额、充值和提现",
       "balance": "可用余额",
+      "balance-tooltip": "本站统一使用 USDC 结算。无论你通过加密货币还是法币充值，最终都会按规则换算并以 USDC 计入余额。",
       "deposit": "充值",
       "withdraw": "提现",
       "selector-crypto": "加密货币",
@@ -2815,7 +2858,6 @@
       "fiat-deposit-submit": "提交申请",
       "fiat-deposit-success": "充值申请已提交，请等待审核",
       "fiat-deposit-failed": "提交充值申请失败",
-      "fiat-deposit-hint": "请使用下方信息完成付款。管理员确认到账后会为你入账。",
       "fiat-proof-title": "提交付款凭证",
       "fiat-proof-desc": "请根据订单中的收款信息完成付款，并补充付款凭证，方便管理员审核。",
       "fiat-proof-label": "凭证信息",

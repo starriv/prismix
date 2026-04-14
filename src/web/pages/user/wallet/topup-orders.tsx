@@ -30,6 +30,15 @@ const STATUS_COLORS = {
   expired: "border-zinc-500/30 bg-zinc-500/10 text-zinc-600",
 };
 
+function formatOrderAmount(order: UserWalletTopupOrder) {
+  if (order.type === "fiat" && order.status !== "confirmed") {
+    const fiatAmount = order.fiatAmount || order.amount;
+    return `${removeTailingZero(fiatAmount)} ${order.fiatCurrency}`;
+  }
+
+  return `$${removeTailingZero(order.amount)} USDC`;
+}
+
 export function WalletTopupOrders({
   onSelectOrder,
 }: {
@@ -88,9 +97,7 @@ export function WalletTopupOrders({
               {orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-mono text-xs">#{order.id}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    ${removeTailingZero(order.amount)} USDC
-                  </TableCell>
+                  <TableCell className="font-mono text-xs">{formatOrderAmount(order)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
                       {t(`user.wallet.type-${order.type}`)}

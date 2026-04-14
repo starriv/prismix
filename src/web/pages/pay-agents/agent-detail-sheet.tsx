@@ -119,7 +119,6 @@ export function PayAgentDetailSheet({
   };
 
   const handleEnableWallet = useCallback(() => setWalletAction("enable"), []);
-  const handleDisableWallet = useCallback(() => setWalletAction("disable"), []);
 
   const handleConfirmWalletAction = useCallback(async () => {
     if (!walletAction) return;

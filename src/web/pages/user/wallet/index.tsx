@@ -1,19 +1,25 @@
-import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Landmark, Wallet2 } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  ChevronRight,
+  CircleHelp,
+  Landmark,
+  Wallet2,
+} from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import type { UserWalletTopupOrder } from "@/web/api/schemas";
-import { useUserWallet, useWalletDepositInfo } from "@/web/api/user-hooks";
+import { useUserWallet } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/web/components/ui/popover";
 import { Skeleton } from "@/web/components/ui/skeleton";
-import { WalletAddress } from "@/web/components/ui/wallet-address";
-import { useChainRegistry } from "@/web/shared/chains";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 
 import { DepositDialog } from "./deposit-dialog";
 import { FiatOrderDialog, FiatPendingTopupDialog } from "./fiat-order-dialog";
@@ -22,6 +28,7 @@ import { WalletTopupOrders } from "./topup-orders";
 import { WithdrawDialog } from "./withdraw-dialog";
 
 const CLOSE_DELAY_MS = 120;
+type PopoverOpenMode = "hover" | "click" | null;
 
 function WalletActionPopover({
   label,
@@ -47,7 +54,7 @@ function WalletActionPopover({
   onFiat: () => void;
 }) {
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [open, setOpen] = useState(false);
+  const [openMode, setOpenMode] = useState<PopoverOpenMode>(null);
 
   useEffect(() => {
     return () => clearTimeout(closeTimer.current);
@@ -55,38 +62,56 @@ function WalletActionPopover({
 
   const cancelClose = useCallback(() => clearTimeout(closeTimer.current), []);
   const scheduleClose = useCallback(() => {
+    if (openMode !== "hover") return;
     clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  }, []);
+    closeTimer.current = setTimeout(() => setOpenMode(null), CLOSE_DELAY_MS);
+  }, [openMode]);
+
+  const handleHoverOpen = useCallback(() => {
+    cancelClose();
+    setOpenMode((current) => (current === "click" ? current : "hover"));
+  }, [cancelClose]);
+
+  const handleTriggerClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelClose();
+      setOpenMode((current) => (current === "click" ? null : "click"));
+    },
+    [cancelClose],
+  );
 
   const handleSelect = useCallback((action: () => void) => {
-    setOpen(false);
+    setOpenMode(null);
     action();
   }, []);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={openMode !== null}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          cancelClose();
+          setOpenMode(null);
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           size="sm"
           variant={variant}
           disabled={disabled}
-          onMouseEnter={() => {
-            cancelClose();
-            setOpen(true);
-          }}
+          onMouseEnter={handleHoverOpen}
           onMouseLeave={scheduleClose}
-          onClick={() => {
-            cancelClose();
-            setOpen((value) => !value);
-          }}
+          onClick={handleTriggerClick}
         >
           {icon}
           {label}
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align="start"
         className="w-[360px] rounded-xl border-border/70 p-3 shadow-xl"
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
@@ -142,8 +167,6 @@ function WalletActionPopover({
 export default function UserWalletPage() {
   const { t } = useTranslation();
   const { data: wallet, isLoading } = useUserWallet();
-  const { data: depositInfo } = useWalletDepositInfo();
-  const { getChainDisplayByNetworkId } = useChainRegistry();
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [fiatDepositOpen, setFiatDepositOpen] = useState(false);
@@ -180,12 +203,6 @@ export default function UserWalletPage() {
     setFiatWithdrawOpen(true);
   }, []);
 
-  const defaultExplorerUrl = useMemo(() => {
-    const networkId = depositInfo?.networks[0]?.networkId;
-    if (!networkId) return undefined;
-    return getChainDisplayByNetworkId(networkId)?.explorerUrl;
-  }, [depositInfo, getChainDisplayByNetworkId]);
-
   return (
     <div>
       <Header title={t("user.wallet.title")} description={t("user.wallet.desc")} />
@@ -193,12 +210,28 @@ export default function UserWalletPage() {
       <div className="p-4 md:p-8 space-y-6">
         {/* Hero Balance Card */}
         <Card>
-          <CardContent className="pt-4 space-y-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <p>{t("user.wallet.balance")}</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/80 transition-colors hover:text-foreground"
+                      aria-label={t("user.wallet.balance-tooltip")}
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-64 leading-5">
+                    {t("user.wallet.balance-tooltip")}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div>
-                <p className="text-xs text-muted-foreground">{t("user.wallet.balance")}</p>
                 {isLoading ? (
-                  <Skeleton className="h-8 w-32 mt-1" />
+                  <Skeleton className="mt-1 h-8 w-32" />
                 ) : (
                   <p className="text-2xl font-bold">
                     ${removeTailingZero(wallet?.balance ?? "0")}{" "}
@@ -206,7 +239,7 @@ export default function UserWalletPage() {
                   </p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <WalletActionPopover
                   label={t("user.wallet.deposit")}
                   icon={<ArrowDownLeft className="mr-1 h-3.5 w-3.5" />}
@@ -232,11 +265,6 @@ export default function UserWalletPage() {
                 />
               </div>
             </div>
-
-            {/* Wallet address with copy + explorer */}
-            {wallet?.address && (
-              <WalletAddress address={wallet.address} explorerUrl={defaultExplorerUrl} />
-            )}
           </CardContent>
         </Card>
 

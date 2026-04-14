@@ -27,7 +27,7 @@ interface WalletAddressProps {
  */
 export function WalletAddress({
   address,
-  full = false,
+  full = true,
   explorerUrl = "https://basescan.org",
   className,
 }: WalletAddressProps) {
@@ -48,23 +48,23 @@ export function WalletAddress({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <p className="font-mono font-medium text-xs text-ellipsis overflow-clip cursor-pointer underline underline-offset-2 decoration-foreground pb-0.5">
-              <span className="text-green-600">{prefix}</span>
+            <p className="font-medium text-xs text-ellipsis overflow-clip cursor-pointer hover:underline hover:underline-offset-2 hover:decoration-foreground pb-0.5">
+              <span className="stone-800 font-bold">{prefix}</span>
               {full ? (
                 <>
                   <span className="text-muted-foreground">{middle}</span>
-                  <span className="text-green-600">{suffix}</span>
+                  <span className="stone-800 font-bold">{suffix}</span>
                 </>
               ) : (
                 <>
                   <span className="text-muted-foreground">****</span>
-                  <span className="text-green-600">{suffix}</span>
+                  <span className="stone-800 font-bold">{suffix}</span>
                 </>
               )}
             </p>
           </TooltipTrigger>
           <TooltipContent>
-            <span className="font-mono">{address}</span>
+            <span className="stone-600 font-mono">{address}</span>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

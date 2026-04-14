@@ -14,6 +14,13 @@ import {
 } from "@/web/api/user-hooks";
 import { Button } from "@/web/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/web/components/ui/card";
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -46,6 +53,7 @@ function ConfigDetails({
   t: ReturnType<typeof useTranslation>["t"];
 }) {
   const labelMap: Record<string, string> = {
+    currency: t("fiat.form.currency"),
     bankName: t("fiat.form.bank-name"),
     accountName: t("fiat.form.account-name"),
     accountNumber: t("fiat.form.account-number"),
@@ -268,23 +276,41 @@ export function FiatOrderDialog({
                       value={String(config.id)}
                       className="mt-0 h-[360px] space-y-5 overflow-y-auto pr-2"
                     >
-                      <ConfigDetails config={data} t={t} />
+                      <Card className="gap-0 bg-secondary/60 shadow-none ring-0">
+                        <CardHeader>
+                          <CardDescription>{t("fiat.form.method")}</CardDescription>
+                          <CardTitle>{config.displayName}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <ConfigDetails config={data} t={t} />
+                        </CardContent>
+                      </Card>
 
-                      <div className="space-y-2">
-                        <Label>{t("user.wallet.fiat-amount")}</Label>
-                        <Input
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder={t("user.wallet.fiat-amount-ph")}
-                          inputMode="decimal"
-                        />
-                      </div>
+                      <Card className="gap-0 bg-accent/40 shadow-none ring-0">
+                        <CardHeader>
+                          <CardDescription>
+                            {t("user.wallet.deposit-result-amount")}
+                          </CardDescription>
+                          <CardTitle className="text-sm font-medium">
+                            {data.currency
+                              ? `${t("fiat.form.currency")}: ${data.currency}`
+                              : t("user.wallet.deposit-result-amount")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="space-y-2">
+                            <Label>{t("user.wallet.deposit-result-amount")}</Label>
+                            <Input
+                              value={amount}
+                              onChange={(e) => setAmount(e.target.value)}
+                              placeholder={t("user.wallet.fiat-amount-ph")}
+                              inputMode="decimal"
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
 
-                      {mode === "deposit" ? (
-                        <p className="text-xs text-muted-foreground">
-                          {t("user.wallet.fiat-deposit-hint")}
-                        </p>
-                      ) : (
+                      {mode === "deposit" ? null : (
                         <p className="text-xs text-muted-foreground">
                           {t("user.wallet.fiat-withdraw-hint")}
                         </p>

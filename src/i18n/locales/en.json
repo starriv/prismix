@@ -72,7 +72,9 @@
       "actions": "Actions"
     },
     "valid": {
-      "password-weak": "Password must be 10+ chars with upper, lower, and digit"
+      "password-weak": "Password must be 10+ chars with upper, lower, and digit",
+      "required": "This field is required",
+      "invalid-amount": "Please enter a valid amount"
     }
   },
   "nav": {
@@ -1807,6 +1809,32 @@
           }
         }
       },
+      "dialogs": {
+        "title": "Dialog Layering",
+        "desc": "Keep dialog interiors flat by default. If the content area already has more than two border layers, stop adding outlined containers and switch to borderless section cards with soft surface contrast.",
+        "th": {
+          "rule": "Rule",
+          "guideline": "Guideline"
+        },
+        "rows": {
+          "cap-borders": {
+            "rule": "Cap borders at two layers",
+            "guideline": "More than two border layers makes a dialog feel crowded and heavy, so remove inner outlines first."
+          },
+          "use-surface-cards": {
+            "rule": "Use surface cards for grouping",
+            "guideline": "When sections need stronger separation, use borderless cards with radius, spacing, and soft background contrast instead of another box outline."
+          },
+          "card-style": {
+            "rule": "Keep card fills restrained",
+            "guideline": "Use soft secondary/accent surfaces that make grouping visible without overpowering form controls or body text."
+          },
+          "keep-focus": {
+            "rule": "Emphasize only one primary action zone",
+            "guideline": "Payment info, help text, and user input can be separated, but each dialog should still have a single strongest visual focus."
+          }
+        }
+      },
       "voice": {
         "title": "Voice & Tone",
         "th": {
@@ -2041,6 +2069,7 @@
     "th": {
       "display-name": "Display Name",
       "method": "Method",
+      "currency": "Currency",
       "enabled": "Enabled",
       "actions": "Actions"
     },
@@ -2054,6 +2083,8 @@
       "method": "Payment Method",
       "display-name": "Display Name",
       "display-name-ph": "e.g. Alipay - John",
+      "currency": "Currency",
+      "currency-ph": "e.g. CNY, USD, HKD",
       "bank-name": "Bank Name",
       "bank-name-ph": "e.g. Bank of China",
       "account-name": "Account Name",
@@ -2112,6 +2143,7 @@
       "txhash": "On-chain Tx Hash",
       "method": "Payment Method",
       "fiat-amount": "Fiat Amount",
+      "credit-amount": "Credited Amount",
       "payment-proof": "Payment Proof",
       "timeline": "Timeline",
       "created": "Created",
@@ -2124,6 +2156,10 @@
       "settle": "Credit & Confirm",
       "common-reasons": "Common Reasons",
       "settle-default-note": "Admin settled top-up order #{{id}}",
+      "settle-fiat-amount": "Paid Fiat Amount",
+      "settle-fiat-hint": "Record the user's actual fiat payment amount ({{currency}}).",
+      "settle-credit-amount": "Credited USDC",
+      "settle-credit-hint": "This amount will be added to the user's wallet balance in USDC.",
       "settle-success": "Wallet credited and order confirmed.",
       "settle-error": "Failed to settle top-up order.",
       "reject-success": "Top-up order rejected.",
@@ -2744,9 +2780,15 @@
       "title": "Settings",
       "desc": "Manage your profile",
       "profile-title": "Profile",
+      "wallet-title": "Wallet Address",
+      "wallet-desc": "View your on-chain wallet address and the blockchain networks currently supported.",
       "name-label": "Name",
       "email-label": "Email",
       "uuid-label": "UUID",
+      "wallet-address": "Address",
+      "wallet-address-empty": "No wallet address is available yet.",
+      "wallet-networks": "Supported Networks",
+      "wallet-networks-empty": "No blockchain networks are available right now.",
       "save": "Save Changes",
       "toast": {
         "updated": "Profile updated"
@@ -2768,6 +2810,7 @@
       "title": "Wallet",
       "desc": "Manage your USDC balance, deposits, and withdrawals",
       "balance": "Available Balance",
+      "balance-tooltip": "This site settles in USDC. Whether you deposit with crypto or fiat, the final credited balance is converted and recorded in USDC.",
       "deposit": "Deposit",
       "withdraw": "Withdraw",
       "selector-crypto": "Crypto",
@@ -2815,7 +2858,6 @@
       "fiat-deposit-submit": "Submit Deposit Order",
       "fiat-deposit-success": "Fiat deposit order submitted, pending admin review",
       "fiat-deposit-failed": "Failed to create fiat deposit order",
-      "fiat-deposit-hint": "Complete payment with the selected method. The admin will credit your wallet after manual confirmation.",
       "fiat-proof-title": "Submit Payment Proof",
       "fiat-proof-desc": "Complete the payment using the order details and provide payment proof for admin review.",
       "fiat-proof-label": "Proof Details",
