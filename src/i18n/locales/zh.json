@@ -48,7 +48,8 @@
       "close": "关闭",
       "delete": "删除",
       "copy": "复制",
-      "edit": "编辑"
+      "edit": "编辑",
+      "back": "返回"
     },
     "no-results": "无搜索结果",
     "copied": "已复制",
@@ -2268,6 +2269,13 @@
     "title": "AI 供应商",
     "desc": "管理你的 AI 供应商连接",
     "empty": "暂未配置供应商",
+    "card": {
+      "upstreams": "{{count}} 个上游",
+      "no-upstreams": "官方上游",
+      "loading": "加载中…",
+      "unavailable": "上游信息不可用",
+      "open-provider": "打开 {{name}}"
+    },
     "btn": {
       "new": "添加供应商",
       "create": "创建供应商",

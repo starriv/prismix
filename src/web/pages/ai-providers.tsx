@@ -4,13 +4,16 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { countBy } from "lodash-es";
+import { ArrowLeft, Pencil, Plus, Server, Sparkles, Trash2 } from "lucide-react";
+import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import {
   useAiProviders,
   useAiProviderUpstreams,
+  useAiUpstreamsOverview,
   useCreateAiProvider,
   useCreateAiProviderUpstream,
   useDeleteAiProvider,
@@ -28,7 +31,7 @@ import {
 } from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/web/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -55,6 +58,7 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
+import { cn } from "@/web/shared/utils";
 
 // ── AWS Bedrock regions (runtime endpoints) ─────────────────────────
 
@@ -83,7 +87,7 @@ const BEDROCK_REGIONS = [
   { code: "us-gov-west-1", label: "AWS GovCloud (US-West)" },
 ] as const;
 
-// ── Form schema ──────────────────────────────────────────────────────
+// ── Form schemas ────────────────────────────────────────────────────
 
 const providerFormSchema = z
   .object({
@@ -122,185 +126,329 @@ const upstreamFormSchema = z.object({
 type UpstreamFormInput = z.input<typeof upstreamFormSchema>;
 type UpstreamFormValues = z.output<typeof upstreamFormSchema>;
 
-// ── Page ─────────────────────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────
 
 export default function AiProvidersPage() {
   const { t } = useTranslation();
   const { data: providers = [], isLoading } = useAiProviders();
-  const updateProvider = useUpdateAiProvider();
-  const deleteProvider = useDeleteAiProvider();
+  const [selectedId, setSelectedId] = useQueryState("providerId", parseAsInteger);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<AiProvider | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<AiProvider | null>(null);
 
-  const handleToggle = useCallback(
-    async (p: AiProvider) => {
-      try {
-        await updateProvider.mutateAsync({
-          id: p.id,
-          enabled: !p.enabled,
-        });
-        toast.success(t("ai-providers.toast.updated"));
-      } catch {
-        toast.error(t("ai-providers.toast.update-error"));
-      }
-    },
-    [updateProvider, t],
-  );
+  const selectedProvider = providers.find((p) => p.id === selectedId) ?? null;
 
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    try {
-      await deleteProvider.mutateAsync(deleteTarget.id);
-      toast.success(t("ai-providers.toast.deleted"));
-      setDeleteTarget(null);
-    } catch {
-      toast.error(t("ai-providers.toast.delete-error"));
-    }
-  }, [deleteTarget, deleteProvider, t]);
+  const handleBack = useCallback(() => setSelectedId(null), [setSelectedId]);
+  const handleSelect = useCallback((p: AiProvider) => setSelectedId(p.id), [setSelectedId]);
 
   return (
     <div>
       <Header title={t("ai-providers.title")} description={t("ai-providers.desc")} />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
-        <div className="flex items-center justify-end">
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t("ai-providers.btn.new")}
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : providers.length === 0 ? (
-          <Card>
-            <CardContent>
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {t("ai-providers.empty")}
-              </p>
-            </CardContent>
-          </Card>
+        {selectedProvider ? (
+          <ProviderDetail provider={selectedProvider} onBack={handleBack} />
         ) : (
-          <div className="space-y-4">
-            {providers.map((provider) => (
-              <Card key={provider.id}>
-                <CardHeader>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold">{provider.name}</h3>
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {provider.providerId}
-                        </Badge>
-                        <Badge variant="outline">{provider.apiFormat}</Badge>
-                        <Badge variant="outline">{provider.authType}</Badge>
-                        <Badge variant="outline">
-                          {provider.upstreamRoutingStrategy === "weighted-random"
-                            ? t("ai-providers.strategy.weighted-random")
-                            : t("ai-providers.strategy.priority")}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide">
-                            {t("ai-providers.form.base-url")}
-                          </div>
-                          <div className="font-mono text-xs text-foreground break-all">
-                            {provider.baseUrl}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide">
-                            {t("ai-providers.th.api-format")}
-                          </div>
-                          <div className="text-foreground">{provider.apiFormat}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide">
-                            {t("ai-providers.th.auth-type")}
-                          </div>
-                          <div className="text-foreground">{provider.authType}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide">
-                            {t("ai-providers.th.routing")}
-                          </div>
-                          <div className="text-foreground">
-                            {provider.upstreamRoutingStrategy === "weighted-random"
-                              ? t("ai-providers.strategy.weighted-random")
-                              : t("ai-providers.strategy.priority")}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 self-start">
-                      <Switch
-                        checked={provider.enabled}
-                        onCheckedChange={() => handleToggle(provider)}
-                        disabled={updateProvider.isPending}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditTarget(provider)}
-                        aria-label={t("common.btn.edit")}
-                      >
-                        <Pencil className="mr-1 h-3.5 w-3.5" />
-                        {t("common.btn.edit")}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDeleteTarget(provider)}
-                        aria-label={t("common.btn.delete")}
-                      >
-                        <Trash2 className="mr-1 h-3.5 w-3.5 text-destructive" />
-                        {t("common.btn.delete")}
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ProviderUpstreamsSection provider={provider} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <>
+            <div className="flex items-center justify-end">
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                {t("ai-providers.btn.new")}
+              </Button>
+            </div>
+            <ProviderGrid providers={providers} loading={isLoading} onSelect={handleSelect} />
+          </>
         )}
       </div>
 
       <ProviderFormDialog open={addOpen} onOpenChange={setAddOpen} />
+    </div>
+  );
+}
 
-      <ProviderFormDialog
-        open={!!editTarget}
-        onOpenChange={(v) => {
-          if (!v) setEditTarget(null);
-        }}
-        provider={editTarget}
-      />
+// ── Provider Grid ───────────────────────────────────────────────────
 
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => {
-          if (!v) setDeleteTarget(null);
-        }}
+function ProviderGrid({
+  providers,
+  loading,
+  onSelect,
+}: {
+  providers: AiProvider[];
+  loading: boolean;
+  onSelect: (p: AiProvider) => void;
+}) {
+  const { t } = useTranslation();
+
+  // Get upstream counts per provider from overview
+  const {
+    data: overview,
+    isLoading: overviewLoading,
+    isError: overviewError,
+  } = useAiUpstreamsOverview();
+  const upstreamCounts = useMemo(() => {
+    if (!overview) return {};
+    return countBy(overview.upstreams, "providerDbId");
+  }, [overview]);
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="p-6">
+            <Skeleton className="h-5 w-32 mb-4" />
+            <Skeleton className="h-4 w-48 mb-2" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (providers.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Server className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">{t("ai-providers.empty")}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      {providers.map((provider) => (
+        <ProviderCard
+          key={provider.id}
+          provider={provider}
+          upstreamCount={overview ? (upstreamCounts[provider.id] ?? 0) : null}
+          upstreamState={overviewLoading ? "loading" : overviewError ? "unavailable" : "ready"}
+          onClick={() => onSelect(provider)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ProviderCard({
+  provider,
+  upstreamCount,
+  upstreamState,
+  onClick,
+}: {
+  provider: AiProvider;
+  upstreamCount: number | null;
+  upstreamState: "loading" | "unavailable" | "ready";
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const upstreamLabel =
+    upstreamState === "loading"
+      ? t("ai-providers.card.loading")
+      : upstreamState === "unavailable"
+        ? t("ai-providers.card.unavailable")
+        : upstreamCount && upstreamCount > 0
+          ? t("ai-providers.card.upstreams", { count: upstreamCount })
+          : t("ai-providers.card.no-upstreams");
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        "block w-full rounded-xl text-left touch-manipulation",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      )}
+      onClick={onClick}
+      aria-label={t("ai-providers.card.open-provider", { name: provider.name })}
+    >
+      <Card
+        className={cn(
+          "h-full transition-[box-shadow,border-color,opacity] hover:shadow-md hover:border-primary/30",
+          "flex flex-col justify-between",
+          !provider.enabled && "opacity-60",
+        )}
       >
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {provider.iconUrl ? (
+                <img
+                  src={provider.iconUrl}
+                  alt={provider.name}
+                  className="h-8 w-8 rounded-md object-contain"
+                  width={32}
+                  height={32}
+                />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
+                  <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
+                </div>
+              )}
+              <h3 className="truncate text-sm font-semibold">{provider.name}</h3>
+            </div>
+            <div
+              className={cn(
+                "h-2.5 w-2.5 shrink-0 rounded-full",
+                provider.enabled ? "bg-green-500" : "bg-yellow-500",
+              )}
+              title={provider.enabled ? t("common.status.active") : t("common.status.disabled")}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pb-4 pt-0">
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="secondary" className="font-mono text-xs">
+              {provider.providerId}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {provider.apiFormat}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {provider.authType}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Server aria-hidden="true" className="h-3 w-3 shrink-0" />
+            <span>{upstreamLabel}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </button>
+  );
+}
+
+// ── Provider Detail ─────────────────────────────────────────────────
+
+function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: () => void }) {
+  const { t } = useTranslation();
+  const updateProvider = useUpdateAiProvider();
+  const deleteProvider = useDeleteAiProvider();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const handleToggle = useCallback(async () => {
+    try {
+      await updateProvider.mutateAsync({ id: provider.id, enabled: !provider.enabled });
+      toast.success(t("ai-providers.toast.updated"));
+    } catch {
+      toast.error(t("ai-providers.toast.update-error"));
+    }
+  }, [updateProvider, provider, t]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    try {
+      await deleteProvider.mutateAsync(provider.id);
+      toast.success(t("ai-providers.toast.deleted"));
+      onBack();
+    } catch {
+      toast.error(t("ai-providers.toast.delete-error"));
+    }
+  }, [deleteProvider, provider, onBack, t]);
+
+  return (
+    <>
+      {/* Info Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBack}
+                aria-label={t("common.btn.back")}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              {provider.iconUrl ? (
+                <img
+                  src={provider.iconUrl}
+                  alt={provider.name}
+                  className="h-6 w-6 rounded object-contain"
+                  width={24}
+                  height={24}
+                />
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                </div>
+              )}
+              <CardTitle className="text-base">{provider.name}</CardTitle>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {provider.providerId}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={provider.enabled}
+                onCheckedChange={handleToggle}
+                disabled={updateProvider.isPending}
+              />
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil className="mr-1 h-3.5 w-3.5" />
+                {t("common.btn.edit")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="mr-1 h-3.5 w-3.5 text-destructive" />
+                {t("common.btn.delete")}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-providers.form.base-url")}
+              </div>
+              <div className="font-mono text-xs break-all">{provider.baseUrl}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-providers.th.api-format")}
+              </div>
+              <div>{provider.apiFormat}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-providers.th.auth-type")}
+              </div>
+              <div>{provider.authType}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-providers.th.routing")}
+              </div>
+              <div>
+                {provider.upstreamRoutingStrategy === "weighted-random"
+                  ? t("ai-providers.strategy.weighted-random")
+                  : t("ai-providers.strategy.priority")}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Upstreams */}
+      <ProviderUpstreamsSection provider={provider} />
+
+      {/* Edit dialog */}
+      <ProviderFormDialog open={editOpen} onOpenChange={setEditOpen} provider={provider} />
+
+      {/* Delete dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("ai-providers.dialog.delete-title")}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              {t("ai-providers.dialog.delete-body", { name: deleteTarget?.name })}
+              {t("ai-providers.dialog.delete-body", { name: provider.name })}
             </p>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               {t("common.btn.cancel")}
             </Button>
             <Button
@@ -313,11 +461,224 @@ export default function AiProvidersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
-// ── Provider Form Dialog ─────────────────────────────────────────────
+// ── Provider Upstreams Section ───────────────────────────────────────
+
+function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
+  const { t } = useTranslation();
+  const { data: upstreams = [], isLoading } = useAiProviderUpstreams(provider.id);
+  const updateUpstream = useUpdateAiProviderUpstream();
+  const deleteUpstream = useDeleteAiProviderUpstream();
+
+  const [editTarget, setEditTarget] = useState<AiProviderUpstream | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AiProviderUpstream | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const sortedUpstreams = useMemo(
+    () =>
+      [...upstreams].sort(
+        (a, b) => a.priority - b.priority || b.weight - a.weight || a.name.localeCompare(b.name),
+      ),
+    [upstreams],
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteUpstream.mutateAsync({ providerId: provider.id, id: deleteTarget.id });
+      toast.success(t("ai-providers.toast.upstream-deleted"));
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t("ai-providers.toast.upstream-delete-error"),
+      );
+    }
+  }, [deleteTarget, deleteUpstream, provider, t]);
+
+  const columns = useMemo<ColumnDef<AiProviderUpstream>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+        ),
+        header: t("ai-providers.upstreams.th.name"),
+        meta: { headerClassName: "w-[18%]" },
+      },
+      {
+        accessorKey: "upstreamId",
+        cell: ({ row }) => (
+          <DataTableBadge variant="secondary" className="font-mono">
+            {row.original.upstreamId}
+          </DataTableBadge>
+        ),
+        header: t("ai-providers.upstreams.th.upstream-id"),
+        meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        accessorKey: "kind",
+        cell: ({ row }) => <DataTableBadge variant="outline">{row.original.kind}</DataTableBadge>,
+        header: t("ai-providers.upstreams.th.kind"),
+        meta: { headerClassName: "w-[10%]" },
+      },
+      {
+        accessorKey: "baseUrl",
+        cell: ({ row }) => (
+          <DataTableText className="max-w-[280px]" mono truncate>
+            {row.original.baseUrl}
+          </DataTableText>
+        ),
+        header: t("ai-providers.upstreams.th.base-url"),
+        meta: { headerClassName: "w-[24%]" },
+      },
+      {
+        accessorKey: "priority",
+        cell: ({ row }) => <DataTableText>{row.original.priority}</DataTableText>,
+        header: t("ai-providers.upstreams.th.priority"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        accessorKey: "weight",
+        cell: ({ row }) => <DataTableText>{row.original.weight}</DataTableText>,
+        header: t("ai-providers.upstreams.th.weight"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        accessorKey: "enabled",
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.enabled}
+            onCheckedChange={(enabled) => {
+              void updateUpstream
+                .mutateAsync({ providerId: provider.id, id: row.original.id, enabled })
+                .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
+                .catch((err) =>
+                  toast.error(
+                    err instanceof Error
+                      ? err.message
+                      : t("ai-providers.toast.upstream-update-error"),
+                  ),
+                );
+            }}
+          />
+        ),
+        header: t("ai-providers.upstreams.th.enabled"),
+        meta: { headerClassName: "w-[8%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditTarget(row.original)}
+              aria-label={t("common.btn.edit")}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteTarget(row.original)}
+              aria-label={t("common.btn.delete")}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ),
+        enableHiding: false,
+        header: "",
+        meta: { headerClassName: "w-[8%]", ...dataTableMeta.right },
+      },
+    ],
+    [provider.id, t, updateUpstream],
+  );
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-sm">{t("ai-providers.upstreams.section-title")}</CardTitle>
+              <p className="text-sm text-muted-foreground">{t("ai-providers.upstreams.desc")}</p>
+            </div>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              {t("ai-providers.btn.new-upstream")}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sortedUpstreams.length === 0 && !isLoading ? (
+            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              {t("ai-providers.upstreams.empty")}
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={sortedUpstreams}
+              emptyText={t("ai-providers.upstreams.empty")}
+              getRowId={(row) => String(row.id)}
+              loading={isLoading}
+              showPagination={false}
+              tableClassName="min-w-[980px]"
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <UpstreamFormDialog provider={provider} open={createOpen} onOpenChange={setCreateOpen} />
+
+      <UpstreamFormDialog
+        provider={provider}
+        upstream={editTarget}
+        open={!!editTarget}
+        onOpenChange={(v) => {
+          if (!v) setEditTarget(null);
+        }}
+      />
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => {
+          if (!v) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("ai-providers.dialog.delete-upstream-title")}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-muted-foreground">
+              {t("ai-providers.dialog.delete-upstream-body", {
+                name: deleteTarget?.name ?? "",
+              })}
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {t("common.btn.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteUpstream.isPending}
+            >
+              {t("common.btn.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ── Provider Form Dialog ────────────────────────────────────────────
 
 function ProviderFormDialog({
   open,
@@ -608,212 +969,7 @@ function ProviderFormDialog({
   );
 }
 
-function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
-  const { t } = useTranslation();
-  const { data: upstreams = [], isLoading } = useAiProviderUpstreams(provider.id);
-  const updateUpstream = useUpdateAiProviderUpstream();
-  const deleteUpstream = useDeleteAiProviderUpstream();
-
-  const [editTarget, setEditTarget] = useState<AiProviderUpstream | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<AiProviderUpstream | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-
-  const sortedUpstreams = useMemo(
-    () =>
-      [...upstreams].sort(
-        (a, b) => a.priority - b.priority || b.weight - a.weight || a.name.localeCompare(b.name),
-      ),
-    [upstreams],
-  );
-
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    try {
-      await deleteUpstream.mutateAsync({ providerId: provider.id, id: deleteTarget.id });
-      toast.success(t("ai-providers.toast.upstream-deleted"));
-      setDeleteTarget(null);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : t("ai-providers.toast.upstream-delete-error"),
-      );
-    }
-  }, [deleteTarget, deleteUpstream, provider, t]);
-  const columns = useMemo<ColumnDef<AiProviderUpstream>[]>(
-    () => [
-      {
-        accessorKey: "name",
-        cell: ({ row }) => (
-          <DataTableText className="font-medium">{row.original.name}</DataTableText>
-        ),
-        header: t("ai-providers.upstreams.th.name"),
-        meta: { headerClassName: "w-[18%]" },
-      },
-      {
-        accessorKey: "upstreamId",
-        cell: ({ row }) => (
-          <DataTableBadge variant="secondary" className="font-mono">
-            {row.original.upstreamId}
-          </DataTableBadge>
-        ),
-        header: t("ai-providers.upstreams.th.upstream-id"),
-        meta: { headerClassName: "w-[16%]" },
-      },
-      {
-        accessorKey: "kind",
-        cell: ({ row }) => <DataTableBadge variant="outline">{row.original.kind}</DataTableBadge>,
-        header: t("ai-providers.upstreams.th.kind"),
-        meta: { headerClassName: "w-[10%]" },
-      },
-      {
-        accessorKey: "baseUrl",
-        cell: ({ row }) => (
-          <DataTableText className="max-w-[280px]" mono truncate>
-            {row.original.baseUrl}
-          </DataTableText>
-        ),
-        header: t("ai-providers.upstreams.th.base-url"),
-        meta: { headerClassName: "w-[24%]" },
-      },
-      {
-        accessorKey: "priority",
-        cell: ({ row }) => <DataTableText>{row.original.priority}</DataTableText>,
-        header: t("ai-providers.upstreams.th.priority"),
-        meta: { headerClassName: "w-[8%]" },
-      },
-      {
-        accessorKey: "weight",
-        cell: ({ row }) => <DataTableText>{row.original.weight}</DataTableText>,
-        header: t("ai-providers.upstreams.th.weight"),
-        meta: { headerClassName: "w-[8%]" },
-      },
-      {
-        accessorKey: "enabled",
-        cell: ({ row }) => (
-          <Switch
-            checked={row.original.enabled}
-            onCheckedChange={(enabled) => {
-              void updateUpstream
-                .mutateAsync({ providerId: provider.id, id: row.original.id, enabled })
-                .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
-                .catch((err) =>
-                  toast.error(
-                    err instanceof Error
-                      ? err.message
-                      : t("ai-providers.toast.upstream-update-error"),
-                  ),
-                );
-            }}
-          />
-        ),
-        header: t("ai-providers.upstreams.th.enabled"),
-        meta: { headerClassName: "w-[8%]" },
-      },
-      {
-        id: "actions",
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditTarget(row.original)}
-              aria-label={t("common.btn.edit")}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeleteTarget(row.original)}
-              aria-label={t("common.btn.delete")}
-            >
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
-          </div>
-        ),
-        enableHiding: false,
-        header: "",
-        meta: { headerClassName: "w-[8%]", ...dataTableMeta.right },
-      },
-    ],
-    [provider.id, t, updateUpstream],
-  );
-
-  return (
-    <>
-      <div className="space-y-4 border-t pt-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-sm font-medium">{t("ai-providers.upstreams.section-title")}</div>
-            <div className="text-sm text-muted-foreground">{t("ai-providers.upstreams.desc")}</div>
-          </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            {t("ai-providers.btn.new-upstream")}
-          </Button>
-        </div>
-
-        {sortedUpstreams.length === 0 && !isLoading ? (
-          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-            {t("ai-providers.upstreams.empty")}
-          </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={sortedUpstreams}
-            emptyText={t("ai-providers.upstreams.empty")}
-            getRowId={(row) => String(row.id)}
-            loading={isLoading}
-            showPagination={false}
-            tableClassName="min-w-[980px]"
-          />
-        )}
-      </div>
-
-      <UpstreamFormDialog provider={provider} open={createOpen} onOpenChange={setCreateOpen} />
-
-      <UpstreamFormDialog
-        provider={provider}
-        upstream={editTarget}
-        open={!!editTarget}
-        onOpenChange={(v) => {
-          if (!v) setEditTarget(null);
-        }}
-      />
-
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => {
-          if (!v) setDeleteTarget(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("ai-providers.dialog.delete-upstream-title")}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              {t("ai-providers.dialog.delete-upstream-body", {
-                name: deleteTarget?.name ?? "",
-              })}
-            </p>
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              {t("common.btn.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteUpstream.isPending}
-            >
-              {t("common.btn.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+// ── Upstream Form Dialog ────────────────────────────────────────────
 
 function UpstreamFormDialog({
   provider,

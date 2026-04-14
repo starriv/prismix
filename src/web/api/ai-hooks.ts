@@ -160,6 +160,7 @@ export function useCreateAiProviderUpstream() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
     },
   });
 }
@@ -198,6 +199,7 @@ export function useDeleteAiProviderUpstream() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
     },
   });
 }

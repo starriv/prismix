@@ -48,7 +48,8 @@
       "close": "Close",
       "delete": "Delete",
       "copy": "Copy",
-      "edit": "Edit"
+      "edit": "Edit",
+      "back": "Back"
     },
     "no-results": "No results found",
     "copied": "Copied",
@@ -2268,6 +2269,13 @@
     "title": "AI Providers",
     "desc": "Manage your AI provider connections",
     "empty": "No providers configured yet",
+    "card": {
+      "upstreams": "{{count}} upstreams",
+      "no-upstreams": "Official upstream",
+      "loading": "Loading…",
+      "unavailable": "Upstreams unavailable",
+      "open-provider": "Open {{name}}"
+    },
     "btn": {
       "new": "Add Provider",
       "create": "Create Provider",
