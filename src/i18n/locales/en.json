@@ -1108,11 +1108,11 @@
       "launch": "Open Dashboard"
     },
     "hero": {
-      "ai-badge": "Claude Code & OpenAI Compatible",
+      "ai-badge": "Compatible with Claude Code, OpenAI SDK, and Gemini SDK",
       "ai-title-1": "Unified AI Gateway",
       "ai-title-2": "One Endpoint for Multiple Model Providers",
       "ai-tagline": "Unified Access · Smart Routing · Usage Billing",
-      "ai-desc": "Built first for Claude Code and Anthropic workflows, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients. Includes upstream routing, failover, access control, and usage billing.",
+      "ai-desc": "Tailored for Claude Code, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients. Includes upstream routing, failover, access control, and usage billing.",
       "cta-primary": "Get Started"
     },
     "cta": {
@@ -1127,10 +1127,10 @@
       "intro": {
         "label": "AI Gateway Platform",
         "title": "One Endpoint for Leading Models",
-        "desc": "Built first for Claude Code and the Anthropic ecosystem, while also connecting OpenAI, Gemini, and other leading model providers through one gateway endpoint.",
+        "desc": "Tailored for Claude Code, while also connecting OpenAI, Anthropic, Gemini, and other leading model providers through one gateway endpoint.",
         "unified": {
           "title": "Unified Access",
-          "desc": "Point Claude Code, Anthropic, OpenAI, Gemini, and other compatible clients at the same gateway endpoint. One entry point means less provider-specific integration work."
+          "desc": "Point Claude Code, the OpenAI SDK, the Gemini SDK, and other compatible clients at the same gateway endpoint. One entry point means less provider-specific integration work."
         },
         "keypool": {
           "title": "Smart Routing & Failover",
@@ -1151,7 +1151,7 @@
         "desc": "More than request forwarding: governance, observability, and operations built in",
         "relay": {
           "title": "Unified Multi-Provider Access",
-          "desc": "Support Claude Code and Anthropic workflows first, while connecting multiple AI providers through one endpoint. A single entry point reduces integration and migration overhead."
+          "desc": "Tailored for Claude Code, while connecting OpenAI, Anthropic, Gemini, and multiple AI providers through one endpoint. A single entry point reduces integration and migration overhead."
         },
         "rotation": {
           "title": "Upstream Routing & Resilience",

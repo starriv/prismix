@@ -1108,11 +1108,11 @@
       "launch": "打开控制台"
     },
     "hero": {
-      "ai-badge": "兼容 Claude Code 与 OpenAI",
+      "ai-badge": "兼容 Claude Code、OpenAI SDK 与 Gemini SDK",
       "ai-title-1": "统一 AI 网关",
       "ai-title-2": "一个端点，接入多家模型供应商",
       "ai-tagline": "统一接入 · 智能路由 · 用量计费",
-      "ai-desc": "优先面向 Claude Code 与 Anthropic 工作流，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
+      "ai-desc": "专门适配 Claude Code，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
       "cta-primary": "开始接入"
     },
     "cta": {
@@ -1127,10 +1127,10 @@
       "intro": {
         "label": "AI 网关平台",
         "title": "一个端点，统一接入主流模型",
-        "desc": "优先兼容 Claude Code 与 Anthropic 生态，同时统一接入 OpenAI、Gemini 等主流模型供应商，并提供路由、故障转移、权限控制和用量追踪。",
+        "desc": "专门适配 Claude Code，同时统一接入 OpenAI、Anthropic、Gemini 等主流模型供应商，并提供路由、故障转移、权限控制和用量追踪。",
         "unified": {
           "title": "统一接入",
-          "desc": "让 Claude Code、Anthropic、OpenAI 和 Gemini 等客户端接入同一个网关端点。统一入口，减少多供应商适配成本。"
+          "desc": "让 Claude Code、OpenAI SDK、Gemini SDK 等客户端接入同一个网关端点。统一入口，减少多供应商适配成本。"
         },
         "keypool": {
           "title": "智能路由与故障转移",
@@ -1151,7 +1151,7 @@
         "desc": "不只是转发请求，还覆盖治理、可观测性和运营能力",
         "relay": {
           "title": "多供应商统一接入",
-          "desc": "优先支持 Claude Code 与 Anthropic 工作流，同时通过统一端点接入多家 AI 供应商，降低集成和迁移成本。"
+          "desc": "专门适配 Claude Code，同时通过统一端点接入 OpenAI、Anthropic、Gemini 等多家 AI 供应商，降低集成和迁移成本。"
         },
         "rotation": {
           "title": "上游路由与韧性",
