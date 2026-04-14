@@ -2796,15 +2796,16 @@
     },
     "endpoint": {
       "title": "API 端点",
-      "desc": "将任何 OpenAI 兼容 SDK 连接到 Prismix AI 网关",
+      "desc": "优先连接 Claude Code，同时兼容 OpenAI SDK、Gemini SDK 等客户端",
       "copied": "已复制到剪贴板",
-      "intro-title": "统一 AI 端点",
-      "intro-body": "将任何 OpenAI 兼容 SDK 的 Base URL 指向此端点并配上你的 API 密钥。Prismix 会自动将请求路由到对应的 AI 供应商，追踪用量并处理计费。",
+      "intro-title": "推荐接入：Claude Code",
+      "intro-body": "如果你主要使用 Claude Code，只需要把 ANTHROPIC_BASE_URL 和 ANTHROPIC_API_KEY 指向这里即可。Prismix 会在后台统一处理模型路由、用量追踪和计费；OpenAI SDK、Gemini SDK 等客户端也可以继续兼容接入。",
       "url-title": "Base URL",
-      "url-hint": "在 SDK 配置中使用此 URL 作为 base URL，搭配你的消费者 API 密钥。",
+      "url-hint": "Claude Code 可直接配置为 ANTHROPIC_BASE_URL；其他兼容客户端也可以将它作为统一网关地址使用。",
       "keys-title": "我的 API 密钥",
       "manage-keys": "管理密钥",
-      "no-keys": "你还没有 API 密钥，创建一个即可开始使用。"
+      "no-keys": "你还没有 API 密钥，创建一个即可开始使用。",
+      "recommended": "推荐"
     },
     "wallet": {
       "title": "钱包",

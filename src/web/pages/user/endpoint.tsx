@@ -123,8 +123,13 @@ export default function UserEndpointPage() {
 
         {/* Code Examples */}
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+          <ExampleCard
+            title="Claude Code"
+            badge={t("user.endpoint.recommended")}
+            code={claudeCodeExample(baseUrl)}
+            onCopy={handleCopy}
+          />
           <ExampleCard title="OpenAI SDK" code={openaiExample(baseUrl)} onCopy={handleCopy} />
-          <ExampleCard title="Claude Code" code={claudeCodeExample(baseUrl)} onCopy={handleCopy} />
           <ExampleCard title="Gemini SDK" code={geminiExample(baseUrl)} onCopy={handleCopy} />
         </div>
       </div>
@@ -136,10 +141,12 @@ export default function UserEndpointPage() {
 
 function ExampleCard({
   title,
+  badge,
   code,
   onCopy,
 }: {
   title: string;
+  badge?: string;
   code: string;
   onCopy: (text: string) => void;
 }) {
@@ -147,7 +154,14 @@ function ExampleCard({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">{title}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm">{title}</CardTitle>
+            {badge ? (
+              <Badge variant="secondary" className="h-5 px-2 text-[11px]">
+                {badge}
+              </Badge>
+            ) : null}
+          </div>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onCopy(code)}>
             <Copy className="h-3 w-3" />
           </Button>

@@ -2796,15 +2796,16 @@
     },
     "endpoint": {
       "title": "API Endpoint",
-      "desc": "Connect any OpenAI-compatible SDK to the Prismix AI gateway",
+      "desc": "Connect Claude Code first, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients",
       "copied": "Copied to clipboard",
-      "intro-title": "Unified AI Endpoint",
-      "intro-body": "Point any OpenAI-compatible SDK at this base URL with your API key. Prismix routes your requests to the appropriate AI provider, tracks usage, and handles billing automatically.",
+      "intro-title": "Recommended: Claude Code",
+      "intro-body": "If Claude Code is your main client, just point ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY here. Prismix handles model routing, usage tracking, and billing behind the scenes, while still staying compatible with the OpenAI SDK, Gemini SDK, and similar clients.",
       "url-title": "Base URL",
-      "url-hint": "Use this URL as the base URL in your SDK configuration along with your consumer API key.",
+      "url-hint": "Use this as ANTHROPIC_BASE_URL for Claude Code, or as the shared gateway base URL for other compatible clients.",
       "keys-title": "My API Keys",
       "manage-keys": "Manage Keys",
-      "no-keys": "You don't have any API keys yet. Create one to get started."
+      "no-keys": "You don't have any API keys yet. Create one to get started.",
+      "recommended": "Recommended"
     },
     "wallet": {
       "title": "Wallet",
