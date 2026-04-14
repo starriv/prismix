@@ -367,6 +367,7 @@
     "footer-note": "Admin access is restricted to registered admin wallets only.",
     "nav": {
       "subtitle": "Admin Panel",
+      "user": "Users",
       "users": "Users",
       "admins": "Admin Members",
       "login-strategies": "Login Strategies",

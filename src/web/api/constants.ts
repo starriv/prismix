@@ -109,7 +109,7 @@ export const API_ADMIN_ANNOUNCEMENTS = "/api/admin/announcements";
 export const apiAdminAnnouncementDetail = (id: string) => `/api/admin/announcements/${id}`;
 export const apiAdminAnnouncementSend = (id: string) => `/api/admin/announcements/${id}/send`;
 
-// ── Key Providers (号池供应商) ────────────────────────────────────
+// ── Key Providers (密钥合作方) ────────────────────────────────────
 export const API_KEY_PROVIDERS = "/api/admin/key-providers";
 export const apiKeyProviderDetail = (id: number) => `/api/admin/key-providers/${id}`;
 export const apiKeyProviderSummary = (id: number) => `/api/admin/key-providers/${id}/summary`;

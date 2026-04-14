@@ -71,14 +71,15 @@ const AI_CHILD_PATHS = [
   "/admin/ai-endpoint",
   "/admin/ai-providers",
   "/admin/ai-keys",
-  "/admin/ai-models",
-  "/admin/consumer-keys",
   "/admin/key-providers",
+  "/admin/ai-models",
   "/admin/ai-usage",
   "/admin/ai-upstreams",
   "/admin/ai-logs",
   "/admin/ai-errors",
 ];
+
+const USERS_CHILD_PATHS = ["/admin/users", "/admin/consumer-keys"];
 
 const ACCOUNTS_CHILD_PATHS = [
   "/admin/pay-agents",
@@ -106,7 +107,15 @@ const SYSTEM_CHILD_PATHS = [
 
 const navTree: NavEntry[] = [
   { href: "/admin/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/admin/users", labelKey: "admin.nav.users", icon: Users },
+  {
+    labelKey: "admin.nav.user",
+    icon: Users,
+    childPaths: USERS_CHILD_PATHS,
+    children: [
+      { href: "/admin/users", labelKey: "admin.nav.users", icon: Users },
+      { href: "/admin/consumer-keys", labelKey: "nav.consumer-keys", icon: KeyRound },
+    ],
+  },
   {
     labelKey: "nav.ai-gateway",
     icon: Brain,
@@ -115,9 +124,8 @@ const navTree: NavEntry[] = [
       { href: "/admin/ai-endpoint", labelKey: "nav.ai-relay", icon: Zap },
       { href: "/admin/ai-providers", labelKey: "nav.ai-providers", icon: Brain },
       { href: "/admin/ai-keys", labelKey: "nav.ai-keys", icon: Key },
-      { href: "/admin/ai-models", labelKey: "nav.ai-models", icon: Sparkles },
-      { href: "/admin/consumer-keys", labelKey: "nav.consumer-keys", icon: KeyRound },
       { href: "/admin/key-providers", labelKey: "nav.key-providers", icon: HandCoins },
+      { href: "/admin/ai-models", labelKey: "nav.ai-models", icon: Sparkles },
       { href: "/admin/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },
       { href: "/admin/ai-upstreams", labelKey: "nav.ai-upstreams", icon: Network },
       { href: "/admin/ai-logs", labelKey: "nav.ai-logs", icon: FileText },

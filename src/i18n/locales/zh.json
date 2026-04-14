@@ -115,7 +115,7 @@
     "ai-logs": "日志",
     "ai-errors": "错误",
     "consumer-keys": "消费者密钥",
-    "key-providers": "号池供应商",
+    "key-providers": "密钥合作方",
     "gateway": "熔断限流",
     "billing": "支付管理",
     "system-settings": "系统设置",
@@ -367,6 +367,7 @@
     "footer-note": "管理员访问仅限已注册的管理员钱包。",
     "nav": {
       "subtitle": "管理面板",
+      "user": "用户",
       "users": "用户管理",
       "admins": "管理员",
       "login-strategies": "登录策略",
@@ -428,19 +429,19 @@
       }
     },
     "key-providers": {
-      "title": "号池供应商",
-      "desc": "管理第三方 AI Key 供应商及分润配置",
-      "table-empty": "暂无号池供应商",
+      "title": "密钥合作方",
+      "desc": "管理第三方 AI Key 合作方及分润配置",
+      "table-empty": "暂无密钥合作方",
       "th": {
         "share": "分润比例",
         "balance": "待结算余额",
         "keys": "Key 数量"
       },
       "btn": {
-        "create": "添加供应商"
+        "create": "添加合作方"
       },
       "form": {
-        "name-ph": "供应商名称",
+        "name-ph": "合作方名称",
         "email": "邮箱",
         "email-ph": "输入邮箱",
         "share": "分润比例 %",
@@ -448,7 +449,7 @@
       },
       "detail": {
         "balance": "待结算余额",
-        "info": "供应商信息",
+        "info": "合作方信息",
         "txns": "分润记录",
         "no-txns": "暂无分润记录",
         "view-all": "查看全部 ({{count}})",
@@ -458,14 +459,14 @@
         "requests": "请求数",
         "by-key": "按 Key 明细",
         "chart-title": "各 Key 成本与分润对比",
-        "no-keys": "暂无分配给此供应商的 Key。"
+        "no-keys": "暂无分配给此合作方的 Key。"
       },
       "report": {
         "title": "{{name}} 报告",
-        "title-fallback": "号池供应商报告",
+        "title-fallback": "密钥合作方报告",
         "desc": "详细的对账和 Key 维度盈利分析。",
-        "back": "返回号池供应商",
-        "invalid-id": "缺少或无效的供应商 ID。"
+        "back": "返回密钥合作方",
+        "invalid-id": "缺少或无效的合作方 ID。"
       },
       "txn-type": {
         "revenue_share": "分润收入",
@@ -473,12 +474,12 @@
         "adjustment": "手动调账"
       },
       "toast": {
-        "created": "供应商创建成功",
-        "create-error": "创建供应商失败",
-        "updated": "供应商更新成功",
-        "update-error": "更新供应商失败",
-        "deleted": "供应商已删除",
-        "delete-error": "删除供应商失败"
+        "created": "合作方创建成功",
+        "create-error": "创建合作方失败",
+        "updated": "合作方更新成功",
+        "update-error": "更新合作方失败",
+        "deleted": "合作方已删除",
+        "delete-error": "删除合作方失败"
       }
     },
     "announce": {
@@ -2244,10 +2245,10 @@
       "secret-access-key": "AWS 秘密访问密钥",
       "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
       "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
-      "owner": "号池供应商（可选）",
-      "owner-ph": "选择号池供应商",
-      "owner-none": "平台自有（无供应商）",
-      "owner-hint": "将此密钥分配给第三方供应商以启用分润"
+      "owner": "密钥合作方（可选）",
+      "owner-ph": "选择密钥合作方",
+      "owner-none": "平台自有（无合作方）",
+      "owner-hint": "将此密钥分配给第三方密钥合作方以启用分润"
     },
     "dialog": {
       "add-title": "添加 API 密钥",

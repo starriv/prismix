@@ -458,7 +458,7 @@ export const webhookDeliveries = pgTable(
   ],
 );
 
-// ── Key Providers (号池供应商) ─────────────────────────────────────────
+// ── Key Providers (密钥合作方) ─────────────────────────────────────────
 
 export const keyProviders = pgTable("key_providers", {
   id: serial("id").primaryKey(),
@@ -594,7 +594,7 @@ export const aiKeys = pgTable(
     upstreamId: integer("upstream_id").references(() => aiProviderUpstreams.id, {
       onDelete: "set null",
     }),
-    ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }), // key provider (号池供应商)
+    ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }), // key provider (密钥合作方)
     name: text("name").notNull(), // user label
     encryptedKey: text("encrypted_key").notNull(), // AES-encrypted API key
     keyHash: text("key_hash").notNull().unique(), // SHA-256 hash for dedup (same key can't be added twice)
