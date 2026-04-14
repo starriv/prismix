@@ -1,7 +1,7 @@
 /**
  * AI Provider repository — CRUD for `ai_providers` table.
  */
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import {
   type AiProvider,
@@ -33,6 +33,11 @@ export const aiProviderRepo = {
 
   async findById(id: number): Promise<AiProvider | undefined> {
     return queryOne(db.select().from(aiProviders).where(eq(aiProviders.id, id)));
+  },
+
+  async findByIds(ids: number[]): Promise<AiProvider[]> {
+    if (ids.length === 0) return [];
+    return queryAll(db.select().from(aiProviders).where(inArray(aiProviders.id, ids)));
   },
 
   async findByProviderId(providerId: string): Promise<AiProvider | undefined> {

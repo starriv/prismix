@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { aiKeySchema } from "./ai-schemas";
-
 // ── Key Providers ────────────────────────────────────────────────
 
 export const keyProviderSchema = z.object({
@@ -14,6 +12,7 @@ export const keyProviderSchema = z.object({
   balance: z.string(),
   status: z.string(),
   keyCount: z.number().optional(),
+  latestCallAt: z.string().nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
@@ -38,6 +37,9 @@ export const keyProviderKeySummarySchema = z.object({
   keyName: z.string(),
   keyPrefix: z.string(),
   providerId: z.number(),
+  providerName: z.string().nullable().optional(),
+  upstreamId: z.number().nullable().optional(),
+  upstreamName: z.string().nullable().optional(),
   enabled: z.coerce.boolean(),
   weight: z.number(),
   lastUsedAt: z.string().or(z.number()).nullable().optional(),
@@ -51,6 +53,9 @@ export const keyProviderKeySummarySchema = z.object({
 });
 export type KeyProviderKeySummary = z.infer<typeof keyProviderKeySummarySchema>;
 
+export const keyProviderKeysSchema = z.array(keyProviderKeySummarySchema);
+export type KeyProviderKeys = z.infer<typeof keyProviderKeysSchema>;
+
 export const keyProviderTotalsSchema = z.object({
   requests: z.number(),
   inputTokens: z.number(),
@@ -61,13 +66,6 @@ export const keyProviderTotalsSchema = z.object({
   revenueShare: z.string(),
 });
 export type KeyProviderTotals = z.infer<typeof keyProviderTotalsSchema>;
-
-export const keyProviderDetailSchema = keyProviderSchema.extend({
-  keys: z.array(aiKeySchema),
-  keySummaries: z.array(keyProviderKeySummarySchema),
-  totals: keyProviderTotalsSchema,
-});
-export type KeyProviderDetail = z.infer<typeof keyProviderDetailSchema>;
 
 export const keyProviderSummarySchema = keyProviderSchema.extend({
   keyCount: z.number(),

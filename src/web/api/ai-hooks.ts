@@ -13,6 +13,7 @@ import {
   API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
   API_AI_REQUEST_LOGGING,
+  API_AI_UPSTREAMS,
   API_AI_UPSTREAMS_OVERVIEW,
   API_AI_USAGE_BY_KEY,
   API_AI_USAGE_DAILY,
@@ -26,10 +27,11 @@ import {
   apiAiProviderDetail,
   apiAiProviderModels,
   apiAiProviderModelsBatch,
-  apiAiProviderUpstreamDetail,
+  apiAiProviderUpstreamAssignment,
   apiAiProviderUpstreams,
   apiAiSyncPricesApply,
   apiAiSyncPricesPreview,
+  apiAiUpstreamDetail,
   apiAiUpstreamRecent,
   apiAiUsageRequest,
   apiRelayKeyDetail,
@@ -45,8 +47,9 @@ import {
   aiKeySchema,
   aiModelSchema,
   aiProviderSchema,
-  aiProviderUpstreamSchema,
   aiRequestLogSchema,
+  aiUpstreamAssignmentSchema,
+  aiUpstreamSchema,
   aiUpstreamsOverviewSchema,
   aiUsageByKeySchema,
   aiUsageRecordSchema,
@@ -68,10 +71,73 @@ export function useAiProviders() {
   });
 }
 
-export function useAiProviderUpstreams(providerId: number) {
+// ── Global Upstreams ──────────────────────────────────────────────────
+
+export function useAiUpstreams() {
   return useQuery({
-    queryKey: queryKeys.aiProviderUpstreams(providerId),
-    queryFn: () => get(apiAiProviderUpstreams(providerId), z.array(aiProviderUpstreamSchema)),
+    queryKey: queryKeys.aiUpstreams(),
+    queryFn: () => get(API_AI_UPSTREAMS, z.array(aiUpstreamSchema)),
+  });
+}
+
+export function useCreateAiUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      name: string;
+      baseUrl: string;
+      kind?: string;
+      enabled?: boolean;
+      metadata?: Record<string, unknown>;
+    }) => post(API_AI_UPSTREAMS, body, aiUpstreamSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+    },
+  });
+}
+
+export function useUpdateAiUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: number;
+      name?: string;
+      baseUrl?: string;
+      kind?: string;
+      enabled?: boolean;
+      metadata?: Record<string, unknown>;
+    }) => put(apiAiUpstreamDetail(id), body, aiUpstreamSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+      qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
+    },
+  });
+}
+
+export function useDeleteAiUpstream() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => del(apiAiUpstreamDetail(id), z.object({ success: z.boolean() })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+      qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+    },
+  });
+}
+
+// ── Provider ↔ Upstream Assignments ──────────────────────────────────
+
+export function useAiProviderAssignments(providerId: number) {
+  return useQuery({
+    queryKey: queryKeys.aiProviderAssignments(providerId),
+    queryFn: () => get(apiAiProviderUpstreams(providerId), z.array(aiUpstreamAssignmentSchema)),
     enabled: providerId > 0,
   });
 }
@@ -140,7 +206,7 @@ export function useDeleteAiProvider() {
   });
 }
 
-export function useCreateAiProviderUpstream() {
+export function useCreateAiProviderAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -148,56 +214,51 @@ export function useCreateAiProviderUpstream() {
       ...body
     }: {
       providerId: number;
-      upstreamId: string;
-      name: string;
-      baseUrl: string;
-      kind?: string;
+      upstreamId: number;
       priority?: number;
       weight?: number;
       enabled?: boolean;
-      metadata?: Record<string, unknown>;
-    }) => post(apiAiProviderUpstreams(providerId), body, aiProviderUpstreamSchema),
+    }) => post(apiAiProviderUpstreams(providerId), body, z.unknown()),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
     },
   });
 }
 
-export function useUpdateAiProviderUpstream() {
+export function useUpdateAiProviderAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
       providerId,
-      id,
+      assignmentId,
       ...body
     }: {
       providerId: number;
-      id: number;
-      name?: string;
-      baseUrl?: string;
-      kind?: string;
+      assignmentId: number;
       priority?: number;
       weight?: number;
       enabled?: boolean;
-      metadata?: Record<string, unknown>;
-    }) => put(apiAiProviderUpstreamDetail(providerId, id), body, aiProviderUpstreamSchema),
+    }) => put(apiAiProviderUpstreamAssignment(providerId, assignmentId), body, z.unknown()),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
     },
   });
 }
 
-export function useDeleteAiProviderUpstream() {
+export function useDeleteAiProviderAssignment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ providerId, id }: { providerId: number; id: number }) =>
-      del(apiAiProviderUpstreamDetail(providerId, id), z.object({ success: z.boolean() })),
+    mutationFn: ({ providerId, assignmentId }: { providerId: number; assignmentId: number }) =>
+      del(
+        apiAiProviderUpstreamAssignment(providerId, assignmentId),
+        z.object({ success: z.boolean(), affectedKeys: z.number() }),
+      ),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderUpstreams(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
     },
@@ -225,6 +286,10 @@ export function useCreateAiKey() {
     }) => post(API_AI_KEYS, body, aiKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }
@@ -245,6 +310,10 @@ export function useUpdateAiKey() {
     }) => put(apiAiKeyDetail(id), body, aiKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }
@@ -255,6 +324,10 @@ export function useDeleteAiKey() {
     mutationFn: (id: number) => del(apiAiKeyDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }

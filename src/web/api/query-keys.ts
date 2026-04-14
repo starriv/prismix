@@ -122,15 +122,22 @@ export const queryKeys = {
 
   // ── Key Providers ────────────────────────────────────────────
   keyProviders: () => ["app", "key-providers"] as const,
+  keyProviderSummaryPrefix: () => ["app", "key-provider-summary"] as const,
   keyProviderSummary: (providerId: number) => ["app", "key-provider-summary", providerId] as const,
-  keyProviderDetail: (providerId: number) => ["app", "key-provider-detail", providerId] as const,
+  keyProviderKeysPrefix: () => ["app", "key-provider-keys"] as const,
+  keyProviderKeys: (providerId: number, limit: number, offset: number) =>
+    ["app", "key-provider-keys", providerId, limit, offset] as const,
+  keyProviderRecentPrefix: () => ["app", "key-provider-recent"] as const,
+  keyProviderRecent: (providerId: number, limit: number, offset: number) =>
+    ["app", "key-provider-recent", providerId, limit, offset] as const,
   keyProviderTxns: (providerId: number, limit: number, offset: number) =>
     ["app", "key-provider-txns", providerId, limit, offset] as const,
 
   // ── AI ───────────────────────────────────────────────────────
   aiProviders: () => ["app", "ai-providers"] as const,
-  aiProviderUpstreams: (providerId: number) =>
-    ["app", "ai-provider-upstreams", providerId] as const,
+  aiUpstreams: () => ["app", "ai-upstreams"] as const,
+  aiProviderAssignments: (providerId: number) =>
+    ["app", "ai-provider-assignments", providerId] as const,
   aiUpstreamsOverview: (hours: number) => ["app", "ai-upstreams-overview", hours] as const,
   aiUpstreamRecent: (id: number, limit: number) =>
     ["app", "ai-upstream-recent", id, limit] as const,

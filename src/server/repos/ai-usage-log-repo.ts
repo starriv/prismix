@@ -111,6 +111,7 @@ export interface UpstreamUsageOverviewRow {
 interface UsageFilters {
   consumerKeyId?: number;
   userId?: number;
+  ownerId?: number;
   keyId?: number;
   upstreamId?: number;
   modelId?: string;
@@ -129,6 +130,9 @@ function buildConditions(filters: UsageFilters) {
   }
   if (filters.userId != null) {
     conditions.push(eq(aiUsageLogs.userId, filters.userId));
+  }
+  if (filters.ownerId != null) {
+    conditions.push(eq(aiUsageLogs.keyOwnerId, filters.ownerId));
   }
   if (filters.keyId != null) {
     conditions.push(eq(aiUsageLogs.keyId, filters.keyId));

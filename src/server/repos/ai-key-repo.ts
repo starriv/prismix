@@ -1,7 +1,7 @@
 /**
  * AI Key repository — CRUD for `ai_keys` table.
  */
-import { and, count, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   type AiKey,
@@ -93,9 +93,49 @@ export const aiKeyRepo = {
     await exec(db.delete(aiKeys).where(eq(aiKeys.id, id)));
   },
 
-  /** Find all keys owned by a key provider. */
-  async findByOwnerId(ownerId: number): Promise<AiKey[]> {
-    return queryAll(db.select().from(aiKeys).where(eq(aiKeys.ownerId, ownerId)));
+  /** Find keys owned by a key provider. */
+  async findByOwnerId(
+    ownerId: number,
+    opts?: {
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<AiKey[]> {
+    const limit = opts?.limit;
+    const offset = opts?.offset ?? 0;
+
+    return queryAll(
+      db
+        .select()
+        .from(aiKeys)
+        .where(eq(aiKeys.ownerId, ownerId))
+        .orderBy(sql`${aiKeys.lastUsedAt} DESC NULLS LAST`, desc(aiKeys.id))
+        .limit(limit ?? 10_000)
+        .offset(offset),
+    );
+  },
+
+  async ownerStats(ownerId: number): Promise<{ totalKeys: number; latestCallAt: string | null }> {
+    const row = await queryOne<{
+      totalKeys: number;
+      latestCallAt: Date | string | null;
+    }>(
+      db
+        .select({
+          totalKeys: count(),
+          latestCallAt: sql<Date | string | null>`MAX(${aiKeys.lastUsedAt})`,
+        })
+        .from(aiKeys)
+        .where(eq(aiKeys.ownerId, ownerId)),
+    );
+
+    return {
+      totalKeys: Number(row?.totalKeys ?? 0),
+      latestCallAt:
+        row?.latestCallAt instanceof Date
+          ? row.latestCallAt.toISOString()
+          : (row?.latestCallAt ?? null),
+    };
   },
 
   async countByOwnerId(ownerId: number): Promise<number> {

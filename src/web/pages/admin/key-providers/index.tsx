@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { BarChart3, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
+import { parseAsInteger, useQueryState } from "nuqs";
 
 import { removeTailingZero } from "@/shared/number";
 import { useKeyProviders } from "@/web/api/hooks";
@@ -15,20 +16,18 @@ import {
   DataTableRelativeTime,
   DataTableText,
 } from "@/web/components/data-table";
-import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
-import { Sheet, SheetContent } from "@/web/components/ui/sheet";
 
 import { KEY_PROVIDER_STATUS_COLORS } from "./constants";
 import { CreateKeyProviderDialog } from "./create-dialog";
-import { KeyProviderDetailSheet } from "./detail-sheet";
+import { KeyProviderDetailPage } from "./detail-page";
 
 export default function KeyProvidersPage() {
   const { t, i18n } = useTranslation();
-  const { data: providers = [] } = useKeyProviders();
+  const { data: providers = [], isLoading } = useKeyProviders();
   const [createOpen, setCreateOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [providerId, setProviderId] = useQueryState("providerId", parseAsInteger);
 
   const keyProviderStatusMap = useMemo(
     () =>
@@ -41,10 +40,14 @@ export default function KeyProvidersPage() {
     [t],
   );
 
-  const editing = useMemo(
-    () => (editingId ? (providers.find((p) => p.id === editingId) ?? null) : null),
-    [editingId, providers],
+  const selectedProviderId = providerId && providerId > 0 ? providerId : null;
+  const selectedProvider = useMemo(
+    () => providers.find((item) => item.id === selectedProviderId) ?? null,
+    [providers, selectedProviderId],
   );
+
+  const handleBack = useCallback(() => setProviderId(null), [setProviderId]);
+
   const columns = useMemo<ColumnDef<(typeof providers)[number]>[]>(
     () => [
       {
@@ -95,13 +98,9 @@ export default function KeyProvidersPage() {
       },
       {
         id: "actions",
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button variant="ghost" size="sm" asChild onClick={(event) => event.stopPropagation()}>
-              <LocaleLink to={`/admin/key-provider-usage-detail?id=${row.original.id}`}>
-                <BarChart3 className="h-3.5 w-3.5" />
-              </LocaleLink>
-            </Button>
+        cell: () => (
+          <div className="text-right text-muted-foreground">
+            <ChevronRight className="ml-auto h-4 w-4" />
           </div>
         ),
         enableHiding: false,
@@ -112,11 +111,21 @@ export default function KeyProvidersPage() {
     [i18n.language, keyProviderStatusMap, t],
   );
 
+  if (selectedProviderId) {
+    return (
+      <KeyProviderDetailPage
+        providerId={selectedProviderId}
+        provider={selectedProvider}
+        onBack={handleBack}
+      />
+    );
+  }
+
   return (
     <div>
       <Header title={t("admin.key-providers.title")} description={t("admin.key-providers.desc")} />
 
-      <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+      <div className="space-y-4 p-4 md:space-y-6 md:p-8">
         <div className="flex justify-end">
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
@@ -131,8 +140,8 @@ export default function KeyProvidersPage() {
               data={providers}
               emptyText={t("admin.key-providers.table-empty")}
               getRowId={(row) => String(row.id)}
-              loading={false}
-              onRowClick={(row) => setEditingId(row.id)}
+              loading={isLoading}
+              onRowClick={(row) => setProviderId(row.id)}
               showPagination={false}
               tableClassName="min-w-[900px]"
             />
@@ -141,14 +150,6 @@ export default function KeyProvidersPage() {
       </div>
 
       <CreateKeyProviderDialog open={createOpen} onOpenChange={setCreateOpen} />
-
-      <Sheet open={!!editing} onOpenChange={() => setEditingId(null)}>
-        <SheetContent className="w-full sm:w-[480px]">
-          {editing && (
-            <KeyProviderDetailSheet providerId={editing.id} onClose={() => setEditingId(null)} />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

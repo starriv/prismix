@@ -7,12 +7,15 @@ import {
   API_KEY_PROVIDERS,
   apiKeyProviderAdjust,
   apiKeyProviderDetail,
+  apiKeyProviderKeys,
+  apiKeyProviderRecent,
   apiKeyProviderSummary,
 } from "./constants";
 import { queryKeys } from "./query-keys";
 import type { CreateKeyProviderBody } from "./schemas";
+import { aiUsageRecordSchema } from "./schemas";
 import {
-  keyProviderDetailSchema,
+  keyProviderKeysSchema,
   keyProviderSchema,
   keyProviderSummarySchema,
   keyProviderTransactionSchema,
@@ -27,18 +30,50 @@ export function useKeyProviders() {
   });
 }
 
-export function useKeyProviderDetail(providerId: number | null) {
-  return useQuery({
-    queryKey: queryKeys.keyProviderDetail(providerId ?? 0),
-    queryFn: () => get(apiKeyProviderDetail(providerId!), keyProviderDetailSchema),
-    enabled: providerId != null && providerId > 0,
-  });
-}
-
 export function useKeyProviderSummary(providerId: number | null) {
   return useQuery({
     queryKey: queryKeys.keyProviderSummary(providerId ?? 0),
     queryFn: () => get(apiKeyProviderSummary(providerId!), keyProviderSummarySchema),
+    enabled: providerId != null && providerId > 0,
+  });
+}
+
+export function useKeyProviderKeys(
+  providerId: number | null,
+  opts?: {
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const limit = opts?.limit ?? 20;
+  const offset = opts?.offset ?? 0;
+  return useQuery({
+    queryKey: queryKeys.keyProviderKeys(providerId ?? 0, limit, offset),
+    queryFn: () =>
+      get(
+        `${apiKeyProviderKeys(providerId!)}?limit=${limit}&offset=${offset}`,
+        keyProviderKeysSchema,
+      ),
+    enabled: providerId != null && providerId > 0,
+  });
+}
+
+export function useKeyProviderRecent(
+  providerId: number | null,
+  opts?: {
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const limit = opts?.limit ?? 10;
+  const offset = opts?.offset ?? 0;
+  return useQuery({
+    queryKey: queryKeys.keyProviderRecent(providerId ?? 0, limit, offset),
+    queryFn: () =>
+      get(
+        `${apiKeyProviderRecent(providerId!)}?limit=${limit}&offset=${offset}`,
+        z.array(aiUsageRecordSchema),
+      ),
     enabled: providerId != null && providerId > 0,
   });
 }
@@ -60,8 +95,9 @@ export function useUpdateKeyProvider() {
       put(apiKeyProviderDetail(id), body, keyProviderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-summary"] });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }
@@ -72,8 +108,9 @@ export function useDeleteKeyProvider() {
     mutationFn: (id: number) => del(apiKeyProviderDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-summary"] });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }
@@ -92,8 +129,9 @@ export function useAdjustKeyProviderBalance() {
     }) => post(apiKeyProviderAdjust(id), body, keyProviderSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-summary"] });
-      qc.invalidateQueries({ queryKey: ["app", "key-provider-detail"] });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
     },
   });
 }

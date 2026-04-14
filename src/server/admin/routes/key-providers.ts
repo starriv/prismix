@@ -23,11 +23,13 @@ import {
 } from "@/server/lib/validate";
 import {
   aiKeyRepo,
+  aiProviderRepo,
+  aiUpstreamRepo,
   aiUsageLogRepo,
   keyProviderRepo,
   keyProviderTransactionRepo,
 } from "@/server/repos";
-import { removeTailingZero, safeMinus, safePlus } from "@/shared/number";
+import { removeTailingZero, safeMinus } from "@/shared/number";
 
 const keyProvidersRouter = new Hono();
 
@@ -35,15 +37,16 @@ async function buildProviderSummary(id: number) {
   const provider = await keyProviderRepo.findById(id);
   if (!provider) return null;
 
-  const [keyCount, usageTotals, revenueShare] = await Promise.all([
-    aiKeyRepo.countByOwnerId(id),
+  const [ownerStats, usageTotals, revenueShare] = await Promise.all([
+    aiKeyRepo.ownerStats(id),
     aiUsageLogRepo.totalsByOwnerId(id),
     keyProviderTransactionRepo.totalRevenueShareByProviderId(id),
   ]);
 
   return {
     ...provider,
-    keyCount,
+    keyCount: ownerStats.totalKeys,
+    latestCallAt: ownerStats.latestCallAt,
     totals: {
       requests: usageTotals.requests,
       inputTokens: usageTotals.inputTokens,
@@ -54,6 +57,57 @@ async function buildProviderSummary(id: number) {
       revenueShare: removeTailingZero(revenueShare, 6),
     },
   };
+}
+
+async function buildProviderKeySummaries(
+  id: number,
+  opts?: {
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const ownedKeys = await aiKeyRepo.findByOwnerId(id, opts);
+  const keyIds = ownedKeys.map((k) => k.id);
+  const providerIds = uniq(ownedKeys.map((k) => k.providerId));
+  const upstreamIds = uniq(ownedKeys.flatMap((key) => (key.upstreamId ? [key.upstreamId] : [])));
+
+  const [usageByKey, revenueShareByKey, aiProviders, upstreams] = await Promise.all([
+    aiUsageLogRepo.summaryByOwnerAndAiKeyIds(id, keyIds),
+    keyProviderTransactionRepo.summarizeRevenueShareByProviderAndKeyIds(id, keyIds),
+    aiProviderRepo.findByIds(providerIds),
+    aiUpstreamRepo.findByIds(upstreamIds),
+  ]);
+
+  const usageMap = new Map(usageByKey.map((row) => [row.keyId, row]));
+  const providerNameMap = new Map(aiProviders.map((provider) => [provider.id, provider.name]));
+  const upstreamNameMap = new Map(upstreams.map((upstream) => [upstream.id, upstream.name]));
+
+  return ownedKeys.map((key) => {
+    const usage = usageMap.get(key.id);
+    const estimatedCost = usage?.estimatedCost ?? "0";
+    const upstreamCost = usage?.upstreamCost ?? "0";
+    const revenueShare = revenueShareByKey.get(key.id) ?? "0";
+
+    return {
+      keyId: key.id,
+      keyName: key.name,
+      keyPrefix: key.keyPrefix,
+      providerId: key.providerId,
+      providerName: providerNameMap.get(key.providerId) ?? null,
+      upstreamId: key.upstreamId ?? null,
+      upstreamName: key.upstreamId ? (upstreamNameMap.get(key.upstreamId) ?? null) : null,
+      enabled: key.enabled,
+      weight: key.weight,
+      lastUsedAt: key.lastUsedAt,
+      requests: usage?.requests ?? 0,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      totalTokens: usage?.totalTokens ?? 0,
+      consumerSpend: removeTailingZero(estimatedCost, 6),
+      upstreamCost: removeTailingZero(upstreamCost, 6),
+      revenueShare: removeTailingZero(revenueShare, 6),
+    };
+  });
 }
 
 // ── List all key providers ──────────────────────────────────────────
@@ -103,67 +157,28 @@ keyProvidersRouter.get("/:id/summary", async (c) => {
   return ok(c, summary);
 });
 
-keyProvidersRouter.get("/:id", async (c) => {
+keyProvidersRouter.get("/:id/keys", async (c) => {
   const id = parseIntParam(c.req.param("id"));
   if (!id) return c.json({ error: "Invalid ID" }, 400);
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
 
   const provider = await keyProviderRepo.findById(id);
   if (!provider) return c.json({ error: "Key provider not found" }, 404);
 
-  // Get associated keys
-  const ownedKeys = await aiKeyRepo.findByOwnerId(id);
-  const keyIds = ownedKeys.map((k) => k.id);
-  const usageByKey = await aiUsageLogRepo.summaryByOwnerAndAiKeyIds(id, keyIds);
-  const revenueShareByKey =
-    await keyProviderTransactionRepo.summarizeRevenueShareByProviderAndKeyIds(id, keyIds);
-  const usageMap = new Map(usageByKey.map((row) => [row.keyId, row]));
+  return ok(c, await buildProviderKeySummaries(id, { limit, offset }));
+});
 
-  const keySummaries = ownedKeys.map((key) => {
-    const usage = usageMap.get(key.id);
-    const estimatedCost = usage?.estimatedCost ?? "0";
-    const upstreamCost = usage?.upstreamCost ?? "0";
-    const revenueShare = revenueShareByKey.get(key.id) ?? "0";
+keyProvidersRouter.get("/:id/recent", async (c) => {
+  const id = parseIntParam(c.req.param("id"));
+  if (!id) return c.json({ error: "Invalid ID" }, 400);
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
 
-    return {
-      keyId: key.id,
-      keyName: key.name,
-      keyPrefix: key.keyPrefix,
-      providerId: key.providerId,
-      enabled: key.enabled,
-      weight: key.weight,
-      lastUsedAt: key.lastUsedAt,
-      requests: usage?.requests ?? 0,
-      inputTokens: usage?.inputTokens ?? 0,
-      outputTokens: usage?.outputTokens ?? 0,
-      totalTokens: usage?.totalTokens ?? 0,
-      consumerSpend: removeTailingZero(estimatedCost, 6),
-      upstreamCost: removeTailingZero(upstreamCost, 6),
-      revenueShare: removeTailingZero(revenueShare, 6),
-    };
-  });
+  const provider = await keyProviderRepo.findById(id);
+  if (!provider) return c.json({ error: "Key provider not found" }, 404);
 
-  const totals = keySummaries.reduce(
-    (acc, row) => ({
-      requests: acc.requests + row.requests,
-      inputTokens: acc.inputTokens + row.inputTokens,
-      outputTokens: acc.outputTokens + row.outputTokens,
-      totalTokens: acc.totalTokens + row.totalTokens,
-      consumerSpend: removeTailingZero(safePlus(acc.consumerSpend, row.consumerSpend), 6),
-      upstreamCost: removeTailingZero(safePlus(acc.upstreamCost, row.upstreamCost), 6),
-      revenueShare: removeTailingZero(safePlus(acc.revenueShare, row.revenueShare), 6),
-    }),
-    {
-      requests: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      consumerSpend: "0",
-      upstreamCost: "0",
-      revenueShare: "0",
-    },
-  );
-
-  return ok(c, { ...provider, keys: ownedKeys, keySummaries, totals });
+  return ok(c, await aiUsageLogRepo.findAll(limit, offset, { ownerId: id }));
 });
 
 // ── Create key provider ─────────────────────────────────────────────

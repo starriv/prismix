@@ -29,6 +29,7 @@
       "status": "Status",
       "time": "Time",
       "name": "Name",
+      "actions": "Actions",
       "source": "Source",
       "network": "Network",
       "token": "Token",
@@ -449,14 +450,20 @@
       },
       "detail": {
         "balance": "Pending Balance",
+        "latest-call": "Latest Call",
         "info": "Provider Info",
+        "key-list": "Provider Keys",
         "txns": "Revenue History",
         "no-txns": "No revenue records yet",
         "view-all": "View All ({{count}})",
         "collapse": "Collapse",
         "cost": "Upstream cost",
         "profit": "Revenue share",
+        "provider": "AI Provider",
         "requests": "Requests",
+        "upstream": "Upstream",
+        "weight": "Weight",
+        "never-used": "Never used",
         "by-key": "By key",
         "chart-title": "Cost vs revenue share by key",
         "no-keys": "No keys assigned to this provider."
@@ -472,6 +479,10 @@
         "revenue_share": "Revenue Share",
         "withdraw": "Withdrawal",
         "adjustment": "Adjustment"
+      },
+      "dialog": {
+        "delete-title": "Delete Provider",
+        "delete-body": "Delete \"{{name}}\"? All owned keys and revenue records will be permanently removed."
       },
       "toast": {
         "created": "Key provider created",
@@ -2280,8 +2291,7 @@
     "btn": {
       "new": "Add Provider",
       "create": "Create Provider",
-      "new-upstream": "Add Upstream",
-      "create-upstream": "Create Upstream"
+      "assign-upstream": "Assign Upstream"
     },
     "th": {
       "api-format": "API Format",
@@ -2315,10 +2325,10 @@
       "edit-title": "Edit Provider",
       "delete-title": "Delete Provider",
       "delete-body": "Delete \"{{name}}\"? All models and keys will also be deleted.",
-      "add-upstream-title": "Add Upstream",
-      "edit-upstream-title": "Edit Upstream",
-      "delete-upstream-title": "Delete Upstream",
-      "delete-upstream-body": "Delete upstream \"{{name}}\"? Keys bound to it will fall back to the default provider base URL."
+      "assign-upstream-title": "Assign Upstream",
+      "edit-upstream-title": "Edit Assignment",
+      "delete-upstream-title": "Remove Upstream",
+      "delete-upstream-body": "Remove upstream \"{{name}}\" from this provider? Keys bound to it will fall back to the default provider base URL."
     },
     "upstreams": {
       "section-title": "Upstreams",
@@ -2334,13 +2344,9 @@
         "enabled": "Enabled"
       },
       "form": {
-        "upstream-id": "Upstream ID",
-        "upstream-id-ph": "official or friend-1",
-        "name": "Name",
-        "name-ph": "Enter upstream name",
-        "base-url": "Base URL",
-        "base-url-ph": "https://api.example.com/v1",
-        "kind": "Kind",
+        "upstream": "Upstream",
+        "upstream-ph": "Select an upstream",
+        "no-available": "All upstreams are already assigned to this provider.",
         "priority": "Priority",
         "weight": "Weight",
         "enabled": "Enabled"
@@ -2359,12 +2365,12 @@
       "create-error": "Failed to create provider",
       "update-error": "Failed to update provider",
       "delete-error": "Failed to delete provider",
-      "upstream-created": "Upstream created",
-      "upstream-updated": "Upstream updated",
-      "upstream-deleted": "Upstream deleted",
-      "upstream-create-error": "Failed to create upstream",
-      "upstream-update-error": "Failed to update upstream",
-      "upstream-delete-error": "Failed to delete upstream"
+      "upstream-assigned": "Upstream assigned",
+      "upstream-updated": "Assignment updated",
+      "upstream-deleted": "Upstream removed",
+      "upstream-assign-error": "Failed to assign upstream",
+      "upstream-update-error": "Failed to update assignment",
+      "upstream-delete-error": "Failed to remove upstream"
     }
   },
   "ai-models": {
@@ -2616,7 +2622,7 @@
       "title": "Upstream Status"
     },
     "th": {
-      "provider": "Provider",
+      "assignments": "Assignments",
       "upstream": "Upstream",
       "kind": "Kind",
       "status": "Status",
@@ -2627,12 +2633,43 @@
       "last-seen": "Last Seen",
       "enabled": "Enabled"
     },
+    "btn": {
+      "new": "New Upstream",
+      "create": "Create",
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
     "actions": {
       "details": "Details"
     },
+    "dialog": {
+      "create-title": "Create Upstream",
+      "edit-title": "Edit Upstream",
+      "delete-title": "Delete Upstream",
+      "delete-body": "This upstream and all its provider assignments will be removed. Keys bound to it will fall back to the default provider URL."
+    },
+    "form": {
+      "upstream-id": "Upstream ID",
+      "upstream-id-ph": "e.g. openrouter-main",
+      "name": "Display Name",
+      "name-ph": "e.g. OpenRouter Main",
+      "base-url": "Base URL",
+      "base-url-ph": "https://api.example.com/v1",
+      "kind": "Kind",
+      "enabled": "Enabled"
+    },
+    "toast": {
+      "created": "Upstream created",
+      "updated": "Upstream updated",
+      "deleted": "Upstream deleted",
+      "create-error": "Failed to create upstream",
+      "update-error": "Failed to update upstream",
+      "delete-error": "Failed to delete upstream"
+    },
     "detail": {
       "title": "Upstream Detail",
-      "provider": "Provider",
+      "assignments": "Assignments",
       "upstream-id": "Upstream ID",
       "base-url": "Base URL",
       "health": "Health",

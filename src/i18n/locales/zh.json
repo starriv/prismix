@@ -29,6 +29,7 @@
       "status": "状态",
       "time": "时间",
       "name": "名称",
+      "actions": "操作",
       "source": "来源",
       "network": "网络",
       "token": "代币",
@@ -449,14 +450,20 @@
       },
       "detail": {
         "balance": "待结算余额",
+        "latest-call": "最近调用",
         "info": "合作方信息",
+        "key-list": "合作方密钥",
         "txns": "分润记录",
         "no-txns": "暂无分润记录",
         "view-all": "查看全部 ({{count}})",
         "collapse": "收起",
         "cost": "上游成本",
         "profit": "分润金额",
+        "provider": "AI 供应商",
         "requests": "请求数",
+        "upstream": "上游",
+        "weight": "权重",
+        "never-used": "暂无调用",
         "by-key": "按 Key 明细",
         "chart-title": "各 Key 成本与分润对比",
         "no-keys": "暂无分配给此合作方的 Key。"
@@ -472,6 +479,10 @@
         "revenue_share": "分润收入",
         "withdraw": "提现",
         "adjustment": "手动调账"
+      },
+      "dialog": {
+        "delete-title": "删除合作方",
+        "delete-body": "删除「{{name}}」？所有关联的密钥和分润记录将被永久删除。"
       },
       "toast": {
         "created": "合作方创建成功",
@@ -2280,8 +2291,7 @@
     "btn": {
       "new": "添加供应商",
       "create": "创建供应商",
-      "new-upstream": "添加上游",
-      "create-upstream": "创建上游"
+      "assign-upstream": "分配上游"
     },
     "th": {
       "api-format": "API 格式",
@@ -2315,10 +2325,10 @@
       "edit-title": "编辑供应商",
       "delete-title": "删除供应商",
       "delete-body": "删除「{{name}}」？所有关联的模型和密钥也会被删除。",
-      "add-upstream-title": "添加上游",
-      "edit-upstream-title": "编辑上游",
-      "delete-upstream-title": "删除上游",
-      "delete-upstream-body": "删除上游「{{name}}」？绑定到它的密钥会回退为默认 Base URL。"
+      "assign-upstream-title": "分配上游",
+      "edit-upstream-title": "编辑分配",
+      "delete-upstream-title": "移除上游",
+      "delete-upstream-body": "从此供应商移除上游「{{name}}」？绑定到它的密钥会回退为默认 Base URL。"
     },
     "upstreams": {
       "section-title": "Upstreams",
@@ -2334,13 +2344,9 @@
         "enabled": "启用"
       },
       "form": {
-        "upstream-id": "上游 ID",
-        "upstream-id-ph": "official 或 friend-1",
-        "name": "名称",
-        "name-ph": "输入上游名称",
-        "base-url": "Base URL",
-        "base-url-ph": "https://api.example.com/v1",
-        "kind": "类型",
+        "upstream": "上游",
+        "upstream-ph": "选择上游",
+        "no-available": "所有上游均已分配至此供应商。",
         "priority": "优先级",
         "weight": "权重",
         "enabled": "启用"
@@ -2359,12 +2365,12 @@
       "create-error": "创建供应商失败",
       "update-error": "更新供应商失败",
       "delete-error": "删除供应商失败",
-      "upstream-created": "上游已创建",
-      "upstream-updated": "上游已更新",
-      "upstream-deleted": "上游已删除",
-      "upstream-create-error": "创建上游失败",
-      "upstream-update-error": "更新上游失败",
-      "upstream-delete-error": "删除上游失败"
+      "upstream-assigned": "上游已分配",
+      "upstream-updated": "分配已更新",
+      "upstream-deleted": "上游已移除",
+      "upstream-assign-error": "分配上游失败",
+      "upstream-update-error": "更新分配失败",
+      "upstream-delete-error": "移除上游失败"
     }
   },
   "ai-models": {
@@ -2616,7 +2622,7 @@
       "title": "上游状态"
     },
     "th": {
-      "provider": "提供商",
+      "assignments": "分配数",
       "upstream": "上游",
       "kind": "类型",
       "status": "状态",
@@ -2627,12 +2633,43 @@
       "last-seen": "最近请求",
       "enabled": "启用"
     },
+    "btn": {
+      "new": "新建上游",
+      "create": "创建",
+      "save": "保存",
+      "edit": "编辑",
+      "delete": "删除"
+    },
     "actions": {
       "details": "详情"
     },
+    "dialog": {
+      "create-title": "创建上游",
+      "edit-title": "编辑上游",
+      "delete-title": "删除上游",
+      "delete-body": "该上游及其所有 Provider 分配将被移除。绑定到该上游的密钥将回退到 Provider 的默认 URL。"
+    },
+    "form": {
+      "upstream-id": "上游 ID",
+      "upstream-id-ph": "如 openrouter-main",
+      "name": "显示名称",
+      "name-ph": "如 OpenRouter Main",
+      "base-url": "Base URL",
+      "base-url-ph": "https://api.example.com/v1",
+      "kind": "类型",
+      "enabled": "启用"
+    },
+    "toast": {
+      "created": "上游创建成功",
+      "updated": "上游更新成功",
+      "deleted": "上游删除成功",
+      "create-error": "创建上游失败",
+      "update-error": "更新上游失败",
+      "delete-error": "删除上游失败"
+    },
     "detail": {
       "title": "上游详情",
-      "provider": "提供商",
+      "assignments": "分配数",
       "upstream-id": "上游 ID",
       "base-url": "Base URL",
       "health": "健康状态",

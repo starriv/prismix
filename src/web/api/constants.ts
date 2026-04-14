@@ -113,6 +113,8 @@ export const apiAdminAnnouncementSend = (id: string) => `/api/admin/announcement
 export const API_KEY_PROVIDERS = "/api/admin/key-providers";
 export const apiKeyProviderDetail = (id: number) => `/api/admin/key-providers/${id}`;
 export const apiKeyProviderSummary = (id: number) => `/api/admin/key-providers/${id}/summary`;
+export const apiKeyProviderKeys = (id: number) => `/api/admin/key-providers/${id}/keys`;
+export const apiKeyProviderRecent = (id: number) => `/api/admin/key-providers/${id}/recent`;
 export const apiKeyProviderAdjust = (id: number) => `/api/admin/key-providers/${id}/adjust`;
 export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 
@@ -120,8 +122,10 @@ export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 export const API_AI_PROVIDERS = "/api/admin/ai/providers";
 export const apiAiProviderDetail = (id: number) => `/api/admin/ai/providers/${id}`;
 export const apiAiProviderUpstreams = (id: number) => `/api/admin/ai/providers/${id}/upstreams`;
-export const apiAiProviderUpstreamDetail = (providerId: number, upstreamId: number) =>
-  `/api/admin/ai/providers/${providerId}/upstreams/${upstreamId}`;
+export const apiAiProviderUpstreamAssignment = (providerId: number, assignmentId: number) =>
+  `/api/admin/ai/providers/${providerId}/upstreams/${assignmentId}`;
+export const API_AI_UPSTREAMS = "/api/admin/ai/upstreams";
+export const apiAiUpstreamDetail = (id: number) => `/api/admin/ai/upstreams/${id}`;
 export const API_AI_UPSTREAMS_OVERVIEW = "/api/admin/ai/upstreams/overview";
 export const apiAiUpstreamRecent = (id: number) => `/api/admin/ai/upstreams/${id}/recent`;
 export const apiAiProviderModels = (id: number) => `/api/admin/ai/providers/${id}/models`;
