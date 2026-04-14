@@ -297,9 +297,6 @@ function ProviderCard({
         </CardHeader>
         <CardContent className="space-y-3 pb-4 pt-0">
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant="secondary" className="font-mono text-xs">
-              {provider.providerId}
-            </Badge>
             <Badge variant="outline" className="text-xs">
               {provider.apiFormat}
             </Badge>
