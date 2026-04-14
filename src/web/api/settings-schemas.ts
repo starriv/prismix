@@ -288,10 +288,19 @@ export const depositInfoSchema = z.object({
 });
 export type DepositInfo = z.infer<typeof depositInfoSchema>;
 
-export const createWalletTopupBody = z.object({
-  amount: z.string().regex(/^\d+(\.\d+)?$/),
-  network: z.string(),
-});
+export const createWalletTopupBody = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("crypto"),
+    amount: z.string().regex(/^\d+(\.\d+)?$/),
+    network: z.string(),
+  }),
+  z.object({
+    type: z.literal("fiat"),
+    amount: z.string().regex(/^\d+(\.\d+)?$/),
+    fiatConfigId: z.number().int().positive(),
+    fiatCurrency: z.string().optional(),
+  }),
+]);
 export type CreateWalletTopupBody = z.infer<typeof createWalletTopupBody>;
 
 export const userWalletTopupOrderSchema = z.object({
@@ -300,6 +309,9 @@ export const userWalletTopupOrderSchema = z.object({
   amount: z.string(),
   fiatAmount: z.string().nullable().optional(),
   fiatCurrency: z.string(),
+  type: z.enum(["crypto", "fiat"]),
+  fiatConfigId: z.number().nullable().optional(),
+  fiatConfig: fiatConfigSchema.nullable().optional(),
   status: z.string(),
   paymentMethod: z.string().nullable().optional(),
   paymentProof: z.string().nullable().optional(),
@@ -309,7 +321,7 @@ export const userWalletTopupOrderSchema = z.object({
   txHash: z.string().nullable().optional(),
   confirmedAt: z.string().or(z.number()).nullable().optional(),
   expiredAt: z.string().or(z.number()).nullable().optional(),
-  expiresAt: z.string(),
+  expiresAt: z.string().nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
@@ -348,9 +360,15 @@ export const withdrawOrderSchema = z.object({
   agentId: z.number(),
   userId: z.number().nullable(),
   userUuid: z.string().nullable().optional(),
-  toAddress: z.string(),
+  userName: z.string().nullable().optional(),
+  type: z.enum(["crypto", "fiat"]).default("crypto"),
+  fiatConfigId: z.number().nullable().optional(),
+  paymentMethod: z.string().nullable().optional(),
+  userNote: z.string().nullable().optional(),
+  adminNote: z.string().nullable().optional(),
+  toAddress: z.string().nullable().optional(),
   amount: z.string(),
-  network: z.string(),
+  network: z.string().nullable().optional(),
   status: z.string(),
   txHash: z.string().nullable(),
   fee: z.string().nullable(),
@@ -362,12 +380,22 @@ export const withdrawOrderSchema = z.object({
 });
 export type WithdrawOrder = z.infer<typeof withdrawOrderSchema>;
 
-export const createWithdrawBody = z.object({
-  toAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
-  amount: z.string().optional(),
-  withdrawAll: z.boolean().optional(),
-  network: z.string(),
-});
+export const createWithdrawBody = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("crypto"),
+    toAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+    amount: z.string().optional(),
+    withdrawAll: z.boolean().optional(),
+    network: z.string(),
+  }),
+  z.object({
+    type: z.literal("fiat"),
+    paymentMethod: z.string().min(1),
+    payoutInfo: z.string().min(1),
+    amount: z.string(),
+    note: z.string().max(500).optional(),
+  }),
+]);
 export type CreateWithdrawBody = z.infer<typeof createWithdrawBody>;
 
 export const verifyDepositBody = z.object({
@@ -375,3 +403,14 @@ export const verifyDepositBody = z.object({
   network: z.string(),
 });
 export type VerifyDepositBody = z.infer<typeof verifyDepositBody>;
+
+export const submitFiatTopupProofBody = z.object({
+  paymentProof: z
+    .string()
+    .min(1)
+    .max(5 * 1024 * 1024)
+    .refine((v) => /^data:image\/(png|jpeg|gif|webp);base64,/.test(v), {
+      message: "Only PNG, JPEG, GIF, or WebP images are accepted",
+    }),
+});
+export type SubmitFiatTopupProofBody = z.infer<typeof submitFiatTopupProofBody>;

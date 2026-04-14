@@ -1,12 +1,23 @@
 import argon2 from "argon2";
+import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { groupBy } from "lodash-es";
 
-import { transaction } from "@/server/db";
+import {
+  payAgents,
+  payAgentTransactions,
+  topUpOrders,
+  transaction,
+  users,
+  withdrawOrders,
+} from "@/server/db";
 import {
   confirmTopupOrderBody,
   createAdminBody,
+  createFiatConfigBody,
   rejectTopupOrderBody,
+  reorderFiatConfigsBody,
+  updateFiatConfigBody,
 } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
@@ -14,12 +25,13 @@ import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server
 import { getAdminSession } from "@/server/middleware/auth";
 import {
   adminRepo,
+  fiatConfigRepo,
   identityRepo,
-  payAgentRepo,
-  payAgentTransactionRepo,
   topupOrderRepo,
   userRepo,
+  withdrawOrderRepo,
 } from "@/server/repos";
+import { safeMinus, safePlus } from "@/shared/number";
 
 const PASSWORD_COMPLEXITY_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 
@@ -144,6 +156,72 @@ admin.delete("/admins", async (c) => {
 
 // ── Hot Wallet Status ────────────────────────────────────────────────
 
+// ── Fiat Configs ──────────────────────────────────────────────────────
+
+admin.get("/fiat-configs", async (c) => {
+  return ok(c, await fiatConfigRepo.findAll());
+});
+
+admin.post("/fiat-configs", async (c) => {
+  const parsed = await parseBody(c, createFiatConfigBody);
+  if (!parsed.ok) return parsed.response;
+
+  const current = await fiatConfigRepo.findAll();
+  const created = await fiatConfigRepo.create({
+    ...parsed.data,
+    config: JSON.stringify(parsed.data.config),
+    enabled: parsed.data.enabled ?? true,
+    sortOrder: current.length,
+  });
+  return ok(c, created, 201);
+});
+
+// NOTE: /reorder must be registered BEFORE /:id to avoid Hono matching "reorder" as :id
+admin.put("/fiat-configs/reorder", async (c) => {
+  const parsed = await parseBody(c, reorderFiatConfigsBody);
+  if (!parsed.ok) return parsed.response;
+  await fiatConfigRepo.reorder(parsed.data.ids);
+  return ok(c, await fiatConfigRepo.findAll());
+});
+
+admin.put("/fiat-configs/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
+
+  const parsed = await parseBody(c, updateFiatConfigBody.omit({ id: true }));
+  if (!parsed.ok) return parsed.response;
+
+  const payload: {
+    displayName?: string;
+    enabled?: boolean;
+    config?: string;
+  } = {
+    displayName: parsed.data.displayName,
+    enabled: parsed.data.enabled,
+    ...(parsed.data.config ? { config: JSON.stringify(parsed.data.config) } : {}),
+  };
+
+  const updated = await fiatConfigRepo.update(id, payload);
+  if (!updated) return c.json({ error: "Fiat config not found" }, 404);
+  return ok(c, updated);
+});
+
+admin.delete("/fiat-configs/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
+
+  const inTopups = await topupOrderRepo.findFiatConfigUsageCount(id);
+  const inWithdraws = await withdrawOrderRepo.findFiatConfigUsageCount(id);
+  if (inTopups > 0 || inWithdraws > 0) {
+    return c.json({ error: "Fiat config is already referenced by existing orders" }, 409);
+  }
+
+  await fiatConfigRepo.delete(id);
+  return ok(c, { success: true });
+});
+
+// ── Hot Wallet Status ────────────────────────────────────────────────
+
 admin.get("/wallet/hot-wallet", async (c) => {
   const { isHotWalletConfigured, getHotWalletAddress, getHotWalletBalances } =
     await import("@/server/lib/hot-wallet");
@@ -226,47 +304,83 @@ admin.put("/topup-orders/:id/settle", async (c) => {
   );
   if (!parsed.ok) return parsed.response;
 
-  const order = await topupOrderRepo.findById(id);
-  if (!order || order.status !== "pending") {
-    return c.json({ error: "Top-up order not found or already processed" }, 404);
-  }
-
-  const owner = await userRepo.findByAgentId(order.agentId);
-  const agent = await payAgentRepo.findById(order.agentId);
-  if (!owner || !agent) {
-    return c.json({ error: "Order owner wallet not found" }, 404);
-  }
-
   const amount = parsed.data.amount;
-  const description = parsed.data.note || `Admin settled top-up order #${order.id}`;
-  const credited = await payAgentRepo.creditBalance(agent.id, amount);
-  await payAgentTransactionRepo.insert({
-    agentId: agent.id,
-    userId: owner.id,
-    type: "top_up",
-    amount,
-    balanceBefore: agent.balance,
-    balanceAfter: credited.balance,
-    referenceType: "top_up_order",
-    referenceId: order.id,
-    description,
-    source: "platform",
-    network: order.network,
-  });
+  const description = parsed.data.note || `Admin settled top-up order #${id}`;
 
-  const settled = await topupOrderRepo.confirm(id, {
-    note: description,
-    fiatAmount: parsed.data.fiatAmount,
-  });
-  if (!settled) {
-    return c.json({ error: "Failed to settle top-up order" }, 409);
+  try {
+    const settled = await transaction(async (tx: any) => {
+      const now = new Date();
+      const [confirmed] = await tx
+        .update(topUpOrders)
+        .set({
+          status: "confirmed",
+          fiatAmount: parsed.data.fiatAmount,
+          adminNote: description,
+          confirmedAt: now,
+          updatedAt: now,
+        })
+        .where(and(eq(topUpOrders.id, id), eq(topUpOrders.status, "pending")))
+        .returning();
+
+      if (!confirmed) return null;
+
+      const [owner] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.agentId, confirmed.agentId))
+        .limit(1);
+      if (!owner) {
+        throw new Error("ORDER_OWNER_WALLET_NOT_FOUND");
+      }
+
+      const [credited] = await tx
+        .update(payAgents)
+        .set({
+          balance: sql`CAST(CAST(${payAgents.balance} AS NUMERIC) + CAST(${amount} AS NUMERIC) AS TEXT)`,
+          status: "active",
+          updatedAt: now,
+        })
+        .where(eq(payAgents.id, confirmed.agentId))
+        .returning();
+      if (!credited) {
+        throw new Error("ORDER_OWNER_WALLET_NOT_FOUND");
+      }
+
+      await tx.insert(payAgentTransactions).values({
+        agentId: confirmed.agentId,
+        userId: owner.id,
+        type: "top_up",
+        amount,
+        balanceBefore: safeMinus(credited.balance, amount),
+        balanceAfter: credited.balance,
+        referenceType: "top_up_order",
+        referenceId: confirmed.id,
+        description,
+        source: "platform",
+        network: confirmed.network,
+      });
+
+      return {
+        order: confirmed,
+        userId: owner.id,
+      };
+    });
+
+    if (!settled) {
+      return c.json({ error: "Top-up order not found or already processed" }, 409);
+    }
+
+    log.admin.info(
+      { orderId: id, userId: settled.userId, agentId: settled.order.agentId, amount },
+      "Top-up order settled by admin",
+    );
+    return ok(c, settled.order);
+  } catch (err) {
+    if (err instanceof Error && err.message === "ORDER_OWNER_WALLET_NOT_FOUND") {
+      return c.json({ error: "Order owner wallet not found" }, 404);
+    }
+    throw err;
   }
-
-  log.admin.info(
-    { orderId: id, userId: owner.id, agentId: agent.id, amount },
-    "Top-up order settled by admin",
-  );
-  return ok(c, settled);
 });
 
 // PUT /topup-orders/:id/reject — reject a pending top-up order
@@ -307,62 +421,194 @@ admin.put("/wallet/withdrawals/:id/approve", async (c) => {
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
 
-  const { withdrawOrderRepo, payAgentRepo, payAgentTransactionRepo } =
-    await import("@/server/repos");
   const order = await withdrawOrderRepo.findById(id);
   if (!order) return c.json({ error: "Withdrawal order not found" }, 404);
   if (order.status !== "pending") {
     return c.json({ error: `Cannot approve order with status: ${order.status}` }, 400);
   }
 
-  const { isHotWalletConfigured, sendUsdc } = await import("@/server/lib/hot-wallet");
-  if (!isHotWalletConfigured()) {
-    return c.json({ error: "Hot wallet not configured, cannot execute transfer" }, 503);
+  if (order.type === "crypto") {
+    const { isHotWalletConfigured } = await import("@/server/lib/hot-wallet");
+    if (!isHotWalletConfigured()) {
+      return c.json({ error: "Hot wallet not configured, cannot execute transfer" }, 503);
+    }
   }
 
-  // Debit balance at approval time (not at submission)
-  const debited = await payAgentRepo.debitBalance(order.agentId, order.amount);
-  if (!debited) {
-    await withdrawOrderRepo.updateStatus(id, "failed", {
-      failReason: "Insufficient balance at approval time",
-      reviewedBy: session.adminId,
-    });
+  const approval = await transaction(async (tx: any) => {
+    const now = new Date();
+    const [processingOrder] = await tx
+      .update(withdrawOrders)
+      .set({
+        status: "processing",
+        reviewedBy: session.adminId,
+        reviewedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(withdrawOrders.id, id), eq(withdrawOrders.status, "pending")))
+      .returning();
+
+    if (!processingOrder) return null;
+
+    const [debited] = await tx
+      .update(payAgents)
+      .set({
+        balance: sql`CAST(CAST(${payAgents.balance} AS NUMERIC) - CAST(${processingOrder.amount} AS NUMERIC) AS TEXT)`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(payAgents.id, processingOrder.agentId),
+          sql`CAST(${payAgents.balance} AS NUMERIC) >= CAST(${processingOrder.amount} AS NUMERIC)`,
+        ),
+      )
+      .returning();
+
+    if (!debited) {
+      const [failed] = await tx
+        .update(withdrawOrders)
+        .set({
+          status: "failed",
+          failReason: "Insufficient balance at approval time",
+          reviewedBy: session.adminId,
+          reviewedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(withdrawOrders.id, id))
+        .returning();
+
+      return { kind: "insufficient" as const, order: failed };
+    }
+
+    if (processingOrder.type === "fiat") {
+      const adminNote = `Fiat withdrawal approved via ${processingOrder.paymentMethod ?? "manual"}`;
+      const [completed] = await tx
+        .update(withdrawOrders)
+        .set({
+          status: "completed",
+          adminNote,
+          updatedAt: now,
+        })
+        .where(and(eq(withdrawOrders.id, id), eq(withdrawOrders.status, "processing")))
+        .returning();
+
+      if (!completed) {
+        throw new Error("WITHDRAWAL_APPROVAL_CONFLICT");
+      }
+
+      await tx.insert(payAgentTransactions).values({
+        agentId: processingOrder.agentId,
+        userId: processingOrder.userId,
+        type: "withdraw",
+        amount: processingOrder.amount,
+        balanceBefore: safePlus(debited.balance, processingOrder.amount),
+        balanceAfter: debited.balance,
+        network: processingOrder.network ?? null,
+        source: "platform",
+        description: `Fiat withdrawal via ${processingOrder.paymentMethod ?? "manual"}`,
+      });
+
+      return { kind: "fiat" as const, order: completed };
+    }
+
+    return {
+      kind: "crypto" as const,
+      order: processingOrder,
+      balanceAfter: debited.balance,
+    };
+  });
+
+  if (!approval) {
+    return c.json({ error: "Withdrawal order not found or already processed" }, 409);
+  }
+  if (approval.kind === "insufficient") {
     return c.json({ error: "Insufficient balance" }, 400);
   }
+  if (approval.kind === "fiat") {
+    return ok(c, approval.order);
+  }
 
-  // Mark as processing
-  await withdrawOrderRepo.updateStatus(id, "processing", { reviewedBy: session.adminId });
+  const { sendUsdc } = await import("@/server/lib/hot-wallet");
+  const processingOrder = approval.order;
 
   try {
     const { txHash } = await sendUsdc({
-      toAddress: order.toAddress as `0x${string}`,
-      amount: order.amount,
-      networkId: order.network,
+      toAddress: processingOrder.toAddress as `0x${string}`,
+      amount: processingOrder.amount,
+      networkId: processingOrder.network!,
     });
 
-    const updated = await withdrawOrderRepo.updateStatus(id, "completed", { txHash });
+    const updated = await transaction(async (tx: any) => {
+      const now = new Date();
+      const [completed] = await tx
+        .update(withdrawOrders)
+        .set({
+          status: "completed",
+          txHash,
+          updatedAt: now,
+        })
+        .where(and(eq(withdrawOrders.id, id), eq(withdrawOrders.status, "processing")))
+        .returning();
 
-    // Record withdraw transaction
-    const { safePlus } = await import("@/shared/number");
-    await payAgentTransactionRepo.insert({
-      agentId: order.agentId,
-      userId: order.userId,
-      type: "withdraw",
-      amount: order.amount,
-      balanceBefore: safePlus(debited.balance, order.amount),
-      balanceAfter: debited.balance,
-      txHash,
-      network: order.network,
-      source: "on_chain",
-      description: `Withdrawal to ${order.toAddress}`,
+      if (!completed) {
+        throw new Error("WITHDRAWAL_FINALIZATION_CONFLICT");
+      }
+
+      await tx.insert(payAgentTransactions).values({
+        agentId: processingOrder.agentId,
+        userId: processingOrder.userId,
+        type: "withdraw",
+        amount: processingOrder.amount,
+        balanceBefore: safePlus(approval.balanceAfter, processingOrder.amount),
+        balanceAfter: approval.balanceAfter,
+        txHash,
+        network: processingOrder.network,
+        source: "on_chain",
+        description: `Withdrawal to ${processingOrder.toAddress}`,
+      });
+
+      return completed;
     });
 
     return ok(c, updated);
   } catch (err) {
-    // On-chain transfer failed — refund the debited balance
-    await payAgentRepo.creditBalance(order.agentId, order.amount);
     const failReason = err instanceof Error ? err.message : String(err);
-    await withdrawOrderRepo.updateStatus(id, "failed", { failReason, reviewedBy: session.adminId });
+
+    if (failReason === "WITHDRAWAL_FINALIZATION_CONFLICT") {
+      log.blockchain.error(
+        { err, orderId: id },
+        "Withdrawal transfer sent but failed to finalize order state",
+      );
+      return c.json(
+        {
+          error:
+            "Transfer sent but failed to finalize withdrawal order. Manual intervention required.",
+        },
+        500,
+      );
+    }
+
+    await transaction(async (tx: any) => {
+      const now = new Date();
+      await tx
+        .update(payAgents)
+        .set({
+          balance: sql`CAST(CAST(${payAgents.balance} AS NUMERIC) + CAST(${processingOrder.amount} AS NUMERIC) AS TEXT)`,
+          status: "active",
+          updatedAt: now,
+        })
+        .where(eq(payAgents.id, processingOrder.agentId));
+
+      await tx
+        .update(withdrawOrders)
+        .set({
+          status: "failed",
+          failReason,
+          reviewedBy: session.adminId,
+          reviewedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(withdrawOrders.id, id));
+    });
 
     log.blockchain.error(
       { err, orderId: id },

@@ -261,7 +261,7 @@ export function DepositDialog({
       return;
     }
     try {
-      const order = await createTopup.mutateAsync({ amount, network });
+      const order = await createTopup.mutateAsync({ type: "crypto", amount, network });
       setOrderId(order.id);
       toast.success(t("user.wallet.deposit-order-created"));
     } catch (err) {

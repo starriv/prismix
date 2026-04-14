@@ -76,6 +76,7 @@ export function WalletTopupOrders({
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>{t("common.th.amount")}</TableHead>
+                <TableHead>{t("user.wallet.order-type")}</TableHead>
                 <TableHead>{t("common.th.network")}</TableHead>
                 <TableHead>{t("common.th.status")}</TableHead>
                 <TableHead>{t("topup.detail.note")}</TableHead>
@@ -91,9 +92,20 @@ export function WalletTopupOrders({
                     ${removeTailingZero(order.amount)} USDC
                   </TableCell>
                   <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {t(`user.wallet.type-${order.type}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     {order.network ? (
                       <Badge variant="outline" className="text-xs">
                         {getChainDisplayByNetworkId(order.network)?.name ?? order.network}
+                      </Badge>
+                    ) : order.paymentMethod ? (
+                      <Badge variant="outline" className="text-xs">
+                        {t(`fiat.method.${order.paymentMethod}`, {
+                          defaultValue: order.paymentMethod,
+                        })}
                       </Badge>
                     ) : (
                       "—"

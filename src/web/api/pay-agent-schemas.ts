@@ -88,6 +88,8 @@ export const topUpOrderSchema = z.object({
   amount: z.string(),
   fiatAmount: z.string().nullable().optional(),
   fiatCurrency: z.string(),
+  type: z.enum(["crypto", "fiat"]).default("crypto"),
+  fiatConfigId: z.number().nullable().optional(),
   status: z.string(), // pending | confirmed | rejected | expired
   paymentMethod: z.string().nullable().optional(),
   paymentProof: z.string().nullable().optional(),
@@ -97,7 +99,7 @@ export const topUpOrderSchema = z.object({
   txHash: z.string().nullable().optional(),
   confirmedAt: z.string().or(z.number()).nullable().optional(),
   expiredAt: z.string().or(z.number()).nullable().optional(),
-  expiresAt: z.string().optional(),
+  expiresAt: z.string().nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });

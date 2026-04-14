@@ -15,7 +15,10 @@ import {
   withdrawOrders,
 } from "@/server/db";
 
-export type WithdrawOrderWithUser = WithdrawOrder & { userUuid: string | null };
+export type WithdrawOrderWithUser = WithdrawOrder & {
+  userUuid: string | null;
+  userName: string | null;
+};
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
@@ -69,7 +72,7 @@ export const withdrawOrderRepo = {
 
     return queryAll(
       db
-        .select({ ...getTableColumns(withdrawOrders), userUuid: users.uuid })
+        .select({ ...getTableColumns(withdrawOrders), userUuid: users.uuid, userName: users.name })
         .from(withdrawOrders)
         .leftJoin(users, eq(withdrawOrders.userId, users.id))
         .where(whereClause)
@@ -94,7 +97,7 @@ export const withdrawOrderRepo = {
   async updateStatus(
     id: number,
     status: string,
-    opts?: { txHash?: string; failReason?: string; reviewedBy?: number },
+    opts?: { txHash?: string; failReason?: string; reviewedBy?: number; adminNote?: string },
   ): Promise<WithdrawOrder | undefined> {
     const now = new Date();
     return returningOne(
@@ -104,6 +107,7 @@ export const withdrawOrderRepo = {
           status,
           txHash: opts?.txHash,
           failReason: opts?.failReason,
+          adminNote: opts?.adminNote,
           ...(opts?.reviewedBy != null && { reviewedBy: opts.reviewedBy, reviewedAt: now }),
           updatedAt: now,
         })
@@ -125,5 +129,15 @@ export const withdrawOrderRepo = {
 
   async deleteByAgent(agentId: number): Promise<void> {
     await exec(db.delete(withdrawOrders).where(eq(withdrawOrders.agentId, agentId)));
+  },
+
+  async findFiatConfigUsageCount(fiatConfigId: number): Promise<number> {
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(withdrawOrders)
+        .where(eq(withdrawOrders.fiatConfigId, fiatConfigId)),
+    );
+    return row?.total ?? 0;
   },
 };

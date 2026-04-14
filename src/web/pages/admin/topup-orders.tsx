@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { formatDistanceToNow } from "date-fns";
 import { Ban, CheckCircle2, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { match } from "ts-pattern";
 import { z } from "zod";
 
 import { removeTailingZero } from "@/shared/number";
@@ -81,6 +82,13 @@ const REJECT_REASON_KEYS = [
   "unsupported_token",
   "payment_not_received",
 ] as const;
+
+function isImageSource(value: string) {
+  return (
+    /^data:image\/(png|jpeg|gif|webp);base64,/.test(value) ||
+    /^https?:\/\/.+\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(value)
+  );
+}
 
 export default function AdminTopupOrdersPage() {
   const { t, i18n } = useTranslation();
@@ -171,6 +179,7 @@ export default function AdminTopupOrdersPage() {
                     <TableHead>ID</TableHead>
                     <TableHead>{t("common.th.name")}</TableHead>
                     <TableHead>{t("common.th.amount")}</TableHead>
+                    <TableHead>{t("topup.detail.type")}</TableHead>
                     <TableHead>{t("common.th.network")}</TableHead>
                     <TableHead>{t("common.th.status")}</TableHead>
                     <TableHead>{t("topup.detail.note")}</TableHead>
@@ -194,10 +203,17 @@ export default function AdminTopupOrdersPage() {
                       <TableCell className="font-mono text-xs">
                         ${removeTailingZero(order.amount)} USDC
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {t(`user.wallet.type-${order.type}`)}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {order.network
                           ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
-                          : "—"}
+                          : order.paymentMethod
+                            ? t(`fiat.method.${order.paymentMethod}`, {
+                                defaultValue: order.paymentMethod,
+                              })
+                            : "—"}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={order.status} colorMap={statusColorMap} />
@@ -304,7 +320,6 @@ function TopupOrderDetailSheet({
               href={`/admin/pay-agents?id=${order.agentId}`}
               value={agentName}
             />
-            <InfoRow label={t("topup.detail.address")} value={order.toAddress || "—"} mono />
           </CardContent>
         </Card>
 
@@ -313,16 +328,55 @@ function TopupOrderDetailSheet({
             <CardTitle className="text-sm">{t("topup.detail.chain")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <InfoRow
-              label={t("common.th.network")}
-              value={
-                order.network
-                  ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
-                  : "—"
-              }
-            />
-            <InfoRow label={t("topup.detail.txhash")} value={order.txHash || "—"} mono />
-            <InfoRow label={t("topup.detail.method")} value={order.paymentMethod || "—"} />
+            {match(order.type)
+              .with("crypto", () => (
+                <>
+                  <InfoRow label={t("topup.detail.type")} value={t("user.wallet.type-crypto")} />
+                  <InfoRow
+                    label={t("common.th.network")}
+                    value={
+                      getChainDisplayByNetworkId(order.network || "")?.name ?? order.network ?? "—"
+                    }
+                  />
+                  <InfoRow label={t("topup.detail.address")} value={order.toAddress || "—"} mono />
+                  <InfoRow label={t("topup.detail.txhash")} value={order.txHash || "—"} mono />
+                </>
+              ))
+              .with("fiat", () => (
+                <>
+                  <InfoRow label={t("topup.detail.type")} value={t("user.wallet.type-fiat")} />
+                  <InfoRow
+                    label={t("topup.detail.method")}
+                    value={
+                      order.paymentMethod
+                        ? t(`fiat.method.${order.paymentMethod}`, {
+                            defaultValue: order.paymentMethod,
+                          })
+                        : "—"
+                    }
+                  />
+                  <InfoRow label={t("topup.detail.fiat-amount")} value={order.fiatAmount || "—"} />
+                  {order.paymentProof ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {t("topup.detail.payment-proof")}
+                      </p>
+                      {isImageSource(order.paymentProof) ? (
+                        <div className="flex justify-center rounded-xl border border-border/70 bg-muted/20 p-4">
+                          <img
+                            src={order.paymentProof}
+                            alt={t("user.wallet.fiat-proof-preview-alt")}
+                            className="max-h-64 rounded-lg object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <p className="break-all text-sm">{order.paymentProof}</p>
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              ))
+              .exhaustive()}
           </CardContent>
         </Card>
 

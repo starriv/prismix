@@ -17,6 +17,7 @@ import {
   API_USER_WALLET,
   API_USER_WALLET_DEPOSIT_INFO,
   API_USER_WALLET_DEPOSIT_VERIFY,
+  API_USER_WALLET_FIAT_CONFIGS,
   API_USER_WALLET_TOPUP,
   API_USER_WALLET_TOPUP_ORDERS,
   API_USER_WALLET_TRANSACTIONS,
@@ -24,6 +25,7 @@ import {
   API_USER_WALLET_WITHDRAWALS,
   apiUserRequestLog,
   apiUserWalletTopupOrder,
+  apiUserWalletTopupProof,
   DEFAULT_PAGE_SIZE,
 } from "./constants";
 import { queryKeys } from "./query-keys";
@@ -37,6 +39,7 @@ import {
   announcementSchema,
   createWalletTopupBody,
   depositInfoSchema,
+  fiatConfigSchema,
   userKeySchema,
   userWalletSchema,
   userWalletTopupOrderListSchema,
@@ -45,8 +48,13 @@ import {
   walletTransactionSchema,
   withdrawOrderSchema,
 } from "./schemas";
-import type { CreateWalletTopupBody, CreateWithdrawBody, VerifyDepositBody } from "./schemas";
-import { userGet, userPost } from "./user-client";
+import type {
+  CreateWalletTopupBody,
+  CreateWithdrawBody,
+  SubmitFiatTopupProofBody,
+  VerifyDepositBody,
+} from "./schemas";
+import { userGet, userPost, userPut } from "./user-client";
 
 // ── Model Catalog ─────────────────────────────────────────────
 
@@ -234,6 +242,14 @@ export function useWalletDepositInfo(enabled = true) {
   });
 }
 
+export function useWalletFiatConfigs(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.userWalletFiatConfigs(),
+    queryFn: () => userGet(API_USER_WALLET_FIAT_CONFIGS, z.array(fiatConfigSchema)),
+    enabled,
+  });
+}
+
 export function useCreateWalletTopup() {
   const qc = useQueryClient();
   return useMutation({
@@ -294,6 +310,20 @@ export function useVerifyDeposit() {
       qc.invalidateQueries({ queryKey: queryKeys.userWallet() });
       qc.invalidateQueries({ queryKey: queryKeys.userWalletTransactions() });
       qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+    },
+  });
+}
+
+export function useSubmitFiatTopupProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: SubmitFiatTopupProofBody & { id: number }) =>
+      userPut(apiUserWalletTopupProof(id), body, userWalletTopupOrderSchema),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["user", "wallet-topup-orders"] });
+      qc.invalidateQueries({
+        queryKey: [...queryKeys.userWalletDepositInfo(), "topup-order", vars.id],
+      });
     },
   });
 }

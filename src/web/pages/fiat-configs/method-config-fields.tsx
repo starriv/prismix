@@ -1,7 +1,14 @@
+import { useCallback } from "react";
+
+import { toast } from "sonner";
+
+import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
 
 import type { FiatMethod } from "./constants";
+
+const SAFE_IMAGE_MIME_RE = /^data:image\/(png|jpeg|gif|webp);base64,/;
 
 interface MethodConfigFieldsProps {
   method: FiatMethod;
@@ -14,6 +21,33 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
   function set(key: string, value: string) {
     onChange({ ...config, [key]: value });
   }
+
+  const handleQrCodeUpload = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+
+      if (!SAFE_IMAGE_MIME_RE.test(dataUrl)) {
+        toast.error(t("fiat.valid.unsupported-image-type"));
+        return;
+      }
+
+      set("qrCodeUrl", dataUrl);
+    },
+    [config, onChange, t],
+  );
+
+  const clearQrCode = useCallback(() => {
+    const next = { ...config };
+    delete next.qrCodeUrl;
+    onChange(next);
+  }, [config, onChange]);
 
   if (method === "bank_transfer") {
     return (
@@ -68,10 +102,28 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
         <div className="space-y-2">
           <Label>{t("fiat.form.qr-code-url")}</Label>
           <Input
-            value={config.qrCodeUrl ?? ""}
-            onChange={(e) => set("qrCodeUrl", e.target.value)}
-            placeholder={t("fiat.form.qr-code-url-ph")}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0] ?? null;
+              void handleQrCodeUpload(file);
+            }}
           />
+          <p className="text-xs text-muted-foreground">{t("fiat.form.qr-code-upload-hint")}</p>
+          {config.qrCodeUrl ? (
+            <div className="space-y-3">
+              <div className="flex justify-center rounded-xl border border-border/70 bg-muted/20 p-4">
+                <img
+                  src={config.qrCodeUrl}
+                  alt={t("fiat.form.qr-code-preview-alt")}
+                  className="max-h-48 rounded-lg object-contain"
+                />
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={clearQrCode}>
+                {t("fiat.btn.delete")}
+              </Button>
+            </div>
+          ) : null}
         </div>
         <div className="space-y-2">
           <Label>{t("fiat.form.note")}</Label>

@@ -274,6 +274,8 @@ export const topUpOrders = pgTable(
     amount: text("amount").notNull(), // requested USDC amount
     fiatAmount: text("fiat_amount"), // corresponding fiat amount (admin fills manually)
     fiatCurrency: text("fiat_currency").notNull().default("USD"),
+    type: text("type").notNull().default("crypto"), // crypto | fiat
+    fiatConfigId: integer("fiat_config_id"),
     status: text("status").notNull().default("pending"), // pending | confirmed | rejected | expired
     paymentMethod: text("payment_method"), // fiat_config.method chosen by user
     paymentProof: text("payment_proof"), // user-provided proof
@@ -306,9 +308,14 @@ export const withdrawOrders = pgTable(
       .notNull()
       .references(() => payAgents.id, { onDelete: "cascade" }),
     userId: integer("user_id"), // user who requested the withdrawal
-    toAddress: text("to_address").notNull(), // destination wallet address
+    type: text("type").notNull().default("crypto"), // crypto | fiat
+    fiatConfigId: integer("fiat_config_id"),
+    paymentMethod: text("payment_method"), // fiat_config.method chosen by user
+    userNote: text("user_note"), // user-provided note / extra payout instructions
+    adminNote: text("admin_note"), // admin note for manual review
+    toAddress: text("to_address"), // destination wallet address
     amount: text("amount").notNull(), // USDC amount
-    network: text("network").notNull(), // CAIP-2 network id (e.g. "eip155:137")
+    network: text("network"), // CAIP-2 network id (e.g. "eip155:137"), null for fiat
     status: text("status").notNull().default("pending"), // pending | processing | completed | failed | cancelled
     txHash: text("tx_hash"), // on-chain tx hash once sent
     fee: text("fee"), // platform fee (if any)

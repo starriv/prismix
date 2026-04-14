@@ -45,7 +45,6 @@ export function PendingWithdrawals() {
   );
 
   const { data: orders = [] } = useWalletWithdrawals({
-    excludeStatus: "completed",
     limit: WITHDRAW_PAGE_SIZE,
     offset: page * WITHDRAW_PAGE_SIZE,
   });
@@ -58,13 +57,14 @@ export function PendingWithdrawals() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm">{t("user.wallet.pending-title")}</CardTitle>
+        <CardTitle className="text-sm">{t("user.wallet.withdraw-orders-title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>{t("user.wallet.pending-th.amount")}</TableHead>
+              <TableHead>{t("user.wallet.order-type")}</TableHead>
               <TableHead>{t("user.wallet.pending-th.address")}</TableHead>
               <TableHead>{t("user.wallet.pending-th.network")}</TableHead>
               <TableHead>{t("user.wallet.pending-th.status")}</TableHead>
@@ -74,22 +74,31 @@ export function PendingWithdrawals() {
           </TableHeader>
           <TableBody>
             {orders.map((o) => {
-              const chain = getChainDisplayByNetworkId(o.network);
+              const chain = o.network ? getChainDisplayByNetworkId(o.network) : null;
               return (
                 <TableRow key={o.id}>
                   <TableCell className="font-mono text-sm font-medium">
                     ${removeTailingZero(o.amount)}
                   </TableCell>
+                  <TableCell className="text-xs">{t(`user.wallet.type-${o.type}`)}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {o.toAddress.slice(0, 6)}…{o.toAddress.slice(-4)}
+                    {o.toAddress
+                      ? o.type === "fiat"
+                        ? o.toAddress
+                        : `${o.toAddress.slice(0, 6)}…${o.toAddress.slice(-4)}`
+                      : "—"}
                   </TableCell>
-                  <TableCell className="text-xs">{chain?.name ?? o.network}</TableCell>
+                  <TableCell className="text-xs">
+                    {o.network ? (chain?.name ?? o.network) : o.paymentMethod || "—"}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={o.status} colorMap={withdrawOrderStatusMap} />
                   </TableCell>
                   <TableCell className="text-xs max-w-[200px]">
                     {o.failReason && (o.status === "cancelled" || o.status === "failed") ? (
                       <span className="text-destructive truncate block">{o.failReason}</span>
+                    ) : o.adminNote ? (
+                      <span className="text-muted-foreground truncate block">{o.adminNote}</span>
                     ) : o.txHash && o.status === "completed" ? (
                       <span className="font-mono text-muted-foreground">
                         {o.txHash.slice(0, 10)}…

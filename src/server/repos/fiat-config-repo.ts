@@ -1,7 +1,7 @@
 /**
  * Fiat config repository — CRUD for the `fiat_configs` table.
  */
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import {
   db,
@@ -12,6 +12,7 @@ import {
   queryAll,
   queryOne,
   returningOne,
+  transaction,
 } from "@/server/db";
 
 export const fiatConfigRepo = {
@@ -34,6 +35,12 @@ export const fiatConfigRepo = {
     return queryOne(db.select().from(fiatConfigs).where(eq(fiatConfigs.id, id)));
   },
 
+  /** Batch fetch by ids — single query instead of N separate lookups. */
+  async findByIds(ids: number[]): Promise<FiatConfig[]> {
+    if (ids.length === 0) return [];
+    return queryAll(db.select().from(fiatConfigs).where(inArray(fiatConfigs.id, ids)));
+  },
+
   async create(data: NewFiatConfig): Promise<FiatConfig> {
     return returningOne(db.insert(fiatConfigs).values(data));
   },
@@ -49,14 +56,15 @@ export const fiatConfigRepo = {
 
   /** Batch update sort order — receives ordered array of ids. */
   async reorder(orderedIds: number[]): Promise<void> {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await exec(
-        db
+    await transaction(async (tx: any) => {
+      const now = new Date();
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx
           .update(fiatConfigs)
-          .set({ sortOrder: i, updatedAt: new Date() })
-          .where(eq(fiatConfigs.id, orderedIds[i])),
-      );
-    }
+          .set({ sortOrder: i, updatedAt: now })
+          .where(eq(fiatConfigs.id, orderedIds[i]));
+      }
+    });
   },
 
   async delete(id: number): Promise<void> {

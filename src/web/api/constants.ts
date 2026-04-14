@@ -176,9 +176,11 @@ export const API_USER_ANNOUNCEMENTS = "/api/user/announcements";
 // ── User Wallet ────────────────────────────────────────────────
 export const API_USER_WALLET = "/api/user/wallet";
 export const API_USER_WALLET_DEPOSIT_INFO = "/api/user/wallet/deposit-info";
+export const API_USER_WALLET_FIAT_CONFIGS = "/api/user/wallet/fiat-configs";
 export const API_USER_WALLET_TOPUP = "/api/user/wallet/topup";
 export const API_USER_WALLET_DEPOSIT_VERIFY = "/api/user/wallet/deposit/verify";
 export const apiUserWalletTopupOrder = (id: number) => `/api/user/wallet/topup/${id}`;
+export const apiUserWalletTopupProof = (id: number) => `/api/user/wallet/topup/${id}/proof`;
 export const API_USER_WALLET_TOPUP_ORDERS = "/api/user/wallet/topup";
 export const API_USER_WALLET_TRANSACTIONS = "/api/user/wallet/transactions";
 export const API_USER_WALLET_WITHDRAW = "/api/user/wallet/withdraw";

@@ -198,6 +198,7 @@ export const queryKeys = {
   // ── User Wallet ───────────────────────────────────────────────
   userWallet: () => ["user", "wallet"] as const,
   userWalletDepositInfo: () => ["user", "wallet-deposit"] as const,
+  userWalletFiatConfigs: () => ["user", "wallet-fiat-configs"] as const,
   userWalletTransactions: (params?: Record<string, unknown>) =>
     ["user", "wallet-txns", params] as const,
   userWalletWithdrawals: (params?: Record<string, unknown>) =>

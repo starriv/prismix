@@ -6,6 +6,7 @@
  */
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { compact, keyBy, uniq } from "lodash-es";
 import type { Address } from "viem";
 import { formatUnits } from "viem";
 
@@ -15,14 +16,21 @@ import {
   getPublicClient,
   getUsdcAddress,
 } from "@/blockchain/config";
+import type { TopUpOrder } from "@/server/db";
 import { enqueueDepositScan } from "@/server/jobs/scan-topup-deposit";
-import { createTopupRequestBody, verifyDepositBody, withdrawBody } from "@/server/lib/body-schemas";
+import {
+  createTopupRequestBody,
+  submitFiatTopupProofBody,
+  verifyDepositBody,
+  withdrawBody,
+} from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { ensureAgentWallet } from "@/server/lib/wallet";
 import { getUserSession } from "@/server/middleware/auth";
 import {
+  fiatConfigRepo,
   networkRepo,
   payAgentRepo,
   payAgentTransactionRepo,
@@ -91,6 +99,38 @@ async function getSupportedNetworks(): Promise<
   }));
 }
 
+function getTopupExpiresAt(order: TopUpOrder): string | null {
+  if (order.type !== "crypto") return null;
+  return new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString();
+}
+
+/** Serialize a single order — use for detail endpoints only. */
+async function serializeTopupOrder(order: TopUpOrder, includeFiatConfig = false) {
+  const fiatConfig =
+    includeFiatConfig && order.type === "fiat" && order.fiatConfigId
+      ? await fiatConfigRepo.findById(order.fiatConfigId)
+      : null;
+
+  return {
+    ...order,
+    fiatConfig,
+    expiresAt: getTopupExpiresAt(order),
+  };
+}
+
+/** Batch-serialize a list of orders — single query for all fiat configs to avoid N+1. */
+async function serializeTopupOrders(orders: TopUpOrder[]) {
+  const fiatConfigIds = compact(uniq(orders.map((o) => o.fiatConfigId)));
+  const configMap =
+    fiatConfigIds.length > 0 ? keyBy(await fiatConfigRepo.findByIds(fiatConfigIds), "id") : {};
+
+  return orders.map((order) => ({
+    ...order,
+    fiatConfig: null,
+    expiresAt: getTopupExpiresAt(order),
+  }));
+}
+
 // ── GET / — wallet overview (single agent) ─────────────────────────
 
 wallet.get("/", async (c) => {
@@ -137,6 +177,10 @@ wallet.get("/deposit-info", async (c) => {
   return ok(c, { address, networks });
 });
 
+wallet.get("/fiat-configs", async (c) => {
+  return ok(c, await fiatConfigRepo.findAllEnabled());
+});
+
 // ── POST /topup — create a crypto top-up order ───────────────────────
 
 wallet.post("/topup", async (c) => {
@@ -146,24 +190,14 @@ wallet.post("/topup", async (c) => {
   const parsed = await parseBody(c, createTopupRequestBody);
   if (!parsed.ok) return parsed.response;
 
-  const { amount, network } = parsed.data;
-  await ensureBlockchainConfig();
+  const { amount } = parsed.data;
 
   // Validate amount > 0
   if (!gt(amount, "0")) {
     return c.json({ error: "Amount must be greater than zero" }, 400);
   }
-  if (!gte(amount, MIN_TOPUP_AMOUNT)) {
+  if (parsed.data.type === "crypto" && !gte(amount, MIN_TOPUP_AMOUNT)) {
     return c.json({ error: `Minimum deposit amount is ${MIN_TOPUP_AMOUNT} USDC` }, 400);
-  }
-
-  // Validate network is supported
-  const chainConfig = getChainConfig();
-  if (!chainConfig[network]) {
-    return c.json({ error: `Unsupported network: ${network}` }, 400);
-  }
-  if (!SUPPORTED_PAYMENT_CHAIN_IDS.has(chainConfig[network].chainId)) {
-    return c.json({ error: `Network not supported for deposits: ${network}` }, 400);
   }
 
   const pendingOrder = await topupOrderRepo.findLatestPendingByAgent(agentId);
@@ -177,61 +211,74 @@ wallet.post("/topup", async (c) => {
     );
   }
 
-  // Ensure agent has a wallet address
-  let toAddress: string;
-  try {
-    toAddress = await ensureAgentWallet(agentId);
-  } catch (err) {
-    log.blockchain.error({ err, agentId }, "Failed to ensure wallet for top-up");
-    return c.json({ error: "Failed to generate deposit address" }, 500);
-  }
+  let order;
+  if (parsed.data.type === "crypto") {
+    const { network } = parsed.data;
+    await ensureBlockchainConfig();
 
-  // Create the order
-  const order = await topupOrderRepo.create({
-    agentId,
-    amount,
-    network,
-    toAddress,
-    paymentMethod: "crypto",
-  });
+    const chainConfig = getChainConfig();
+    if (!chainConfig[network]) {
+      return c.json({ error: `Unsupported network: ${network}` }, 400);
+    }
+    if (!SUPPORTED_PAYMENT_CHAIN_IDS.has(chainConfig[network].chainId)) {
+      return c.json({ error: `Network not supported for deposits: ${network}` }, 400);
+    }
 
-  let startBlock: number | undefined;
-  try {
-    startBlock = Number((await getPublicClient(network).getBlockNumber()) + 1n);
-  } catch (err) {
-    log.blockchain.warn(
-      { err, network, orderId: order.id },
-      "Failed to capture top-up start block",
+    let toAddress: string;
+    try {
+      toAddress = await ensureAgentWallet(agentId);
+    } catch (err) {
+      log.blockchain.error({ err, agentId }, "Failed to ensure wallet for top-up");
+      return c.json({ error: "Failed to generate deposit address" }, 500);
+    }
+
+    order = await topupOrderRepo.create({
+      agentId,
+      amount,
+      type: "crypto",
+      network,
+      toAddress,
+      paymentMethod: "crypto",
+    });
+
+    let startBlock: number | undefined;
+    try {
+      startBlock = Number((await getPublicClient(network).getBlockNumber()) + 1n);
+    } catch (err) {
+      log.blockchain.warn(
+        { err, network, orderId: order.id },
+        "Failed to capture top-up start block",
+      );
+    }
+
+    enqueueDepositScan(order.id, startBlock);
+
+    log.blockchain.info(
+      { orderId: order.id, agentId, amount, network, toAddress },
+      "Crypto top-up order created, deposit scan enqueued",
+    );
+  } else {
+    const config = await fiatConfigRepo.findById(parsed.data.fiatConfigId);
+    if (!config || !config.enabled) {
+      return c.json({ error: "Fiat payment method is unavailable" }, 400);
+    }
+
+    order = await topupOrderRepo.create({
+      agentId,
+      amount,
+      type: "fiat",
+      fiatConfigId: config.id,
+      fiatCurrency: parsed.data.fiatCurrency ?? "USD",
+      paymentMethod: config.method,
+    });
+
+    log.blockchain.info(
+      { orderId: order.id, agentId, amount, fiatConfigId: config.id, paymentMethod: config.method },
+      "Fiat top-up order created, pending admin review",
     );
   }
 
-  // Enqueue the on-demand deposit scan
-  enqueueDepositScan(order.id, startBlock);
-
-  log.blockchain.info(
-    { orderId: order.id, agentId, amount, network, toAddress },
-    "Crypto top-up order created, deposit scan enqueued",
-  );
-
-  return ok(c, {
-    id: order.id,
-    agentId: order.agentId,
-    amount: order.amount,
-    fiatAmount: order.fiatAmount,
-    fiatCurrency: order.fiatCurrency,
-    status: order.status,
-    paymentMethod: order.paymentMethod,
-    paymentProof: order.paymentProof,
-    adminNote: order.adminNote,
-    network: order.network,
-    toAddress: order.toAddress,
-    txHash: order.txHash,
-    confirmedAt: order.confirmedAt,
-    expiredAt: order.expiredAt,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-    expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
-  });
+  return ok(c, await serializeTopupOrder(order));
 });
 
 // ── GET /topup/:id — check top-up order status ──────────────────────
@@ -246,10 +293,27 @@ wallet.get("/topup/:id", async (c) => {
   const order = await topupOrderRepo.findByIdAndAgent(id, agentId);
   if (!order) return c.json({ error: "Order not found" }, 404);
 
-  return ok(c, {
-    ...order,
-    expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
-  });
+  return ok(c, await serializeTopupOrder(order, true));
+});
+
+wallet.put("/topup/:id/proof", async (c) => {
+  const agentId = await resolveAgentId(c);
+  if (!agentId) return c.json({ error: "No wallet found for this account" }, 404);
+
+  const id = Number(c.req.param("id"));
+  if (!id || Number.isNaN(id)) return c.json({ error: "Invalid order ID" }, 400);
+
+  const parsed = await parseBody(c, submitFiatTopupProofBody);
+  if (!parsed.ok) return parsed.response;
+
+  const order = await topupOrderRepo.updatePaymentProof(
+    id,
+    agentId,
+    parsed.data.paymentProof.trim(),
+  );
+  if (!order) return c.json({ error: "Fiat top-up order not found or already processed" }, 404);
+
+  return ok(c, await serializeTopupOrder(order, true));
 });
 
 wallet.get("/topup", async (c) => {
@@ -261,13 +325,7 @@ wallet.get("/topup", async (c) => {
   const status = c.req.query("status") || undefined;
 
   const orders = await topupOrderRepo.findByAgent(agentId, { status, limit, offset });
-  return ok(
-    c,
-    orders.map((order) => ({
-      ...order,
-      expiresAt: new Date(new Date(order.createdAt).getTime() + TOPUP_EXPIRES_IN_MS).toISOString(),
-    })),
-  );
+  return ok(c, await serializeTopupOrders(orders));
 });
 
 // ── POST /deposit/verify — manual txHash verification ───────────────
@@ -445,32 +503,17 @@ wallet.post("/withdraw", async (c) => {
   const parsed = await parseBody(c, withdrawBody);
   if (!parsed.ok) return parsed.response;
 
-  const { toAddress, withdrawAll, network } = parsed.data;
-  await ensureBlockchainConfig();
-
-  // Validate network is supported
-  const chainConfig = getChainConfig();
-  if (!chainConfig[network]) {
-    return c.json({ error: `Unsupported network: ${network}` }, 400);
-  }
-  if (!SUPPORTED_PAYMENT_CHAIN_IDS.has(chainConfig[network].chainId)) {
-    return c.json({ error: `Network not supported for withdrawals: ${network}` }, 400);
-  }
-
-  // Determine amount — validate only, do NOT debit (admin will debit on approval)
   let finalAmount: string;
-  if (withdrawAll) {
+  if (parsed.data.type === "crypto" && parsed.data.withdrawAll) {
     const agent = await payAgentRepo.findById(agentId);
-    if (!agent || !gt(agent.balance, "0")) {
-      return c.json({ error: "Balance is zero" }, 400);
-    }
+    if (!agent || !gt(agent.balance, "0")) return c.json({ error: "Balance is zero" }, 400);
     finalAmount = agent.balance;
   } else {
-    const amount = parsed.data.amount!;
+    const amount = parsed.data.amount;
+    if (!amount) return c.json({ error: "Amount is required" }, 400);
     if (!gt(amount, "0")) {
       return c.json({ error: "Amount must be greater than zero" }, 400);
     }
-    // Check sufficient balance (read-only, no debit)
     const agent = await payAgentRepo.findById(agentId);
     if (!agent || !gte(agent.balance, amount)) {
       return c.json({ error: "Insufficient balance" }, 400);
@@ -478,20 +521,63 @@ wallet.post("/withdraw", async (c) => {
     finalAmount = amount;
   }
 
-  // Create pending order — admin approval required before execution
-  const order = await withdrawOrderRepo.create({
-    agentId,
-    userId: session.userId,
-    toAddress,
-    amount: finalAmount,
-    network,
-    status: "pending",
-  });
+  let order;
+  if (parsed.data.type === "crypto") {
+    const { toAddress, network } = parsed.data;
+    await ensureBlockchainConfig();
 
-  log.blockchain.info(
-    { orderId: order.id, agentId, toAddress, amount: finalAmount, network, userId: session.userId },
-    "Withdrawal request submitted, pending admin approval",
-  );
+    const chainConfig = getChainConfig();
+    if (!chainConfig[network]) {
+      return c.json({ error: `Unsupported network: ${network}` }, 400);
+    }
+    if (!SUPPORTED_PAYMENT_CHAIN_IDS.has(chainConfig[network].chainId)) {
+      return c.json({ error: `Network not supported for withdrawals: ${network}` }, 400);
+    }
+
+    order = await withdrawOrderRepo.create({
+      agentId,
+      userId: session.userId,
+      type: "crypto",
+      toAddress,
+      amount: finalAmount,
+      network,
+      status: "pending",
+    });
+
+    log.blockchain.info(
+      {
+        orderId: order.id,
+        agentId,
+        toAddress,
+        amount: finalAmount,
+        network,
+        userId: session.userId,
+      },
+      "Withdrawal request submitted, pending admin approval",
+    );
+  } else {
+    order = await withdrawOrderRepo.create({
+      agentId,
+      userId: session.userId,
+      type: "fiat",
+      paymentMethod: parsed.data.paymentMethod,
+      toAddress: parsed.data.payoutInfo,
+      userNote: parsed.data.note?.trim() || null,
+      amount: finalAmount,
+      status: "pending",
+    });
+
+    log.blockchain.info(
+      {
+        orderId: order.id,
+        agentId,
+        amount: finalAmount,
+        paymentMethod: parsed.data.paymentMethod,
+        userId: session.userId,
+      },
+      "Fiat withdrawal request submitted, pending admin approval",
+    );
+  }
 
   return ok(c, { orderId: order.id, status: "pending" });
 });

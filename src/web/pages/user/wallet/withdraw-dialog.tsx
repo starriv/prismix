@@ -56,7 +56,9 @@ export function WithdrawDialog({
     if (!toAddress || !amount || !network) return;
     try {
       await createWithdraw.mutateAsync(
-        isWithdrawAll ? { toAddress, withdrawAll: true, network } : { toAddress, amount, network },
+        isWithdrawAll
+          ? { type: "crypto", toAddress, withdrawAll: true, network }
+          : { type: "crypto", toAddress, amount, network },
       );
       toast.success(t("user.wallet.withdraw-success"));
       setToAddress("");

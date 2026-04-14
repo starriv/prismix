@@ -1,7 +1,7 @@
 /**
  * Top-up order repository — CRUD + status transitions for the `top_up_orders` table.
  */
-import { and, count, desc, eq, lt } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, lt } from "drizzle-orm";
 
 import {
   db,
@@ -13,6 +13,9 @@ import {
   type TopUpOrder,
   topUpOrders,
 } from "@/server/db";
+
+/** All columns except `paymentProof` — avoids transferring up to 5 MB base64 in list queries. */
+const { paymentProof: _pp, ...topUpOrderListColumns } = getTableColumns(topUpOrders);
 
 export const topupOrderRepo = {
   async findById(id: number): Promise<TopUpOrder | undefined> {
@@ -40,7 +43,7 @@ export const topupOrderRepo = {
 
     return queryAll(
       db
-        .select()
+        .select(topUpOrderListColumns)
         .from(topUpOrders)
         .where(whereClause)
         .orderBy(desc(topUpOrders.createdAt))
@@ -58,7 +61,7 @@ export const topupOrderRepo = {
 
     return queryAll(
       db
-        .select()
+        .select(topUpOrderListColumns)
         .from(topUpOrders)
         .where(and(...conditions))
         .orderBy(desc(topUpOrders.createdAt))
@@ -135,6 +138,39 @@ export const topupOrderRepo = {
     );
   },
 
+  async updatePaymentProof(
+    id: number,
+    agentId: number,
+    paymentProof: string,
+  ): Promise<TopUpOrder | undefined> {
+    return returningOne(
+      db
+        .update(topUpOrders)
+        .set({
+          paymentProof,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(topUpOrders.id, id),
+            eq(topUpOrders.agentId, agentId),
+            eq(topUpOrders.type, "fiat"),
+            eq(topUpOrders.status, "pending"),
+          ),
+        ),
+    );
+  },
+
+  async findFiatConfigUsageCount(fiatConfigId: number): Promise<number> {
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(topUpOrders)
+        .where(eq(topUpOrders.fiatConfigId, fiatConfigId)),
+    );
+    return row?.total ?? 0;
+  },
+
   /** Reject a pending order. */
   async reject(id: number, note?: string): Promise<TopUpOrder | undefined> {
     return returningOne(
@@ -160,7 +196,13 @@ export const topupOrderRepo = {
           expiredAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(and(eq(topUpOrders.status, "pending"), lt(topUpOrders.createdAt, cutoffDate)))
+        .where(
+          and(
+            eq(topUpOrders.status, "pending"),
+            eq(topUpOrders.type, "crypto"),
+            lt(topUpOrders.createdAt, cutoffDate),
+          ),
+        )
         .returning(),
     );
   },

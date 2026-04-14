@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
 import { Ban, CheckCircle2, Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { match } from "ts-pattern";
 
 import { removeTailingZero } from "@/shared/number";
 import { useAdminWithdrawals, useApproveWithdraw, useRejectWithdraw } from "@/web/api/admin-hooks";
@@ -184,6 +185,7 @@ export default function AdminWithdrawOrdersPage() {
                     <TableHead className="w-[60px]">ID</TableHead>
                     <TableHead>{t("admin.withdraw.th.user")}</TableHead>
                     <TableHead>{t("admin.withdraw.th.amount")}</TableHead>
+                    <TableHead>{t("admin.withdraw.th.type")}</TableHead>
                     <TableHead>{t("common.th.network")}</TableHead>
                     <TableHead>{t("admin.withdraw.th.status")}</TableHead>
                     <TableHead>{t("admin.withdraw.detail.note")}</TableHead>
@@ -199,16 +201,21 @@ export default function AdminWithdrawOrdersPage() {
                     >
                       <TableCell className="font-mono text-xs">#{order.id}</TableCell>
                       <TableCell className="text-xs">
-                        <div>{order.userUuid ?? "—"}</div>
+                        <div>{order.userName ?? "—"}</div>
                         <div className="text-muted-foreground font-mono">
-                          {order.userId ? `User #${order.userId}` : "—"}
+                          {order.userUuid ?? (order.userId ? `User #${order.userId}` : "—")}
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         ${removeTailingZero(order.amount)} USDC
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {t(`user.wallet.type-${order.type}`)}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {getChainDisplayByNetworkId(order.network)?.name ?? order.network}
+                        {order.network
+                          ? (getChainDisplayByNetworkId(order.network)?.name ?? order.network)
+                          : order.paymentMethod || "—"}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={order.status} colorMap={withdrawStatusColorMap} />
@@ -311,13 +318,13 @@ function WithdrawOrderDetailSheet({
             <CardTitle className="text-sm">{t("admin.withdraw.detail.user")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <InfoRow label={t("admin.withdraw.detail.user-name")} value={order.userName || "—"} />
             <InfoRow label={t("admin.withdraw.detail.user-uuid")} value={order.userUuid || "—"} />
             <InfoLinkRow
               label={t("admin.withdraw.detail.agent-id")}
               href={`/admin/pay-agents?id=${order.agentId}`}
               value={agentName}
             />
-            <InfoRow label={t("admin.withdraw.detail.address")} value={order.toAddress} mono />
           </CardContent>
         </Card>
 
@@ -326,12 +333,53 @@ function WithdrawOrderDetailSheet({
             <CardTitle className="text-sm">{t("admin.withdraw.detail.chain")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <InfoRow
-              label={t("common.th.network")}
-              value={getChainDisplayByNetworkId(order.network)?.name ?? order.network}
-            />
-            <InfoRow label={t("admin.withdraw.detail.txhash")} value={order.txHash || "—"} mono />
-            <InfoRow label={t("admin.withdraw.detail.fee")} value={order.fee || "—"} />
+            {match(order.type)
+              .with("crypto", () => (
+                <>
+                  <InfoRow
+                    label={t("admin.withdraw.detail.type")}
+                    value={t("user.wallet.type-crypto")}
+                  />
+                  <InfoRow
+                    label={t("common.th.network")}
+                    value={
+                      getChainDisplayByNetworkId(order.network || "")?.name ?? order.network ?? "—"
+                    }
+                  />
+                  <InfoRow
+                    label={t("admin.withdraw.detail.address")}
+                    value={order.toAddress || "—"}
+                    mono
+                  />
+                  <InfoRow
+                    label={t("admin.withdraw.detail.txhash")}
+                    value={order.txHash || "—"}
+                    mono
+                  />
+                  <InfoRow label={t("admin.withdraw.detail.fee")} value={order.fee || "—"} />
+                </>
+              ))
+              .with("fiat", () => (
+                <>
+                  <InfoRow
+                    label={t("admin.withdraw.detail.type")}
+                    value={t("user.wallet.type-fiat")}
+                  />
+                  <InfoRow
+                    label={t("admin.withdraw.detail.method")}
+                    value={order.paymentMethod || "—"}
+                  />
+                  <InfoRow
+                    label={t("user.wallet.fiat-withdraw-info")}
+                    value={order.toAddress || "—"}
+                  />
+                  <InfoRow
+                    label={t("user.wallet.fiat-withdraw-note")}
+                    value={order.userNote || "—"}
+                  />
+                </>
+              ))
+              .exhaustive()}
           </CardContent>
         </Card>
 
@@ -356,7 +404,10 @@ function WithdrawOrderDetailSheet({
               label={t("admin.withdraw.detail.reviewer")}
               value={order.reviewedBy ? `#${order.reviewedBy}` : "—"}
             />
-            <InfoRow label={t("admin.withdraw.detail.note")} value={order.failReason || "—"} />
+            <InfoRow
+              label={t("admin.withdraw.detail.note")}
+              value={order.adminNote || order.failReason || "—"}
+            />
           </CardContent>
         </Card>
       </SheetBody>
@@ -429,12 +480,23 @@ function ApproveDialog({
         <DialogBody>
           {order && (
             <div className="space-y-2 text-sm">
-              <p>
-                {t("admin.withdraw.approve-confirm", {
-                  amount: `$${removeTailingZero(order.amount)}`,
-                  address: `${order.toAddress.slice(0, 6)}…${order.toAddress.slice(-4)}`,
-                })}
-              </p>
+              {order.type === "fiat" ? (
+                <p>
+                  {t("admin.withdraw.approve-confirm-fiat", {
+                    amount: `$${removeTailingZero(order.amount)}`,
+                    name: order.userName || order.userUuid || t("common.user"),
+                  })}
+                </p>
+              ) : (
+                <p>
+                  {t("admin.withdraw.approve-confirm", {
+                    amount: `$${removeTailingZero(order.amount)}`,
+                    address: order.toAddress
+                      ? `${order.toAddress.slice(0, 6)}…${order.toAddress.slice(-4)}`
+                      : (order.paymentMethod ?? "wallet"),
+                  })}
+                </p>
+              )}
             </div>
           )}
         </DialogBody>
