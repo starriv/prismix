@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Brain, Info, Sparkles } from "lucide-react";
+import { ArrowLeft, Brain, Info, Search, Sparkles } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 
 import { useUserModels } from "@/web/api/user-hooks";
@@ -13,10 +13,12 @@ import {
   DataTableBadge,
   dataTableMeta,
   DataTableText,
+  DataTableToolbar,
 } from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { Input } from "@/web/components/ui/input";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { cn } from "@/web/shared/utils";
 
@@ -150,6 +152,16 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
 
 function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: () => void }) {
   const { t } = useTranslation();
+  const [search, setSearch] = useState("");
+
+  const filteredModels = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return provider.models;
+    return provider.models.filter(
+      (m) => m.modelId.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
+    );
+  }, [provider.models, search]);
+
   const columns = useMemo<ColumnDef<UserModel>[]>(
     () => [
       {
@@ -234,9 +246,30 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
       <CardContent>
         <DataTable
           columns={columns}
-          data={provider.models}
+          data={filteredModels}
           emptyText={t("user-models.empty")}
           tableClassName="min-w-[760px]"
+          toolbar={
+            <DataTableToolbar>
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-8 text-sm"
+                  placeholder={t("user-models.filter-ph")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                {search.trim()
+                  ? t("user-models.filter-count-filtered", {
+                      filtered: filteredModels.length,
+                      total: provider.models.length,
+                    })
+                  : t("user-models.filter-count", { count: provider.models.length })}
+              </span>
+            </DataTableToolbar>
+          }
         />
       </CardContent>
     </Card>

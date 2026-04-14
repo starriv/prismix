@@ -2419,6 +2419,9 @@
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
     "no-providers": "No providers configured yet",
+    "filter-ph": "Search model ID or name...",
+    "filter-count": "{{count}} models",
+    "filter-count-filtered": "{{filtered}} / {{total}} models",
     "th": {
       "model-id": "Model ID",
       "name": "Name",

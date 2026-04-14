@@ -2419,6 +2419,9 @@
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
     "no-providers": "暂无已配置的供应商",
+    "filter-ph": "搜索模型 ID 或名称...",
+    "filter-count": "{{count}} 个模型",
+    "filter-count-filtered": "{{filtered}} / {{total}} 个模型",
     "th": {
       "model-id": "模型 ID",
       "name": "名称",
