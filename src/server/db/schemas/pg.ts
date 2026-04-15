@@ -719,6 +719,28 @@ export const relayConsumerKeys = pgTable(
   ],
 );
 
+// ── Relay Consumer Key Blacklist (deleted keys) ──────────────────────
+
+export const relayConsumerKeyBlacklist = pgTable(
+  "relay_consumer_key_blacklist",
+  {
+    id: serial("id").primaryKey(),
+    relayConsumerKeyId: integer("relay_consumer_key_id"), // original key id before deletion
+    userId: integer("user_id"), // nullable — admin-created orphan keys have no owner
+    agentId: integer("agent_id").notNull(),
+    name: text("name").notNull(),
+    apiKeyHash: text("api_key_hash").notNull().unique(),
+    apiKeyPrefix: text("api_key_prefix").notNull(),
+    deletedAt: timestamp("deleted_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_relay_consumer_key_blacklist_user_id").on(t.userId),
+    index("idx_relay_consumer_key_blacklist_agent_id").on(t.agentId),
+  ],
+);
+
 // ── Type exports ──────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -771,6 +793,8 @@ export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
 export type NewAiUsageLog = typeof aiUsageLogs.$inferInsert;
 export type RelayConsumerKey = typeof relayConsumerKeys.$inferSelect;
 export type NewRelayConsumerKey = typeof relayConsumerKeys.$inferInsert;
+export type RelayConsumerKeyBlacklist = typeof relayConsumerKeyBlacklist.$inferSelect;
+export type NewRelayConsumerKeyBlacklist = typeof relayConsumerKeyBlacklist.$inferInsert;
 export type WithdrawOrder = typeof withdrawOrders.$inferSelect;
 export type NewWithdrawOrder = typeof withdrawOrders.$inferInsert;
 export type KeyProvider = typeof keyProviders.$inferSelect;

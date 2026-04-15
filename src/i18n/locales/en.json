@@ -2822,6 +2822,10 @@
       "title": "My API Keys",
       "desc": "Manage your consumer API keys",
       "empty": "No API keys yet. Create one to get started.",
+      "action": {
+        "delete": "Delete",
+        "toggle": "Toggle key status"
+      },
       "create": "Create Key",
       "create-title": "Create API Key",
       "name-label": "Key Name",
@@ -2830,10 +2834,22 @@
       "created-warning": "Please store this key securely.",
       "dismiss": "Done",
       "copied": "API key copied to clipboard",
+      "dialog": {
+        "delete": {
+          "title": "Delete API Key",
+          "body": "This removes the key from your list and stores its hash in the database blacklist so it can never be used again."
+        }
+      },
       "toast": {
         "created": "API key created",
         "create-error": "Failed to create API key",
-        "copy-error": "Failed to copy API key"
+        "copy-error": "Failed to copy API key",
+        "enabled": "API key enabled",
+        "enable-error": "Failed to enable API key",
+        "disabled": "API key disabled",
+        "disable-error": "Failed to disable API key",
+        "deleted": "API key deleted",
+        "delete-error": "Failed to delete API key"
       },
       "th": {
         "name": "Name",
@@ -2843,7 +2859,7 @@
       },
       "status": {
         "active": "Active",
-        "revoked": "Revoked"
+        "suspended": "Disabled"
       }
     },
     "usage": {

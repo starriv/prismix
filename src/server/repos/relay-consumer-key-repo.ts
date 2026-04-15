@@ -11,6 +11,8 @@ import {
   queryAll,
   queryOne,
   type RelayConsumerKey,
+  type RelayConsumerKeyBlacklist,
+  relayConsumerKeyBlacklist,
   relayConsumerKeys,
   returningOne,
   users,
@@ -85,6 +87,15 @@ export const relayConsumerKeyRepo = {
     );
   },
 
+  async findBlacklistedByApiKeyHash(hash: string): Promise<RelayConsumerKeyBlacklist | undefined> {
+    return queryOne(
+      db
+        .select()
+        .from(relayConsumerKeyBlacklist)
+        .where(eq(relayConsumerKeyBlacklist.apiKeyHash, hash)),
+    );
+  },
+
   async create(data: NewRelayConsumerKey): Promise<RelayConsumerKey> {
     return returningOne(db.insert(relayConsumerKeys).values(data));
   },
@@ -120,11 +131,24 @@ export const relayConsumerKeyRepo = {
     );
   },
 
-  async delete(id: number, userId: number): Promise<void> {
-    await exec(
-      db
-        .delete(relayConsumerKeys)
-        .where(and(eq(relayConsumerKeys.id, id), eq(relayConsumerKeys.userId, userId))),
-    );
+  async blacklistAndDelete(
+    key: Pick<
+      RelayConsumerKey,
+      "id" | "userId" | "agentId" | "name" | "apiKeyHash" | "apiKeyPrefix"
+    >,
+  ): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- db is Proxy<any>, Drizzle cannot infer tx type
+    await db.transaction(async (tx: any) => {
+      await tx.insert(relayConsumerKeyBlacklist).values({
+        relayConsumerKeyId: key.id,
+        userId: key.userId,
+        agentId: key.agentId,
+        name: key.name,
+        apiKeyHash: key.apiKeyHash,
+        apiKeyPrefix: key.apiKeyPrefix,
+      });
+
+      await tx.delete(relayConsumerKeys).where(eq(relayConsumerKeys.id, key.id));
+    });
   },
 };

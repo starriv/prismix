@@ -87,6 +87,17 @@ export const consumerKeyAuthMiddleware = createMiddleware<ConsumerEnv>(async (c,
 
     const consumer = await relayConsumerKeyRepo.findByApiKeyHash(hash);
     if (!consumer) {
+      const deletedKey = await relayConsumerKeyRepo.findBlacklistedByApiKeyHash(hash);
+      if (deletedKey) {
+        log.gateway.warn(
+          { consumerKeyId: deletedKey.relayConsumerKeyId, userId: deletedKey.userId },
+          "Deleted consumer key used after blacklist",
+        );
+        return respondWithAuthError(403, "Consumer key has been deleted", {
+          consumerKeyId: deletedKey.relayConsumerKeyId ?? null,
+          userId: deletedKey.userId ?? null,
+        });
+      }
       return respondWithAuthError(401, "Invalid consumer API key");
     }
 

@@ -8,6 +8,13 @@
       "when": 1776186451273,
       "tag": "0000_melted_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776226815346,
+      "tag": "0001_bumpy_mongoose",
+      "breakpoints": true
     }
   ]
 }

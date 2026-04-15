@@ -81,6 +81,7 @@ export const aiKeys = s.aiKeys;
 export const aiGuardrailConfigs = s.aiGuardrailConfigs;
 export const aiUsageLogs = s.aiUsageLogs;
 export const relayConsumerKeys = s.relayConsumerKeys;
+export const relayConsumerKeyBlacklist = s.relayConsumerKeyBlacklist;
 
 // ── Entity type re-exports ──────────────────────────────────────────
 
@@ -123,6 +124,7 @@ export type {
   NewPayAgentTransaction,
   NewRefreshToken,
   NewRelayConsumerKey,
+  NewRelayConsumerKeyBlacklist,
   NewSupportedNetwork,
   NewTopUpOrder,
   NewUser,
@@ -135,6 +137,7 @@ export type {
   PayAgentTransaction,
   RefreshToken,
   RelayConsumerKey,
+  RelayConsumerKeyBlacklist,
   SupportedNetwork,
   TopUpOrder,
   User,

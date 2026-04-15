@@ -250,7 +250,7 @@ relayKeys.delete("/:id", async (c) => {
   const existing = await relayConsumerKeyRepo.findById(id);
   if (!existing) return c.json({ error: "Consumer key not found" }, 404);
 
-  await relayConsumerKeyRepo.delete(id, existing.userId ?? 0);
+  await relayConsumerKeyRepo.blacklistAndDelete(existing);
   emit("consumer-key.deleted", null, { keyId: id, agentId: existing.agentId });
   log.gateway.info({ keyId: id }, "Consumer key deleted");
 

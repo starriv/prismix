@@ -1,10 +1,6 @@
 import type { ComponentProps } from "react";
 
-import type { TFunction } from "i18next";
-
 import { removeTailingZero } from "@/shared/number";
-import type { StatusBadgeColorMap } from "@/web/components/dashboard/status-badge";
-import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { DataTableText } from "@/web/components/data-table";
 import { formatTokens } from "@/web/pages/ai-usage/helpers";
 
@@ -67,31 +63,4 @@ export function UserCurrencyText({
       {hasValue ? formatUserCurrency(value, digits, emptyText) : emptyText}
     </DataTableText>
   );
-}
-
-export function buildKeyStatusColorMap(t: TFunction): StatusBadgeColorMap {
-  return {
-    active: {
-      label: t("user.keys.status.active"),
-      className: "border-green-500/30 bg-green-500/10 text-green-600",
-    },
-    revoked: {
-      label: t("user.keys.status.revoked"),
-      className: "border-red-500/30 bg-red-500/10 text-red-600",
-    },
-    expired: {
-      label: t("user.keys.status.expired"),
-      className: "border-yellow-500/30 bg-yellow-500/10 text-yellow-600",
-    },
-  };
-}
-
-export function UserKeyStatusBadge({
-  colorMap,
-  status,
-}: {
-  colorMap: StatusBadgeColorMap;
-  status: string;
-}) {
-  return <StatusBadge status={status} colorMap={colorMap} />;
 }

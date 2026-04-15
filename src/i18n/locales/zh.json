@@ -2822,6 +2822,10 @@
       "title": "我的 API 密钥",
       "desc": "管理您的消费者 API 密钥",
       "empty": "暂无 API 密钥，创建一个开始使用。",
+      "action": {
+        "delete": "删除",
+        "toggle": "切换密钥状态"
+      },
       "create": "创建密钥",
       "create-title": "创建 API 密钥",
       "name-label": "密钥名称",
@@ -2830,10 +2834,22 @@
       "created-warning": "请妥善保管此密钥。",
       "dismiss": "完成",
       "copied": "API 密钥已复制到剪贴板",
+      "dialog": {
+        "delete": {
+          "title": "删除 API 密钥",
+          "body": "该操作会将密钥从列表中移除，并把其哈希写入数据库黑名单，后续将永久无法再使用。"
+        }
+      },
       "toast": {
         "created": "API 密钥已创建",
         "create-error": "创建 API 密钥失败",
-        "copy-error": "复制 API 密钥失败"
+        "copy-error": "复制 API 密钥失败",
+        "enabled": "API 密钥已启用",
+        "enable-error": "启用 API 密钥失败",
+        "disabled": "API 密钥已禁用",
+        "disable-error": "禁用 API 密钥失败",
+        "deleted": "API 密钥已删除",
+        "delete-error": "删除 API 密钥失败"
       },
       "th": {
         "name": "名称",
@@ -2843,7 +2859,7 @@
       },
       "status": {
         "active": "已启用",
-        "revoked": "已吊销"
+        "suspended": "已禁用"
       }
     },
     "usage": {

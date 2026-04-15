@@ -15,16 +15,20 @@ import {
 
 // ── Hoisted mock fns ────────────────────────────────────────────────
 
-const { mockFindByHash, mockFindAgent, mockEnqueueJob } = vi.hoisted(() => ({
-  mockFindByHash: vi.fn(),
-  mockFindAgent: vi.fn(),
-  mockEnqueueJob: vi.fn(),
-}));
+const { mockFindBlacklistedByHash, mockFindByHash, mockFindAgent, mockEnqueueJob } = vi.hoisted(
+  () => ({
+    mockFindBlacklistedByHash: vi.fn(),
+    mockFindByHash: vi.fn(),
+    mockFindAgent: vi.fn(),
+    mockEnqueueJob: vi.fn(),
+  }),
+);
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
 vi.mock("@/server/repos", () => ({
   relayConsumerKeyRepo: {
+    findBlacklistedByApiKeyHash: (...args: unknown[]) => mockFindBlacklistedByHash(...args),
     findByApiKeyHash: (...args: unknown[]) => mockFindByHash(...args),
   },
   payAgentRepo: {
@@ -85,6 +89,24 @@ function buildAgentRow(
     perPayLimit: null,
     dailyLimit: null,
     monthlyLimit: null,
+  };
+}
+
+function buildBlacklistedRow(
+  overrides: Partial<{
+    relayConsumerKeyId: number | null;
+    userId: number | null;
+  }> = {},
+) {
+  return {
+    id: 999,
+    relayConsumerKeyId: "relayConsumerKeyId" in overrides ? overrides.relayConsumerKeyId : 1,
+    userId: "userId" in overrides ? overrides.userId : 10,
+    agentId: 100,
+    name: "Deleted Key",
+    apiKeyHash: "mock-hash",
+    apiKeyPrefix: "ska_dead",
+    deletedAt: new Date(),
   };
 }
 
@@ -158,6 +180,30 @@ describe("consumer key auth — user status gate", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.userId).toBeNull();
+  });
+
+  it("deleted key in blacklist → 403 'Consumer key has been deleted'", async () => {
+    mockFindByHash.mockResolvedValueOnce(undefined);
+    mockFindBlacklistedByHash.mockResolvedValueOnce(buildBlacklistedRow());
+
+    const app = createApp();
+    const res = await app.request("/test", {
+      headers: { Authorization: `Bearer ${RAW_KEY}` },
+    });
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Consumer key has been deleted");
+    expect(mockFindAgent).not.toHaveBeenCalled();
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      "ai-usage-log",
+      expect.objectContaining({
+        statusCode: 403,
+        error: "Consumer key has been deleted",
+        consumerKeyId: 1,
+        userId: 10,
+      }),
+    );
   });
 
   it("suspended key + active user → 403 'Consumer key is suspended' (key check fires first)", async () => {

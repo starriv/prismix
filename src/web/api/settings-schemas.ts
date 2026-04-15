@@ -255,7 +255,7 @@ export const userKeySchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
   apiKeyPrefix: z.string(),
-  status: z.string(),
+  status: z.enum(["active", "suspended"]),
   markupPercent: z.number().nullable().optional(),
   rateLimitRpm: z.number().nullable().optional(),
   allowedModels: z.string(),

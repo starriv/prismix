@@ -22,7 +22,7 @@ import relayKeys from "@/server/ai/routes/relay-keys";
 const {
   mockPayAgentFind,
   mockConsumerKeyFind,
-  mockConsumerKeyDelete,
+  mockConsumerKeyBlacklistAndDelete,
   mockEmit,
   mockTransaction,
   mockTxInsertReturning,
@@ -31,7 +31,7 @@ const {
   return {
     mockPayAgentFind: vi.fn(),
     mockConsumerKeyFind: vi.fn(),
-    mockConsumerKeyDelete: vi.fn(),
+    mockConsumerKeyBlacklistAndDelete: vi.fn(),
     mockEmit: vi.fn(),
     mockTransaction: vi.fn(),
     mockTxInsertReturning,
@@ -84,7 +84,7 @@ vi.mock("@/server/repos", () => ({
   relayConsumerKeyRepo: {
     findById: mockConsumerKeyFind,
     findAll: vi.fn(async () => []),
-    delete: mockConsumerKeyDelete,
+    blacklistAndDelete: mockConsumerKeyBlacklistAndDelete,
     update: vi.fn(),
     create: vi.fn(), // kept for update route which still uses repo
   },
@@ -252,32 +252,17 @@ describe("relay-keys auto-agent lifecycle", () => {
   // ── DELETE ────────────────────────────────────────────────────────
 
   describe("DELETE /:id", () => {
-    it("returns linked agent info after deletion", async () => {
+    it("returns success after deletion", async () => {
       const res = await app.request(jsonReq("DELETE", "/relay-keys/100"));
       const body = await jsonRes(res);
 
       expect(body.success).toBe(true);
-      expect(body.agent).toEqual({
-        id: 42,
-        name: "[AI] My Test Key",
-        balance: "0",
-      });
-    });
-
-    it("returns null agent when agent not found", async () => {
-      mockPayAgentFind.mockResolvedValue(undefined);
-
-      const res = await app.request(jsonReq("DELETE", "/relay-keys/100"));
-      const body = await jsonRes(res);
-
-      expect(body.success).toBe(true);
-      expect(body.agent).toBeNull();
     });
 
     it("deletes the consumer key", async () => {
       await app.request(jsonReq("DELETE", "/relay-keys/100"));
 
-      expect(mockConsumerKeyDelete).toHaveBeenCalledWith(100);
+      expect(mockConsumerKeyBlacklistAndDelete).toHaveBeenCalledWith(MOCK_CONSUMER_KEY);
     });
 
     it("returns 404 when consumer key not found", async () => {

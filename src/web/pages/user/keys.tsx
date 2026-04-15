@@ -5,7 +5,14 @@ import { Check, Copy, Key, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import type { UserKey } from "@/web/api/schemas";
-import { useCreateUserKey, useRevealUserKey, useUserKeys } from "@/web/api/user-hooks";
+import {
+  useCreateUserKey,
+  useDeleteUserKey,
+  useDisableUserKey,
+  useEnableUserKey,
+  useRevealUserKey,
+  useUserKeys,
+} from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
@@ -22,14 +29,49 @@ import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
 
 import { buildUserKeyColumns } from "./key-columns";
-import { buildKeyStatusColorMap } from "./table-helpers";
 
 export default function UserKeysPage() {
   const { t } = useTranslation();
   const { data: keys = [], isLoading } = useUserKeys();
+  const enableKey = useEnableUserKey();
+  const disableKey = useDisableUserKey();
+  const deleteKey = useDeleteUserKey();
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<UserKey | null>(null);
 
   const handleOpenCreate = useCallback(() => setShowCreate(true), []);
+  const handleCloseDelete = useCallback(() => setDeleteTarget(null), []);
+  const handleToggle = useCallback(
+    async (key: UserKey, enabled: boolean) => {
+      try {
+        if (enabled) {
+          await enableKey.mutateAsync(key.id);
+          toast.success(t("user.keys.toast.enabled"));
+        } else {
+          await disableKey.mutateAsync(key.id);
+          toast.success(t("user.keys.toast.disabled"));
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : t(enabled ? "user.keys.toast.enable-error" : "user.keys.toast.disable-error"),
+        );
+      }
+    },
+    [disableKey, enableKey, t],
+  );
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await deleteKey.mutateAsync(deleteTarget.id);
+      toast.success(t("user.keys.toast.deleted"));
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("user.keys.toast.delete-error"));
+    }
+  }, [deleteKey, deleteTarget, t]);
 
   return (
     <div>
@@ -50,11 +92,24 @@ export default function UserKeysPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <KeyTable keys={keys} loading={isLoading} />
+            <KeyTable
+              keys={keys}
+              loading={isLoading}
+              isDeletePending={deleteKey.isPending}
+              isStatusPending={enableKey.isPending || disableKey.isPending}
+              onDelete={setDeleteTarget}
+              onToggle={handleToggle}
+            />
           </CardContent>
         </Card>
 
         <CreateKeyDialog open={showCreate} onOpenChange={setShowCreate} />
+        <DeleteKeyDialog
+          keyItem={deleteTarget}
+          isPending={deleteKey.isPending}
+          onConfirm={handleConfirmDelete}
+          onOpenChange={handleCloseDelete}
+        />
       </div>
     </div>
   );
@@ -178,9 +233,64 @@ function CreateKeyDialog({
   );
 }
 
-// ── Key Table with copy ──────────────────────────────────────────
+function DeleteKeyDialog({
+  keyItem,
+  isPending,
+  onConfirm,
+  onOpenChange,
+}: {
+  keyItem: UserKey | null;
+  isPending: boolean;
+  onConfirm: () => Promise<void>;
+  onOpenChange: () => void;
+}) {
+  const { t } = useTranslation();
 
-function KeyTable({ keys, loading }: { keys: UserKey[]; loading: boolean }) {
+  return (
+    <Dialog open={!!keyItem} onOpenChange={(open) => !open && onOpenChange()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("user.keys.dialog.delete.title")}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t("user.keys.dialog.delete.body")}</p>
+          {keyItem ? (
+            <div className="rounded-lg border bg-muted/50 px-3 py-2">
+              <p className="text-sm font-medium">{keyItem.name}</p>
+              <p className="text-xs text-muted-foreground">{keyItem.apiKeyPrefix}...</p>
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onOpenChange} disabled={isPending}>
+            {t("common.btn.cancel")}
+          </Button>
+          <Button variant="destructive" onClick={() => void onConfirm()} disabled={isPending}>
+            {t("user.keys.action.delete")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Key Table with copy / disable / delete ──────────────────────────
+
+function KeyTable({
+  keys,
+  loading,
+  isDeletePending,
+  isStatusPending,
+  onDelete,
+  onToggle,
+}: {
+  keys: UserKey[];
+  loading: boolean;
+  isDeletePending: boolean;
+  isStatusPending: boolean;
+  onDelete: (key: UserKey) => void;
+  onToggle: (key: UserKey, enabled: boolean) => void;
+}) {
   const { t, i18n } = useTranslation();
   const revealKey = useRevealUserKey();
 
@@ -196,17 +306,28 @@ function KeyTable({ keys, loading }: { keys: UserKey[]; loading: boolean }) {
     },
     [revealKey, t],
   );
-  const keyStatusColorMap = useMemo(() => buildKeyStatusColorMap(t), [t]);
+  const handleDelete = useCallback((key: UserKey) => onDelete(key), [onDelete]);
   const columns = useMemo(
     () =>
       buildUserKeyColumns({
         handleCopy,
+        handleDelete,
+        handleToggle: onToggle,
         isCopyPending: revealKey.isPending,
-        keyStatusColorMap,
+        isStatusPending: isStatusPending || isDeletePending,
         language: i18n.language,
         t,
       }),
-    [handleCopy, i18n.language, keyStatusColorMap, revealKey.isPending, t],
+    [
+      handleCopy,
+      handleDelete,
+      i18n.language,
+      isDeletePending,
+      isStatusPending,
+      onToggle,
+      revealKey.isPending,
+      t,
+    ],
   );
 
   return (
@@ -215,7 +336,7 @@ function KeyTable({ keys, loading }: { keys: UserKey[]; loading: boolean }) {
       data={keys}
       emptyText={t("user.keys.empty")}
       loading={loading}
-      tableClassName="min-w-[620px]"
+      tableClassName="min-w-[720px]"
     />
   );
 }

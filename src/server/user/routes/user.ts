@@ -6,7 +6,8 @@ import { groupBy, pick, uniq } from "lodash-es";
 
 import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth";
-import type { NewRelayConsumerKey } from "@/server/db";
+import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
+import { emit } from "@/server/events";
 import { createConsumerKeyBody, updateProfileBody } from "@/server/lib/body-schemas";
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
@@ -28,6 +29,22 @@ import { removeTailingZero, safeMultipliedBy } from "@/shared/number";
 import walletRoutes from "./wallet";
 
 const user = new Hono();
+
+function serializeUserKey(key: RelayConsumerKey) {
+  return {
+    id: key.id,
+    name: key.name,
+    description: key.description,
+    apiKeyPrefix: key.apiKeyPrefix,
+    status: key.status,
+    markupPercent: key.markupPercent,
+    rateLimitRpm: key.rateLimitRpm,
+    allowedModels: key.allowedModels,
+    expiresAt: key.expiresAt,
+    lastUsedAt: key.lastUsedAt,
+    createdAt: key.createdAt,
+  };
+}
 
 // ── Wallet (sub-router) ─────────────────────────────────────────
 user.route("/wallet", walletRoutes);
@@ -142,22 +159,7 @@ user.get("/models", async (c) => {
 user.get("/keys", async (c) => {
   const session = getUserSession(c);
   const keys = await relayConsumerKeyRepo.findByUserId(session.userId);
-
-  const result = keys.map((k) => ({
-    id: k.id,
-    name: k.name,
-    description: k.description,
-    apiKeyPrefix: k.apiKeyPrefix,
-    status: k.status,
-    markupPercent: k.markupPercent,
-    rateLimitRpm: k.rateLimitRpm,
-    allowedModels: k.allowedModels,
-    expiresAt: k.expiresAt,
-    lastUsedAt: k.lastUsedAt,
-    createdAt: k.createdAt,
-  }));
-
-  return ok(c, result);
+  return ok(c, keys.map(serializeUserKey));
 });
 
 // POST /keys — create a new consumer key (self-service)
@@ -227,19 +229,41 @@ user.get("/keys/:id", async (c) => {
   const key = await relayConsumerKeyRepo.findByIdAndUser(id, session.userId);
   if (!key) return c.json({ error: "Key not found" }, 404);
 
-  return ok(c, {
-    id: key.id,
-    name: key.name,
-    description: key.description,
-    apiKeyPrefix: key.apiKeyPrefix,
-    status: key.status,
-    markupPercent: key.markupPercent,
-    rateLimitRpm: key.rateLimitRpm,
-    allowedModels: key.allowedModels,
-    expiresAt: key.expiresAt,
-    lastUsedAt: key.lastUsedAt,
-    createdAt: key.createdAt,
-  });
+  return ok(c, serializeUserKey(key));
+});
+
+// POST /keys/:id/disable — disable a user-owned key immediately
+user.post("/keys/:id/disable", async (c) => {
+  const session = getUserSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid key ID" }, 400);
+
+  const key = await relayConsumerKeyRepo.findByIdAndUser(id, session.userId);
+  if (!key) return c.json({ error: "Key not found" }, 404);
+  if (key.status !== "active") return c.json({ error: "Key is not active" }, 409);
+
+  const updated = await relayConsumerKeyRepo.update(id, session.userId, { status: "suspended" });
+  if (!updated) return c.json({ error: "Key not found" }, 404);
+
+  log.gateway.info({ keyId: id, userId: session.userId }, "User disabled consumer key");
+  return ok(c, serializeUserKey(updated));
+});
+
+// POST /keys/:id/enable — re-enable a suspended user-owned key
+user.post("/keys/:id/enable", async (c) => {
+  const session = getUserSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid key ID" }, 400);
+
+  const key = await relayConsumerKeyRepo.findByIdAndUser(id, session.userId);
+  if (!key) return c.json({ error: "Key not found" }, 404);
+  if (key.status !== "suspended") return c.json({ error: "Key is not suspended" }, 409);
+
+  const updated = await relayConsumerKeyRepo.update(id, session.userId, { status: "active" });
+  if (!updated) return c.json({ error: "Key not found" }, 404);
+
+  log.gateway.info({ keyId: id, userId: session.userId }, "User enabled consumer key");
+  return ok(c, serializeUserKey(updated));
 });
 
 // POST /keys/:id/reveal — reveal full API key (for copy)
@@ -261,6 +285,22 @@ user.post("/keys/:id/reveal", async (c) => {
   }
 
   return ok(c, { apiKey });
+});
+
+// DELETE /keys/:id — blacklist then delete a user-owned key
+user.delete("/keys/:id", async (c) => {
+  const session = getUserSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid key ID" }, 400);
+
+  const key = await relayConsumerKeyRepo.findByIdAndUser(id, session.userId);
+  if (!key) return c.json({ error: "Key not found" }, 404);
+
+  await relayConsumerKeyRepo.blacklistAndDelete(key);
+  emit("consumer-key.deleted", null, { keyId: id, agentId: key.agentId });
+  log.gateway.info({ keyId: id, userId: session.userId }, "User deleted consumer key");
+
+  return ok(c, { success: true });
 });
 
 // GET /keys/:id/usage — per-key usage summary

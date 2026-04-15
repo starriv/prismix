@@ -23,6 +23,10 @@ import {
   API_USER_WALLET_TRANSACTIONS,
   API_USER_WALLET_WITHDRAW,
   API_USER_WALLET_WITHDRAWALS,
+  apiUserKeyDetail,
+  apiUserKeyDisable,
+  apiUserKeyEnable,
+  apiUserKeyReveal,
   apiUserRequestLog,
   apiUserWalletTopupOrder,
   apiUserWalletTopupProof,
@@ -52,9 +56,10 @@ import type {
   CreateWalletTopupBody,
   CreateWithdrawBody,
   SubmitFiatTopupProofBody,
+  UserKey,
   VerifyDepositBody,
 } from "./schemas";
-import { userGet, userPost, userPut } from "./user-client";
+import { userDel, userGet, userPost, userPut } from "./user-client";
 
 // ── Model Catalog ─────────────────────────────────────────────
 
@@ -143,7 +148,52 @@ export function useCreateUserKey() {
 export function useRevealUserKey() {
   return useMutation({
     mutationFn: (id: number) =>
-      userPost(`${API_USER_KEYS}/${id}/reveal`, {}, z.object({ apiKey: z.string() })),
+      userPost(apiUserKeyReveal(id), {}, z.object({ apiKey: z.string() })),
+  });
+}
+
+export function useDisableUserKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => userPost(apiUserKeyDisable(id), {}, userKeySchema),
+    onSuccess: (updated) => {
+      qc.setQueryData(
+        queryKeys.userKeys(),
+        (current: UserKey[] | undefined) =>
+          current?.map((key) => (key.id === updated.id ? updated : key)) ?? current,
+      );
+      qc.invalidateQueries({ queryKey: queryKeys.userKeys() });
+    },
+  });
+}
+
+export function useEnableUserKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => userPost(apiUserKeyEnable(id), {}, userKeySchema),
+    onSuccess: (updated) => {
+      qc.setQueryData(
+        queryKeys.userKeys(),
+        (current: UserKey[] | undefined) =>
+          current?.map((key) => (key.id === updated.id ? updated : key)) ?? current,
+      );
+      qc.invalidateQueries({ queryKey: queryKeys.userKeys() });
+    },
+  });
+}
+
+export function useDeleteUserKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => userDel(apiUserKeyDetail(id), z.object({ success: z.boolean() })),
+    onSuccess: (_result, deletedId) => {
+      qc.setQueryData(
+        queryKeys.userKeys(),
+        (current: UserKey[] | undefined) =>
+          current?.filter((key) => key.id !== deletedId) ?? current,
+      );
+      qc.invalidateQueries({ queryKey: queryKeys.userKeys() });
+    },
   });
 }
 

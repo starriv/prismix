@@ -1,24 +1,26 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
-import { Copy } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 
 import type { UserKey } from "@/web/api/schemas";
-import type { StatusBadgeColorMap } from "@/web/components/dashboard/status-badge";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-
-import { UserKeyStatusBadge } from "./table-helpers";
+import { Switch } from "@/web/components/ui/switch";
 
 export function buildUserKeyColumns({
   handleCopy,
+  handleDelete,
+  handleToggle,
   isCopyPending,
-  keyStatusColorMap,
+  isStatusPending,
   language,
   t,
 }: {
   handleCopy: (id: number) => void;
+  handleDelete: (key: UserKey) => void;
+  handleToggle: (key: UserKey, enabled: boolean) => void;
   isCopyPending: boolean;
-  keyStatusColorMap: StatusBadgeColorMap;
+  isStatusPending: boolean;
   language: string;
   t: TFunction;
 }): ColumnDef<UserKey>[] {
@@ -36,7 +38,21 @@ export function buildUserKeyColumns({
     {
       accessorKey: "status",
       cell: ({ row }) => (
-        <UserKeyStatusBadge status={row.original.status} colorMap={keyStatusColorMap} />
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={row.original.status === "active"}
+            onCheckedChange={(enabled) => handleToggle(row.original, enabled)}
+            disabled={isStatusPending}
+            aria-label={t("user.keys.action.toggle")}
+          />
+          <DataTableText className="text-xs text-muted-foreground">
+            {t(
+              row.original.status === "active"
+                ? "user.keys.status.active"
+                : "user.keys.status.suspended",
+            )}
+          </DataTableText>
+        </div>
       ),
       header: t("user.keys.th.status"),
     },
@@ -50,7 +66,7 @@ export function buildUserKeyColumns({
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="text-right">
+        <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -61,12 +77,23 @@ export function buildUserKeyColumns({
           >
             <Copy className="h-3.5 w-3.5" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => handleDelete(row.original)}
+            disabled={isStatusPending}
+            aria-label={t("user.keys.action.delete")}
+            title={t("user.keys.action.delete")}
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
         </div>
       ),
       enableHiding: false,
       header: "",
       meta: {
-        headerClassName: "w-[52px]",
+        headerClassName: "w-[76px]",
         ...dataTableMeta.right,
       },
     },
