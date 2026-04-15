@@ -223,6 +223,9 @@
       "enable": "Enable Wallet"
     },
     "detail": {
+      "owner": "Owner",
+      "user-name": "User Name",
+      "user-uuid": "User UUID",
       "limits": "Spending Limits",
       "limits-hint": "Leave empty for unlimited. Limits apply to all transactions (payments + AI usage).",
       "allowed-resources": "Allowed Resources",

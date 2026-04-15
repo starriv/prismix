@@ -151,9 +151,7 @@ export default function AdminTopupOrdersPage() {
         cell: ({ row }) => (
           <div>
             <DataTableText>{row.original.userName ?? "—"}</DataTableText>
-            <DataTableText mono muted>
-              {row.original.userUuid ?? `Agent #${row.original.agentId}`}
-            </DataTableText>
+            <DataTableText muted>Agent #{row.original.agentId}</DataTableText>
           </div>
         ),
         header: t("common.th.name"),

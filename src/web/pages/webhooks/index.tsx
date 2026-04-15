@@ -15,7 +15,6 @@ import {
   DataTableText,
 } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent } from "@/web/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -169,19 +168,15 @@ export default function WebhooksPage() {
           </Button>
         </div>
 
-        <Card>
-          <CardContent className="pt-4">
-            <DataTable
-              columns={columns}
-              data={endpoints}
-              emptyText={t("webhook.table-empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              showPagination={false}
-              tableClassName="min-w-[900px]"
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={endpoints}
+          emptyText={t("webhook.table-empty")}
+          getRowId={(row) => String(row.id)}
+          loading={isLoading}
+          showPagination={false}
+          tableClassName="min-w-[900px]"
+        />
       </div>
 
       {/* Create dialog */}

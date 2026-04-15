@@ -223,6 +223,9 @@
       "enable": "启用钱包"
     },
     "detail": {
+      "owner": "所属用户",
+      "user-name": "用户名",
+      "user-uuid": "用户 UUID",
       "limits": "消费限额",
       "limits-hint": "留空表示不限制。限额适用于所有交易（支付 + AI 用量）。",
       "allowed-resources": "可访问资源",

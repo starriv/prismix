@@ -158,7 +158,7 @@ export default function PayAgentsPage() {
         meta: { headerClassName: "w-[16%]" },
       },
       {
-        accessorKey: "userUuid",
+        id: "user",
         cell: ({ row }) =>
           row.original.userId ? (
             <LocaleLink
@@ -166,7 +166,7 @@ export default function PayAgentsPage() {
               className="inline-flex items-center gap-1 text-primary hover:underline"
               onClick={(event) => event.stopPropagation()}
             >
-              {row.original.userUuid ?? `#${row.original.userId} ${row.original.userName ?? ""}`}
+              {row.original.userName || `#${row.original.userId}`}
               <ExternalLink className="h-3 w-3 shrink-0" />
             </LocaleLink>
           ) : (

@@ -14,6 +14,7 @@ import {
   useUpdatePayAgent,
 } from "@/web/api/hooks";
 import type { PayAgent as PayAgentType } from "@/web/api/schemas";
+import { InfoRow } from "@/web/components/dashboard/info-row";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -208,7 +209,20 @@ export function PayAgentDetailSheet({
           </CardContent>
         </Card>
 
-        {/* ── Card 2: Basic Info ── */}
+        {/* ── Card 2: Owner ── */}
+        {agent.userId && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">{t("agents.detail.owner")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <InfoRow label={t("agents.detail.user-name")} value={agent.userName || "—"} />
+              <InfoRow label={t("agents.detail.user-uuid")} value={agent.userUuid || "—"} mono />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Card 3: Basic Info ── */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">{t("agents.form.name")}</CardTitle>

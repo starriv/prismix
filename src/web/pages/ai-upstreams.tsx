@@ -373,34 +373,29 @@ function UpstreamCard({
       )}
     >
       <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-              <Network aria-hidden="true" className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <h3 className="truncate text-sm font-semibold">{upstream.name}</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {upstream.kind}
-                </Badge>
-                <div
-                  className={cn(
-                    "h-2.5 w-2.5 shrink-0 rounded-full",
-                    healthDotColor(upstream.healthStatus),
-                  )}
-                  title={t(`ai-upstreams.health.${upstream.healthStatus}`)}
-                />
-                <HealthBadge
-                  status={upstream.healthStatus}
-                  label={t(`ai-upstreams.health.${upstream.healthStatus}`)}
-                />
-              </div>
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+            <Network aria-hidden="true" className="h-4 w-4 text-primary" />
           </div>
-          <Badge variant="secondary" className="font-mono text-[11px]">
-            {upstream.upstreamId}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-semibold">{upstream.name}</h3>
+          </div>
+          <div
+            className={cn(
+              "h-2.5 w-2.5 shrink-0 rounded-full",
+              healthDotColor(upstream.healthStatus),
+            )}
+            title={t(`ai-upstreams.health.${upstream.healthStatus}`)}
+          />
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-10">
+          <Badge variant="outline" className="text-xs">
+            {upstream.kind}
           </Badge>
+          <HealthBadge
+            status={upstream.healthStatus}
+            label={t(`ai-upstreams.health.${upstream.healthStatus}`)}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">

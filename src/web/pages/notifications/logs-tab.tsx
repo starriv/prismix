@@ -13,7 +13,6 @@ import {
   DataTableText,
   getHeuristicPageCount,
 } from "@/web/components/data-table";
-import { Card, CardContent } from "@/web/components/ui/card";
 import { cn } from "@/web/shared/utils";
 
 import { useChannelLabels } from "./use-channel-labels";
@@ -74,22 +73,18 @@ export function LogsTab() {
 
   return (
     <div className="space-y-4 mt-4">
-      <Card>
-        <CardContent className="pt-4">
-          <DataTable
-            columns={columns}
-            data={logs}
-            emptyText={t("notif.logs-empty")}
-            getRowId={(row) => String(row.id)}
-            loading={isLoading}
-            manualPagination
-            onPaginationChange={setPagination}
-            pageCount={getHeuristicPageCount(pagination.pageIndex, logs.length, DEFAULT_PAGE_SIZE)}
-            pagination={pagination}
-            tableClassName="min-w-[840px]"
-          />
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={logs}
+        emptyText={t("notif.logs-empty")}
+        getRowId={(row) => String(row.id)}
+        loading={isLoading}
+        manualPagination
+        onPaginationChange={setPagination}
+        pageCount={getHeuristicPageCount(pagination.pageIndex, logs.length, DEFAULT_PAGE_SIZE)}
+        pagination={pagination}
+        tableClassName="min-w-[840px]"
+      />
     </div>
   );
 }
