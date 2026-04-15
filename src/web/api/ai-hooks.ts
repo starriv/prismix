@@ -49,6 +49,7 @@ import {
   aiProviderSchema,
   aiRequestLogSchema,
   aiUpstreamAssignmentSchema,
+  aiUpstreamDetailSchema,
   aiUpstreamSchema,
   aiUpstreamsOverviewSchema,
   aiUsageByKeySchema,
@@ -111,10 +112,11 @@ export function useUpdateAiUpstream() {
       enabled?: boolean;
       metadata?: Record<string, unknown>;
     }) => put(apiAiUpstreamDetail(id), body, aiUpstreamSchema),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
       qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetail(vars.id) });
     },
   });
 }
@@ -140,6 +142,14 @@ export function useAiProviderAssignments(providerId: number) {
     queryKey: queryKeys.aiProviderAssignments(providerId),
     queryFn: () => get(apiAiProviderUpstreams(providerId), z.array(aiUpstreamAssignmentSchema)),
     enabled: providerId > 0,
+  });
+}
+
+export function useAiUpstreamDetail(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.aiUpstreamDetail(id!),
+    queryFn: () => get(apiAiUpstreamDetail(id!), aiUpstreamDetailSchema),
+    enabled: id != null,
   });
 }
 
@@ -225,6 +235,7 @@ export function useCreateAiProviderAssignment() {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
   });
 }
@@ -248,6 +259,7 @@ export function useUpdateAiProviderAssignment() {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
   });
 }
@@ -264,6 +276,7 @@ export function useDeleteAiProviderAssignment() {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
   });
 }

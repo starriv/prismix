@@ -83,6 +83,24 @@ export const aiUpstreamsOverviewSchema = z.object({
 });
 export type AiUpstreamsOverview = z.infer<typeof aiUpstreamsOverviewSchema>;
 
+// ── AI Upstream Detail (single upstream + provider assignments) ───
+
+export const aiUpstreamDetailAssignmentSchema = z.object({
+  id: z.number(),
+  providerId: z.number(),
+  providerName: z.string(),
+  providerSlug: z.string().nullable(),
+  priority: z.number(),
+  weight: z.number(),
+  enabled: z.coerce.boolean(),
+});
+export type AiUpstreamDetailAssignment = z.infer<typeof aiUpstreamDetailAssignmentSchema>;
+
+export const aiUpstreamDetailSchema = aiUpstreamSchema.extend({
+  assignments: z.array(aiUpstreamDetailAssignmentSchema),
+});
+export type AiUpstreamDetail = z.infer<typeof aiUpstreamDetailSchema>;
+
 export const aiModelSchema = z.object({
   id: z.number(),
   providerId: z.number(),
