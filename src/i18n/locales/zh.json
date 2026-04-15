@@ -20,7 +20,8 @@
       "failed": "失败",
       "active": "启用",
       "disabled": "禁用",
-      "suspended": "已暂停"
+      "suspended": "已暂停",
+      "unknown": "未知"
     },
     "th": {
       "id": "ID",
@@ -87,9 +88,16 @@
       "select-row": "选择 {{name}}"
     },
     "valid": {
-      "password-weak": "密码需 10 位以上，含大小写字母和数字",
       "required": "此字段为必填项",
-      "invalid-amount": "请输入有效金额"
+      "name-required": "名称为必填项",
+      "amount-required": "金额为必填项",
+      "network-required": "网络为必填项",
+      "invalid-amount": "请输入有效金额",
+      "invalid-email": "请输入有效的邮箱地址",
+      "invalid-url": "请输入有效的 URL",
+      "password-weak": "密码需 10 位以上，含大小写字母和数字",
+      "range": "数值超出范围",
+      "unknown-error": "发生未知错误"
     },
     "error": {
       "load-failed": "加载详情失败。"
@@ -109,7 +117,6 @@
     "ai-gateway": "AI 网关",
     "ai-providers": "供应商",
     "ai-models": "模型",
-    "ai-keys": "供应商密钥",
     "ai-relay": "统一端点",
     "ai-usage": "用量",
     "ai-upstreams": "上游",
@@ -2217,69 +2224,6 @@
       "payment_not_received": "未收到匹配的付款"
     }
   },
-  "ai": {
-    "title": "AI API 密钥",
-    "desc": "管理您的 AI 提供商 API 密钥",
-    "empty": "尚未配置 API 密钥",
-    "empty-hint": "为供应商添加 API 密钥以启用 AI 中继服务",
-    "never": "从未使用",
-    "test": "测试",
-    "unknown-provider": "未知提供商",
-    "tag": {
-      "platform": "平台"
-    },
-    "btn": {
-      "new": "添加密钥",
-      "create": "创建密钥"
-    },
-    "pool": {
-      "count": "{{enabled}}/{{total}} 启用",
-      "next": "下一个轮到",
-      "add": "添加密钥",
-      "weight-hint": "权重 — 值越大分配的流量越多",
-      "weight-down": "降低权重",
-      "weight-up": "增加权重",
-      "strategy": {
-        "round-robin": "轮询",
-        "random": "随机"
-      }
-    },
-    "form": {
-      "provider": "提供商",
-      "provider-ph": "选择提供商",
-      "upstream": "上游",
-      "upstream-ph": "选择上游",
-      "upstream-legacy": "默认提供商地址",
-      "upstream-hint": "将此密钥绑定到指定上游；保留默认则继续使用提供商默认地址。",
-      "name": "密钥名称",
-      "name-ph": "输入密钥名称",
-      "api-key": "API 密钥",
-      "api-key-ph": "sk-...",
-      "api-key-hint": "您的密钥将被加密存储",
-      "secret-access-key": "AWS 秘密访问密钥",
-      "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
-      "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
-      "owner": "密钥合作方（可选）",
-      "owner-ph": "选择密钥合作方",
-      "owner-none": "平台自有（无合作方）",
-      "owner-hint": "将此密钥分配给第三方密钥合作方以启用分润"
-    },
-    "dialog": {
-      "add-title": "添加 API 密钥",
-      "delete-title": "删除 API 密钥",
-      "delete-body": "删除此 API 密钥？此操作不可撤销。"
-    },
-    "toast": {
-      "created": "API 密钥已创建",
-      "updated": "API 密钥已更新",
-      "deleted": "API 密钥已删除",
-      "create-error": "创建 API 密钥失败",
-      "update-error": "更新 API 密钥失败",
-      "delete-error": "删除 API 密钥失败",
-      "test-ok": "连接成功 ({{ms}}ms)",
-      "test-error": "连接失败: {{error}}"
-    }
-  },
   "ai-providers": {
     "title": "AI 供应商",
     "desc": "管理你的 AI 供应商连接",
@@ -2331,7 +2275,7 @@
       "assign-upstream-title": "分配上游",
       "edit-upstream-title": "编辑分配",
       "delete-upstream-title": "移除上游",
-      "delete-upstream-body": "从此供应商移除上游「{{name}}」？绑定到它的密钥会回退为默认 Base URL。"
+      "delete-upstream-body": "从此供应商移除上游「{{name}}」？绑定到该上游的所有密钥也会被一并删除。"
     },
     "upstreams": {
       "section-title": "Upstreams",
@@ -2360,6 +2304,57 @@
         "openrouter": "OpenRouter",
         "custom": "自定义"
       }
+    },
+    "keys": {
+      "section-title": "密钥池",
+      "desc": "按上游分组的 API 密钥。每个池内的密钥按供应商策略进行负载均衡。",
+      "empty": "此池暂无密钥",
+      "official-bucket": "官方",
+      "official-hint": "兜底池 — 使用供应商 Base URL（优先级 1000）",
+      "count": "{{enabled}}/{{total}} 启用",
+      "next": "下一个轮到",
+      "add": "添加密钥",
+      "weight-hint": "权重 — 值越大分配的流量越多",
+      "weight-down": "降低权重",
+      "weight-up": "增加权重",
+      "strategy": {
+        "label": "密钥均衡",
+        "round-robin": "轮询",
+        "random": "随机"
+      },
+      "form": {
+        "name": "密钥名称",
+        "name-ph": "输入密钥名称",
+        "api-key": "API 密钥",
+        "api-key-ph": "sk-...",
+        "api-key-hint": "您的密钥将被加密存储",
+        "secret-access-key": "AWS 秘密访问密钥",
+        "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
+        "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
+        "owner": "密钥合作方（可选）",
+        "owner-ph": "选择密钥合作方",
+        "owner-none": "平台自有（无合作方）",
+        "owner-hint": "将此密钥分配给第三方密钥合作方以启用分润"
+      },
+      "dialog": {
+        "add-title": "添加密钥到 {{upstream}}",
+        "delete-title": "删除 API 密钥",
+        "delete-body": "删除密钥「{{name}}」？此操作不可撤销。"
+      },
+      "toast": {
+        "created": "API 密钥已创建",
+        "updated": "API 密钥已更新",
+        "deleted": "API 密钥已删除",
+        "create-error": "创建 API 密钥失败",
+        "update-error": "更新 API 密钥失败",
+        "delete-error": "删除 API 密钥失败",
+        "test-ok": "连接成功 ({{ms}}ms)",
+        "test-error": "连接失败"
+      },
+      "tag": {
+        "platform": "平台"
+      },
+      "never": "从未使用"
     },
     "toast": {
       "created": "供应商已创建",

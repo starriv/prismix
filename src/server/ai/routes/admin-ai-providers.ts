@@ -15,12 +15,17 @@ import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiProviderRepo, aiUpstreamAssignmentRepo, aiUpstreamRepo } from "@/server/repos";
+import {
+  aiKeyRepo,
+  aiProviderRepo,
+  aiUpstreamAssignmentRepo,
+  aiUpstreamRepo,
+} from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { seedDefaultProviders } from "../lib/seed-providers";
 import { invalidateUpstreamCache } from "../lib/upstream-routing";
-import { formatProvider, formatUpstream } from "./admin-ai-helpers";
+import { formatKeys, formatProvider, formatUpstream } from "./admin-ai-helpers";
 
 const router = new Hono();
 
@@ -112,6 +117,18 @@ router.delete("/providers/:id", async (c) => {
 });
 
 // ── Provider ↔ Upstream Assignments ──────────────────────────────────
+
+router.get("/providers/:id/keys", async (c) => {
+  getAdminSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
+
+  const provider = await aiProviderRepo.findById(id);
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const keys = await aiKeyRepo.findByProviderId(id);
+  return ok(c, await formatKeys(keys));
+});
 
 router.get("/providers/:id/upstreams", async (c) => {
   getAdminSession(c);
@@ -219,11 +236,8 @@ router.delete("/providers/:providerId/upstreams/:assignmentId", async (c) => {
     return c.json({ error: "Assignment not found" }, 404);
   }
 
-  // Null out keys bound to this upstream for this provider
-  const affectedKeys = await aiUpstreamAssignmentRepo.nullKeysForAssignment(
-    providerId,
-    existing.upstreamId,
-  );
+  // Delete keys bound to this upstream — they cannot work with any other upstream
+  const deletedKeys = await aiKeyRepo.deleteByProviderAndUpstream(providerId, existing.upstreamId);
 
   await aiUpstreamAssignmentRepo.delete(assignmentId);
 
@@ -232,7 +246,7 @@ router.delete("/providers/:providerId/upstreams/:assignmentId", async (c) => {
   emit("ai.upstream-cache-invalidated", null, { providerId });
   emit("ai.key-pool-invalidated", null, { providerId });
 
-  return ok(c, { success: true, affectedKeys });
+  return ok(c, { success: true, deletedKeys });
 });
 
 export default router;

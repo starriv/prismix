@@ -248,6 +248,91 @@ export const MOCK_WEBHOOK_DELIVERIES = {
   total: 1,
 };
 
+export const MOCK_AI_PROVIDERS = [
+  {
+    id: 1,
+    providerId: "openai",
+    name: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    apiFormat: "openai",
+    authType: "bearer",
+    authConfig: {},
+    enabled: true,
+    loadBalanceStrategy: "round-robin",
+    upstreamRoutingStrategy: "priority",
+    iconUrl: null,
+    upstreamCount: 1,
+    createdAt: "2026-03-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  },
+];
+
+export const MOCK_AI_UPSTREAMS = [
+  {
+    id: 10,
+    upstreamId: "openrouter-1",
+    name: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    kind: "openrouter",
+    enabled: true,
+    metadata: {},
+    createdAt: "2026-03-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  },
+];
+
+export const MOCK_AI_UPSTREAM_ASSIGNMENTS = [
+  {
+    id: 100,
+    providerId: 1,
+    upstream: MOCK_AI_UPSTREAMS[0],
+    priority: 100,
+    weight: 1,
+    enabled: true,
+    createdAt: "2026-03-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  },
+];
+
+export const MOCK_AI_KEYS = [
+  {
+    id: 1,
+    providerId: 1,
+    upstreamId: null,
+    ownerId: null,
+    name: "Official Key",
+    keyPrefix: "sk-offi",
+    weight: 1,
+    enabled: true,
+    providerName: "OpenAI",
+    ownerName: null,
+    upstreamName: null,
+    upstreamSlug: null,
+    lastUsedAt: "2026-03-20T10:00:00.000Z",
+    createdAt: "2026-03-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  },
+  {
+    id: 2,
+    providerId: 1,
+    upstreamId: 10,
+    ownerId: null,
+    name: "OpenRouter Key",
+    keyPrefix: "sk-open",
+    weight: 1,
+    enabled: true,
+    providerName: "OpenAI",
+    ownerName: null,
+    upstreamName: "OpenRouter",
+    upstreamSlug: "openrouter-1",
+    lastUsedAt: null,
+    createdAt: "2026-03-02T00:00:00.000Z",
+    updatedAt: "2026-03-02T00:00:00.000Z",
+  },
+];
+
+export const MOCK_KEY_PROVIDERS: { id: number; name: string; status: string }[] = [];
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 /** Check if a URL is an app API request (not a Vite module request) */
@@ -524,6 +609,46 @@ export class MockApi {
         if (method === "DELETE") return route.fulfill(json({ success: true }));
         return route.fulfill(json(MOCK_NETWORKS));
       },
+    );
+  }
+
+  async mockAiProviders() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/ai/providers"),
+      (route) => {
+        const pathname = new URL(route.request().url()).pathname;
+        // Provider upstream assignments: /api/admin/ai/providers/:id/upstreams
+        if (pathname.match(/\/providers\/\d+\/upstreams/)) {
+          return route.fulfill(json(MOCK_AI_UPSTREAM_ASSIGNMENTS));
+        }
+        return route.fulfill(json(MOCK_AI_PROVIDERS));
+      },
+    );
+  }
+
+  async mockAiUpstreams() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/ai/upstreams"),
+      (route) => route.fulfill(json(MOCK_AI_UPSTREAMS)),
+    );
+  }
+
+  async mockAiKeys() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/ai/keys"),
+      (route) => {
+        const method = route.request().method();
+        if (method === "POST") return route.fulfill(json({ ...MOCK_AI_KEYS[0], id: 99 }, 201));
+        if (method === "DELETE") return route.fulfill(json({ success: true }));
+        return route.fulfill(json(MOCK_AI_KEYS));
+      },
+    );
+  }
+
+  async mockKeyProviders() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/key-providers") && !url.pathname.includes("/usage"),
+      (route) => route.fulfill(json(MOCK_KEY_PROVIDERS)),
     );
   }
 }

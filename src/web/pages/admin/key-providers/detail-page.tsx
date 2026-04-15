@@ -116,7 +116,7 @@ export function KeyProviderDetailPage({
       {
         accessorKey: "providerName",
         cell: ({ row }) => (
-          <DataTableText>{row.original.providerName ?? t("ai.unknown-provider")}</DataTableText>
+          <DataTableText>{row.original.providerName ?? t("common.status.unknown")}</DataTableText>
         ),
         header: t("admin.key-providers.detail.provider"),
         meta: { headerClassName: "w-[14%]" },

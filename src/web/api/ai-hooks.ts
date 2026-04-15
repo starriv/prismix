@@ -25,6 +25,7 @@ import {
   apiAiKeyTest,
   apiAiModelDetail,
   apiAiProviderDetail,
+  apiAiProviderKeys,
   apiAiProviderModels,
   apiAiProviderModelsBatch,
   apiAiProviderUpstreamAssignment,
@@ -131,6 +132,7 @@ export function useDeleteAiUpstream() {
       qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
       qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
     },
   });
 }
@@ -270,11 +272,16 @@ export function useDeleteAiProviderAssignment() {
     mutationFn: ({ providerId, assignmentId }: { providerId: number; assignmentId: number }) =>
       del(
         apiAiProviderUpstreamAssignment(providerId, assignmentId),
-        z.object({ success: z.boolean(), affectedKeys: z.number() }),
+        z.object({ success: z.boolean(), deletedKeys: z.number() }),
       ),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
@@ -290,6 +297,14 @@ export function useAiKeys() {
   });
 }
 
+export function useAiProviderKeys(providerId: number) {
+  return useQuery({
+    queryKey: queryKeys.aiProviderKeys(providerId),
+    queryFn: () => get(apiAiProviderKeys(providerId), z.array(aiKeySchema)),
+    enabled: providerId > 0,
+  });
+}
+
 export function useCreateAiKey() {
   const qc = useQueryClient();
   return useMutation({
@@ -300,8 +315,9 @@ export function useCreateAiKey() {
       apiKey: string;
       ownerId?: number | null;
     }) => post(API_AI_KEYS, body, aiKeySchema),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeys(vars.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -324,8 +340,9 @@ export function useUpdateAiKey() {
       ownerId?: number | null;
       upstreamId?: number | null;
     }) => put(apiAiKeyDetail(id), body, aiKeySchema),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeys(data.providerId) });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -340,6 +357,7 @@ export function useDeleteAiKey() {
     mutationFn: (id: number) => del(apiAiKeyDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -354,6 +372,7 @@ export function useTestAiKey() {
     mutationFn: (id: number) => post(apiAiKeyTest(id), {}, testAiKeyResultSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
     },
   });
 }

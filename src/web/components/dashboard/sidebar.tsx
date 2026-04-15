@@ -9,7 +9,6 @@ import {
   ChevronDown,
   CreditCard,
   FileText,
-  Key,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -63,7 +62,6 @@ const ACCOUNTS_CHILD_PATHS = ["/pay-agents", "/transactions", "/fiat-configs"];
 const AI_CHILD_PATHS = [
   "/ai-providers",
   "/ai-models",
-  "/ai-keys",
   "/ai-endpoint",
   "/ai-usage",
   "/ai-logs",
@@ -79,7 +77,6 @@ const navTree: NavEntry[] = [
     children: [
       { href: "/ai-endpoint", labelKey: "nav.ai-relay", icon: Zap },
       { href: "/ai-providers", labelKey: "nav.ai-providers", icon: Brain },
-      { href: "/ai-keys", labelKey: "nav.ai-keys", icon: Key },
       { href: "/ai-models", labelKey: "nav.ai-models", icon: Sparkles },
       { href: "/consumer-keys", labelKey: "nav.consumer-keys", icon: KeyRound },
       { href: "/ai-usage", labelKey: "nav.ai-usage", icon: BarChart3 },

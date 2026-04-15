@@ -19,6 +19,12 @@ export const aiKeyRepo = {
     return queryAll(db.select().from(aiKeys).limit(limit).offset(offset));
   },
 
+  async findByProviderId(providerId: number): Promise<AiKey[]> {
+    return queryAll(
+      db.select().from(aiKeys).where(eq(aiKeys.providerId, providerId)).orderBy(desc(aiKeys.id)),
+    );
+  },
+
   async findById(id: number): Promise<AiKey | undefined> {
     return queryOne(db.select().from(aiKeys).where(eq(aiKeys.id, id)));
   },
@@ -91,6 +97,17 @@ export const aiKeyRepo = {
 
   async delete(id: number): Promise<void> {
     await exec(db.delete(aiKeys).where(eq(aiKeys.id, id)));
+  },
+
+  /** Delete all keys bound to a specific provider + upstream pair. Returns count deleted. */
+  async deleteByProviderAndUpstream(providerId: number, upstreamId: number): Promise<number> {
+    const deleted = await queryAll(
+      db
+        .delete(aiKeys)
+        .where(and(eq(aiKeys.providerId, providerId), eq(aiKeys.upstreamId, upstreamId)))
+        .returning(),
+    );
+    return deleted.length;
   },
 
   /** Find keys owned by a key provider. */

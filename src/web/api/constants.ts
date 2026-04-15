@@ -121,6 +121,7 @@ export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 // ── AI ──────────────────────────────────────────────────────────
 export const API_AI_PROVIDERS = "/api/admin/ai/providers";
 export const apiAiProviderDetail = (id: number) => `/api/admin/ai/providers/${id}`;
+export const apiAiProviderKeys = (id: number) => `/api/admin/ai/providers/${id}/keys`;
 export const apiAiProviderUpstreams = (id: number) => `/api/admin/ai/providers/${id}/upstreams`;
 export const apiAiProviderUpstreamAssignment = (providerId: number, assignmentId: number) =>
   `/api/admin/ai/providers/${providerId}/upstreams/${assignmentId}`;

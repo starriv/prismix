@@ -106,7 +106,7 @@ export default function AiRelayPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">{t("ai-relay.providers.title")}</CardTitle>
               <Button variant="outline" size="sm" asChild>
-                <LocaleLink to="/admin/ai-keys">
+                <LocaleLink to="/admin/ai-providers">
                   <Key className="mr-1 h-3.5 w-3.5" />
                   {t("ai-relay.providers.manage-keys")}
                 </LocaleLink>

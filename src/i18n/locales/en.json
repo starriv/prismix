@@ -20,7 +20,8 @@
       "failed": "Failed",
       "active": "Active",
       "disabled": "Disabled",
-      "suspended": "Suspended"
+      "suspended": "Suspended",
+      "unknown": "Unknown"
     },
     "th": {
       "id": "ID",
@@ -87,9 +88,16 @@
       "select-row": "Select {{name}}"
     },
     "valid": {
-      "password-weak": "Password must be 10+ chars with upper, lower, and digit",
       "required": "This field is required",
-      "invalid-amount": "Please enter a valid amount"
+      "name-required": "Name is required",
+      "amount-required": "Amount is required",
+      "network-required": "Network is required",
+      "invalid-amount": "Please enter a valid amount",
+      "invalid-email": "Please enter a valid email address",
+      "invalid-url": "Please enter a valid URL",
+      "password-weak": "Password must be 10+ chars with upper, lower, and digit",
+      "range": "Value is out of range",
+      "unknown-error": "An unknown error occurred"
     },
     "error": {
       "load-failed": "Failed to load details."
@@ -109,7 +117,6 @@
     "ai-gateway": "AI Gateway",
     "ai-providers": "Providers",
     "ai-models": "Models",
-    "ai-keys": "Provider Keys",
     "ai-relay": "Unified Endpoint",
     "ai-usage": "Usage",
     "ai-upstreams": "Upstreams",
@@ -2217,69 +2224,6 @@
       "payment_not_received": "No matching payment was received"
     }
   },
-  "ai": {
-    "title": "AI API Keys",
-    "desc": "Manage your API keys for AI providers",
-    "empty": "No API keys configured yet",
-    "empty-hint": "Add API keys to your providers to start using the AI relay",
-    "never": "Never",
-    "test": "Test",
-    "unknown-provider": "Unknown Provider",
-    "tag": {
-      "platform": "Platform"
-    },
-    "btn": {
-      "new": "Add Key",
-      "create": "Create Key"
-    },
-    "pool": {
-      "count": "{{enabled}}/{{total}} active",
-      "next": "Next in rotation",
-      "add": "Add Key",
-      "weight-hint": "Weight — higher value means more traffic share",
-      "weight-down": "Decrease weight",
-      "weight-up": "Increase weight",
-      "strategy": {
-        "round-robin": "Round-robin",
-        "random": "Random"
-      }
-    },
-    "form": {
-      "provider": "Provider",
-      "provider-ph": "Select a provider",
-      "upstream": "Upstream",
-      "upstream-ph": "Select an upstream",
-      "upstream-legacy": "Provider Default Base URL",
-      "upstream-hint": "Bind this key to a specific upstream, or leave it on the provider default base URL.",
-      "name": "Key Name",
-      "name-ph": "Give your key a name",
-      "api-key": "API Key",
-      "api-key-ph": "sk-...",
-      "api-key-hint": "Your key will be encrypted and stored securely",
-      "secret-access-key": "AWS Secret Access Key",
-      "secret-access-key-ph": "Enter your AWS secret access key",
-      "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",
-      "owner": "Key Provider (optional)",
-      "owner-ph": "Select a key provider",
-      "owner-none": "Platform-owned (no provider)",
-      "owner-hint": "Assign this key to a third-party provider for revenue sharing"
-    },
-    "dialog": {
-      "add-title": "Add API Key",
-      "delete-title": "Delete API Key",
-      "delete-body": "Delete this API key? This cannot be undone."
-    },
-    "toast": {
-      "created": "API key created",
-      "updated": "API key updated",
-      "deleted": "API key deleted",
-      "create-error": "Failed to create API key",
-      "update-error": "Failed to update API key",
-      "delete-error": "Failed to delete API key",
-      "test-ok": "Connection successful ({{ms}}ms)",
-      "test-error": "Connection failed: {{error}}"
-    }
-  },
   "ai-providers": {
     "title": "AI Providers",
     "desc": "Manage your AI provider connections",
@@ -2331,7 +2275,7 @@
       "assign-upstream-title": "Assign Upstream",
       "edit-upstream-title": "Edit Assignment",
       "delete-upstream-title": "Remove Upstream",
-      "delete-upstream-body": "Remove upstream \"{{name}}\" from this provider? Keys bound to it will fall back to the default provider base URL."
+      "delete-upstream-body": "Remove upstream \"{{name}}\" from this provider? All keys bound to this upstream will also be deleted."
     },
     "upstreams": {
       "section-title": "Upstreams",
@@ -2360,6 +2304,57 @@
         "openrouter": "OpenRouter",
         "custom": "Custom"
       }
+    },
+    "keys": {
+      "section-title": "Key Pools",
+      "desc": "API keys grouped by upstream. Keys in each pool are load-balanced according to the provider strategy.",
+      "empty": "No keys in this pool yet",
+      "official-bucket": "Official",
+      "official-hint": "Fallback pool — uses the provider base URL (priority 1000)",
+      "count": "{{enabled}}/{{total}} active",
+      "next": "Next in rotation",
+      "add": "Add Key",
+      "weight-hint": "Weight — higher value means more traffic share",
+      "weight-down": "Decrease weight",
+      "weight-up": "Increase weight",
+      "strategy": {
+        "label": "Key Balancing",
+        "round-robin": "Round-robin",
+        "random": "Random"
+      },
+      "form": {
+        "name": "Key Name",
+        "name-ph": "Give your key a name",
+        "api-key": "API Key",
+        "api-key-ph": "sk-...",
+        "api-key-hint": "Your key will be encrypted and stored securely",
+        "secret-access-key": "AWS Secret Access Key",
+        "secret-access-key-ph": "Enter your AWS secret access key",
+        "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",
+        "owner": "Key Provider (optional)",
+        "owner-ph": "Select a key provider",
+        "owner-none": "Platform-owned (no provider)",
+        "owner-hint": "Assign this key to a third-party provider for revenue sharing"
+      },
+      "dialog": {
+        "add-title": "Add Key to {{upstream}}",
+        "delete-title": "Delete API Key",
+        "delete-body": "Delete key \"{{name}}\"? This cannot be undone."
+      },
+      "toast": {
+        "created": "API key created",
+        "updated": "API key updated",
+        "deleted": "API key deleted",
+        "create-error": "Failed to create API key",
+        "update-error": "Failed to update API key",
+        "delete-error": "Failed to delete API key",
+        "test-ok": "Connection successful ({{ms}}ms)",
+        "test-error": "Connection failed"
+      },
+      "tag": {
+        "platform": "Platform"
+      },
+      "never": "Never"
     },
     "toast": {
       "created": "Provider created",

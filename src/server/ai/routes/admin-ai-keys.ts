@@ -3,7 +3,6 @@
  * Mounted under /api/admin/ai (auth applied by parent).
  */
 import { Hono } from "hono";
-import { compact, uniq } from "lodash-es";
 
 import { emit } from "@/server/events";
 import { createAiKeyBody, updateAiKeyBody } from "@/server/lib/body-schemas";
@@ -17,11 +16,11 @@ import {
   aiProviderRepo,
   aiUpstreamAssignmentRepo,
   aiUpstreamRepo,
-  keyProviderRepo,
 } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
+import { formatKeys } from "./admin-ai-helpers";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
@@ -32,39 +31,7 @@ const router = new Hono();
 router.get("/keys", async (c) => {
   getAdminSession(c);
   const keys = await aiKeyRepo.findAll();
-
-  const providerIds = uniq(keys.map((k) => k.providerId));
-  const providerMap = new Map<number, string>();
-  for (const pid of providerIds) {
-    const p = await aiProviderRepo.findById(pid);
-    if (p) providerMap.set(pid, p.name);
-  }
-
-  // Enrich with key provider (owner) name
-  const ownerIds = compact(uniq(keys.map((k) => k.ownerId))) as number[];
-  const ownerMap = new Map<number, string>();
-  for (const oid of ownerIds) {
-    const kp = await keyProviderRepo.findById(oid);
-    if (kp) ownerMap.set(oid, kp.name);
-  }
-
-  const upstreamIds = compact(uniq(keys.map((k) => k.upstreamId))) as number[];
-  const upstreamMap = new Map<number, { name: string; upstreamId: string }>();
-  const upstreamRows = await aiUpstreamRepo.findByIds(upstreamIds);
-  for (const u of upstreamRows) {
-    upstreamMap.set(u.id, { name: u.name, upstreamId: u.upstreamId });
-  }
-
-  return ok(
-    c,
-    keys.map(({ encryptedKey, keyHash, ...rest }) => ({
-      ...rest,
-      providerName: providerMap.get(rest.providerId) ?? "Unknown",
-      ownerName: rest.ownerId ? (ownerMap.get(rest.ownerId) ?? null) : null,
-      upstreamName: rest.upstreamId ? (upstreamMap.get(rest.upstreamId)?.name ?? null) : null,
-      upstreamSlug: rest.upstreamId ? (upstreamMap.get(rest.upstreamId)?.upstreamId ?? null) : null,
-    })),
-  );
+  return ok(c, await formatKeys(keys));
 });
 
 router.post("/keys", async (c) => {

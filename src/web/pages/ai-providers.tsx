@@ -4,23 +4,41 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Pencil, Plus, Server, Sparkles, Trash2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { groupBy, orderBy } from "lodash-es";
+import {
+  Activity,
+  ArrowLeft,
+  Key,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Server,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import {
   useAiProviderAssignments,
+  useAiProviderKeys,
   useAiProviders,
   useAiUpstreams,
+  useCreateAiKey,
   useCreateAiProvider,
   useCreateAiProviderAssignment,
+  useDeleteAiKey,
   useDeleteAiProvider,
   useDeleteAiProviderAssignment,
+  useKeyProviders,
+  useTestAiKey,
+  useUpdateAiKey,
   useUpdateAiProvider,
   useUpdateAiProviderAssignment,
 } from "@/web/api/hooks";
-import type { AiProvider, AiUpstreamAssignment } from "@/web/api/schemas";
+import type { AiKey, AiProvider, AiUpstreamAssignment } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import {
   DataTable,
@@ -31,6 +49,7 @@ import {
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { CopyableText } from "@/web/components/ui/copyable-text";
 import {
   Dialog,
   DialogBody,
@@ -48,6 +67,7 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { SecretInput } from "@/web/components/ui/secret-input";
 import {
   Select,
   SelectContent,
@@ -57,6 +77,7 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 import { cn } from "@/web/shared/utils";
 
 // ── AWS Bedrock regions (runtime endpoints) ─────────────────────────
@@ -413,6 +434,9 @@ function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: ()
       {/* Upstreams */}
       <ProviderUpstreamsSection provider={provider} />
 
+      {/* Key Pools */}
+      <ProviderKeyBucketsSection provider={provider} />
+
       {/* Edit dialog */}
       <ProviderFormDialog open={editOpen} onOpenChange={setEditOpen} provider={provider} />
 
@@ -493,18 +517,21 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           <DataTableText className="font-medium">{row.original.upstream.name}</DataTableText>
         ),
         header: t("ai-providers.upstreams.th.name"),
-        meta: { headerClassName: "w-[18%]" },
+        meta: { headerClassName: "w-[14%]" },
       },
       {
         accessorFn: (a) => a.upstream.upstreamId,
         id: "upstreamId",
         cell: ({ row }) => (
-          <DataTableBadge variant="secondary" className="font-mono">
+          <CopyableText
+            value={row.original.upstream.upstreamId}
+            className="font-mono text-xs break-all"
+          >
             {row.original.upstream.upstreamId}
-          </DataTableBadge>
+          </CopyableText>
         ),
         header: t("ai-providers.upstreams.th.upstream-id"),
-        meta: { headerClassName: "w-[16%]" },
+        meta: { headerClassName: "w-[26%]" },
       },
       {
         accessorFn: (a) => a.upstream.kind,
@@ -513,7 +540,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           <DataTableBadge variant="outline">{row.original.upstream.kind}</DataTableBadge>
         ),
         header: t("ai-providers.upstreams.th.kind"),
-        meta: { headerClassName: "w-[10%]" },
+        meta: { headerClassName: "w-[8%]" },
       },
       {
         accessorFn: (a) => a.upstream.baseUrl,
@@ -524,7 +551,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
           </DataTableText>
         ),
         header: t("ai-providers.upstreams.th.base-url"),
-        meta: { headerClassName: "w-[24%]" },
+        meta: { headerClassName: "w-[20%]" },
       },
       {
         accessorKey: "priority",
@@ -1286,6 +1313,615 @@ function EditAssignmentDialog({
               </Button>
               <Button type="submit" disabled={updateAssignment.isPending}>
                 {t("common.btn.save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Key Pools Section ──────────────────────────────────────────────
+
+interface KeyBucket {
+  id: string;
+  name: string;
+  kind: string | null;
+  baseUrl: string;
+  upstreamId: number | null;
+  priority: number;
+  weight: number;
+  enabled: boolean;
+  keys: AiKey[];
+}
+
+function ProviderKeyBucketsSection({ provider }: { provider: AiProvider }) {
+  const { t } = useTranslation();
+  const { data: keys = [], isLoading: keysLoading } = useAiProviderKeys(provider.id);
+  const { data: assignments = [] } = useAiProviderAssignments(provider.id);
+  const updateKey = useUpdateAiKey();
+  const deleteKey = useDeleteAiKey();
+  const testKey = useTestAiKey();
+  const updateProvider = useUpdateAiProvider();
+
+  const [addBucket, setAddBucket] = useState<KeyBucket | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AiKey | null>(null);
+
+  const buckets = useMemo<KeyBucket[]>(() => {
+    const grouped = groupBy(keys, (k) => k.upstreamId ?? "official");
+
+    const officialBucket: KeyBucket = {
+      id: "official",
+      name: t("ai-providers.keys.official-bucket"),
+      kind: null,
+      baseUrl: provider.baseUrl,
+      upstreamId: null,
+      priority: 1000,
+      weight: 0,
+      enabled: true,
+      keys: orderBy(
+        grouped["official"] ?? [],
+        [
+          (k) => -(k.weight ?? 1),
+          (k) => -(k.lastUsedAt ? new Date(k.lastUsedAt).getTime() : 0),
+          "name",
+        ],
+        ["asc", "asc", "asc"],
+      ),
+    };
+
+    const sortedAssignments = [...assignments].sort(
+      (a, b) =>
+        a.priority - b.priority ||
+        b.weight - a.weight ||
+        a.upstream.name.localeCompare(b.upstream.name),
+    );
+
+    const assignmentBuckets: KeyBucket[] = sortedAssignments.map((a) => ({
+      id: String(a.upstream.id),
+      name: a.upstream.name,
+      kind: a.upstream.kind,
+      baseUrl: a.upstream.baseUrl,
+      upstreamId: a.upstream.id,
+      priority: a.priority,
+      weight: a.weight,
+      enabled: a.enabled && a.upstream.enabled,
+      keys: orderBy(
+        grouped[String(a.upstream.id)] ?? [],
+        [
+          (k) => -(k.weight ?? 1),
+          (k) => -(k.lastUsedAt ? new Date(k.lastUsedAt).getTime() : 0),
+          "name",
+        ],
+        ["asc", "asc", "asc"],
+      ),
+    }));
+
+    return [officialBucket, ...assignmentBuckets];
+  }, [keys, assignments, provider.baseUrl, t]);
+
+  const strategy = provider.loadBalanceStrategy ?? "round-robin";
+
+  const handleToggle = useCallback(
+    async (key: AiKey) => {
+      try {
+        await updateKey.mutateAsync({ id: key.id, enabled: !key.enabled });
+        toast.success(t("ai-providers.keys.toast.updated"));
+      } catch {
+        toast.error(t("ai-providers.keys.toast.update-error"));
+      }
+    },
+    [updateKey, t],
+  );
+
+  const handleWeightChange = useCallback(
+    async (key: AiKey, delta: number) => {
+      const newWeight = Math.max(0, Math.min(100, (key.weight ?? 1) + delta));
+      if (newWeight === key.weight) return;
+      try {
+        await updateKey.mutateAsync({ id: key.id, weight: newWeight });
+      } catch {
+        toast.error(t("ai-providers.keys.toast.update-error"));
+      }
+    },
+    [updateKey, t],
+  );
+
+  const handleTest = useCallback(
+    async (key: AiKey) => {
+      try {
+        const result = await testKey.mutateAsync(key.id);
+        if (result.success) {
+          toast.success(t("ai-providers.keys.toast.test-ok", { ms: result.latencyMs ?? 0 }));
+        } else {
+          toast.error(result.error ?? t("ai-providers.keys.toast.test-error"));
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t("ai-providers.keys.toast.test-error"));
+      }
+    },
+    [testKey, t],
+  );
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteKey.mutateAsync(deleteTarget.id);
+      toast.success(t("ai-providers.keys.toast.deleted"));
+      setDeleteTarget(null);
+    } catch {
+      toast.error(t("ai-providers.keys.toast.delete-error"));
+    }
+  }, [deleteTarget, deleteKey, t]);
+
+  const handleStrategyChange = useCallback(
+    async (newStrategy: string) => {
+      try {
+        await updateProvider.mutateAsync({ id: provider.id, loadBalanceStrategy: newStrategy });
+        toast.success(t("ai-providers.toast.updated"));
+      } catch {
+        toast.error(t("ai-providers.toast.update-error"));
+      }
+    },
+    [updateProvider, provider.id, t],
+  );
+
+  const totalKeys = keys.length;
+  const showPool = totalKeys > 1;
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-sm">{t("ai-providers.keys.section-title")}</CardTitle>
+              <p className="text-sm text-muted-foreground">{t("ai-providers.keys.desc")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {showPool && (
+                <Select value={strategy} onValueChange={handleStrategyChange}>
+                  <SelectTrigger className="h-7 w-auto gap-1 border-dashed px-2 text-xs">
+                    <RefreshCw className="h-3 w-3" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="round-robin">
+                      {t("ai-providers.keys.strategy.round-robin")}
+                    </SelectItem>
+                    <SelectItem value="random">{t("ai-providers.keys.strategy.random")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {keysLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : (
+            buckets.map((bucket) => (
+              <BucketCard
+                key={bucket.id}
+                bucket={bucket}
+                showPool={showPool}
+                onToggle={handleToggle}
+                onWeightChange={handleWeightChange}
+                onTest={handleTest}
+                onDelete={setDeleteTarget}
+                onAdd={() => {
+                  if (!bucket.enabled) return;
+                  setAddBucket(bucket);
+                }}
+                isToggling={updateKey.isPending}
+                isTesting={testKey.isPending}
+              />
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <AddKeyToBucketDialog
+        open={!!addBucket}
+        onOpenChange={(v) => {
+          if (!v) setAddBucket(null);
+        }}
+        provider={provider}
+        bucket={addBucket}
+      />
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => {
+          if (!v) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("ai-providers.keys.dialog.delete-title")}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-muted-foreground">
+              {t("ai-providers.keys.dialog.delete-body", { name: deleteTarget?.name ?? "" })}
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {t("common.btn.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteKey.isPending}
+            >
+              {t("common.btn.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ── Bucket Card ────────────────────────────────────────────────────
+
+function BucketCard({
+  bucket,
+  showPool,
+  onToggle,
+  onWeightChange,
+  onTest,
+  onDelete,
+  onAdd,
+  isToggling,
+  isTesting,
+}: {
+  bucket: KeyBucket;
+  showPool: boolean;
+  onToggle: (key: AiKey) => void;
+  onWeightChange: (key: AiKey, delta: number) => void;
+  onTest: (key: AiKey) => void;
+  onDelete: (key: AiKey) => void;
+  onAdd: () => void;
+  isToggling: boolean;
+  isTesting: boolean;
+}) {
+  const { t } = useTranslation();
+  const isOfficial = bucket.upstreamId === null;
+  const enabledCount = bucket.keys.filter((k) => k.enabled).length;
+  const enabledPool = bucket.keys.filter((k) => k.enabled);
+  const nextKeyId =
+    enabledPool.length > 0
+      ? orderBy(enabledPool, [(k) => k.lastUsedAt ?? ""], ["asc"])[0].id
+      : null;
+
+  return (
+    <div className={cn("rounded-lg border", !bucket.enabled && "opacity-60")}>
+      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b bg-muted/30">
+        <div className="flex items-center gap-2 min-w-0">
+          <Key className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-sm font-medium truncate">{bucket.name}</span>
+          {bucket.kind && (
+            <Badge variant="outline" className="text-[10px]">
+              {bucket.kind}
+            </Badge>
+          )}
+          {isOfficial && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="text-[10px]">
+                  P1000
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>{t("ai-providers.keys.official-hint")}</TooltipContent>
+            </Tooltip>
+          )}
+          {!isOfficial && (
+            <Badge variant="secondary" className="text-[10px] font-mono">
+              P{bucket.priority} W{bucket.weight}
+            </Badge>
+          )}
+          <Badge variant="outline" className="text-[10px]">
+            {t("ai-providers.keys.count", { enabled: enabledCount, total: bucket.keys.length })}
+          </Badge>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs shrink-0"
+          onClick={onAdd}
+          disabled={!bucket.enabled}
+          title={!bucket.enabled ? t("common.status.disabled") : undefined}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          {t("ai-providers.keys.add")}
+        </Button>
+      </div>
+
+      <div className="p-2 space-y-1.5">
+        {bucket.keys.length === 0 ? (
+          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+            {t("ai-providers.keys.empty")}
+          </div>
+        ) : (
+          bucket.keys.map((k) => {
+            const isNext = k.id === nextKeyId;
+            const weight = k.weight ?? 1;
+            return (
+              <div
+                key={k.id}
+                className={cn(
+                  "rounded-md border px-3 py-2",
+                  isNext && k.enabled ? "border-primary/30 bg-primary/5" : "bg-muted/20",
+                )}
+              >
+                {/* Row 1: Name + controls */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            "flex h-2 w-2 shrink-0 rounded-full",
+                            !k.enabled
+                              ? "bg-muted-foreground/40"
+                              : isNext
+                                ? "bg-green-500 shadow-[0_0_6px_1px] shadow-green-500/40"
+                                : "bg-green-500",
+                          )}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {!k.enabled
+                          ? t("common.status.disabled")
+                          : isNext
+                            ? t("ai-providers.keys.next")
+                            : t("common.status.active")}
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="text-sm font-medium truncate">{k.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {showPool && (
+                      <div className="flex items-center gap-0.5 mr-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onWeightChange(k, -1)}
+                          disabled={weight <= 0}
+                          aria-label={t("ai-providers.keys.weight-down")}
+                        >
+                          <span className="text-xs font-bold">−</span>
+                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="w-8 text-center text-xs font-mono tabular-nums">
+                              {weight}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("ai-providers.keys.weight-hint")}</TooltipContent>
+                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onWeightChange(k, 1)}
+                          disabled={weight >= 100}
+                          aria-label={t("ai-providers.keys.weight-up")}
+                        >
+                          <span className="text-xs font-bold">+</span>
+                        </Button>
+                      </div>
+                    )}
+                    <Switch
+                      checked={k.enabled}
+                      onCheckedChange={() => onToggle(k)}
+                      disabled={isToggling}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => onTest(k)}
+                      disabled={isTesting}
+                      aria-label={t("common.a11y.test")}
+                    >
+                      <Activity className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => onDelete(k)}
+                      aria-label={t("common.btn.delete")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+                {/* Row 2: Prefix + owner + last used */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                  <code className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded w-[160px] truncate inline-block">
+                    {k.keyPrefix}****
+                  </code>
+                  <Badge
+                    variant={k.ownerName ? "secondary" : "outline"}
+                    className="text-[10px] px-1.5 py-0"
+                  >
+                    {k.ownerName ?? t("ai-providers.keys.tag.platform")}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {k.lastUsedAt
+                      ? formatDistanceToNow(new Date(k.lastUsedAt), { addSuffix: true })
+                      : t("ai-providers.keys.never")}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Add Key to Bucket Dialog ───────────────────────────────────────
+
+const addKeyToBucketSchema = z.object({
+  name: z.string().min(1, "common.valid.name-required"),
+  apiKey: z.string().min(1, "common.valid.required"),
+  ownerId: z.number().int().positive().nullable().optional(),
+});
+type AddKeyToBucketValues = z.infer<typeof addKeyToBucketSchema>;
+
+function AddKeyToBucketDialog({
+  open,
+  onOpenChange,
+  provider,
+  bucket,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  provider: AiProvider;
+  bucket: KeyBucket | null;
+}) {
+  const { t } = useTranslation();
+  const createKey = useCreateAiKey();
+  const { data: keyProviders = [] } = useKeyProviders();
+  const activeKeyProviders = useMemo(
+    () => keyProviders.filter((kp) => kp.status === "active"),
+    [keyProviders],
+  );
+  const isSigV4 = provider.authType === "sigv4";
+
+  const form = useForm<AddKeyToBucketValues>({
+    resolver: zodResolver(addKeyToBucketSchema),
+    defaultValues: { name: "", apiKey: "", ownerId: null },
+  });
+
+  useEffect(() => {
+    if (open) form.reset({ name: "", apiKey: "", ownerId: null });
+  }, [open, form]);
+
+  const handleSubmit = form.handleSubmit(async (data) => {
+    if (!bucket || !bucket.enabled) {
+      toast.error(t("ai-providers.keys.toast.create-error"));
+      return;
+    }
+
+    try {
+      await createKey.mutateAsync({
+        providerId: provider.id,
+        upstreamId: bucket.upstreamId ?? null,
+        name: data.name,
+        apiKey: data.apiKey,
+        ownerId: data.ownerId,
+      });
+      toast.success(t("ai-providers.keys.toast.created"));
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("ai-providers.keys.toast.create-error"));
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent preventClose>
+        <DialogHeader>
+          <DialogTitle>
+            {t("ai-providers.keys.dialog.add-title", { upstream: bucket?.name ?? "" })}
+          </DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={handleSubmit}>
+            <DialogBody className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-providers.keys.form.name")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("ai-providers.keys.form.name-ph")} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {isSigV4
+                        ? t("ai-providers.keys.form.secret-access-key")
+                        : t("ai-providers.keys.form.api-key")}
+                    </FormLabel>
+                    <FormControl>
+                      <SecretInput
+                        placeholder={
+                          isSigV4
+                            ? t("ai-providers.keys.form.secret-access-key-ph")
+                            : t("ai-providers.keys.form.api-key-ph")
+                        }
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-[11px] text-muted-foreground">
+                      {isSigV4
+                        ? t("ai-providers.keys.form.secret-access-key-hint")
+                        : t("ai-providers.keys.form.api-key-hint")}
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {activeKeyProviders.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="ownerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.keys.form.owner")}</FormLabel>
+                      <Select
+                        value={field.value ? String(field.value) : "none"}
+                        onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t("ai-providers.keys.form.owner-ph")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {t("ai-providers.keys.form.owner-none")}
+                          </SelectItem>
+                          {activeKeyProviders.map((kp) => (
+                            <SelectItem key={kp.id} value={String(kp.id)}>
+                              {kp.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.keys.form.owner-hint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {t("common.btn.cancel")}
+              </Button>
+              <Button type="submit" disabled={createKey.isPending || !bucket?.enabled}>
+                {t("ai-providers.keys.add")}
               </Button>
             </DialogFooter>
           </form>

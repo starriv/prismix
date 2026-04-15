@@ -7,7 +7,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import {
-  aiKeys,
   type AiUpstream,
   type AiUpstreamAssignment,
   aiUpstreamAssignments,
@@ -151,21 +150,5 @@ export const aiUpstreamAssignmentRepo = {
 
   async delete(id: number): Promise<void> {
     await exec(db.delete(aiUpstreamAssignments).where(eq(aiUpstreamAssignments.id, id)));
-  },
-
-  /**
-   * Null out `aiKeys.upstreamId` for all keys owned by a provider and bound to a specific
-   * global upstream. Called when an assignment is removed.
-   * Returns the count of affected keys.
-   */
-  async nullKeysForAssignment(providerId: number, upstreamId: number): Promise<number> {
-    const affected = await queryAll(
-      db
-        .update(aiKeys)
-        .set({ upstreamId: null, updatedAt: new Date() })
-        .where(and(eq(aiKeys.providerId, providerId), eq(aiKeys.upstreamId, upstreamId)))
-        .returning(),
-    );
-    return affected.length;
   },
 };
