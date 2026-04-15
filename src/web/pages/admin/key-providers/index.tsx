@@ -17,7 +17,6 @@ import {
   DataTableText,
 } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent } from "@/web/components/ui/card";
 
 import { KEY_PROVIDER_STATUS_COLORS } from "./constants";
 import { CreateKeyProviderDialog } from "./create-dialog";
@@ -133,20 +132,16 @@ export default function KeyProvidersPage() {
           </Button>
         </div>
 
-        <Card>
-          <CardContent>
-            <DataTable
-              columns={columns}
-              data={providers}
-              emptyText={t("admin.key-providers.table-empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              onRowClick={(row) => setProviderId(row.id)}
-              showPagination={false}
-              tableClassName="min-w-[900px]"
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={providers}
+          emptyText={t("admin.key-providers.table-empty")}
+          getRowId={(row) => String(row.id)}
+          loading={isLoading}
+          onRowClick={(row) => setProviderId(row.id)}
+          showPagination={false}
+          tableClassName="min-w-[900px]"
+        />
       </div>
 
       <CreateKeyProviderDialog open={createOpen} onOpenChange={setCreateOpen} />

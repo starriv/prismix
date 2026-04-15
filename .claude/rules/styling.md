@@ -8,17 +8,17 @@ Tailwind CSS v4 (via `@tailwindcss/vite`, no config file). `cn()` from `@/web/sh
 
 Always use `src/web/components/ui/`. If missing, add from shadcn first.
 
-| Instead of | Use |
-|---|---|
-| Raw `<button>`/`<input>`/`<select>`/`<table>` | `Button`/`Input`/`Select`/`Table` |
-| `<input type="checkbox">` | `Checkbox` or `Switch` |
-| `useState` + conditional render | `Collapsible` or `Dialog` |
-| `confirm()`/`createPortal` | `Dialog` or `Sheet` |
-| `title` attribute | `Tooltip` |
-| Manual dropdown | `DropdownMenu` or `Popover` |
-| Manual toast | `toast()` from Sonner |
-| Manual wallet address display | `WalletAddress` (mandatory for all addresses) |
-| `type="password"` for secrets | `SecretInput`. Exception: login page uses `type="password"` + `autoComplete="current-password"` |
+| Instead of                                    | Use                                                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Raw `<button>`/`<input>`/`<select>`/`<table>` | `Button`/`Input`/`Select`/`Table`                                                               |
+| `<input type="checkbox">`                     | `Checkbox` or `Switch`                                                                          |
+| `useState` + conditional render               | `Collapsible` or `Dialog`                                                                       |
+| `confirm()`/`createPortal`                    | `Dialog` or `Sheet`                                                                             |
+| `title` attribute                             | `Tooltip`                                                                                       |
+| Manual dropdown                               | `DropdownMenu` or `Popover`                                                                     |
+| Manual toast                                  | `toast()` from Sonner                                                                           |
+| Manual wallet address display                 | `WalletAddress` (mandatory for all addresses)                                                   |
+| `type="password"` for secrets                 | `SecretInput`. Exception: login page uses `type="password"` + `autoComplete="current-password"` |
 
 ## Dialog & Sheet
 
@@ -33,6 +33,14 @@ Vertical stack only. `TabsList` on top, `TabsContent` below. Never side-by-side.
 ## Page Width
 
 Dashboard pages fill available width. Multiple cards: `auto-fill` grid `minmax(320px, 1fr)`. Single card: `space-y-6`. `max-w-*xl` for homepage only.
+
+## Card Wrapping
+
+Only wrap content in `Card` when the card provides additional context (e.g. `CardHeader`/`CardTitle`, multiple sections, or grouped fields). A `DataTable` already has its own `rounded-md border` — wrapping it in a bare `Card > CardContent` with nothing else doubles the border for no reason.
+
+✅ `Card > CardHeader + CardContent > DataTable` — card adds a section title.
+✅ `DataTable` alone — standalone table, no extra wrapper needed.
+❌ `Card > CardContent > DataTable` with no CardHeader/CardTitle — pointless double border.
 
 ## Colors
 
