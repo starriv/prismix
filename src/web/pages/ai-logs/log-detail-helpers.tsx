@@ -39,41 +39,36 @@ export function DetailCard({
   return (
     <Collapsible defaultOpen={defaultOpen} asChild>
       <Card>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-3 py-2 text-left"
-          >
-            <span
+        <div className="flex w-full items-center justify-between px-3 py-2">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
               className={cn(
-                "flex items-center gap-1.5 text-xs font-semibold",
+                "flex items-center gap-1.5 text-xs font-semibold text-left",
                 variant === "destructive" && "text-destructive",
               )}
             >
               <ChevronRight className="h-3.5 w-3.5 transition-transform data-[state=open]:rotate-90" />
               <Icon className="h-3.5 w-3.5" />
               {title}
-            </span>
-            {copyText && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copy(copyText);
-                }}
-                aria-label={t("common.a11y.copy")}
-              >
-                {copied ? (
-                  <Check className="h-3 w-3 text-green-500" />
-                ) : (
-                  <ClipboardCopy className="h-3 w-3 text-muted-foreground" />
-                )}
-              </Button>
-            )}
-          </button>
-        </CollapsibleTrigger>
+            </button>
+          </CollapsibleTrigger>
+          {copyText && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => copy(copyText)}
+              aria-label={t("common.a11y.copy")}
+            >
+              {copied ? (
+                <Check className="h-3 w-3 text-green-500" />
+              ) : (
+                <ClipboardCopy className="h-3 w-3 text-muted-foreground" />
+              )}
+            </Button>
+          )}
+        </div>
         <CollapsibleContent>
           <CardContent className="px-3 pb-3 pt-0">{children}</CardContent>
         </CollapsibleContent>

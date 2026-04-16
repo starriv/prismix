@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -14,6 +14,7 @@ import { Header } from "@/web/components/dashboard/header";
 import { DataTable, getHeuristicPageCount } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { Input } from "@/web/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/web/components/ui/select";
-import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/web/components/ui/sheet";
 
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
@@ -36,12 +44,22 @@ export default function AiLogsPage() {
     "status",
     parseAsString.withDefault("all"),
   );
+  const [appliedRequestId, setAppliedRequestId] = useQueryState("requestId");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(0));
 
   // Draft state — local UI
   const [draftModel, setDraftModel] = useState(appliedModel);
   const [draftKey, setDraftKey] = useState(appliedKey);
   const [draftStatus, setDraftStatus] = useState(appliedStatus);
+  const [draftRequestId, setDraftRequestId] = useState(appliedRequestId ?? "");
+
+  // Keep draft controls aligned with URL-backed filters after navigation.
+  useEffect(() => {
+    setDraftModel(appliedModel);
+    setDraftKey(appliedKey);
+    setDraftStatus(appliedStatus);
+    setDraftRequestId(appliedRequestId ?? "");
+  }, [appliedKey, appliedModel, appliedRequestId, appliedStatus]);
 
   // Data — auto-refresh every 5s
   const LIVE_REFETCH_MS = 5_000;
@@ -54,6 +72,7 @@ export default function AiLogsPage() {
     modelId: appliedModel !== "all" ? appliedModel : undefined,
     consumerKeyId: appliedKey !== "all" ? Number(appliedKey) : undefined,
     statusClass: appliedStatus === "4xx" || appliedStatus === "5xx" ? appliedStatus : undefined,
+    requestId: appliedRequestId ?? undefined,
     page,
     refetchInterval: LIVE_REFETCH_MS,
   });
@@ -69,19 +88,23 @@ export default function AiLogsPage() {
 
   const [selected, setSelected] = useState<AiUsageRecord | null>(null);
 
-  const hasFilters = draftModel !== "all" || draftKey !== "all" || draftStatus !== "all";
+  const hasFilters =
+    draftModel !== "all" || draftKey !== "all" || draftStatus !== "all" || draftRequestId !== "";
 
   const applyFilters = useCallback(() => {
     setAppliedModel(draftModel);
     setAppliedKey(draftKey);
     setAppliedStatus(draftStatus);
+    setAppliedRequestId(draftRequestId || null);
     setPage(0);
   }, [
     draftKey,
     draftModel,
+    draftRequestId,
     draftStatus,
     setAppliedKey,
     setAppliedModel,
+    setAppliedRequestId,
     setAppliedStatus,
     setPage,
   ]);
@@ -90,11 +113,13 @@ export default function AiLogsPage() {
     setDraftModel("all");
     setDraftKey("all");
     setDraftStatus("all");
+    setDraftRequestId("");
     setAppliedModel("all");
     setAppliedKey("all");
     setAppliedStatus("all");
+    setAppliedRequestId(null);
     setPage(0);
-  }, [setAppliedKey, setAppliedModel, setAppliedStatus, setPage]);
+  }, [setAppliedKey, setAppliedModel, setAppliedRequestId, setAppliedStatus, setPage]);
 
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
   const pagination = useMemo<PaginationState>(
@@ -121,6 +146,16 @@ export default function AiLogsPage() {
           <CardContent className="space-y-4">
             {/* Filter bar */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                className="w-[220px] font-mono text-xs"
+                placeholder={t("ai-logs.filter.request-id-ph")}
+                value={draftRequestId}
+                onChange={(e) => setDraftRequestId(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyFilters();
+                }}
+              />
+
               <Select value={draftModel} onValueChange={setDraftModel}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
@@ -209,6 +244,9 @@ export default function AiLogsPage() {
               <SheetTitle>
                 {selected ? t("ai-logs.detail.title", { id: selected.id }) : ""}
               </SheetTitle>
+              <SheetDescription className="sr-only">
+                {t("ai-logs.detail.overview")}
+              </SheetDescription>
             </SheetHeader>
             <SheetBody>
               {selected && <AdminLogDetailWrapper log={selected} keys={keys} />}

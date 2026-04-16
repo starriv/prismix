@@ -171,16 +171,20 @@ export const queryKeys = {
     modelId?: string;
     providerId?: string;
     statusClass?: "4xx" | "5xx";
+    requestId?: string;
     page?: number;
   }) =>
     [
       "app",
       "ai-logs",
-      params?.consumerKeyId ?? "all",
-      params?.modelId ?? "all",
-      params?.providerId ?? "all",
-      params?.statusClass ?? "all",
-      params?.page ?? 0,
+      {
+        consumerKeyId: params?.consumerKeyId ?? null,
+        modelId: params?.modelId ?? null,
+        providerId: params?.providerId ?? null,
+        statusClass: params?.statusClass ?? null,
+        requestId: params?.requestId ?? null,
+        page: params?.page ?? 0,
+      },
     ] as const,
   aiRequestLog: (requestId: string) => ["app", "ai-request-log", requestId] as const,
   aiRequestLogging: () => ["app", "ai-request-logging"] as const,

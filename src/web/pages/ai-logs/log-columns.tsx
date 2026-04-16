@@ -9,6 +9,24 @@ import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
 export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsageRecord>[] {
   return [
     {
+      accessorKey: "requestId",
+      cell: ({ row }) => (
+        <DataTableText
+          className="max-w-[180px]"
+          mono
+          truncate
+          title={row.original.requestId ?? undefined}
+        >
+          {row.original.requestId ?? "—"}
+        </DataTableText>
+      ),
+      enableHiding: false,
+      header: t("ai-logs.th.request-id"),
+      meta: {
+        headerClassName: "w-[15%]",
+      },
+    },
+    {
       accessorKey: "modelId",
       cell: ({ row }) => (
         <DataTableText className="max-w-[180px]" mono truncate>
@@ -18,7 +36,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       enableHiding: false,
       header: t("ai-logs.th.model"),
       meta: {
-        headerClassName: "w-[22%]",
+        headerClassName: "w-[15%]",
       },
     },
     {
@@ -26,20 +44,20 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       cell: ({ row }) => <DataTableText>{row.original.providerId ?? "—"}</DataTableText>,
       header: t("ai-logs.th.provider"),
       meta: {
-        headerClassName: "w-[12%]",
+        headerClassName: "w-[10%]",
         ...dataTableMeta.hiddenOnMobile,
       },
     },
     {
       accessorKey: "upstreamName",
       cell: ({ row }) => (
-        <DataTableText className="max-w-[160px]" truncate>
+        <DataTableText className="max-w-[140px]" truncate>
           {row.original.upstreamName ?? row.original.upstreamBaseUrl ?? "—"}
         </DataTableText>
       ),
       header: t("ai-logs.th.upstream"),
       meta: {
-        headerClassName: "w-[14%]",
+        headerClassName: "w-[10%]",
         ...dataTableMeta.hiddenOnMobile,
       },
     },
@@ -50,7 +68,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       ),
       header: t("ai-logs.th.tokens"),
       meta: {
-        headerClassName: "w-[10%]",
+        headerClassName: "w-[8%]",
         ...dataTableMeta.hiddenOnMobile,
       },
     },
@@ -63,7 +81,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       ),
       header: t("ai-logs.th.cost"),
       meta: {
-        headerClassName: "w-[12%]",
+        headerClassName: "w-[8%]",
       },
     },
     {
@@ -75,7 +93,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       ),
       header: t("ai-logs.th.latency"),
       meta: {
-        headerClassName: "w-[8%]",
+        headerClassName: "w-[7%]",
         ...dataTableMeta.hiddenOnMobile,
       },
     },
@@ -85,7 +103,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       enableHiding: false,
       header: t("ai-logs.th.status"),
       meta: {
-        headerClassName: "w-[10%]",
+        headerClassName: "w-[7%]",
       },
     },
     {
@@ -96,7 +114,7 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       enableHiding: false,
       header: t("ai-logs.th.time"),
       meta: {
-        headerClassName: "w-[14%]",
+        headerClassName: "w-[10%]",
       },
     },
   ];

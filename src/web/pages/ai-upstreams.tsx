@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Network,
   PauseCircle,
@@ -51,6 +52,7 @@ import {
   DataTableRelativeTime,
   DataTableText,
 } from "@/web/components/data-table";
+import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -586,7 +588,7 @@ function UpstreamDetail({
         accessorKey: "modelId",
         cell: ({ row }) => <DataTableText mono>{row.original.modelId ?? "-"}</DataTableText>,
         header: t("ai-upstreams.detail.model"),
-        meta: { headerClassName: "w-[32%]" },
+        meta: { headerClassName: "w-[28%]" },
       },
       {
         accessorKey: "totalTokens",
@@ -596,7 +598,7 @@ function UpstreamDetail({
           </DataTableText>
         ),
         header: t("ai-upstreams.detail.tokens"),
-        meta: { headerClassName: "w-[18%]", ...dataTableMeta.right },
+        meta: { headerClassName: "w-[16%]", ...dataTableMeta.right },
       },
       {
         accessorKey: "latencyMs",
@@ -606,7 +608,7 @@ function UpstreamDetail({
           </DataTableText>
         ),
         header: t("ai-upstreams.detail.latency"),
-        meta: { headerClassName: "w-[18%]", ...dataTableMeta.right },
+        meta: { headerClassName: "w-[16%]", ...dataTableMeta.right },
       },
       {
         accessorKey: "statusCode",
@@ -614,7 +616,7 @@ function UpstreamDetail({
           <StatusBadge code={row.original.statusCode} error={row.original.error} />
         ),
         header: t("ai-upstreams.detail.status"),
-        meta: { headerClassName: "w-[16%]" },
+        meta: { headerClassName: "w-[14%]" },
       },
       {
         accessorKey: "createdAt",
@@ -623,6 +625,20 @@ function UpstreamDetail({
         ),
         header: t("ai-upstreams.detail.time"),
         meta: { headerClassName: "w-[16%]" },
+      },
+      {
+        id: "actions",
+        cell: ({ row }) =>
+          row.original.requestId ? (
+            <LocaleLink
+              to={`/admin/ai-logs?requestId=${encodeURIComponent(row.original.requestId)}`}
+              className="inline-flex items-center text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </LocaleLink>
+          ) : null,
+        meta: { headerClassName: "w-[10%]" },
       },
     ],
     [i18n.language, t],

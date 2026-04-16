@@ -2603,6 +2603,7 @@
     "live": "实时",
     "table-empty": "暂无 AI 日志",
     "th": {
+      "request-id": "请求 ID",
       "model": "模型",
       "provider": "提供商",
       "upstream": "上游",
@@ -2615,7 +2616,9 @@
     "filter": {
       "all-models": "所有模型",
       "all-keys": "所有消费者密钥",
-      "all-status": "所有状态"
+      "all-status": "所有状态",
+      "request-id": "请求 ID",
+      "request-id-ph": "按请求 ID 搜索…"
     },
     "detail": {
       "title": "请求 #{{id}}",

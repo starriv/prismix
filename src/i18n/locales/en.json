@@ -2603,6 +2603,7 @@
     "live": "Live",
     "table-empty": "No AI logs found",
     "th": {
+      "request-id": "Request ID",
       "model": "Model",
       "provider": "Provider",
       "upstream": "Upstream",
@@ -2615,7 +2616,9 @@
     "filter": {
       "all-models": "All Models",
       "all-keys": "All Consumer Keys",
-      "all-status": "All Status"
+      "all-status": "All Status",
+      "request-id": "Request ID",
+      "request-id-ph": "Search by Request ID…"
     },
     "detail": {
       "title": "Request #{{id}}",

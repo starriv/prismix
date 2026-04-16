@@ -99,6 +99,7 @@ adminAi.get("/usage/recent", async (c) => {
   const rawStatusClass = c.req.query("statusClass");
   const statusClass =
     rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
+  const requestId = c.req.query("requestId") || undefined;
   const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(
     c,
@@ -111,6 +112,7 @@ adminAi.get("/usage/recent", async (c) => {
       providerId,
       statusCode,
       statusClass,
+      requestId,
     }),
   );
 });
