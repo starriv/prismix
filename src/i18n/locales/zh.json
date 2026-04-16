@@ -2423,7 +2423,9 @@
       "no-key": "此供应商尚未配置 API 密钥，请先添加密钥以启用模型发现。",
       "models": "模型",
       "select-all": "全选",
-      "select-none": "取消全选"
+      "select-none": "取消全选",
+      "source-official": "官方 API",
+      "source-upstream": "上游"
     },
     "dialog": {
       "add-title": "添加模型",

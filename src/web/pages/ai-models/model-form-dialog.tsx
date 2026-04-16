@@ -96,8 +96,15 @@ export function ModelFormDialog({
     [providers, providerIdsWithKeys],
   );
 
+  const selectedProvider = useMemo(
+    () => providers.find((p) => p.id === providerId) ?? null,
+    [providers, providerId],
+  );
+  const hasUpstreams = (selectedProvider?.upstreamCount ?? 0) > 0;
+
   // Discovery
   const [discoverEnabled, setDiscoverEnabled] = useState(true);
+  const [discoverSource, setDiscoverSource] = useState<"official" | "upstream">("official");
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
   const [batchCreating, setBatchCreating] = useState(false);
   const {
@@ -105,7 +112,7 @@ export function ModelFormDialog({
     error: discoverError,
     isFetching: discovering,
     refetch: fetchModels,
-  } = useDiscoverModels(providerId ?? 0);
+  } = useDiscoverModels(providerId ?? 0, discoverSource);
 
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
@@ -120,13 +127,20 @@ export function ModelFormDialog({
     },
   });
 
-  const availableModels = discovered?.filter((m) => !m.registered) ?? [];
+  const availableModels = useMemo(
+    () => discovered?.filter((m) => !m.registered) ?? [],
+    [discovered],
+  );
 
   // Track previous discovered ref to auto-select only on fresh discovery
   const prevDiscoveredRef = useRef(discovered);
 
   useEffect(() => {
     if (discovered && discovered !== prevDiscoveredRef.current) {
+      const avail = discovered.filter((m) => !m.registered);
+      if (avail.length > 0) {
+        setSelectedModels(new Set(avail.map((m) => m.modelId)));
+      }
       prevDiscoveredRef.current = discovered;
     }
   }, [discovered]);
@@ -154,17 +168,18 @@ export function ModelFormDialog({
       });
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
+      setDiscoverSource("official");
       if (!initialProviderId) setSelectedProviderId(null);
     }
   }, [open, model, form, initialProviderId]);
 
-  // Trigger discover when provider changes (and discover is enabled)
+  // Trigger discover when provider or source changes (and discover is enabled)
   useEffect(() => {
     if (open && !isEdit && discoverEnabled && providerId && providerId > 0) {
       prevDiscoveredRef.current = undefined;
       fetchModels();
     }
-  }, [open, isEdit, discoverEnabled, providerId, fetchModels]);
+  }, [open, isEdit, discoverEnabled, providerId, discoverSource, fetchModels]);
 
   const handleToggleDiscover = useCallback(
     (checked: boolean) => {
@@ -177,6 +192,12 @@ export function ModelFormDialog({
   const handleProviderChange = useCallback((value: string) => {
     const pid = Number(value);
     setSelectedProviderId(pid);
+    setSelectedModels(new Set());
+    prevDiscoveredRef.current = undefined;
+  }, []);
+
+  const handleSourceChange = useCallback((value: string) => {
+    setDiscoverSource(value as "official" | "upstream");
     setSelectedModels(new Set());
     prevDiscoveredRef.current = undefined;
   }, []);
@@ -198,7 +219,14 @@ export function ModelFormDialog({
     setSelectedModels(new Set());
   }, []);
 
-  const hasKey = providerId ? keys.some((k) => k.providerId === providerId && k.enabled) : false;
+  const hasKey = providerId
+    ? keys.some(
+        (k) =>
+          k.providerId === providerId &&
+          k.enabled &&
+          (discoverSource === "official" ? k.upstreamId == null : k.upstreamId != null),
+      )
+    : false;
   const noKey =
     discoverError instanceof Error || (!discovering && !discovered && discoverEnabled && !hasKey);
   const isBatchMode = !isEdit && discoverEnabled && availableModels.length > 0;
@@ -318,9 +346,26 @@ export function ModelFormDialog({
 
               {/* Discover toggle — only show when provider is selected */}
               {!isEdit && providerId && (
-                <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
                   <span className="text-sm font-medium">{t("ai-models.discover.toggle")}</span>
-                  <Switch checked={discoverEnabled} onCheckedChange={handleToggleDiscover} />
+                  <div className="flex items-center gap-2">
+                    {discoverEnabled && hasUpstreams && (
+                      <Select value={discoverSource} onValueChange={handleSourceChange}>
+                        <SelectTrigger className="h-7 w-[120px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="official">
+                            {t("ai-models.discover.source-official")}
+                          </SelectItem>
+                          <SelectItem value="upstream">
+                            {t("ai-models.discover.source-upstream")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Switch checked={discoverEnabled} onCheckedChange={handleToggleDiscover} />
+                  </div>
                 </div>
               )}
 

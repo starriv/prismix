@@ -492,10 +492,10 @@ export function useBatchDeleteAiModels() {
   });
 }
 
-export function useDiscoverModels(providerId: number) {
+export function useDiscoverModels(providerId: number, source: string = "official") {
   return useQuery({
-    queryKey: queryKeys.aiDiscoverModels(providerId),
-    queryFn: () => get(apiAiDiscoverModels(providerId), z.array(discoveredModelSchema)),
+    queryKey: queryKeys.aiDiscoverModels(providerId, source),
+    queryFn: () => get(apiAiDiscoverModels(providerId, source), z.array(discoveredModelSchema)),
     enabled: false,
   });
 }

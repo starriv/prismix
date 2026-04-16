@@ -2423,7 +2423,9 @@
       "no-key": "No API key configured for this provider. Add a key first to discover models.",
       "models": "Models",
       "select-all": "All",
-      "select-none": "None"
+      "select-none": "None",
+      "source-official": "Official API",
+      "source-upstream": "Upstream"
     },
     "dialog": {
       "add-title": "Add Model",

@@ -142,7 +142,10 @@ export const API_AI_MODELS_BATCH_DELETE = "/api/admin/ai/models/batch-delete";
 export const apiAiModelRoutes = (modelId: number) => `/api/admin/ai/models/${modelId}/routes`;
 export const apiAiModelRouteDetail = (modelId: number, routeId: number) =>
   `/api/admin/ai/models/${modelId}/routes/${routeId}`;
-export const apiAiDiscoverModels = (id: number) => `/api/admin/ai/providers/${id}/discover-models`;
+export const apiAiDiscoverModels = (id: number, source?: string) => {
+  const base = `/api/admin/ai/providers/${id}/discover-models`;
+  return source ? `${base}?source=${source}` : base;
+};
 export const API_AI_KEYS = "/api/admin/ai/keys";
 export const apiAiKeyDetail = (id: number) => `/api/admin/ai/keys/${id}`;
 export const apiAiKeyTest = (id: number) => `/api/admin/ai/keys/${id}/test`;

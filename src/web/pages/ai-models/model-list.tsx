@@ -491,7 +491,7 @@ export function ModelList({
                 ? "bg-yellow-50/50 dark:bg-yellow-950/10"
                 : undefined
             }
-            showPagination={false}
+            showPagination
             tableClassName="min-w-[1080px]"
           />
         </CardContent>

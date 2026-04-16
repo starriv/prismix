@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindProviderById = vi.fn();
+const mockFindAnyEnabledByProvider = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
 const mockFindModelsByProviderId = vi.fn();
 const mockFindModelsByIds = vi.fn();
@@ -23,7 +24,7 @@ vi.mock("@/server/middleware/auth", () => ({
 
 vi.mock("@/server/repos", () => ({
   aiKeyRepo: {
-    findAnyEnabledByProvider: vi.fn(),
+    findAnyEnabledByProvider: (...args: unknown[]) => mockFindAnyEnabledByProvider(...args),
     findAnyEnabledByUpstream: (...args: unknown[]) => mockFindAnyEnabledByUpstream(...args),
   },
   aiModelRepo: {
@@ -77,6 +78,7 @@ app.route("/", router);
 describe("admin ai model discovery with upstream-scoped keys", () => {
   beforeEach(() => {
     mockFindProviderById.mockReset();
+    mockFindAnyEnabledByProvider.mockReset();
     mockFindAnyEnabledByUpstream.mockReset();
     mockFindModelsByProviderId.mockReset();
     mockFindModelsByIds.mockReset();
@@ -123,7 +125,41 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
   });
 
-  it("discovers models using the first upstream-scoped key", async () => {
+  it("discovers models using the official key by default", async () => {
+    mockFindAnyEnabledByProvider.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: null,
+      encryptedKey: "encrypted",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ id: "claude-sonnet-4", display_name: "Claude Sonnet 4" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/providers/7/discover-models");
+    const json = (await res.json()) as {
+      data: Array<{ modelId: string; name: string; registered: boolean }>;
+    };
+
+    expect(res.status).toBe(200);
+    expect(mockFindAnyEnabledByProvider).toHaveBeenCalledWith(7);
+    expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
+    expect(mockFindAnyEnabledByUpstream).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://api.anthropic.com/models");
+    expect(json.data[0]).toMatchObject({
+      modelId: "claude-sonnet-4",
+      name: "Claude Sonnet 4",
+      registered: false,
+    });
+  });
+
+  it("discovers models using the first upstream-scoped key when source=upstream", async () => {
     mockResolveUpstreamCandidates.mockResolvedValue([
       {
         id: 11,
@@ -147,7 +183,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models");
+    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
     const json = (await res.json()) as {
       data: Array<{ modelId: string; name: string; registered: boolean }>;
     };
@@ -161,6 +197,18 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       name: "Claude Sonnet 4",
       registered: false,
     });
+  });
+
+  it("returns 400 when official discovery has no usable key", async () => {
+    mockFindAnyEnabledByProvider.mockResolvedValue(undefined);
+
+    const res = await app.request("http://localhost/providers/7/discover-models");
+    const json = (await res.json()) as { error: string };
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("No API key configured");
+    expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("returns 400 when no upstream candidate has a usable key", async () => {
@@ -180,7 +228,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue(undefined);
 
-    const res = await app.request("http://localhost/providers/7/discover-models");
+    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
     const json = (await res.json()) as { error: string };
 
     expect(res.status).toBe(400);

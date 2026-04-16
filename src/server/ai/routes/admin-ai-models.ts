@@ -47,18 +47,31 @@ router.get("/providers/:id/discover-models", async (c) => {
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
+  const source = (c.req.query("source") ?? "official") as "official" | "upstream";
+  if (source !== "official" && source !== "upstream") {
+    return c.json({ error: "Invalid source — must be 'official' or 'upstream'" }, 400);
+  }
+
   const provider = await aiProviderRepo.findById(id);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
   let key: Awaited<ReturnType<typeof aiKeyRepo.findAnyEnabledByUpstream>> | undefined;
   let baseUrl: string | null = null;
 
-  for (const upstream of await resolveUpstreamCandidates(provider)) {
-    const candidateKey = await aiKeyRepo.findAnyEnabledByUpstream(id, upstream.id);
-    if (!candidateKey) continue;
-    key = candidateKey;
-    baseUrl = upstream.baseUrl;
-    break;
+  if (source === "official") {
+    if (!provider.baseUrl) {
+      return c.json({ error: "Provider has no base URL configured" }, 400);
+    }
+    baseUrl = provider.baseUrl;
+    key = await aiKeyRepo.findAnyEnabledByProvider(id);
+  } else {
+    for (const upstream of await resolveUpstreamCandidates(provider)) {
+      const candidateKey = await aiKeyRepo.findAnyEnabledByUpstream(id, upstream.id);
+      if (!candidateKey) continue;
+      key = candidateKey;
+      baseUrl = upstream.baseUrl;
+      break;
+    }
   }
 
   if (!key || !baseUrl) {
@@ -182,7 +195,7 @@ router.post("/providers/:id/models", async (c) => {
     // Model exists — just ensure a route to this provider exists
     const route = await aiModelRouteRepo.findByModelAndProvider(existing.id, providerId);
     if (route) return c.json({ error: "Model already has a route to this provider" }, 409);
-    const newRoute = await aiModelRouteRepo.create({ modelId: existing.id, providerId });
+    await aiModelRouteRepo.create({ modelId: existing.id, providerId });
     log.auth.info({ modelId: existing.modelId, providerId }, "AI model route added");
     return ok(c, formatModel(existing), 201);
   }
