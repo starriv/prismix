@@ -6,7 +6,12 @@ import { keyBy } from "lodash-es";
 import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
 
 import { formatPercent, removeTailingZero } from "@/shared/number";
-import { useAiUsageByKey, useAiUsageDaily, useAiUsageSummary, useRelayKeys } from "@/web/api/hooks";
+import {
+  useAiUsageByKey,
+  useAiUsageDaily,
+  useAiUsageSummary,
+  useRelayKeyOptions,
+} from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -62,7 +67,7 @@ function AiUsageList() {
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
   const { data: daily = [], isLoading: dailyLoading } = useAiUsageDaily(30, LIVE_REFETCH_MS);
   const { data: byKeyData = [], isLoading: byKeyLoading } = useAiUsageByKey();
-  const { data: relayKeys = [] } = useRelayKeys();
+  const { data: relayKeys = [] } = useRelayKeyOptions();
 
   // Build lookup map: consumerKeyId -> key info
   const keyMap = useMemo(() => keyBy(relayKeys, "id"), [relayKeys]);

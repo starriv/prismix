@@ -25,7 +25,7 @@ import {
   useAiUsageDailyByUser,
   useAiUsageRecentByUser,
   useAiUsageSummaryByUser,
-  useRelayKeys,
+  useRelayKeyOptions,
 } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
@@ -53,7 +53,7 @@ export default function AiUsageUserDetailPage() {
   const userId = Number(searchParams.get("user"));
 
   const { data: userDetail } = useAdminUserDetail(userId);
-  const { data: relayKeys = [] } = useRelayKeys();
+  const { data: relayKeys = [] } = useRelayKeyOptions();
   const keyMap = React.useMemo(() => keyBy(relayKeys, "id"), [relayKeys]);
 
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummaryByUser(

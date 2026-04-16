@@ -20,6 +20,7 @@ import {
   API_AI_USAGE_DAILY,
   API_AI_USAGE_RECENT,
   API_AI_USAGE_SUMMARY,
+  API_RELAY_KEY_OPTIONS,
   API_RELAY_KEYS,
   apiAiDiscoverModels,
   apiAiKeyDetail,
@@ -65,6 +66,7 @@ import {
   gatewayStatusSchema,
   priceDiffSchema,
   relayConsumerKeySchema,
+  relayKeyOptionSchema,
   testAiKeyResultSchema,
 } from "./schemas";
 
@@ -788,7 +790,8 @@ export function useUpdateAiDefaultMarkup() {
 
 // ── Relay Consumer Keys ───────────────────────────────────────────────
 
-export function useRelayKeys(params?: { prefix?: string; userUuid?: string; page?: number }) {
+/** Paginated list with filters — for the consumer-keys admin table. */
+export function useRelayKeyList(params?: { prefix?: string; userUuid?: string; page?: number }) {
   const qs = new URLSearchParams();
   if (params?.prefix) qs.set("prefix", params.prefix);
   if (params?.userUuid) qs.set("userUuid", params.userUuid);
@@ -799,6 +802,15 @@ export function useRelayKeys(params?: { prefix?: string; userUuid?: string; page
   return useQuery({
     queryKey: queryKeys.relayKeys(params),
     queryFn: () => get(url, z.array(relayConsumerKeySchema)),
+  });
+}
+
+/** Lightweight full list — for name lookups in usage/logs pages. */
+export function useRelayKeyOptions() {
+  return useQuery({
+    queryKey: queryKeys.relayKeyOptions(),
+    queryFn: () => get(API_RELAY_KEY_OPTIONS, z.array(relayKeyOptionSchema)),
+    staleTime: 60_000,
   });
 }
 
@@ -815,6 +827,7 @@ export function useCreateRelayKey() {
     }) => post(API_RELAY_KEYS, body, relayConsumerKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeyOptions() });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
@@ -837,6 +850,7 @@ export function useUpdateRelayKey() {
     }) => put(apiRelayKeyDetail(id), body, relayConsumerKeySchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeyOptions() });
     },
   });
 }
@@ -852,6 +866,7 @@ export function useDeleteRelayKey() {
     mutationFn: (id: number) => del(apiRelayKeyDetail(id), deleteRelayKeyResponseSchema),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeyOptions() });
       qc.invalidateQueries({ queryKey: queryKeys.payAgentsAll() });
     },
   });
@@ -870,6 +885,7 @@ export function useRotateRelayKey() {
       post(apiRelayKeyRotate(id), {}, z.object({ apiKey: z.string(), apiKeyPrefix: z.string() })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.relayKeysAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.relayKeyOptions() });
     },
   });
 }

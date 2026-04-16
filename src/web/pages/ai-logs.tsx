@@ -8,7 +8,7 @@ import { Search } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
-import { useAiLogs, useAiRequestLog, useRelayKeys } from "@/web/api/hooks";
+import { useAiLogs, useAiRequestLog, useRelayKeyOptions } from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable, getHeuristicPageCount } from "@/web/components/data-table";
@@ -45,7 +45,7 @@ export default function AiLogsPage() {
 
   // Data — auto-refresh every 5s
   const LIVE_REFETCH_MS = 5_000;
-  const { data: keys = [] } = useRelayKeys();
+  const { data: keys = [] } = useRelayKeyOptions();
   const {
     data: logs = [],
     isLoading,

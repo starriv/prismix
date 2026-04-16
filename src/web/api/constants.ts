@@ -165,6 +165,7 @@ export const API_ADMIN_GATEWAY_STATUS = "/api/admin/gateway-status";
 
 // ── Relay Consumer Keys ───────────────────────────────────────────
 export const API_RELAY_KEYS = "/api/admin/relay-keys";
+export const API_RELAY_KEY_OPTIONS = "/api/admin/relay-keys/options";
 export const apiRelayKeyDetail = (id: number) => `/api/admin/relay-keys/${id}`;
 export const apiRelayKeyReveal = (id: number) => `/api/admin/relay-keys/${id}/reveal`;
 export const apiRelayKeyRotate = (id: number) => `/api/admin/relay-keys/${id}/rotate`;

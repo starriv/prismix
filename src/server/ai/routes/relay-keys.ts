@@ -47,6 +47,14 @@ relayKeys.get("/", async (c) => {
   );
 });
 
+// ── Options (lightweight lookup for all keys — no secrets, no pagination) ──
+
+relayKeys.get("/options", async (c) => {
+  getAdminSession(c);
+  const options = await relayConsumerKeyRepo.findAllOptions();
+  return ok(c, options);
+});
+
 // ── Detail ────────────────────────────────────────────────────────────
 
 relayKeys.get("/:id", async (c) => {

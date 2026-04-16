@@ -31,7 +31,24 @@ export type ConsumerKeyWithUser = RelayConsumerKey & {
   userUuid: string | null;
 };
 
+/** Lightweight shape for lookup / options endpoints. */
+export type ConsumerKeyOption = { id: number; name: string; apiKeyPrefix: string };
+
 export const relayConsumerKeyRepo = {
+  /** All keys as lightweight options (id + name + prefix). No secrets, no pagination. */
+  async findAllOptions(): Promise<ConsumerKeyOption[]> {
+    return queryAll(
+      db
+        .select({
+          id: relayConsumerKeys.id,
+          name: relayConsumerKeys.name,
+          apiKeyPrefix: relayConsumerKeys.apiKeyPrefix,
+        })
+        .from(relayConsumerKeys)
+        .orderBy(desc(relayConsumerKeys.createdAt)),
+    );
+  },
+
   async findAllOrdered(): Promise<RelayConsumerKey[]> {
     return queryAll(db.select().from(relayConsumerKeys).orderBy(desc(relayConsumerKeys.createdAt)));
   },

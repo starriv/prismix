@@ -7,7 +7,7 @@ import type {
   AiUsageByKey,
   AiUsageRecord,
   AiUsageSummary,
-  RelayConsumerKey,
+  RelayKeyOption,
 } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
@@ -16,7 +16,7 @@ import { Button } from "@/web/components/ui/button";
 
 import { formatTokens, StatusBadge } from "./helpers";
 
-type KeyMap = Record<number, RelayConsumerKey | undefined>;
+type KeyMap = Record<number, RelayKeyOption | undefined>;
 type ProviderRow = AiUsageSummary["byProvider"][number];
 type ModelRow = AiUsageSummary["byModel"][number];
 

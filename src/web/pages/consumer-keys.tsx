@@ -13,7 +13,7 @@ import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import {
   useCreateRelayKey,
   useDeleteRelayKey,
-  useRelayKeys,
+  useRelayKeyList,
   useRevealRelayKey,
 } from "@/web/api/hooks";
 import type { RelayConsumerKey } from "@/web/api/schemas";
@@ -66,7 +66,7 @@ export default function ConsumerKeysPage() {
     pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const { data: keys = [], isLoading } = useRelayKeys({
+  const { data: keys = [], isLoading } = useRelayKeyList({
     prefix: appliedPrefix || undefined,
     userUuid: appliedUserUuid || undefined,
     page: pagination.pageIndex,

@@ -284,6 +284,13 @@ export const relayConsumerKeySchema = z.object({
 });
 export type RelayConsumerKey = z.infer<typeof relayConsumerKeySchema>;
 
+export const relayKeyOptionSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  apiKeyPrefix: z.string(),
+});
+export type RelayKeyOption = z.infer<typeof relayKeyOptionSchema>;
+
 export const discoveredModelSchema = z.object({
   modelId: z.string(),
   name: z.string(),

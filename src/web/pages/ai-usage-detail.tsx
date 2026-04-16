@@ -22,7 +22,7 @@ import {
   useAiUsageDailyByKey,
   useAiUsageRecentByKey,
   useAiUsageSummaryByKey,
-  useRelayKeys,
+  useRelayKeyOptions,
 } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
@@ -45,7 +45,7 @@ export default function AiUsageDetailPage() {
   const [searchParams] = useSearchParams();
   const keyId = Number(searchParams.get("key"));
 
-  const { data: relayKeys = [] } = useRelayKeys();
+  const { data: relayKeys = [] } = useRelayKeyOptions();
   const keyInfo = relayKeys.find((k) => k.id === keyId);
 
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummaryByKey(
