@@ -77,11 +77,22 @@ export const aiUpstreamsOverviewSchema = z.object({
     totalUpstreams: z.number(),
     enabledUpstreams: z.number(),
     activeUpstreams24h: z.number(),
-    degradedUpstreams24h: z.number(),
+    degradedUpstreams30m: z.number(),
   }),
   upstreams: z.array(aiUpstreamOverviewItemSchema),
 });
 export type AiUpstreamsOverview = z.infer<typeof aiUpstreamsOverviewSchema>;
+
+// ── AI Upstream Hourly (time-series for chart) ─────────────────
+
+export const aiUpstreamHourlyRowSchema = z.object({
+  hour: z.string(),
+  requests: z.number(),
+  clientErrors: z.number(),
+  serverErrors: z.number(),
+  avgLatencyMs: z.number(),
+});
+export type AiUpstreamHourlyRow = z.infer<typeof aiUpstreamHourlyRowSchema>;
 
 // ── AI Upstream Detail (single upstream + provider assignments) ───
 

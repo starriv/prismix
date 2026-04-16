@@ -70,14 +70,19 @@ router.get("/upstreams/overview", async (c) => {
     const totalErrors = (usage?.clientErrors24h ?? 0) + (usage?.serverErrors24h ?? 0);
     const errorRate24h = usage && usage.requests24h > 0 ? totalErrors / usage.requests24h : 0;
 
+    // Health determined by a 30-minute sliding window.
+    const recentRequests = usage?.recentRequests ?? 0;
+    const recentErrorRate =
+      recentRequests > 0 ? (usage?.recentTotalErrors ?? 0) / recentRequests : 0;
+
     let healthStatus: "healthy" | "degraded" | "idle" | "no-key" | "disabled";
     if (!upstream.enabled) {
       healthStatus = "disabled";
     } else if ((keyStat?.enabledKeys ?? 0) === 0) {
       healthStatus = "no-key";
-    } else if (!usage || usage.requests24h === 0) {
+    } else if (recentRequests === 0) {
       healthStatus = "idle";
-    } else if ((usage.serverErrors24h ?? 0) > 0 || errorRate24h >= 0.2) {
+    } else if ((usage?.recentServerErrors ?? 0) > 0 || recentErrorRate >= 0.2) {
       healthStatus = "degraded";
     } else {
       healthStatus = "healthy";
@@ -113,7 +118,7 @@ router.get("/upstreams/overview", async (c) => {
       totalUpstreams: items.length,
       enabledUpstreams: items.filter((i) => i.enabled).length,
       activeUpstreams24h: items.filter((i) => i.requests24h > 0).length,
-      degradedUpstreams24h: items.filter((i) => i.healthStatus === "degraded").length,
+      degradedUpstreams30m: items.filter((i) => i.healthStatus === "degraded").length,
     },
     upstreams: items,
   });
@@ -199,6 +204,19 @@ router.delete("/upstreams/:id", async (c) => {
 
   log.auth.info({ upstreamId: existing.upstreamId }, "Global upstream deleted");
   return ok(c, { success: true });
+});
+
+router.get("/upstreams/:id/hourly", async (c) => {
+  getAdminSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
+
+  const upstream = await aiUpstreamRepo.findById(id);
+  if (!upstream) return c.json({ error: "Upstream not found" }, 404);
+
+  const hours = Math.min(Math.max(Number(c.req.query("hours")) || 24, 1), 72);
+  const rows = await aiUsageLogRepo.hourlyByUpstream(id, hours);
+  return ok(c, rows);
 });
 
 router.get("/upstreams/:id/recent", async (c) => {

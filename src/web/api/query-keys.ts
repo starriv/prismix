@@ -143,6 +143,8 @@ export const queryKeys = {
   aiUpstreamsOverview: (hours: number) => ["app", "ai-upstreams-overview", hours] as const,
   aiUpstreamDetailPrefix: () => ["app", "ai-upstream-detail"] as const,
   aiUpstreamDetail: (id: number) => ["app", "ai-upstream-detail", id] as const,
+  aiUpstreamHourly: (id: number, hours: number) =>
+    ["app", "ai-upstream-hourly", id, hours] as const,
   aiUpstreamRecent: (id: number, limit: number) =>
     ["app", "ai-upstream-recent", id, limit] as const,
   aiModels: () => ["app", "ai-models-all"] as const,

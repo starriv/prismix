@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { enUS, zhCN } from "date-fns/locale";
-import { orderBy } from "lodash-es";
+import { orderBy, sumBy } from "lodash-es";
 import {
   Activity,
   AlertTriangle,
@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
 import { match } from "ts-pattern";
 import { z } from "zod";
@@ -29,13 +30,18 @@ import { z } from "zod";
 import { removeTailingZero, safeMultipliedBy } from "@/shared/number";
 import {
   useAiUpstreamDetail,
+  useAiUpstreamHourly,
   useAiUpstreamRecent,
   useAiUpstreamsOverview,
   useCreateAiUpstream,
   useDeleteAiUpstream,
   useUpdateAiUpstream,
 } from "@/web/api/hooks";
-import type { AiUpstreamDetailAssignment, AiUpstreamOverviewItem } from "@/web/api/schemas";
+import type {
+  AiUpstreamDetailAssignment,
+  AiUpstreamHourlyRow,
+  AiUpstreamOverviewItem,
+} from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { StatCard } from "@/web/components/dashboard/stat-card";
 import {
@@ -47,7 +53,20 @@ import {
 } from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/web/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/web/components/ui/card";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/web/components/ui/chart";
 import {
   Dialog,
   DialogBody,
@@ -236,7 +255,7 @@ export default function AiUpstreamsPage() {
               />
               <StatCard
                 title={t("ai-upstreams.stats.degraded")}
-                value={String(data?.totals.degradedUpstreams24h ?? 0)}
+                value={String(data?.totals.degradedUpstreams30m ?? 0)}
                 subtitle={t("ai-upstreams.stats.degraded-subtitle")}
                 icon={ShieldAlert}
               />
@@ -493,6 +512,7 @@ function UpstreamDetail({
     isLoading: detailIsLoading,
     refetch: refetchDetail,
   } = useAiUpstreamDetail(upstream.id);
+  const { data: hourly = [] } = useAiUpstreamHourly(upstream.id, 24, 30_000);
   const { data: recent = [], isLoading: recentLoading } = useAiUpstreamRecent(
     upstream.id,
     10,
@@ -718,6 +738,9 @@ function UpstreamDetail({
         </CardContent>
       </Card>
 
+      {/* ── Health Trend Chart ── */}
+      <UpstreamHealthChart data={hourly} />
+
       {/* ── Provider Assignments ── */}
       <Card>
         <CardHeader className="pb-3">
@@ -761,6 +784,144 @@ function UpstreamDetail({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Health Trend Chart ──────────────────────────────────────────────
+
+type HealthMetric = "requests" | "errors" | "avgLatencyMs";
+
+function UpstreamHealthChart({ data }: { data: AiUpstreamHourlyRow[] }) {
+  const { t } = useTranslation();
+  const [activeMetric, setActiveMetric] = useState<HealthMetric>("requests");
+
+  const chartConfig = useMemo(
+    () =>
+      ({
+        requests: { label: t("ai-upstreams.detail.chart-requests"), color: "var(--chart-1)" },
+        errors: { label: t("ai-upstreams.detail.chart-errors"), color: "var(--chart-5)" },
+        avgLatencyMs: { label: t("ai-upstreams.detail.chart-latency"), color: "var(--chart-2)" },
+      }) satisfies ChartConfig,
+    [t],
+  );
+
+  const chartData = useMemo(
+    () =>
+      data.map((row) => {
+        const hourDate = new Date(row.hour);
+        const hasValidHour = !Number.isNaN(hourDate.getTime());
+
+        return {
+          ...row,
+          errors: row.clientErrors + row.serverErrors,
+          label: hasValidHour ? format(hourDate, "HH:mm") : "--:--",
+          tooltipLabel: hasValidHour ? format(hourDate, "yyyy-MM-dd HH:mm") : row.hour,
+        };
+      }),
+    [data],
+  );
+
+  const totals = useMemo(() => {
+    const totalRequests = sumBy(data, "requests");
+
+    return {
+      requests: totalRequests,
+      errors: sumBy(data, "clientErrors") + sumBy(data, "serverErrors"),
+      avgLatencyMs:
+        totalRequests > 0
+          ? Math.round(
+              data.reduce((total, row) => total + row.requests * row.avgLatencyMs, 0) /
+                totalRequests,
+            )
+          : 0,
+    };
+  }, [data]);
+
+  const handleToggle = useCallback(
+    (metric: HealthMetric) => () => {
+      setActiveMetric(metric);
+    },
+    [],
+  );
+
+  const formatTotal = useCallback(
+    (metric: HealthMetric, value: number) =>
+      match(metric)
+        .with("avgLatencyMs", () => (value > 0 ? `${value}ms` : "-"))
+        .otherwise(() => value.toLocaleString()),
+    [],
+  );
+
+  return (
+    <Card className="py-0">
+      <CardHeader className="flex flex-col items-stretch border-b !p-0 sm:flex-row">
+        <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-4 pb-3 sm:!py-0">
+          <CardTitle className="text-sm">{t("ai-upstreams.detail.health-trend-title")}</CardTitle>
+          <CardDescription className="text-xs">
+            {t("ai-upstreams.detail.health-trend-desc")}
+          </CardDescription>
+        </div>
+        <div className="flex">
+          {(
+            [
+              ["requests", t("ai-upstreams.detail.chart-requests")],
+              ["errors", t("ai-upstreams.detail.chart-errors")],
+              ["avgLatencyMs", t("ai-upstreams.detail.chart-latency")],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              data-active={activeMetric === key}
+              className="relative flex flex-1 flex-col justify-center gap-1 border-t px-4 py-4 text-left even:border-l data-[active=true]:bg-muted/50 sm:border-t-0 sm:border-l sm:px-6 sm:py-6"
+              onClick={handleToggle(key)}
+            >
+              <span className="text-xs text-muted-foreground">{label}</span>
+              <span className="text-lg font-bold leading-none tabular-nums sm:text-3xl">
+                {formatTotal(key, totals[key])}
+              </span>
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="px-2 sm:p-6">
+        <ChartContainer config={chartConfig} className="aspect-auto h-[250px] w-full">
+          <AreaChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}>
+            <defs>
+              <linearGradient id="fill-upstream-active" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={`var(--color-${activeMetric})`} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={`var(--color-${activeMetric})`} stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={32}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(_value, payload) => {
+                    const item = payload[0]?.payload as { tooltipLabel?: string } | undefined;
+                    return item?.tooltipLabel ?? "";
+                  }}
+                />
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey={activeMetric}
+              stroke={`var(--color-${activeMetric})`}
+              fill="url(#fill-upstream-active)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
   );
 }
 

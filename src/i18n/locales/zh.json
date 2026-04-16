@@ -2662,8 +2662,8 @@
       "enabled-subtitle": "当前可参与调度",
       "active": "24h 活跃",
       "active-subtitle": "最近 24 小时有请求",
-      "degraded": "24h 异常",
-      "degraded-subtitle": "最近 24 小时错误偏高"
+      "degraded": "30m 异常",
+      "degraded-subtitle": "最近 30 分钟错误偏高"
     },
     "table": {
       "title": "上游状态"
@@ -2744,7 +2744,12 @@
       "tokens": "Token",
       "latency": "延迟",
       "status": "状态",
-      "time": "时间"
+      "time": "时间",
+      "health-trend-title": "健康趋势",
+      "health-trend-desc": "最近 24 小时的请求量、错误数和延迟趋势",
+      "chart-requests": "请求数",
+      "chart-errors": "错误数",
+      "chart-latency": "平均延迟"
     }
   },
   "consumer-keys": {

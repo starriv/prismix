@@ -2662,8 +2662,8 @@
       "enabled-subtitle": "Eligible for routing now",
       "active": "Active 24h",
       "active-subtitle": "Received traffic in the last 24 hours",
-      "degraded": "Degraded 24h",
-      "degraded-subtitle": "Elevated error rate in the last 24 hours"
+      "degraded": "Degraded 30m",
+      "degraded-subtitle": "Elevated error rate in the last 30 minutes"
     },
     "table": {
       "title": "Upstream Status"
@@ -2744,7 +2744,12 @@
       "tokens": "Tokens",
       "latency": "Latency",
       "status": "Status",
-      "time": "Time"
+      "time": "Time",
+      "health-trend-title": "Health Trend",
+      "health-trend-desc": "Hourly request volume, errors, and latency over the last 24 hours",
+      "chart-requests": "Requests",
+      "chart-errors": "Errors",
+      "chart-latency": "Avg Latency"
     }
   },
   "consumer-keys": {

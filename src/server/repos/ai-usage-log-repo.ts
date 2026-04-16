@@ -1,7 +1,7 @@
 /**
  * AI Usage Log repository — append-only writes + queries for `ai_usage_logs` table.
  */
-import { and, count, desc, eq, gte, inArray, isNotNull, lte, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, sum } from "drizzle-orm";
 
 import {
   type AiUsageLog,
@@ -93,6 +93,14 @@ export interface AiOwnerUsageTotals {
   upstreamCost: string;
 }
 
+export interface UpstreamHourlyRow {
+  hour: string;
+  requests: number;
+  clientErrors: number;
+  serverErrors: number;
+  avgLatencyMs: number;
+}
+
 export interface UpstreamUsageOverviewRow {
   upstreamId: number;
   upstreamName: string | null;
@@ -103,9 +111,79 @@ export interface UpstreamUsageOverviewRow {
   totalTokens24h: number;
   avgLatencyMs24h: number;
   lastSeenAt: string | null;
+  /** Requests in the last 30 minutes (health-check window). */
+  recentRequests: number;
+  /** 5xx errors in the last 30 minutes (health-check window). */
+  recentServerErrors: number;
+  /** Total errors (4xx+5xx) in the last 30 minutes (health-check window). */
+  recentTotalErrors: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
+
+function floorToUtcHour(value: Date): Date {
+  const date = new Date(value);
+  date.setUTCMinutes(0, 0, 0);
+  return date;
+}
+
+function addUtcHours(value: Date, hours: number): Date {
+  const date = new Date(value);
+  date.setUTCHours(date.getUTCHours() + hours);
+  return date;
+}
+
+export function buildUpstreamHourlySeries(
+  rows: Array<{
+    hour: Date | string | null;
+    requests: number | string | null;
+    clientErrors: number | string | null;
+    serverErrors: number | string | null;
+    avgLatencyMs: number | string | null;
+  }>,
+  hours: number,
+  now = new Date(),
+): UpstreamHourlyRow[] {
+  const bucketCount = Math.max(Math.trunc(hours), 1);
+  const endHour = floorToUtcHour(now);
+  const startHour = addUtcHours(endHour, -(bucketCount - 1));
+
+  const rowsByHour = new Map<string, UpstreamHourlyRow>(
+    rows.flatMap((row) => {
+      if (!row.hour) return [];
+
+      const hourDate = row.hour instanceof Date ? row.hour : new Date(row.hour);
+      if (Number.isNaN(hourDate.getTime())) return [];
+
+      const hour = floorToUtcHour(hourDate).toISOString();
+      return [
+        [
+          hour,
+          {
+            hour,
+            requests: Number(row.requests ?? 0),
+            clientErrors: Number(row.clientErrors ?? 0),
+            serverErrors: Number(row.serverErrors ?? 0),
+            avgLatencyMs: Math.round(Number(row.avgLatencyMs ?? 0)),
+          } satisfies UpstreamHourlyRow,
+        ] as const,
+      ];
+    }),
+  );
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const hour = addUtcHours(startHour, index).toISOString();
+    return (
+      rowsByHour.get(hour) ?? {
+        hour,
+        requests: 0,
+        clientErrors: 0,
+        serverErrors: 0,
+        avgLatencyMs: 0,
+      }
+    );
+  });
+}
 
 interface UsageFilters {
   consumerKeyId?: number;
@@ -215,6 +293,7 @@ export const aiUsageLogRepo = {
 
   async upstreamOverview(hours = 24): Promise<UpstreamUsageOverviewRow[]> {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const recent30m = sql`NOW() - interval '30 minutes'`;
     const rows = await queryAll<{
       upstreamId: number | null;
       upstreamName: string | null;
@@ -225,6 +304,9 @@ export const aiUsageLogRepo = {
       totalTokens24h: string | null;
       avgLatencyMs24h: string | null;
       lastSeenAt: Date | string | null;
+      recentRequests: number;
+      recentServerErrors: number;
+      recentTotalErrors: number;
     }>(
       db
         .select({
@@ -237,6 +319,9 @@ export const aiUsageLogRepo = {
           totalTokens24h: sum(aiUsageLogs.totalTokens),
           avgLatencyMs24h: sql<string>`AVG(${aiUsageLogs.latencyMs})`,
           lastSeenAt: sql<Date | string | null>`MAX(${aiUsageLogs.createdAt})`,
+          recentRequests: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.createdAt} >= ${recent30m})`,
+          recentServerErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${recent30m})`,
+          recentTotalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${recent30m})`,
         })
         .from(aiUsageLogs)
         .where(and(isNotNull(aiUsageLogs.upstreamId), gte(aiUsageLogs.createdAt, since)))
@@ -256,6 +341,9 @@ export const aiUsageLogRepo = {
         avgLatencyMs24h: Math.round(Number(row.avgLatencyMs24h ?? 0)),
         lastSeenAt:
           row.lastSeenAt instanceof Date ? row.lastSeenAt.toISOString() : (row.lastSeenAt ?? null),
+        recentRequests: Number(row.recentRequests ?? 0),
+        recentServerErrors: Number(row.recentServerErrors ?? 0),
+        recentTotalErrors: Number(row.recentTotalErrors ?? 0),
       }));
   },
 
@@ -590,5 +678,41 @@ export const aiUsageLogRepo = {
         .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
         .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
     );
+  },
+
+  /** Hourly usage breakdown for a single upstream (time-series chart). */
+  async hourlyByUpstream(upstreamId: number, hours = 24): Promise<UpstreamHourlyRow[]> {
+    const bucketCount = Math.max(Math.trunc(hours), 1);
+    const endHour = floorToUtcHour(new Date());
+    const startHour = addUtcHours(endHour, -(bucketCount - 1));
+
+    const rows = await queryAll<{
+      hour: Date | string | null;
+      requests: number | string | null;
+      clientErrors: number | string | null;
+      serverErrors: number | string | null;
+      avgLatencyMs: number | string | null;
+    }>(
+      db
+        .select({
+          hour: sql<Date | string>`date_trunc('hour', ${aiUsageLogs.createdAt})`,
+          requests: count(),
+          clientErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500)`,
+          serverErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600)`,
+          avgLatencyMs: sql<string>`COALESCE(AVG(${aiUsageLogs.latencyMs}), 0)`,
+        })
+        .from(aiUsageLogs)
+        .where(
+          and(
+            eq(aiUsageLogs.upstreamId, upstreamId),
+            gte(aiUsageLogs.createdAt, startHour),
+            lt(aiUsageLogs.createdAt, addUtcHours(endHour, 1)),
+          ),
+        )
+        .groupBy(sql`date_trunc('hour', ${aiUsageLogs.createdAt})`)
+        .orderBy(sql`date_trunc('hour', ${aiUsageLogs.createdAt})`),
+    );
+
+    return buildUpstreamHourlySeries(rows, bucketCount, endHour);
   },
 };

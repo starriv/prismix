@@ -37,6 +37,7 @@ import {
   apiAiSyncPricesApply,
   apiAiSyncPricesPreview,
   apiAiUpstreamDetail,
+  apiAiUpstreamHourly,
   apiAiUpstreamRecent,
   apiAiUsageRequest,
   apiRelayKeyDetail,
@@ -56,6 +57,7 @@ import {
   aiRequestLogSchema,
   aiUpstreamAssignmentSchema,
   aiUpstreamDetailSchema,
+  aiUpstreamHourlyRowSchema,
   aiUpstreamSchema,
   aiUpstreamsOverviewSchema,
   aiUsageByKeySchema,
@@ -177,6 +179,20 @@ export function useAiUpstreamRecent(
   return useQuery({
     queryKey: queryKeys.aiUpstreamRecent(id ?? 0, limit),
     queryFn: () => get(`${apiAiUpstreamRecent(id!)}?limit=${limit}`, z.array(aiUsageRecordSchema)),
+    enabled: !!id,
+    refetchInterval,
+  });
+}
+
+export function useAiUpstreamHourly(
+  id: number | null,
+  hours = 24,
+  refetchInterval?: number | false,
+) {
+  return useQuery({
+    queryKey: queryKeys.aiUpstreamHourly(id ?? 0, hours),
+    queryFn: () =>
+      get(`${apiAiUpstreamHourly(id!)}?hours=${hours}`, z.array(aiUpstreamHourlyRowSchema)),
     enabled: !!id,
     refetchInterval,
   });
