@@ -6,6 +6,7 @@ import { ArrowLeft, DollarSign, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { removeTailingZero } from "@/shared/number";
+import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import {
   useDeleteKeyProvider,
   useKeyProviderKeys,
@@ -39,8 +40,8 @@ import { buildAiUsageRecentColumns } from "@/web/pages/ai-usage/columns";
 import { KEY_PROVIDER_STATUS_COLORS } from "./constants";
 import { TransactionList } from "./transaction-list";
 
-const KEY_PAGE_SIZE = 20;
-const RECENT_PAGE_SIZE = 10;
+const KEY_PAGE_SIZE = DEFAULT_PAGE_SIZE;
+const RECENT_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 export function KeyProviderDetailPage({
   providerId,
@@ -420,7 +421,7 @@ export function KeyProviderDetailPage({
               providerId={summary.id}
               keyLabels={keyLabels}
               paginated
-              previewCount={20}
+              previewCount={DEFAULT_PAGE_SIZE}
             />
 
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

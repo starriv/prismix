@@ -236,8 +236,8 @@ admin.get("/wallet/hot-wallet", async (c) => {
 
 // GET /wallet/deposits — all on-chain deposit transactions
 admin.get("/wallet/deposits", async (c) => {
-  const limit = Number(c.req.query("limit") ?? 50);
-  const offset = Number(c.req.query("offset") ?? 0);
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
   const { payAgentTransactionRepo } = await import("@/server/repos");
   const rows = await payAgentTransactionRepo.findFiltered(
     { type: "top_up", source: "on_chain" },
@@ -249,7 +249,7 @@ admin.get("/wallet/deposits", async (c) => {
 
 // GET /topup-orders — all top-up orders (enriched with owner uuid)
 admin.get("/topup-orders", async (c) => {
-  const limit = parsePaginationLimit(c.req.query("limit"), 50, 100);
+  const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
   const status = c.req.query("status") || undefined;
 
@@ -421,8 +421,8 @@ admin.put("/topup-orders/:id/reject", async (c) => {
 
 // GET /wallet/withdrawals — all withdrawal orders
 admin.get("/wallet/withdrawals", async (c) => {
-  const limit = Number(c.req.query("limit") ?? 50);
-  const offset = Number(c.req.query("offset") ?? 0);
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
   const status = c.req.query("status") || undefined;
   const userUuid = c.req.query("userUuid") || undefined;
   const { withdrawOrderRepo } = await import("@/server/repos");

@@ -12,7 +12,7 @@ import { createConsumerKeyBody, updateProfileBody } from "@/server/lib/body-sche
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { ensureUserAgent } from "@/server/lib/wallet";
 import { getUserSession } from "@/server/middleware/auth";
 import {
@@ -354,8 +354,8 @@ user.get("/usage/error-daily", async (c) => {
 // GET /logs — AI request logs (paginated, filterable)
 user.get("/logs", async (c) => {
   const session = getUserSession(c);
-  const limit = Math.min(Number(c.req.query("limit") ?? 10), 100);
-  const offset = Math.max(Number(c.req.query("offset") ?? 0), 0);
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
   const modelId = c.req.query("modelId") || undefined;
   const rawStatusClass = c.req.query("statusClass");
   const statusClass: "4xx" | "5xx" | undefined =

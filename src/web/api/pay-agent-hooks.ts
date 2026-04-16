@@ -217,12 +217,9 @@ export function usePayAgentResources(agentId: number | null) {
 export function useTopupOrders(params?: { status?: string; page?: number }) {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set("status", params.status);
-  if (params?.page) {
-    searchParams.set("limit", String(DEFAULT_PAGE_SIZE));
-    searchParams.set("offset", String(params.page * DEFAULT_PAGE_SIZE));
-  }
-  const qs = searchParams.toString();
-  const url = qs ? `${API_TOPUP_ORDERS}?${qs}` : API_TOPUP_ORDERS;
+  searchParams.set("limit", String(DEFAULT_PAGE_SIZE));
+  searchParams.set("offset", String((params?.page ?? 0) * DEFAULT_PAGE_SIZE));
+  const url = `${API_TOPUP_ORDERS}?${searchParams}`;
 
   return useQuery({
     queryKey: queryKeys.topupOrders(params),

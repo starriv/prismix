@@ -12,7 +12,7 @@ import { createConsumerKeyBody, updateConsumerKeyBody } from "@/server/lib/body-
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { ensureAgentWallet, ensureUserAgent } from "@/server/lib/wallet";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
@@ -34,9 +34,10 @@ relayKeys.get("/", async (c) => {
   const prefix = c.req.query("prefix")?.trim() || undefined;
   const userUuid = c.req.query("userUuid")?.trim() || undefined;
   const page = Math.max(0, Number(c.req.query("page") ?? 0));
-  const limit = 200;
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset")) || page * limit;
 
-  const keys = await relayConsumerKeyRepo.findFiltered(limit, page * limit, { prefix, userUuid });
+  const keys = await relayConsumerKeyRepo.findFiltered(limit, offset, { prefix, userUuid });
   return ok(
     c,
     keys.map(({ apiKeyHash: _h, encryptedKey: _e, ...rest }) => ({

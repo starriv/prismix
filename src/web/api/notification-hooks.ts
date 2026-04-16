@@ -88,12 +88,9 @@ export function useNotificationLogs(params?: {
   if (params?.event) searchParams.set("event", params.event);
   if (params?.channel) searchParams.set("channel", params.channel);
   if (params?.status) searchParams.set("status", params.status);
-  if (params?.page) {
-    searchParams.set("limit", String(DEFAULT_PAGE_SIZE));
-    searchParams.set("offset", String(params.page * DEFAULT_PAGE_SIZE));
-  }
-  const qs = searchParams.toString();
-  const url = qs ? `${API_NOTIFICATION_LOGS}?${qs}` : API_NOTIFICATION_LOGS;
+  searchParams.set("limit", String(DEFAULT_PAGE_SIZE));
+  searchParams.set("offset", String((params?.page ?? 0) * DEFAULT_PAGE_SIZE));
+  const url = `${API_NOTIFICATION_LOGS}?${searchParams}`;
 
   return useQuery({
     queryKey: queryKeys.notificationLogs(params),

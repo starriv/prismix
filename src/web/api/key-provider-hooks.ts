@@ -10,6 +10,7 @@ import {
   apiKeyProviderKeys,
   apiKeyProviderRecent,
   apiKeyProviderSummary,
+  DEFAULT_PAGE_SIZE,
 } from "./constants";
 import { queryKeys } from "./query-keys";
 import type { CreateKeyProviderBody } from "./schemas";
@@ -45,7 +46,7 @@ export function useKeyProviderKeys(
     offset?: number;
   },
 ) {
-  const limit = opts?.limit ?? 20;
+  const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
   const offset = opts?.offset ?? 0;
   return useQuery({
     queryKey: queryKeys.keyProviderKeys(providerId ?? 0, limit, offset),
@@ -143,7 +144,7 @@ export function useKeyProviderTxns(
     offset?: number;
   },
 ) {
-  const limit = opts?.limit ?? 50;
+  const limit = opts?.limit ?? DEFAULT_PAGE_SIZE;
   const offset = opts?.offset ?? 0;
   return useQuery({
     queryKey: queryKeys.keyProviderTxns(providerId, limit, offset),

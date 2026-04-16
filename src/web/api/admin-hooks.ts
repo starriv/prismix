@@ -458,18 +458,11 @@ export function useAdminWithdrawals(params?: {
   const qs = new URLSearchParams();
   if (params?.status && params.status !== "all") qs.set("status", params.status);
   if (params?.userUuid) qs.set("userUuid", params.userUuid);
-  if (params?.page) {
-    qs.set("offset", String(params.page * DEFAULT_PAGE_SIZE));
-    qs.set("limit", String(DEFAULT_PAGE_SIZE));
-  }
-  const query = qs.toString();
+  qs.set("limit", String(DEFAULT_PAGE_SIZE));
+  qs.set("offset", String((params?.page ?? 0) * DEFAULT_PAGE_SIZE));
   return useQuery({
     queryKey: queryKeys.adminWithdrawals(params),
-    queryFn: () =>
-      adminGet(
-        query ? `${API_ADMIN_WITHDRAWALS}?${query}` : API_ADMIN_WITHDRAWALS,
-        z.array(withdrawOrderSchema),
-      ),
+    queryFn: () => adminGet(`${API_ADMIN_WITHDRAWALS}?${qs}`, z.array(withdrawOrderSchema)),
   });
 }
 

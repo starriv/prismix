@@ -59,14 +59,17 @@ export function parseIntParam(value: string | undefined): number | null {
   return n;
 }
 
+/** Server-side default page size — keep in sync with web `DEFAULT_PAGE_SIZE`. */
+export const DEFAULT_PAGE_LIMIT = 10;
+
 /**
  * Parse a pagination `limit` parameter with a maximum cap.
  * Returns the default if the value is missing or invalid.
  */
 export function parsePaginationLimit(
   value: string | undefined,
-  defaultLimit = 50,
-  maxLimit = 200,
+  defaultLimit = DEFAULT_PAGE_LIMIT,
+  maxLimit = 100,
 ): number {
   const n = parseIntParam(value);
   if (n === null) return defaultLimit;

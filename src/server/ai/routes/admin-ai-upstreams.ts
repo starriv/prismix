@@ -8,7 +8,7 @@ import { emit } from "@/server/events";
 import { createAiUpstreamBody, updateAiUpstreamBody } from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
   aiKeyRepo,
@@ -209,7 +209,7 @@ router.get("/upstreams/:id/recent", async (c) => {
   const upstream = await aiUpstreamRepo.findById(id);
   if (!upstream) return c.json({ error: "Upstream not found" }, 404);
 
-  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 10, 1), 50);
+  const limit = parsePaginationLimit(c.req.query("limit"));
   const logs = await aiUsageLogRepo.findAll(limit, 0, { upstreamId: id });
   return ok(c, logs);
 });

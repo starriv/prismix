@@ -793,7 +793,8 @@ export function useRelayKeys(params?: { prefix?: string; userUuid?: string; page
   if (params?.prefix) qs.set("prefix", params.prefix);
   if (params?.userUuid) qs.set("userUuid", params.userUuid);
   if (params?.page) qs.set("page", String(params.page));
-  const url = qs.size ? `${API_RELAY_KEYS}?${qs}` : API_RELAY_KEYS;
+  qs.set("limit", String(DEFAULT_PAGE_SIZE));
+  const url = `${API_RELAY_KEYS}?${qs}`;
 
   return useQuery({
     queryKey: queryKeys.relayKeys(params),

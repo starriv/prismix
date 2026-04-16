@@ -298,7 +298,7 @@ wallet.get("/topup", async (c) => {
   const agentId = await resolveAgentId(c);
   if (!agentId) return c.json({ error: "No wallet found for this account" }, 404);
 
-  const limit = parsePaginationLimit(c.req.query("limit"), 20, 100);
+  const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
   const status = c.req.query("status") || undefined;
 
@@ -471,7 +471,7 @@ wallet.post("/deposit/verify", async (c) => {
 wallet.get("/transactions", async (c) => {
   const agentId = await resolveAgentId(c);
   if (!agentId) return c.json({ error: "No wallet found for this account" }, 404);
-  const limit = parsePaginationLimit(c.req.query("limit"), 20, 100);
+  const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
   const type = c.req.query("type") || undefined;
 
@@ -576,7 +576,7 @@ wallet.post("/withdraw", async (c) => {
 
 wallet.get("/withdrawals", async (c) => {
   const session = getUserSession(c);
-  const limit = parsePaginationLimit(c.req.query("limit"), 20, 100);
+  const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
   const excludeStatus = c.req.query("excludeStatus");
 
