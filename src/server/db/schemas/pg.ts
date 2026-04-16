@@ -575,17 +575,41 @@ export const aiModels = pgTable(
   "ai_models",
   {
     id: serial("id").primaryKey(),
-    providerId: integer("provider_id")
-      .notNull()
-      .references(() => aiProviders.id, { onDelete: "cascade" }),
-    modelId: text("model_id").notNull(), // slug: "gpt-4o", "claude-sonnet-4-20250514"
+    providerId: integer("provider_id").references(() => aiProviders.id, {
+      onDelete: "set null",
+    }), // legacy — nullable, kept for migration; use ai_model_routes instead
+    modelId: text("model_id").notNull().unique(), // slug: "gpt-4o", "claude-sonnet-4-20250514"
     name: text("name").notNull(), // display name
     contextWindow: integer("context_window"), // max tokens
     inputPrice: text("input_price").notNull().default("0"), // per 1M tokens
     outputPrice: text("output_price").notNull().default("0"), // per 1M tokens
     capabilities: text("capabilities").notNull().default("[]"), // JSON array: ["chat","vision","tools","streaming"]
     fallbackModelIds: text("fallback_model_ids"), // JSON array of model_id slugs for fallback chain, nullable
-    weight: integer("weight").notNull().default(1), // load balancing weight (higher = more traffic)
+    weight: integer("weight").notNull().default(1), // load balancing weight for fallback shuffling
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("idx_ai_models_model_id").on(t.modelId)],
+);
+
+export const aiModelRoutes = pgTable(
+  "ai_model_routes",
+  {
+    id: serial("id").primaryKey(),
+    modelId: integer("model_id")
+      .notNull()
+      .references(() => aiModels.id, { onDelete: "cascade" }),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => aiProviders.id, { onDelete: "cascade" }),
+    providerModelId: text("provider_model_id"), // actual slug sent upstream; null = use model.modelId
+    priority: integer("priority").notNull().default(100), // lower = tried first
+    weight: integer("weight").notNull().default(1), // for weighted-random within same priority
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -595,8 +619,9 @@ export const aiModels = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    unique().on(t.providerId, t.modelId),
-    index("idx_ai_models_provider_id").on(t.providerId),
+    unique().on(t.modelId, t.providerId),
+    index("idx_ai_model_routes_model_id").on(t.modelId),
+    index("idx_ai_model_routes_provider_id").on(t.providerId),
   ],
 );
 
@@ -785,6 +810,8 @@ export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;
 export type NewAiUpstreamAssignment = typeof aiUpstreamAssignments.$inferInsert;
 export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
+export type AiModelRoute = typeof aiModelRoutes.$inferSelect;
+export type NewAiModelRoute = typeof aiModelRoutes.$inferInsert;
 export type AiKey = typeof aiKeys.$inferSelect;
 export type NewAiKey = typeof aiKeys.$inferInsert;
 export type AiGuardrailConfig = typeof aiGuardrailConfigs.$inferSelect;

@@ -1,46 +1,45 @@
-import { useCallback } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { parseAsInteger, useQueryState } from "nuqs";
 
-import { useAiKeys, useAiProviders } from "@/web/api/hooks";
-import type { AiProvider } from "@/web/api/schemas";
+import { useAiModelsList, useAiProviders } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 
-import { ProviderGrid } from "./provider-grid";
-import { ProviderModelList } from "./provider-model-list";
+import { ModelList } from "./model-list";
+import { ModelRoutesSheet } from "./model-routes-sheet";
 
 export default function AiModelsPage() {
   const { t } = useTranslation();
-  const { data: providers = [], isLoading: providersLoading } = useAiProviders();
-  const { data: keys = [] } = useAiKeys();
-  const [providerId, setProviderId] = useQueryState("providerId", parseAsInteger);
+  const { data: models = [], isLoading } = useAiModelsList();
+  const { data: providers = [] } = useAiProviders();
+  const [routeModelId, setRouteModelId] = useQueryState("routeModel", parseAsInteger);
 
-  // Only show providers that are enabled AND have at least one API key configured
-  const providerIdsWithKeys = new Set(keys.filter((k) => k.enabled).map((k) => k.providerId));
-  const enabledProviders = providers.filter((p) => p.enabled && providerIdsWithKeys.has(p.id));
-
-  // Resolve provider from query string — must be in the enabled list
-  const selectedProvider = enabledProviders.find((p) => p.id === providerId) ?? null;
-
-  const handleBack = useCallback(() => setProviderId(null), [setProviderId]);
-  const handleSelect = useCallback((p: AiProvider) => setProviderId(p.id), [setProviderId]);
+  const routeModel = models.find((m) => m.id === routeModelId) ?? null;
 
   return (
     <div>
       <Header title={t("ai-models.title")} description={t("ai-models.desc")} />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
-        {selectedProvider ? (
-          <ProviderModelList provider={selectedProvider} onBack={handleBack} />
-        ) : (
-          <ProviderGrid
-            providers={enabledProviders}
-            loading={providersLoading}
-            onSelect={handleSelect}
-          />
-        )}
+        <ModelList
+          models={models}
+          providers={providers}
+          loading={isLoading}
+          onManageRoutes={(m) => setRouteModelId(m.id)}
+        />
       </div>
+
+      {routeModel && (
+        <ModelRoutesSheet
+          open={!!routeModel}
+          onOpenChange={(v) => {
+            if (!v) setRouteModelId(null);
+          }}
+          model={routeModel}
+          providers={providers}
+        />
+      )}
     </div>
   );
 }

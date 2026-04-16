@@ -18,6 +18,7 @@ import { getRequestId } from "@/server/middleware/request-id";
 import {
   aiGuardrailConfigRepo,
   aiModelRepo,
+  aiModelRouteRepo,
   payAgentRepo,
   payAgentTransactionRepo,
 } from "@/server/repos";
@@ -27,6 +28,7 @@ import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-lo
 import { billConsumer, calculateConsumerCost } from "../lib/billing";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
+import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { safeParseGuardrailRules } from "../lib/safe-json";
@@ -210,9 +212,11 @@ async function handleChatCompletions(
     log.gateway.warn({ err }, "Guardrail evaluation failed — proceeding without guardrails");
   }
 
-  // -- 4. Resolve model --
-  const primary = await aiModelRepo.findEnabledByModelId(body.model);
-  if (!primary) {
+  // -- 4. Resolve model via routes --
+  const routes = orderRoutesByPriorityAndWeight(
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model),
+  );
+  if (routes.length === 0) {
     return respondWithConsumerError(c, consumer, requestId, start, 404, {
       error: `Model "${body.model}" not found or disabled`,
     });
@@ -227,47 +231,9 @@ async function handleChatCompletions(
     if (cached) return c.json(cached);
   }
 
-  // -- 6. Resolve key --
-  const provider = primary.provider;
-  const model = primary.model;
+  // -- 6. Resolve key across all routes (multi-provider failover) --
+  const model = routes[0].model;
 
-  if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
-    return respondWithConsumerError(
-      c,
-      consumer,
-      requestId,
-      start,
-      400,
-      { error: "Bedrock streaming is not supported yet" },
-      { providerId: provider.providerId, modelId: model.modelId },
-    );
-  }
-
-  const adapter = getAdapter(provider.apiFormat);
-  if (!adapter) {
-    return respondWithConsumerError(
-      c,
-      consumer,
-      requestId,
-      start,
-      500,
-      { error: `Unsupported provider format: ${provider.apiFormat}` },
-      { providerId: provider.providerId, modelId: model.modelId },
-    );
-  }
-
-  // -- 7. Build upstream request --
-  // Inject stream_options at route level (belt-and-suspenders with adapter.transformRequest)
-  // so OpenAI-compatible providers return usage in SSE chunks regardless of client config.
-  const candidateBody = {
-    ...body,
-    model: model.modelId,
-    ...(body.stream ? { stream_options: { include_usage: true } } : {}),
-  } as unknown as OpenAIChatBody;
-  const transformedBody = adapter.transformRequest(candidateBody);
-  const serializedBody = JSON.stringify(transformedBody);
-
-  // Resolve all upstream candidates upfront for fallback retry
   interface ResolvedUpstream {
     keyId: number;
     authHeaders: Record<string, string>;
@@ -275,33 +241,59 @@ async function handleChatCompletions(
     upstreamId: number | null;
     upstreamName: string;
     upstreamBaseUrl: string;
+    providerId: string;
+    serializedBody: string;
+    adapter: ReturnType<typeof getAdapter>;
   }
   const resolvedUpstreams: ResolvedUpstream[] = [];
-  for (const upstream of await resolveUpstreamCandidates(provider)) {
-    const key = await pickKey(provider.id, upstream.id);
-    if (!key) continue;
-    try {
-      const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-      const upstreamUrl = adapter.buildUrl(upstream.baseUrl, {
-        model: model.modelId,
-        stream: !!body.stream,
-      });
-      const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-        provider,
-        plainKey,
-        upstreamUrl,
-        serializedBody,
-      );
-      resolvedUpstreams.push({
-        keyId: key.id,
-        authHeaders,
-        finalUrl,
-        upstreamId: upstream.id,
-        upstreamName: upstream.name,
-        upstreamBaseUrl: upstream.baseUrl,
-      });
-    } catch {
-      continue;
+
+  for (const { route, provider, model: routeModel } of routes) {
+    const providerModelId = route.providerModelId ?? routeModel.modelId;
+
+    if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+      continue; // skip unsupported streaming routes
+    }
+
+    const adapter = getAdapter(provider.apiFormat);
+    if (!adapter) continue;
+
+    const candidateBody = {
+      ...body,
+      model: providerModelId,
+      ...(body.stream ? { stream_options: { include_usage: true } } : {}),
+    } as unknown as OpenAIChatBody;
+    const transformedBody = adapter.transformRequest(candidateBody);
+    const serializedBody = JSON.stringify(transformedBody);
+
+    for (const upstream of await resolveUpstreamCandidates(provider)) {
+      const key = await pickKey(provider.id, upstream.id);
+      if (!key) continue;
+      try {
+        const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+        const upstreamUrl = adapter.buildUrl(upstream.baseUrl, {
+          model: providerModelId,
+          stream: !!body.stream,
+        });
+        const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
+          provider,
+          plainKey,
+          upstreamUrl,
+          serializedBody,
+        );
+        resolvedUpstreams.push({
+          keyId: key.id,
+          authHeaders,
+          finalUrl,
+          upstreamId: upstream.id,
+          upstreamName: upstream.name,
+          upstreamBaseUrl: upstream.baseUrl,
+          providerId: provider.providerId,
+          serializedBody,
+          adapter,
+        });
+      } catch {
+        continue;
+      }
     }
   }
   if (resolvedUpstreams.length === 0) {
@@ -311,8 +303,8 @@ async function handleChatCompletions(
       requestId,
       start,
       403,
-      { error: `No API key configured for provider "${provider.name}"` },
-      { providerId: provider.providerId, modelId: model.modelId },
+      { error: "No API key configured for any provider route" },
+      { modelId: model.modelId },
     );
   }
 
@@ -335,7 +327,7 @@ async function handleChatCompletions(
         start,
         429,
         { error: "Daily spending limit exceeded", limit: consumer.dailyLimit, spent: spentToday },
-        { keyId: selected.keyId, providerId: provider.providerId, modelId: model.modelId },
+        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
       );
     }
   }
@@ -353,7 +345,7 @@ async function handleChatCompletions(
           limit: consumer.monthlyLimit,
           spent: spentMonth,
         },
-        { keyId: selected.keyId, providerId: provider.providerId, modelId: model.modelId },
+        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
       );
     }
   }
@@ -368,7 +360,7 @@ async function handleChatCompletions(
     // Create fresh meta per iteration — shared reference would race with async stream callbacks
     const meta: StreamRelayMeta = {
       keyId: selected.keyId,
-      providerId: provider.providerId,
+      providerId: selected.providerId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -377,7 +369,7 @@ async function handleChatCompletions(
       start,
       inputPrice: model.inputPrice,
       outputPrice: model.outputPrice,
-      requestBody: logEnabled ? serializedBody : undefined,
+      requestBody: logEnabled ? selected.serializedBody : undefined,
     };
 
     // -- 9a. Streaming path --
@@ -387,10 +379,10 @@ async function handleChatCompletions(
         const upstreamRes = await fetchUpstream(
           selected.finalUrl,
           streamingHeaders,
-          serializedBody,
+          selected.serializedBody,
           timeouts.upstreamFetchMs,
           {
-            provider: provider.providerId,
+            provider: selected.providerId,
             route: "chat",
           },
         );
@@ -412,12 +404,12 @@ async function handleChatCompletions(
             { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
             {
               keyId: selected.keyId,
-              providerId: provider.providerId,
+              providerId: selected.providerId,
               modelId: model.modelId,
               upstreamId: selected.upstreamId,
               upstreamName: selected.upstreamName,
               upstreamBaseUrl: selected.upstreamBaseUrl,
-              requestBody: logEnabled ? serializedBody : undefined,
+              requestBody: logEnabled ? selected.serializedBody : undefined,
             },
           );
         }
@@ -430,7 +422,7 @@ async function handleChatCompletions(
             latencyMs,
             consumer,
             keyId: billSelected.keyId,
-            providerId: provider.providerId,
+            providerId: selected.providerId,
             modelId: model.modelId,
             upstreamId: billSelected.upstreamId,
             upstreamName: billSelected.upstreamName,
@@ -439,12 +431,12 @@ async function handleChatCompletions(
             outputPrice: model.outputPrice,
             requestId,
             statusCode: 200,
-            requestBody: logEnabled ? serializedBody : undefined,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
             responseBody: rawResponse,
           });
         };
 
-        return forwardStream(c, upstreamRes, adapter, meta, onComplete, timeouts);
+        return forwardStream(c, upstreamRes, selected.adapter!, meta, onComplete, timeouts);
       } catch (err) {
         markKeyFailure(selected.keyId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
@@ -463,11 +455,11 @@ async function handleChatCompletions(
           ...selected.authHeaders,
           ...passthroughHeaders,
         },
-        body: serializedBody,
+        body: selected.serializedBody,
         signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
       });
       gatewayUpstreamDuration.observe(
-        { provider: provider.providerId, route: "chat", phase: "response" },
+        { provider: selected.providerId, route: "chat", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
     } catch (err) {
@@ -494,12 +486,12 @@ async function handleChatCompletions(
         { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
         {
           keyId: selected.keyId,
-          providerId: provider.providerId,
+          providerId: selected.providerId,
           modelId: model.modelId,
           upstreamId: selected.upstreamId,
           upstreamName: selected.upstreamName,
           upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? serializedBody : undefined,
+          requestBody: logEnabled ? selected.serializedBody : undefined,
         },
       );
     }
@@ -518,18 +510,18 @@ async function handleChatCompletions(
         { error: "Failed to parse upstream response" },
         {
           keyId: selected.keyId,
-          providerId: provider.providerId,
+          providerId: selected.providerId,
           modelId: model.modelId,
           upstreamId: selected.upstreamId,
           upstreamName: selected.upstreamName,
           upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? serializedBody : undefined,
+          requestBody: logEnabled ? selected.serializedBody : undefined,
         },
       );
     }
 
-    const transformed = adapter.transformResponse(responseBody);
-    const usage = adapter.extractUsage(responseBody);
+    const transformed = selected.adapter!.transformResponse(responseBody);
+    const usage = selected.adapter!.extractUsage(responseBody);
     const latencyMs = Date.now() - start;
     markKeySuccess(selected.keyId);
 
@@ -556,12 +548,12 @@ async function handleChatCompletions(
         },
         {
           keyId: selected.keyId,
-          providerId: provider.providerId,
+          providerId: selected.providerId,
           modelId: model.modelId,
           upstreamId: selected.upstreamId,
           upstreamName: selected.upstreamName,
           upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? serializedBody : undefined,
+          requestBody: logEnabled ? selected.serializedBody : undefined,
           estimatedCost: costStr,
           upstreamCost: removeTailingZero(upstreamCost, 6),
         },
@@ -585,12 +577,12 @@ async function handleChatCompletions(
           },
           {
             keyId: selected.keyId,
-            providerId: provider.providerId,
+            providerId: selected.providerId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
             upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? serializedBody : undefined,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
             estimatedCost: costStr,
             upstreamCost: removeTailingZero(upstreamCost, 6),
           },
@@ -614,12 +606,12 @@ async function handleChatCompletions(
           },
           {
             keyId: selected.keyId,
-            providerId: provider.providerId,
+            providerId: selected.providerId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
             upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? serializedBody : undefined,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
             estimatedCost: costStr,
             upstreamCost: removeTailingZero(upstreamCost, 6),
           },
@@ -664,12 +656,12 @@ async function handleChatCompletions(
           { error: "Agent balance exhausted. Please top up the pay-agent." },
           {
             keyId: selected.keyId,
-            providerId: provider.providerId,
+            providerId: selected.providerId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
             upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? serializedBody : undefined,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
             estimatedCost: costStr,
             upstreamCost: removeTailingZero(upstreamCost, 6),
           },
@@ -682,7 +674,7 @@ async function handleChatCompletions(
       keyId: selected.keyId,
       consumerKeyId: consumer.consumerId,
       userId: consumer.userId,
-      providerId: provider.providerId,
+      providerId: selected.providerId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -707,7 +699,7 @@ async function handleChatCompletions(
         requestId,
         consumerKeyId: consumer.consumerId,
         modelId: model.modelId,
-        requestBody: serializedBody,
+        requestBody: selected.serializedBody,
         responseBody: JSON.stringify(responseBody),
         createdAt: new Date().toISOString(),
       } as Record<string, unknown>);
@@ -739,12 +731,12 @@ async function handleChatCompletions(
     },
     {
       keyId: selected.keyId,
-      providerId: provider.providerId,
+      providerId: selected.providerId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
       upstreamBaseUrl: selected.upstreamBaseUrl,
-      requestBody: logEnabled ? serializedBody : undefined,
+      requestBody: logEnabled ? selected.serializedBody : undefined,
     },
   );
 }

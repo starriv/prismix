@@ -149,6 +149,23 @@ export const updateAiModelBody = z.object({
   enabled: z.boolean().optional(),
 });
 
+// ── AI: Model Routes ─────────────────────────────────────────────────
+
+export const createAiModelRouteBody = z.object({
+  providerId: z.number().int().positive(),
+  providerModelId: z.string().min(1).max(100).optional(),
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const updateAiModelRouteBody = z.object({
+  providerModelId: z.string().min(1).max(100).nullable().optional(),
+  priority: z.number().int().min(0).max(10000).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+});
+
 // ── AI: Keys ──────────────────────────────────────────────────────────
 
 export const createAiKeyBody = z.object({

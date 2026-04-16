@@ -15,6 +15,13 @@
       "when": 1776226815346,
       "tag": "0001_bumpy_mongoose",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776242408794,
+      "tag": "0002_purple_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

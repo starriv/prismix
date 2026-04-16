@@ -145,6 +145,8 @@ export const queryKeys = {
   aiUpstreamDetail: (id: number) => ["app", "ai-upstream-detail", id] as const,
   aiUpstreamRecent: (id: number, limit: number) =>
     ["app", "ai-upstream-recent", id, limit] as const,
+  aiModels: () => ["app", "ai-models-all"] as const,
+  aiModelRoutes: (modelId: number) => ["app", "ai-model-routes", modelId] as const,
   aiProviderModels: (providerId: number) => ["app", "ai-models", providerId] as const,
   aiKeys: () => ["app", "ai-keys"] as const,
   aiUsageSummary: () => ["app", "ai-usage-summary"] as const,

@@ -1,5 +1,7 @@
 export { aiKeyRepo } from "./ai-key-repo";
 export { aiModelRepo } from "./ai-model-repo";
+export { aiModelRouteRepo } from "./ai-model-route-repo";
+export type { EnabledRouteResult, RouteWithProvider } from "./ai-model-route-repo";
 export { aiProviderRepo } from "./ai-provider-repo";
 export { aiUpstreamRepo } from "./ai-upstream-repo";
 export { aiUpstreamAssignmentRepo } from "./ai-upstream-assignment-repo";

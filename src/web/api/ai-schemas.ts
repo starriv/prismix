@@ -101,9 +101,24 @@ export const aiUpstreamDetailSchema = aiUpstreamSchema.extend({
 });
 export type AiUpstreamDetail = z.infer<typeof aiUpstreamDetailSchema>;
 
-export const aiModelSchema = z.object({
+export const aiModelRouteSchema = z.object({
   id: z.number(),
   providerId: z.number(),
+  providerName: z.string().optional(),
+  providerIconUrl: z.string().nullable().optional(),
+  apiFormat: z.string().optional(),
+  providerModelId: z.string().nullable().optional(),
+  priority: z.number(),
+  weight: z.number(),
+  enabled: z.coerce.boolean(),
+  createdAt: z.string().or(z.number()).optional(),
+  updatedAt: z.string().or(z.number()).optional(),
+});
+export type AiModelRoute = z.infer<typeof aiModelRouteSchema>;
+
+export const aiModelSchema = z.object({
+  id: z.number(),
+  providerId: z.number().nullable().optional(), // legacy — nullable
   modelId: z.string(),
   name: z.string(),
   contextWindow: z.number().nullable().optional(),
@@ -111,6 +126,7 @@ export const aiModelSchema = z.object({
   outputPrice: z.string(),
   capabilities: z.array(z.string()),
   enabled: z.coerce.boolean(),
+  routes: z.array(aiModelRouteSchema).optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });

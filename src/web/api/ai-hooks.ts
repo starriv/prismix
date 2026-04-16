@@ -10,6 +10,7 @@ import {
   API_AI_ERROR_DAILY,
   API_AI_ERROR_OVERVIEW,
   API_AI_KEYS,
+  API_AI_MODELS,
   API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
   API_AI_REQUEST_LOGGING,
@@ -24,6 +25,8 @@ import {
   apiAiKeyDetail,
   apiAiKeyTest,
   apiAiModelDetail,
+  apiAiModelRouteDetail,
+  apiAiModelRoutes,
   apiAiProviderDetail,
   apiAiProviderKeys,
   apiAiProviderModels,
@@ -46,6 +49,7 @@ import {
   aiErrorDailySchema,
   aiErrorOverviewSchema,
   aiKeySchema,
+  aiModelRouteSchema,
   aiModelSchema,
   aiProviderSchema,
   aiRequestLogSchema,
@@ -404,6 +408,7 @@ export function useCreateAiModel() {
       post(apiAiProviderModels(providerId), body, aiModelSchema),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }
@@ -428,10 +433,15 @@ export function useBatchCreateAiModels() {
       post(
         apiAiProviderModelsBatch(providerId),
         { models },
-        z.object({ created: z.number(), models: z.array(aiModelSchema) }),
+        z.object({
+          created: z.number(),
+          linked: z.number().optional(),
+          models: z.array(aiModelSchema),
+        }),
       ),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }
@@ -443,10 +453,13 @@ export function useUpdateAiModel() {
       id,
       providerId: _pid,
       ...body
-    }: { id: number; providerId: number } & Partial<CreateAiModelBody>) =>
+    }: { id: number; providerId?: number | null } & Partial<CreateAiModelBody>) =>
       put(apiAiModelDetail(id), body, aiModelSchema),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.providerId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      }
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }
@@ -454,10 +467,13 @@ export function useUpdateAiModel() {
 export function useDeleteAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, providerId: _pid }: { id: number; providerId: number }) =>
+    mutationFn: ({ id, providerId: _pid }: { id: number; providerId?: number | null }) =>
       del(apiAiModelDetail(id), z.object({ success: z.boolean() })),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.providerId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      }
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }
@@ -465,10 +481,13 @@ export function useDeleteAiModel() {
 export function useBatchDeleteAiModels() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, providerId: _pid }: { ids: number[]; providerId: number }) =>
+    mutationFn: ({ ids, providerId: _pid }: { ids: number[]; providerId?: number | null }) =>
       post(API_AI_MODELS_BATCH_DELETE, { ids }, z.object({ deleted: z.number() })),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.providerId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      }
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }
@@ -495,6 +514,81 @@ export function useApplySyncPrices() {
       post(apiAiSyncPricesApply(providerId), { modelIds }, z.object({ synced: z.number() })),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
+    },
+  });
+}
+
+// ── AI Models (flat list with routes) ─────────────────────────────────
+
+export function useAiModelsList() {
+  return useQuery({
+    queryKey: queryKeys.aiModels(),
+    queryFn: () => get(API_AI_MODELS, z.array(aiModelSchema)),
+  });
+}
+
+// ── AI Model Routes ──────────────────────────────────────────────────
+
+export function useAiModelRoutes(modelId: number) {
+  return useQuery({
+    queryKey: queryKeys.aiModelRoutes(modelId),
+    queryFn: () => get(apiAiModelRoutes(modelId), z.array(aiModelRouteSchema)),
+    enabled: modelId > 0,
+  });
+}
+
+export function useCreateAiModelRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      modelId,
+      ...body
+    }: {
+      modelId: number;
+      providerId: number;
+      providerModelId?: string;
+      priority?: number;
+      weight?: number;
+      enabled?: boolean;
+    }) => post(apiAiModelRoutes(modelId), body, aiModelRouteSchema),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiModelRoutes(vars.modelId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
+    },
+  });
+}
+
+export function useUpdateAiModelRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      modelId,
+      routeId,
+      ...body
+    }: {
+      modelId: number;
+      routeId: number;
+      providerModelId?: string | null;
+      priority?: number;
+      weight?: number;
+      enabled?: boolean;
+    }) => put(apiAiModelRouteDetail(modelId, routeId), body, aiModelRouteSchema),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiModelRoutes(vars.modelId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
+    },
+  });
+}
+
+export function useDeleteAiModelRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ modelId, routeId }: { modelId: number; routeId: number }) =>
+      del(apiAiModelRouteDetail(modelId, routeId), z.object({ success: z.boolean() })),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiModelRoutes(vars.modelId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
 }

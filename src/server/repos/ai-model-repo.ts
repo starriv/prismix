@@ -16,66 +16,67 @@ import {
   returningOne,
 } from "@/server/db";
 
+import { aiModelRouteRepo } from "./ai-model-route-repo";
+
 export const aiModelRepo = {
+  /** Find models that have a route to this provider. */
   async findByProviderId(providerId: number): Promise<AiModel[]> {
-    return queryAll(db.select().from(aiModels).where(eq(aiModels.providerId, providerId)));
+    const routes = await aiModelRouteRepo.findByProviderId(providerId);
+    if (routes.length === 0) return [];
+    const modelPks = [...new Set(routes.map((r) => r.modelId))];
+    return queryAll(db.select().from(aiModels).where(inArray(aiModels.id, modelPks)));
   },
 
+  /** Find enabled models that have a route to this provider. */
   async findEnabledByProviderId(providerId: number): Promise<AiModel[]> {
-    return queryAll(
-      db
-        .select()
-        .from(aiModels)
-        .where(and(eq(aiModels.providerId, providerId), eq(aiModels.enabled, true))),
-    );
+    const models = await this.findByProviderId(providerId);
+    return models.filter((m) => m.enabled);
   },
 
   async findById(id: number): Promise<AiModel | undefined> {
     return queryOne(db.select().from(aiModels).where(eq(aiModels.id, id)));
   },
 
-  async findByProviderAndModelId(
-    providerId: number,
-    modelId: string,
-  ): Promise<AiModel | undefined> {
-    return queryOne(
-      db
-        .select()
-        .from(aiModels)
-        .where(and(eq(aiModels.providerId, providerId), eq(aiModels.modelId, modelId))),
-    );
+  async findByModelId(modelId: string): Promise<AiModel | undefined> {
+    return queryOne(db.select().from(aiModels).where(eq(aiModels.modelId, modelId)));
   },
 
-  /** Find an enabled model by model_id slug, joining with enabled providers. */
+  async findByModelIds(modelIds: string[]): Promise<AiModel[]> {
+    if (modelIds.length === 0) return [];
+    return queryAll(db.select().from(aiModels).where(inArray(aiModels.modelId, modelIds)));
+  },
+
+  /**
+   * Find an enabled model by model_id slug via route-based lookup.
+   * Returns the first (highest-priority) route's provider for backward compat.
+   */
   async findEnabledByModelId(
     modelId: string,
   ): Promise<{ model: AiModel; provider: AiProvider } | undefined> {
-    return queryOne<{ model: AiModel; provider: AiProvider }>(
-      db
-        .select({ model: aiModels, provider: aiProviders })
-        .from(aiModels)
-        .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
-        .where(
-          and(
-            eq(aiModels.modelId, modelId),
-            eq(aiModels.enabled, true),
-            eq(aiProviders.enabled, true),
-          ),
-        )
-        .limit(1),
-    );
+    const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(modelId);
+    if (routes.length === 0) return undefined;
+    return { model: routes[0].model, provider: routes[0].provider };
   },
 
-  /** All enabled models (for /v1/models catalog). */
+  /** All enabled models (for /v1/models catalog), deduplicated by modelId. */
   async findAllEnabled(): Promise<Array<{ model: AiModel; provider: AiProvider }>> {
-    return queryAll(
-      db
-        .select({ model: aiModels, provider: aiProviders })
-        .from(aiModels)
-        .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
-        .where(and(eq(aiModels.enabled, true), eq(aiProviders.enabled, true)))
-        .orderBy(aiModels.id),
+    const allModels = await queryAll<AiModel>(
+      db.select().from(aiModels).where(eq(aiModels.enabled, true)).orderBy(aiModels.id),
     );
+
+    const results: Array<{ model: AiModel; provider: AiProvider }> = [];
+    for (const m of allModels) {
+      const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(m.modelId);
+      if (routes.length > 0) {
+        results.push({ model: m, provider: routes[0].provider });
+      }
+    }
+    return results;
+  },
+
+  /** All models for admin surfaces, including disabled or currently unrouted rows. */
+  async findAll(): Promise<AiModel[]> {
+    return queryAll(db.select().from(aiModels).orderBy(aiModels.id));
   },
 
   async create(data: NewAiModel): Promise<AiModel> {

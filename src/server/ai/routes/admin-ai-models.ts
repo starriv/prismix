@@ -8,14 +8,16 @@ import { match } from "ts-pattern";
 import {
   batchCreateAiModelsBody,
   createAiModelBody,
+  createAiModelRouteBody,
   updateAiModelBody,
+  updateAiModelRouteBody,
 } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiModelRepo, aiProviderRepo } from "@/server/repos";
+import { aiKeyRepo, aiModelRepo, aiModelRouteRepo, aiProviderRepo } from "@/server/repos";
 
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
 import { buildProviderAuth } from "../lib/provider-auth";
@@ -175,8 +177,15 @@ router.post("/providers/:id/models", async (c) => {
   if (!parsed.ok) return parsed.response;
   const { capabilities, fallbackModelIds, ...rest } = parsed.data;
 
-  const existing = await aiModelRepo.findByProviderAndModelId(providerId, rest.modelId);
-  if (existing) return c.json({ error: "Model ID already exists for this provider" }, 409);
+  const existing = await aiModelRepo.findByModelId(rest.modelId);
+  if (existing) {
+    // Model exists — just ensure a route to this provider exists
+    const route = await aiModelRouteRepo.findByModelAndProvider(existing.id, providerId);
+    if (route) return c.json({ error: "Model already has a route to this provider" }, 409);
+    const newRoute = await aiModelRouteRepo.create({ modelId: existing.id, providerId });
+    log.auth.info({ modelId: existing.modelId, providerId }, "AI model route added");
+    return ok(c, formatModel(existing), 201);
+  }
 
   const created = await aiModelRepo.create({
     ...rest,
@@ -185,7 +194,10 @@ router.post("/providers/:id/models", async (c) => {
     fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
   });
 
-  log.auth.info({ modelId: created.modelId }, "AI model created");
+  // Auto-create route to this provider
+  await aiModelRouteRepo.create({ modelId: created.id, providerId });
+
+  log.auth.info({ modelId: created.modelId, providerId }, "AI model created with route");
   return ok(c, formatModel(created), 201);
 });
 
@@ -213,12 +225,37 @@ router.post("/providers/:id/models/batch", async (c) => {
     enabled: m.enabled ?? true,
   }));
 
-  const created = await aiModelRepo.batchCreate(rows);
-  log.auth.info(
-    { providerId, requested: rows.length, created: created.length },
-    "AI models batch created",
+  const existing = await aiModelRepo.findByModelIds(parsed.data.models.map((m) => m.modelId));
+  const existingByModelId = new Map(existing.map((model) => [model.modelId, model]));
+  const rowsToCreate = rows.filter((row) => !existingByModelId.has(row.modelId));
+  const created = await aiModelRepo.batchCreate(rowsToCreate);
+  const targetModelsByModelId = new Map(existingByModelId);
+
+  for (const model of created) {
+    targetModelsByModelId.set(model.modelId, model);
+  }
+
+  const routeTargets = parsed.data.models.flatMap((m) => {
+    const model = targetModelsByModelId.get(m.modelId);
+    return model ? [model] : [];
+  });
+  const linked = await aiModelRouteRepo.batchCreate(
+    routeTargets.map((model) => ({ modelId: model.id, providerId })),
   );
-  return ok(c, { created: created.length, models: created.map(formatModel) }, 201);
+
+  log.auth.info(
+    { providerId, requested: rows.length, created: created.length, linked: linked.length },
+    "AI models batch created with routes",
+  );
+  return ok(
+    c,
+    {
+      created: created.length,
+      linked: linked.length,
+      models: routeTargets.map(formatModel),
+    },
+    201,
+  );
 });
 
 // POST /providers/:id/models/sync-prices/preview — preview price diff from LiteLLM
@@ -324,10 +361,6 @@ router.put("/models/:id", async (c) => {
   const existing = await aiModelRepo.findById(id);
   if (!existing) return c.json({ error: "Model not found" }, 404);
 
-  // Verify provider exists
-  const provider = await aiProviderRepo.findById(existing.providerId);
-  if (!provider) return c.json({ error: "Model not found" }, 404);
-
   const parsed = await parseBody(c, updateAiModelBody);
   if (!parsed.ok) return parsed.response;
   const { capabilities, fallbackModelIds, ...rest } = parsed.data;
@@ -366,10 +399,127 @@ router.delete("/models/:id", async (c) => {
   const existing = await aiModelRepo.findById(id);
   if (!existing) return c.json({ error: "Model not found" }, 404);
 
-  const provider = await aiProviderRepo.findById(existing.providerId);
-  if (!provider) return c.json({ error: "Model not found" }, 404);
-
   await aiModelRepo.delete(id);
+  return ok(c, { success: true });
+});
+
+// ── Flat models list (with routes) ────────────────────────────────────
+
+router.get("/models", async (c) => {
+  getAdminSession(c);
+  const allModels = await aiModelRepo.findAll();
+
+  // For each model, fetch its routes
+  const results = await Promise.all(
+    allModels.map(async (model) => {
+      const routes = await aiModelRouteRepo.findByModelPk(model.id);
+      return {
+        ...formatModel(model),
+        routes: routes.map(({ route, provider }) => ({
+          id: route.id,
+          providerId: route.providerId,
+          providerName: provider.name,
+          providerIconUrl: provider.iconUrl,
+          providerModelId: route.providerModelId,
+          priority: route.priority,
+          weight: route.weight,
+          enabled: route.enabled,
+        })),
+      };
+    }),
+  );
+
+  return ok(c, results);
+});
+
+// ── Model Routes CRUD ─────────────────────────────────────────────────
+
+router.get("/models/:id/routes", async (c) => {
+  getAdminSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
+
+  const model = await aiModelRepo.findById(id);
+  if (!model) return c.json({ error: "Model not found" }, 404);
+
+  const routes = await aiModelRouteRepo.findByModelPk(id);
+  return ok(
+    c,
+    routes.map(({ route, provider }) => ({
+      id: route.id,
+      modelId: route.modelId,
+      providerId: route.providerId,
+      providerName: provider.name,
+      providerIconUrl: provider.iconUrl,
+      apiFormat: provider.apiFormat,
+      providerModelId: route.providerModelId,
+      priority: route.priority,
+      weight: route.weight,
+      enabled: route.enabled,
+      createdAt: route.createdAt,
+      updatedAt: route.updatedAt,
+    })),
+  );
+});
+
+router.post("/models/:id/routes", async (c) => {
+  getAdminSession(c);
+  const modelPk = Number(c.req.param("id"));
+  if (Number.isNaN(modelPk)) return c.json({ error: "Invalid id" }, 400);
+
+  const model = await aiModelRepo.findById(modelPk);
+  if (!model) return c.json({ error: "Model not found" }, 404);
+
+  const parsed = await parseBody(c, createAiModelRouteBody);
+  if (!parsed.ok) return parsed.response;
+
+  const provider = await aiProviderRepo.findById(parsed.data.providerId);
+  if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  const existing = await aiModelRouteRepo.findByModelAndProvider(modelPk, provider.id);
+  if (existing) return c.json({ error: "Route already exists for this provider" }, 409);
+
+  const route = await aiModelRouteRepo.create({
+    modelId: modelPk,
+    ...parsed.data,
+  });
+
+  log.auth.info({ modelId: model.modelId, providerId: provider.id }, "AI model route created");
+  return ok(c, route, 201);
+});
+
+router.put("/models/:id/routes/:routeId", async (c) => {
+  getAdminSession(c);
+  const modelPk = Number(c.req.param("id"));
+  const routeId = Number(c.req.param("routeId"));
+  if (Number.isNaN(modelPk) || Number.isNaN(routeId)) {
+    return c.json({ error: "Invalid id" }, 400);
+  }
+
+  const parsed = await parseBody(c, updateAiModelRouteBody);
+  if (!parsed.ok) return parsed.response;
+
+  const model = await aiModelRepo.findById(modelPk);
+  if (!model) return c.json({ error: "Model not found" }, 404);
+
+  const updated = await aiModelRouteRepo.updateForModel(modelPk, routeId, parsed.data);
+  if (!updated) return c.json({ error: "Route not found" }, 404);
+
+  return ok(c, updated);
+});
+
+router.delete("/models/:id/routes/:routeId", async (c) => {
+  getAdminSession(c);
+  const modelPk = Number(c.req.param("id"));
+  const routeId = Number(c.req.param("routeId"));
+  if (Number.isNaN(modelPk) || Number.isNaN(routeId)) return c.json({ error: "Invalid id" }, 400);
+
+  const model = await aiModelRepo.findById(modelPk);
+  if (!model) return c.json({ error: "Model not found" }, 404);
+
+  const deleted = await aiModelRouteRepo.deleteForModel(modelPk, routeId);
+  if (!deleted) return c.json({ error: "Route not found" }, 404);
+
   return ok(c, { success: true });
 });
 

@@ -2373,8 +2373,9 @@
   },
   "ai-models": {
     "title": "AI 模型",
-    "desc": "按供应商管理模型目录",
-    "empty": "此供应商暂无模型",
+    "desc": "管理模型目录与供应商路由",
+    "empty": "暂无已配置的模型",
+    "card-title": "模型目录",
     "no-providers": "暂无已配置的供应商",
     "btn": {
       "new": "添加模型",
@@ -2382,10 +2383,20 @@
       "add-selected": "添加 {{count}} 个模型",
       "sync-prices": "同步价格",
       "delete-selected": "删除 {{count}} 个模型",
-      "clean-zero-price": "清理无效定价"
+      "clean-zero-price": "清理无效定价",
+      "routes": "路由"
+    },
+    "filter": {
+      "all-providers": "所有供应商",
+      "no-routes": "无路由",
+      "all-status": "全部状态",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "search-ph": "搜索模型…"
     },
     "th": {
       "model-id": "模型 ID",
+      "routes": "路由",
       "name": "名称",
       "input-price": "输入价格",
       "output-price": "输出价格",
@@ -2400,6 +2411,8 @@
       "input-price": "输入价格 (/1M tokens)",
       "output-price": "输出价格 (/1M tokens)",
       "price-ph": "0.00",
+      "provider": "供应商",
+      "provider-ph": "选择供应商以发现模型",
       "capabilities": "能力",
       "capabilities-ph": "chat, vision, tools, streaming",
       "enabled": "启用"
@@ -2442,6 +2455,40 @@
       "create-error": "创建模型失败",
       "update-error": "更新模型失败",
       "delete-error": "删除模型失败"
+    },
+    "routes": {
+      "title": "供应商路由",
+      "desc": "配置哪些供应商提供此模型。优先级数值越小越先尝试。",
+      "empty": "暂无路由配置。添加供应商路由以启用此模型。",
+      "btn": {
+        "add": "添加路由",
+        "routes": "路由"
+      },
+      "th": {
+        "priority": "优先级",
+        "provider": "供应商",
+        "provider-model-id": "上游模型",
+        "weight": "权重"
+      },
+      "form": {
+        "provider-ph": "选择供应商",
+        "provider-model-id-hint": "留空则使用模型自身的 ID",
+        "priority-hint": "数值越小优先级越高（优先尝试）"
+      },
+      "dialog": {
+        "add-title": "添加供应商路由",
+        "delete-title": "移除路由",
+        "delete-body": "移除到 {{provider}} 的路由？此模型将不再通过该供应商提供服务。"
+      },
+      "toast": {
+        "created": "路由已添加",
+        "deleted": "路由已移除",
+        "updated": "路由已更新"
+      },
+      "inline": {
+        "click-to-edit": "点击编辑",
+        "default-model": "默认 ({{modelId}})"
+      }
     }
   },
   "user-models": {

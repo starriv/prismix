@@ -136,8 +136,12 @@ export const apiAiSyncPricesPreview = (id: number) =>
   `/api/admin/ai/providers/${id}/models/sync-prices/preview`;
 export const apiAiSyncPricesApply = (id: number) =>
   `/api/admin/ai/providers/${id}/models/sync-prices/apply`;
+export const API_AI_MODELS = "/api/admin/ai/models";
 export const apiAiModelDetail = (id: number) => `/api/admin/ai/models/${id}`;
 export const API_AI_MODELS_BATCH_DELETE = "/api/admin/ai/models/batch-delete";
+export const apiAiModelRoutes = (modelId: number) => `/api/admin/ai/models/${modelId}/routes`;
+export const apiAiModelRouteDetail = (modelId: number, routeId: number) =>
+  `/api/admin/ai/models/${modelId}/routes/${routeId}`;
 export const apiAiDiscoverModels = (id: number) => `/api/admin/ai/providers/${id}/discover-models`;
 export const API_AI_KEYS = "/api/admin/ai/keys";
 export const apiAiKeyDetail = (id: number) => `/api/admin/ai/keys/${id}`;

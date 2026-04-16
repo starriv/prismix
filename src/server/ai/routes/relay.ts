@@ -17,12 +17,13 @@ import { weightedShuffle } from "@/server/lib/weighted-shuffle";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { getAdminSession } from "@/server/middleware/auth";
 import { getRequestId } from "@/server/middleware/request-id";
-import { aiGuardrailConfigRepo, aiModelRepo } from "@/server/repos";
+import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
+import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
@@ -135,25 +136,12 @@ relay.post("/v1/chat/completions", async (c) => {
     }
   }
 
-  // -- 2. Build candidate chain (primary + fallbacks) --
-  const primary = await aiModelRepo.findEnabledByModelId(body.model);
-  if (!primary) {
+  // -- 2. Build candidate chain via model routes (primary + fallbacks) --
+  const candidates = await buildCandidateChain(body.model);
+  if (candidates.length === 0) {
     return respondWithRelayError(c, requestId, start, 404, {
       error: `Model "${body.model}" not found or disabled`,
     });
-  }
-
-  const candidates = await buildCandidateChain(primary.model, primary.provider);
-
-  if (isUnsupportedStreamingCandidate(body.stream, primary.provider.apiFormat)) {
-    return respondWithRelayError(
-      c,
-      requestId,
-      start,
-      400,
-      { error: "Bedrock streaming is not supported yet" },
-      { providerId: primary.provider.providerId, modelId: primary.model.modelId },
-    );
   }
 
   // -- 3. Try each candidate (fallback loop) --
@@ -174,7 +162,7 @@ relay.post("/v1/chat/completions", async (c) => {
     // Inject stream_options at route level so OpenAI-compatible providers return usage in SSE chunks.
     const candidateBody = {
       ...body,
-      model: candidate.model.modelId,
+      model: candidate.providerModelId,
       ...(body.stream ? { stream_options: { include_usage: true } } : {}),
     } as unknown as OpenAIChatBody;
     // Get adapter early to transform body before auth
@@ -387,7 +375,10 @@ relay.post("/v1/chat/completions", async (c) => {
     start,
     502,
     { error: "All models failed", detail: lastError?.message ?? "No suitable key found" },
-    { providerId: primary.provider.providerId, modelId: primary.model.modelId },
+    {
+      providerId: candidates[0]?.provider.providerId ?? null,
+      modelId: candidates[0]?.model.modelId ?? body.model,
+    },
   );
 });
 
@@ -643,6 +634,8 @@ export default relay;
 interface Candidate {
   model: AiModel;
   provider: AiProvider;
+  /** Actual model slug sent to the upstream provider (may differ from model.modelId). */
+  providerModelId: string;
 }
 
 interface KeyMeta {
@@ -660,30 +653,62 @@ interface ResolvedCandidate {
 }
 
 /**
- * Build weighted candidate list: primary + fallbacks, ordered by weighted random selection.
- * Candidates with weight=0 are excluded. Higher weight = higher probability of being first.
+ * Build candidate list via model routes: each route maps a model to a provider.
+ * Routes are sorted by priority ASC (from repo). After route-level candidates,
+ * cross-model fallbacks (fallbackModelIds) are appended — each resolved through
+ * their own routes.
  */
-async function buildCandidateChain(
-  primaryModel: AiModel,
-  primaryProvider: AiProvider,
-): Promise<Candidate[]> {
-  const pool: Candidate[] = [{ model: primaryModel, provider: primaryProvider }];
+async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
+  const routes = orderRoutesByPriorityAndWeight(
+    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId),
+  );
+  if (routes.length === 0) return [];
 
-  // Collect fallbacks
+  // Append cross-model fallbacks (orthogonal to route-level failover)
+  const primaryModel = routes[0].model;
+  const primaryCandidates =
+    (primaryModel.weight ?? 1) > 0
+      ? routes.map((r) => ({
+          model: r.model,
+          provider: r.provider,
+          providerModelId: r.route.providerModelId ?? r.model.modelId,
+        }))
+      : [];
+  const fallbackGroups: Array<{ model: AiModel; candidates: Candidate[] }> = [];
+
   if (primaryModel.fallbackModelIds) {
     const fallbackIds = safeParseJsonArray(primaryModel.fallbackModelIds, "fallbackModelIds");
-    for (const modelId of fallbackIds) {
-      const result = await aiModelRepo.findEnabledByModelId(modelId);
-      if (result) pool.push({ model: result.model, provider: result.provider });
+    const seenFallbackIds = new Set<string>();
+
+    for (const fbModelId of fallbackIds) {
+      if (seenFallbackIds.has(fbModelId)) continue;
+      seenFallbackIds.add(fbModelId);
+
+      const fbRoutes = orderRoutesByPriorityAndWeight(
+        await aiModelRouteRepo.findEnabledRoutesByModelId(fbModelId),
+      );
+      if (fbRoutes.length === 0) continue;
+
+      const fallbackModel = fbRoutes[0].model;
+      if ((fallbackModel.weight ?? 1) <= 0) continue;
+
+      fallbackGroups.push({
+        model: fallbackModel,
+        candidates: fbRoutes.map((fbr) => ({
+          model: fbr.model,
+          provider: fbr.provider,
+          providerModelId: fbr.route.providerModelId ?? fbr.model.modelId,
+        })),
+      });
     }
   }
 
-  // Filter out weight=0 candidates
-  const weighted = pool.filter((c) => (c.model.weight ?? 1) > 0);
-  if (weighted.length <= 1) return weighted;
-
-  // Weighted shuffle: pick candidates in probability-weighted order
-  return weightedShuffle(weighted, (c) => c.model.weight ?? 1);
+  return [
+    ...primaryCandidates,
+    ...weightedShuffle(fallbackGroups, (group) => group.model.weight ?? 1).flatMap(
+      (group) => group.candidates,
+    ),
+  ];
 }
 
 /** Resolve key, auth headers, and URL for a candidate model. */
@@ -709,7 +734,10 @@ async function resolveCandidate(
       continue;
     }
 
-    const upstreamUrl = adapter.buildUrl(upstream.baseUrl, { model: model.modelId, stream });
+    const upstreamUrl = adapter.buildUrl(upstream.baseUrl, {
+      model: candidate.providerModelId,
+      stream,
+    });
     const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
       provider,
       plainKey,

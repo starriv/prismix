@@ -2373,8 +2373,9 @@
   },
   "ai-models": {
     "title": "AI Models",
-    "desc": "Manage model catalog per provider",
-    "empty": "No models for this provider",
+    "desc": "Manage model catalog and provider routes",
+    "empty": "No models configured",
+    "card-title": "Model Catalog",
     "no-providers": "No providers configured",
     "btn": {
       "new": "Add Model",
@@ -2382,10 +2383,20 @@
       "add-selected": "Add {{count}} Models",
       "sync-prices": "Sync Prices",
       "delete-selected": "Delete {{count}} Models",
-      "clean-zero-price": "Clean Invalid Pricing"
+      "clean-zero-price": "Clean Invalid Pricing",
+      "routes": "Routes"
+    },
+    "filter": {
+      "all-providers": "All Providers",
+      "no-routes": "No Routes",
+      "all-status": "All Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "search-ph": "Search models…"
     },
     "th": {
       "model-id": "Model ID",
+      "routes": "Routes",
       "name": "Name",
       "input-price": "Input Price",
       "output-price": "Output Price",
@@ -2400,6 +2411,8 @@
       "input-price": "Input Price (/1M tokens)",
       "output-price": "Output Price (/1M tokens)",
       "price-ph": "0.00",
+      "provider": "Provider",
+      "provider-ph": "Select a provider to discover models",
       "capabilities": "Capabilities",
       "capabilities-ph": "chat, vision, tools, streaming",
       "enabled": "Enabled"
@@ -2442,6 +2455,40 @@
       "create-error": "Failed to create model",
       "update-error": "Failed to update model",
       "delete-error": "Failed to delete model"
+    },
+    "routes": {
+      "title": "Provider Routes",
+      "desc": "Configure which providers serve this model. Lower priority = tried first.",
+      "empty": "No routes configured. Add a provider route to enable this model.",
+      "btn": {
+        "add": "Add Route",
+        "routes": "Routes"
+      },
+      "th": {
+        "priority": "Priority",
+        "provider": "Provider",
+        "provider-model-id": "Upstream Model",
+        "weight": "Weight"
+      },
+      "form": {
+        "provider-ph": "Select a provider",
+        "provider-model-id-hint": "Leave empty to use the model's own ID",
+        "priority-hint": "Lower value = higher priority (tried first)"
+      },
+      "dialog": {
+        "add-title": "Add Provider Route",
+        "delete-title": "Remove Route",
+        "delete-body": "Remove the route to {{provider}}? The model will no longer be served via this provider."
+      },
+      "toast": {
+        "created": "Route added",
+        "deleted": "Route removed",
+        "updated": "Route updated"
+      },
+      "inline": {
+        "click-to-edit": "Click to edit",
+        "default-model": "Default ({{modelId}})"
+      }
     }
   },
   "user-models": {
