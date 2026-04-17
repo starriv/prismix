@@ -5,6 +5,7 @@ export type { EnabledRouteResult, RouteWithProvider } from "./ai-model-route-rep
 export { aiProviderRepo } from "./ai-provider-repo";
 export { aiUpstreamRepo } from "./ai-upstream-repo";
 export { aiUpstreamAssignmentRepo } from "./ai-upstream-assignment-repo";
+export { aiUpstreamModelMappingRepo } from "./ai-upstream-model-mapping-repo";
 export type { AssignmentWithUpstream } from "./ai-upstream-assignment-repo";
 export { aiGuardrailConfigRepo } from "./ai-guardrail-config-repo";
 export { aiUsageLogRepo } from "./ai-usage-log-repo";

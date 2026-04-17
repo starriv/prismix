@@ -109,6 +109,17 @@ export const aiUpstreamDetailAssignmentSchema = z.object({
 });
 export type AiUpstreamDetailAssignment = z.infer<typeof aiUpstreamDetailAssignmentSchema>;
 
+export const aiUpstreamModelMappingSchema = z.object({
+  id: z.number(),
+  upstreamId: z.number(),
+  sourceModelId: z.string(),
+  mappedModelId: z.string(),
+  enabled: z.coerce.boolean(),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiUpstreamModelMapping = z.infer<typeof aiUpstreamModelMappingSchema>;
+
 export const aiUpstreamDetailSchema = aiUpstreamSchema.extend({
   assignments: z.array(aiUpstreamDetailAssignmentSchema),
 });

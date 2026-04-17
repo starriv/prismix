@@ -23,6 +23,7 @@ import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
+import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
@@ -171,14 +172,20 @@ relay.post("/v1/chat/completions", async (c) => {
     const transformedBody = adapter.transformRequest(candidateBody);
     const serializedBody = JSON.stringify(transformedBody);
 
-    const attempts = await resolveCandidate(candidate, adapter, !!body.stream, serializedBody);
+    const attempts = await resolveCandidate(
+      candidate,
+      adapter,
+      !!body.stream,
+      serializedBody,
+      candidateBody,
+    );
     if (attempts.length === 0) continue;
 
     for (const attempt of attempts) {
       if (totalAttempts >= MAX_UPSTREAM_ATTEMPTS) break;
       totalAttempts++;
 
-      const { finalUrl, authHeaders, keyMeta } = attempt;
+      const { finalUrl, authHeaders, keyMeta, serializedBody: attemptBody } = attempt;
       const passthroughHeaders = extractPassthroughHeaders(c);
 
       const meta: StreamRelayMeta = {
@@ -189,7 +196,7 @@ relay.post("/v1/chat/completions", async (c) => {
         start,
         inputPrice: candidate.model.inputPrice,
         outputPrice: candidate.model.outputPrice,
-        requestBody: logEnabled ? serializedBody : undefined,
+        requestBody: logEnabled ? attemptBody : undefined,
       };
 
       // -- Cache check (non-streaming only) --
@@ -206,7 +213,7 @@ relay.post("/v1/chat/completions", async (c) => {
           const upstreamRes = await fetchUpstream(
             finalUrl,
             { ...authHeaders, ...passthroughHeaders },
-            serializedBody,
+            attemptBody,
             timeouts.upstreamFetchMs,
             { provider: candidate.provider.providerId, route: "chat" },
           );
@@ -245,7 +252,7 @@ relay.post("/v1/chat/completions", async (c) => {
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
               upstreamBaseUrl: keyMeta.upstreamBaseUrl,
-              requestBody: logEnabled ? serializedBody : undefined,
+              requestBody: logEnabled ? attemptBody : undefined,
             },
           );
         } catch (err) {
@@ -260,7 +267,7 @@ relay.post("/v1/chat/completions", async (c) => {
         const upstreamRes = await fetch(finalUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
-          body: serializedBody,
+          body: attemptBody,
           signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
         });
         gatewayUpstreamDuration.observe(
@@ -288,7 +295,7 @@ relay.post("/v1/chat/completions", async (c) => {
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
               upstreamBaseUrl: keyMeta.upstreamBaseUrl,
-              requestBody: logEnabled ? serializedBody : undefined,
+              requestBody: logEnabled ? attemptBody : undefined,
             },
           );
         }
@@ -311,7 +318,7 @@ relay.post("/v1/chat/completions", async (c) => {
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
               upstreamBaseUrl: keyMeta.upstreamBaseUrl,
-              requestBody: logEnabled ? serializedBody : undefined,
+              requestBody: logEnabled ? attemptBody : undefined,
             },
           );
         }
@@ -345,7 +352,7 @@ relay.post("/v1/chat/completions", async (c) => {
             requestId,
             consumerKeyId: null,
             modelId: candidate.model.modelId,
-            requestBody: serializedBody,
+            requestBody: attemptBody,
             responseBody: JSON.stringify(responseBody),
             createdAt: new Date().toISOString(),
           } as Record<string, unknown>);
@@ -447,6 +454,7 @@ relay.all("/v1/*", async (c) => {
     upstreamId: number | null;
     upstreamName: string;
     upstreamBaseUrl: string;
+    serializedBody: string;
   }
 
   const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
@@ -458,13 +466,18 @@ relay.all("/v1/*", async (c) => {
 
     try {
       const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+      const mappedModelId = await resolveModelMapping(upstream.id, modelId);
+      const effectiveBody =
+        mappedModelId === modelId
+          ? serializedBody
+          : JSON.stringify({ ...body, model: mappedModelId });
       const base = upstream.baseUrl.replace(/\/+$/, "");
       const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
       const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
         provider,
         plainKey,
         upstreamUrl,
-        serializedBody,
+        effectiveBody,
       );
       resolvedAttempts.push({
         keyId: key.id,
@@ -473,6 +486,7 @@ relay.all("/v1/*", async (c) => {
         upstreamId: upstream.id,
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
+        serializedBody: effectiveBody,
       });
     } catch {
       continue;
@@ -509,7 +523,7 @@ relay.all("/v1/*", async (c) => {
       start,
       inputPrice: result.model.inputPrice,
       outputPrice: result.model.outputPrice,
-      requestBody: logEnabled ? serializedBody : undefined,
+      requestBody: logEnabled ? selected.serializedBody : undefined,
     };
 
     try {
@@ -521,7 +535,7 @@ relay.all("/v1/*", async (c) => {
           ...selected.authHeaders,
           ...passthroughHeaders,
         },
-        body: c.req.method !== "GET" ? serializedBody : undefined,
+        body: c.req.method !== "GET" ? selected.serializedBody : undefined,
         signal: AbortSignal.timeout(
           isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
         ),
@@ -584,7 +598,7 @@ relay.all("/v1/*", async (c) => {
           requestId,
           consumerKeyId: null,
           modelId,
-          requestBody: serializedBody,
+          requestBody: selected.serializedBody,
           responseBody: responseText ?? "",
           createdAt: new Date().toISOString(),
         } as Record<string, unknown>);
@@ -622,7 +636,7 @@ relay.all("/v1/*", async (c) => {
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
       upstreamBaseUrl: selected.upstreamBaseUrl,
-      requestBody: logEnabled ? serializedBody : undefined,
+      requestBody: logEnabled ? selected.serializedBody : undefined,
     },
   );
 });
@@ -650,6 +664,8 @@ interface ResolvedCandidate {
   finalUrl: string;
   authHeaders: Record<string, string>;
   keyMeta: KeyMeta;
+  serializedBody: string;
+  effectiveModelId: string;
 }
 
 /**
@@ -716,9 +732,10 @@ async function resolveCandidate(
   candidate: Candidate,
   adapter: ProviderAdapter,
   stream: boolean,
-  bodyForSigning?: string,
+  defaultSerializedBody: string,
+  candidateBody: OpenAIChatBody,
 ): Promise<ResolvedCandidate[]> {
-  const { model, provider } = candidate;
+  const { provider } = candidate;
   const upstreams = await resolveUpstreamCandidates(provider);
   const resolved: ResolvedCandidate[] = [];
 
@@ -734,15 +751,19 @@ async function resolveCandidate(
       continue;
     }
 
-    const upstreamUrl = adapter.buildUrl(upstream.baseUrl, {
-      model: candidate.providerModelId,
-      stream,
-    });
+    const mappedModelId = await resolveModelMapping(upstream.id, candidate.providerModelId);
+    const needsRemap = mappedModelId !== candidate.providerModelId;
+
+    const effectiveBody = needsRemap
+      ? JSON.stringify(adapter.transformRequest({ ...candidateBody, model: mappedModelId }))
+      : defaultSerializedBody;
+
+    const upstreamUrl = adapter.buildUrl(upstream.baseUrl, { model: mappedModelId, stream });
     const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
       provider,
       plainKey,
       upstreamUrl,
-      bodyForSigning,
+      effectiveBody,
     );
 
     resolved.push({
@@ -755,6 +776,8 @@ async function resolveCandidate(
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
       },
+      serializedBody: effectiveBody,
+      effectiveModelId: mappedModelId,
     });
   }
 

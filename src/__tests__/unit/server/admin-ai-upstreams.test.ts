@@ -9,6 +9,8 @@ const mockUpstreamOverview = vi.fn();
 const mockHourlyByUpstream = vi.fn();
 const mockFindUsageLogs = vi.fn();
 const mockFindLatestByUpstreamIds = vi.fn();
+const mockDeleteMappingsByUpstreamId = vi.fn();
+const mockInvalidateModelMappingCache = vi.fn();
 
 vi.mock("@/server/middleware/auth", () => ({
   getAdminSession: vi.fn().mockReturnValue({ adminId: 1 }),
@@ -31,6 +33,14 @@ vi.mock("@/server/repos", () => ({
     findByUpstreamId: vi.fn().mockResolvedValue([]),
     countByUpstreamIds: (...args: unknown[]) => mockCountAssignmentsByUpstreamIds(...args),
   },
+  aiUpstreamModelMappingRepo: {
+    findByUpstreamId: vi.fn().mockResolvedValue([]),
+    findById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    deleteByUpstreamId: (...args: unknown[]) => mockDeleteMappingsByUpstreamId(...args),
+  },
   aiKeyRepo: {
     countByUpstreamIds: (...args: unknown[]) => mockCountByUpstreamIds(...args),
   },
@@ -49,6 +59,10 @@ vi.mock("@/server/ai/lib/key-balancer", () => ({
 vi.mock("@/server/ai/lib/upstream-routing", () => ({
   invalidateUpstreamCache: vi.fn(),
   invalidateUpstreamCacheForUpstream: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/server/ai/lib/model-mapping-cache", () => ({
+  invalidateModelMappingCache: (...args: unknown[]) => mockInvalidateModelMappingCache(...args),
 }));
 
 vi.mock("@/server/lib/logger", () => ({
@@ -72,6 +86,8 @@ describe("admin ai upstream routes", () => {
     mockHourlyByUpstream.mockReset();
     mockFindUsageLogs.mockReset();
     mockFindLatestByUpstreamIds.mockReset();
+    mockDeleteMappingsByUpstreamId.mockReset();
+    mockInvalidateModelMappingCache.mockReset();
   });
 
   it("returns upstream overview rows with derived health and latest status", async () => {
@@ -319,5 +335,25 @@ describe("admin ai upstream routes", () => {
 
     const res = await app.request("http://localhost/upstreams/999/hourly");
     expect(res.status).toBe(404);
+  });
+
+  it("deletes model mappings when deleting an upstream", async () => {
+    mockFindUpstreamById.mockResolvedValue({
+      id: 11,
+      upstreamId: "friend-a",
+      name: "Friend A",
+      baseUrl: "https://friend-a.example.com",
+      kind: "reseller",
+      enabled: true,
+      metadata: "{}",
+    });
+
+    const res = await app.request("http://localhost/upstreams/11", {
+      method: "DELETE",
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteMappingsByUpstreamId).toHaveBeenCalledWith(11);
+    expect(mockInvalidateModelMappingCache).toHaveBeenCalledWith(11);
   });
 });

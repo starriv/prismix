@@ -90,6 +90,19 @@ export const updateAiUpstreamBody = z.object({
     .optional(),
 });
 
+// ── AI: Upstream Model Mappings ─────────────────────────────────────
+
+export const createAiUpstreamModelMappingBody = z.object({
+  sourceModelId: z.string().min(1).max(200),
+  mappedModelId: z.string().min(1).max(200),
+  enabled: z.boolean().optional(),
+});
+
+export const updateAiUpstreamModelMappingBody = z.object({
+  mappedModelId: z.string().min(1).max(200).optional(),
+  enabled: z.boolean().optional(),
+});
+
 // ── AI: Upstream Assignments (provider ↔ upstream junction) ──────────
 
 export const createAiUpstreamAssignmentBody = z.object({

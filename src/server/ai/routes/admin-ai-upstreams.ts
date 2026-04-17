@@ -5,7 +5,12 @@
 import { Hono } from "hono";
 
 import { emit } from "@/server/events";
-import { createAiUpstreamBody, updateAiUpstreamBody } from "@/server/lib/body-schemas";
+import {
+  createAiUpstreamBody,
+  createAiUpstreamModelMappingBody,
+  updateAiUpstreamBody,
+  updateAiUpstreamModelMappingBody,
+} from "@/server/lib/body-schemas";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody, parsePaginationLimit } from "@/server/lib/validate";
@@ -14,11 +19,13 @@ import {
   aiKeyRepo,
   aiProviderRepo,
   aiUpstreamAssignmentRepo,
+  aiUpstreamModelMappingRepo,
   aiUpstreamRepo,
   aiUsageLogRepo,
 } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
+import { invalidateModelMappingCache } from "../lib/model-mapping-cache";
 import { invalidateUpstreamCacheForUpstream } from "../lib/upstream-routing";
 import { formatUpstream } from "./admin-ai-helpers";
 
@@ -202,6 +209,8 @@ router.delete("/upstreams/:id", async (c) => {
     emit("ai.key-pool-invalidated", null, { providerId: a.providerId });
   }
 
+  await aiUpstreamModelMappingRepo.deleteByUpstreamId(id);
+  invalidateModelMappingCache(id);
   await aiUpstreamRepo.delete(id);
 
   log.auth.info({ upstreamId: existing.upstreamId }, "Global upstream deleted");
@@ -232,6 +241,85 @@ router.get("/upstreams/:id/recent", async (c) => {
   const limit = parsePaginationLimit(c.req.query("limit"));
   const logs = await aiUsageLogRepo.findAll(limit, 0, { upstreamId: id });
   return ok(c, logs);
+});
+
+// ── Model Mappings Sub-resource ─────────────────────────────────────
+
+router.get("/upstreams/:id/model-mappings", async (c) => {
+  getAdminSession(c);
+  const id = Number(c.req.param("id"));
+  if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
+
+  const upstream = await aiUpstreamRepo.findById(id);
+  if (!upstream) return c.json({ error: "Upstream not found" }, 404);
+
+  const mappings = await aiUpstreamModelMappingRepo.findByUpstreamId(id);
+  return ok(c, mappings);
+});
+
+router.post("/upstreams/:id/model-mappings", async (c) => {
+  getAdminSession(c);
+  const upstreamId = Number(c.req.param("id"));
+  if (Number.isNaN(upstreamId)) return c.json({ error: "Invalid id" }, 400);
+
+  const upstream = await aiUpstreamRepo.findById(upstreamId);
+  if (!upstream) return c.json({ error: "Upstream not found" }, 404);
+
+  const parsed = await parseBody(c, createAiUpstreamModelMappingBody);
+  if (!parsed.ok) return parsed.response;
+
+  const created = await aiUpstreamModelMappingRepo.create({
+    upstreamId,
+    sourceModelId: parsed.data.sourceModelId,
+    mappedModelId: parsed.data.mappedModelId,
+    enabled: parsed.data.enabled ?? true,
+  });
+
+  invalidateModelMappingCache(upstreamId);
+  log.auth.info(
+    { upstreamId: upstream.upstreamId, sourceModelId: created.sourceModelId },
+    "Model mapping created",
+  );
+  return ok(c, created, 201);
+});
+
+router.put("/upstreams/:id/model-mappings/:mappingId", async (c) => {
+  getAdminSession(c);
+  const upstreamId = Number(c.req.param("id"));
+  const mappingId = Number(c.req.param("mappingId"));
+  if (Number.isNaN(upstreamId) || Number.isNaN(mappingId)) {
+    return c.json({ error: "Invalid id" }, 400);
+  }
+
+  const mapping = await aiUpstreamModelMappingRepo.findById(mappingId);
+  if (!mapping || mapping.upstreamId !== upstreamId) {
+    return c.json({ error: "Model mapping not found" }, 404);
+  }
+
+  const parsed = await parseBody(c, updateAiUpstreamModelMappingBody);
+  if (!parsed.ok) return parsed.response;
+
+  const updated = await aiUpstreamModelMappingRepo.update(mappingId, parsed.data);
+  invalidateModelMappingCache(upstreamId);
+  return ok(c, updated);
+});
+
+router.delete("/upstreams/:id/model-mappings/:mappingId", async (c) => {
+  getAdminSession(c);
+  const upstreamId = Number(c.req.param("id"));
+  const mappingId = Number(c.req.param("mappingId"));
+  if (Number.isNaN(upstreamId) || Number.isNaN(mappingId)) {
+    return c.json({ error: "Invalid id" }, 400);
+  }
+
+  const mapping = await aiUpstreamModelMappingRepo.findById(mappingId);
+  if (!mapping || mapping.upstreamId !== upstreamId) {
+    return c.json({ error: "Model mapping not found" }, 404);
+  }
+
+  await aiUpstreamModelMappingRepo.delete(mappingId);
+  invalidateModelMappingCache(upstreamId);
+  return ok(c, { success: true });
 });
 
 export default router;

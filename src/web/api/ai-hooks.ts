@@ -38,6 +38,8 @@ import {
   apiAiSyncPricesPreview,
   apiAiUpstreamDetail,
   apiAiUpstreamHourly,
+  apiAiUpstreamModelMapping,
+  apiAiUpstreamModelMappings,
   apiAiUpstreamRecent,
   apiAiUsageRequest,
   apiRelayKeyDetail,
@@ -58,6 +60,7 @@ import {
   aiUpstreamAssignmentSchema,
   aiUpstreamDetailSchema,
   aiUpstreamHourlyRowSchema,
+  aiUpstreamModelMappingSchema,
   aiUpstreamSchema,
   aiUpstreamsOverviewSchema,
   aiUsageByKeySchema,
@@ -143,6 +146,71 @@ export function useDeleteAiUpstream() {
       qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
       qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+    },
+  });
+}
+
+// ── Upstream Model Mappings ──────────────────────────────────────────
+
+export function useAiUpstreamModelMappings(upstreamId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.aiUpstreamModelMappings(upstreamId!),
+    queryFn: () =>
+      get(apiAiUpstreamModelMappings(upstreamId!), z.array(aiUpstreamModelMappingSchema)),
+    enabled: upstreamId != null,
+  });
+}
+
+export function useCreateModelMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      upstreamId: number;
+      sourceModelId: string;
+      mappedModelId: string;
+      enabled?: boolean;
+    }) => {
+      const { upstreamId, ...rest } = body;
+      return post(apiAiUpstreamModelMappings(upstreamId), rest, aiUpstreamModelMappingSchema);
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamModelMappings(vars.upstreamId) });
+    },
+  });
+}
+
+export function useUpdateModelMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      upstreamId: number;
+      mappingId: number;
+      mappedModelId?: string;
+      enabled?: boolean;
+    }) => {
+      const { upstreamId, mappingId, ...rest } = body;
+      return put(
+        apiAiUpstreamModelMapping(upstreamId, mappingId),
+        rest,
+        aiUpstreamModelMappingSchema,
+      );
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamModelMappings(vars.upstreamId) });
+    },
+  });
+}
+
+export function useDeleteModelMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { upstreamId: number; mappingId: number }) =>
+      del(
+        apiAiUpstreamModelMapping(body.upstreamId, body.mappingId),
+        z.object({ success: z.boolean() }),
+      ),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamModelMappings(vars.upstreamId) });
     },
   });
 }

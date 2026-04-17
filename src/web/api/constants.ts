@@ -130,6 +130,10 @@ export const apiAiUpstreamDetail = (id: number) => `/api/admin/ai/upstreams/${id
 export const API_AI_UPSTREAMS_OVERVIEW = "/api/admin/ai/upstreams/overview";
 export const apiAiUpstreamHourly = (id: number) => `/api/admin/ai/upstreams/${id}/hourly`;
 export const apiAiUpstreamRecent = (id: number) => `/api/admin/ai/upstreams/${id}/recent`;
+export const apiAiUpstreamModelMappings = (id: number) =>
+  `/api/admin/ai/upstreams/${id}/model-mappings`;
+export const apiAiUpstreamModelMapping = (upstreamId: number, mappingId: number) =>
+  `/api/admin/ai/upstreams/${upstreamId}/model-mappings/${mappingId}`;
 export const apiAiProviderModels = (id: number) => `/api/admin/ai/providers/${id}/models`;
 export const apiAiProviderModelsBatch = (id: number) =>
   `/api/admin/ai/providers/${id}/models/batch`;

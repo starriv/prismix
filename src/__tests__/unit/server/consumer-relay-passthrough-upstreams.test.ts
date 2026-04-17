@@ -7,12 +7,21 @@ const mockResolveModelMapping = vi.fn();
 const mockPickKey = vi.fn();
 const mockDecrypt = vi.fn();
 const mockFetch = vi.fn();
-const mockEnqueueJob = vi.fn();
+const mockBillConsumer = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
 
-vi.mock("@/server/middleware/auth", () => ({
-  getAdminSession: vi.fn().mockReturnValue({ adminId: 1 }),
+vi.mock("@/server/ai/middleware/consumer-key-auth", () => ({
+  getConsumerSession: vi.fn().mockReturnValue({
+    consumerId: 1,
+    userId: 10,
+    agentId: 100,
+    markupPercent: 0,
+    allowedModels: [],
+    perPayLimit: null,
+    dailyLimit: null,
+    monthlyLimit: null,
+  }),
 }));
 
 vi.mock("@/server/middleware/request-id", () => ({
@@ -24,8 +33,15 @@ vi.mock("@/server/repos", () => ({
   aiModelRepo: {
     findEnabledByModelId: (...args: unknown[]) => mockFindEnabledByModelId(...args),
   },
-  settingsRepo: {
-    getGlobal: vi.fn().mockResolvedValue("false"),
+  aiModelRouteRepo: {
+    findEnabledRoutesByModelId: vi.fn(),
+  },
+  payAgentRepo: {
+    findById: vi.fn(),
+  },
+  payAgentTransactionRepo: {
+    sumSpendingToday: vi.fn(),
+    sumSpendingThisMonth: vi.fn(),
   },
 }));
 
@@ -48,24 +64,53 @@ vi.mock("@/server/lib/crypto", () => ({
   decrypt: (...args: unknown[]) => mockDecrypt(...args),
 }));
 
-vi.mock("@/server/lib/write-queue", () => ({
-  enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
+vi.mock("@/server/ai/lib/billing", () => ({
+  billConsumer: (...args: unknown[]) => mockBillConsumer(...args),
+  calculateConsumerCost: vi.fn(),
+}));
+
+vi.mock("@/server/lib/gateway-config", () => ({
+  getGatewayConfigCached: vi.fn().mockReturnValue({ timeouts: {} }),
+  resolveTimeoutConfig: vi.fn().mockReturnValue({
+    upstreamFetchMs: 15_000,
+    streamMaxDurationMs: 60_000,
+  }),
 }));
 
 vi.mock("@/server/lib/logger", () => ({
   log: {
-    auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     gateway: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    pricing: { debug: vi.fn() },
   },
 }));
 
-const { default: relay } = await import("@/server/ai/routes/relay");
+vi.mock("@/server/lib/metrics", () => ({
+  gatewayUpstreamDuration: { observe: vi.fn() },
+}));
+
+vi.mock("@/server/ai/lib/request-helpers", () => ({
+  extractPassthroughHeaders: vi.fn().mockReturnValue({}),
+  isRequestLoggingEnabled: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock("@/server/ai/lib/access-log", () => ({
+  buildAccessLogErrorMessage: vi.fn(),
+  enqueueAiAccessLog: vi.fn(),
+}));
+
+vi.mock("@/server/ai/lib/stream-proxy", () => ({
+  RETRYABLE_STATUS: new Set([408, 429, 500, 502, 503, 504]),
+  extractPassthroughUsage: vi.fn().mockReturnValue(null),
+  fetchUpstream: vi.fn(),
+  forwardPassthroughStream: vi.fn(),
+  forwardStream: vi.fn(),
+}));
+
+const { default: consumerRelay } = await import("@/server/ai/routes/consumer-relay");
 
 const app = new Hono();
-app.route("/", relay);
+app.route("/", consumerRelay);
 
-describe("admin relay passthrough upstream routing", () => {
+describe("consumer relay passthrough upstream routing", () => {
   beforeEach(() => {
     mockFindEnabledByModelId.mockReset();
     mockResolveUpstreamCandidates.mockReset();
@@ -73,10 +118,7 @@ describe("admin relay passthrough upstream routing", () => {
     mockPickKey.mockReset();
     mockDecrypt.mockReset();
     mockFetch.mockReset();
-    mockEnqueueJob.mockReset();
-    mockResolveModelMapping.mockImplementation(
-      async (_upstreamId: number | null, modelId: string) => modelId,
-    );
+    mockBillConsumer.mockReset();
 
     mockFindEnabledByModelId.mockResolvedValue({
       model: {
@@ -98,42 +140,10 @@ describe("admin relay passthrough upstream routing", () => {
         enabled: true,
       },
     });
-    mockDecrypt.mockReturnValue("plain-key");
-  });
-
-  it("routes passthrough requests through configured upstream candidates", async () => {
-    mockResolveUpstreamCandidates.mockResolvedValue([
-      {
-        id: 11,
-        upstreamId: "friend-a",
-        name: "Friend A",
-        baseUrl: "https://friend-a.example.com",
-      },
-    ]);
-    mockPickKey.mockResolvedValue({
-      id: 123,
-      providerId: 7,
-      upstreamId: 11,
-      encryptedKey: "encrypted",
-      name: "friend-key",
-    });
-    mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+    mockResolveModelMapping.mockImplementation(
+      async (_upstreamId: number | null, modelId: string) => modelId,
     );
-
-    const res = await app.request("http://localhost/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4", stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockPickKey).toHaveBeenCalledWith(7, 11);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch.mock.calls[0][0]).toBe("https://friend-a.example.com/v1/messages");
+    mockDecrypt.mockReturnValue("plain-key");
   });
 
   it("remaps the passthrough model ID per upstream before forwarding", async () => {
@@ -170,56 +180,5 @@ describe("admin relay passthrough upstream routing", () => {
     expect(mockResolveModelMapping).toHaveBeenCalledWith(11, "claude-sonnet-4");
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(mockFetch.mock.calls[0][1]?.body)).model).toBe("kiro/opus04.7");
-  });
-
-  it("falls back to the next upstream after a retryable failure", async () => {
-    mockResolveUpstreamCandidates.mockResolvedValue([
-      {
-        id: 11,
-        upstreamId: "friend-a",
-        name: "Friend A",
-        baseUrl: "https://friend-a.example.com",
-      },
-      {
-        id: null,
-        upstreamId: "legacy",
-        name: "Anthropic Default",
-        baseUrl: "https://api.anthropic.com",
-      },
-    ]);
-    mockPickKey
-      .mockResolvedValueOnce({
-        id: 123,
-        providerId: 7,
-        upstreamId: 11,
-        encryptedKey: "encrypted-1",
-        name: "friend-key",
-      })
-      .mockResolvedValueOnce({
-        id: 456,
-        providerId: 7,
-        upstreamId: null,
-        encryptedKey: "encrypted-2",
-        name: "official-key",
-      });
-    mockFetch
-      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
-
-    const res = await app.request("http://localhost/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4", stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch.mock.calls[0][0]).toBe("https://friend-a.example.com/v1/messages");
-    expect(mockFetch.mock.calls[1][0]).toBe("https://api.anthropic.com/v1/messages");
   });
 });

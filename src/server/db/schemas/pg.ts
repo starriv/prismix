@@ -572,6 +572,27 @@ export const aiUpstreamAssignments = pgTable(
   ],
 );
 
+export const aiUpstreamModelMappings = pgTable(
+  "ai_upstream_model_mappings",
+  {
+    id: serial("id").primaryKey(),
+    upstreamId: integer("upstream_id").notNull(),
+    sourceModelId: text("source_model_id").notNull(),
+    mappedModelId: text("mapped_model_id").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    unique().on(t.upstreamId, t.sourceModelId),
+    index("idx_ai_upstream_model_mappings_upstream_id").on(t.upstreamId),
+  ],
+);
+
 export const aiModels = pgTable(
   "ai_models",
   {
@@ -809,6 +830,8 @@ export type AiUpstream = typeof aiUpstreams.$inferSelect;
 export type NewAiUpstream = typeof aiUpstreams.$inferInsert;
 export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;
 export type NewAiUpstreamAssignment = typeof aiUpstreamAssignments.$inferInsert;
+export type AiUpstreamModelMapping = typeof aiUpstreamModelMappings.$inferSelect;
+export type NewAiUpstreamModelMapping = typeof aiUpstreamModelMappings.$inferInsert;
 export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
 export type AiModelRoute = typeof aiModelRoutes.$inferSelect;

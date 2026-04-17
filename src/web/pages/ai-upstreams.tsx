@@ -32,15 +32,20 @@ import { removeTailingZero, safeMultipliedBy } from "@/shared/number";
 import {
   useAiUpstreamDetail,
   useAiUpstreamHourly,
+  useAiUpstreamModelMappings,
   useAiUpstreamRecent,
   useAiUpstreamsOverview,
   useCreateAiUpstream,
+  useCreateModelMapping,
   useDeleteAiUpstream,
+  useDeleteModelMapping,
   useUpdateAiUpstream,
+  useUpdateModelMapping,
 } from "@/web/api/hooks";
 import type {
   AiUpstreamDetailAssignment,
   AiUpstreamHourlyRow,
+  AiUpstreamModelMapping,
   AiUpstreamOverviewItem,
 } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
@@ -782,6 +787,9 @@ function UpstreamDetail({
         </CardContent>
       </Card>
 
+      {/* ── Model Mappings ── */}
+      <ModelMappingsCard upstreamId={upstream.id} />
+
       {/* ── Recent Requests ── */}
       <Card>
         <CardHeader className="pb-3">
@@ -800,6 +808,155 @@ function UpstreamDetail({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Model Mappings Card ─────────────────────────────────────────────
+
+function ModelMappingsCard({ upstreamId }: { upstreamId: number }) {
+  const { t } = useTranslation();
+  const { data: mappings = [], isLoading } = useAiUpstreamModelMappings(upstreamId);
+  const createMapping = useCreateModelMapping();
+  const updateMapping = useUpdateModelMapping();
+  const deleteMapping = useDeleteModelMapping();
+  const [showForm, setShowForm] = useState(false);
+  const [newSource, setNewSource] = useState("");
+  const [newMapped, setNewMapped] = useState("");
+
+  const handleCreate = useCallback(async () => {
+    if (!newSource.trim() || !newMapped.trim()) return;
+    try {
+      await createMapping.mutateAsync({
+        upstreamId,
+        sourceModelId: newSource.trim(),
+        mappedModelId: newMapped.trim(),
+      });
+      toast.success(t("ai-upstreams.detail.model-mappings-created"));
+      setNewSource("");
+      setNewMapped("");
+      setShowForm(false);
+    } catch {
+      toast.error(t("ai-upstreams.detail.model-mappings-create-error"));
+    }
+  }, [upstreamId, newSource, newMapped, createMapping, t]);
+
+  const handleToggle = useCallback(
+    async (m: AiUpstreamModelMapping) => {
+      await updateMapping.mutateAsync({
+        upstreamId,
+        mappingId: m.id,
+        enabled: !m.enabled,
+      });
+      toast.success(t("ai-upstreams.detail.model-mappings-updated"));
+    },
+    [upstreamId, updateMapping, t],
+  );
+
+  const handleDelete = useCallback(
+    async (m: AiUpstreamModelMapping) => {
+      try {
+        await deleteMapping.mutateAsync({ upstreamId, mappingId: m.id });
+        toast.success(t("ai-upstreams.detail.model-mappings-deleted"));
+      } catch {
+        toast.error(t("ai-upstreams.detail.model-mappings-delete-error"));
+      }
+    },
+    [upstreamId, deleteMapping, t],
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-sm">
+              {t("ai-upstreams.detail.model-mappings-title")}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {t("ai-upstreams.detail.model-mappings-desc")}
+            </CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setShowForm(!showForm)}>
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            {t("ai-upstreams.detail.model-mappings-add")}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showForm && (
+          <div className="flex items-end gap-2 rounded-lg border bg-muted/30 p-3">
+            <div className="flex-1 space-y-1">
+              <label className="text-xs font-medium">
+                {t("ai-upstreams.detail.model-mappings-source")}
+              </label>
+              <Input
+                value={newSource}
+                onChange={(e) => setNewSource(e.target.value)}
+                placeholder={t("ai-upstreams.detail.model-mappings-source-ph")}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <label className="text-xs font-medium">
+                {t("ai-upstreams.detail.model-mappings-mapped")}
+              </label>
+              <Input
+                value={newMapped}
+                onChange={(e) => setNewMapped(e.target.value)}
+                placeholder={t("ai-upstreams.detail.model-mappings-mapped-ph")}
+                className="h-8 text-sm"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+            </div>
+            <Button size="sm" onClick={handleCreate} disabled={createMapping.isPending}>
+              {createMapping.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              {t("ai-upstreams.btn.create")}
+            </Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : mappings.length === 0 && !showForm ? (
+          <p className="text-muted-foreground text-center text-sm py-4">
+            {t("ai-upstreams.detail.model-mappings-empty")}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {mappings.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <code className="text-xs font-mono truncate">{m.sourceModelId}</code>
+                  <span className="text-muted-foreground text-xs">→</span>
+                  <code className="text-xs font-mono truncate">{m.mappedModelId}</code>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    checked={m.enabled}
+                    onCheckedChange={() => handleToggle(m)}
+                    className="scale-75"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => handleDelete(m)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -2755,7 +2755,20 @@
       "health-trend-desc": "Hourly request volume, errors, and latency over the last 24 hours",
       "chart-requests": "Requests",
       "chart-errors": "Errors",
-      "chart-latency": "Avg Latency"
+      "chart-latency": "Avg Latency",
+      "model-mappings-title": "Model Mappings",
+      "model-mappings-desc": "Override model IDs sent to this upstream",
+      "model-mappings-empty": "No model mappings configured",
+      "model-mappings-add": "Add Mapping",
+      "model-mappings-source": "Source Model",
+      "model-mappings-source-ph": "e.g. claude-opus-4-7",
+      "model-mappings-mapped": "Upstream Model",
+      "model-mappings-mapped-ph": "e.g. kiro/opus04.7",
+      "model-mappings-created": "Model mapping created",
+      "model-mappings-updated": "Model mapping updated",
+      "model-mappings-deleted": "Model mapping deleted",
+      "model-mappings-create-error": "Failed to create model mapping",
+      "model-mappings-delete-error": "Failed to delete model mapping"
     }
   },
   "consumer-keys": {

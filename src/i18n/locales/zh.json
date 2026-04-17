@@ -2755,7 +2755,20 @@
       "health-trend-desc": "最近 24 小时的请求量、错误数和延迟趋势",
       "chart-requests": "请求数",
       "chart-errors": "错误数",
-      "chart-latency": "平均延迟"
+      "chart-latency": "平均延迟",
+      "model-mappings-title": "模型映射",
+      "model-mappings-desc": "覆盖发送到此上游的模型 ID",
+      "model-mappings-empty": "暂无模型映射配置",
+      "model-mappings-add": "添加映射",
+      "model-mappings-source": "源模型",
+      "model-mappings-source-ph": "如 claude-opus-4-7",
+      "model-mappings-mapped": "上游模型",
+      "model-mappings-mapped-ph": "如 kiro/opus04.7",
+      "model-mappings-created": "模型映射创建成功",
+      "model-mappings-updated": "模型映射更新成功",
+      "model-mappings-deleted": "模型映射删除成功",
+      "model-mappings-create-error": "创建模型映射失败",
+      "model-mappings-delete-error": "删除模型映射失败"
     }
   },
   "consumer-keys": {

@@ -76,6 +76,7 @@ export const keyProviderTransactions = s.keyProviderTransactions;
 export const aiProviders = s.aiProviders;
 export const aiUpstreams = s.aiUpstreams;
 export const aiUpstreamAssignments = s.aiUpstreamAssignments;
+export const aiUpstreamModelMappings = s.aiUpstreamModelMappings;
 export const aiModels = s.aiModels;
 export const aiModelRoutes = s.aiModelRoutes;
 export const aiKeys = s.aiKeys;
@@ -95,6 +96,7 @@ export type {
   AiProvider,
   AiUpstream,
   AiUpstreamAssignment,
+  AiUpstreamModelMapping,
   AiUsageLog,
   AllowedToken,
   Announcement,
@@ -112,6 +114,7 @@ export type {
   NewAiProvider,
   NewAiUpstream,
   NewAiUpstreamAssignment,
+  NewAiUpstreamModelMapping,
   NewAiUsageLog,
   NewAllowedToken,
   NewAnnouncement,

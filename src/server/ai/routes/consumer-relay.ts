@@ -28,6 +28,7 @@ import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-lo
 import { billConsumer, calculateConsumerCost } from "../lib/billing";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
+import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
@@ -270,15 +271,26 @@ async function handleChatCompletions(
       if (!key) continue;
       try {
         const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+        const mappedModelId = await resolveModelMapping(upstream.id, providerModelId);
+        const needsRemap = mappedModelId !== providerModelId;
+        const effectiveBody = needsRemap
+          ? JSON.stringify(
+              adapter.transformRequest({
+                ...body,
+                model: mappedModelId,
+                ...(body.stream ? { stream_options: { include_usage: true } } : {}),
+              } as unknown as OpenAIChatBody),
+            )
+          : serializedBody;
         const upstreamUrl = adapter.buildUrl(upstream.baseUrl, {
-          model: providerModelId,
+          model: mappedModelId,
           stream: !!body.stream,
         });
         const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
           provider,
           plainKey,
           upstreamUrl,
-          serializedBody,
+          effectiveBody,
         );
         resolvedUpstreams.push({
           keyId: key.id,
@@ -288,7 +300,7 @@ async function handleChatCompletions(
           upstreamName: upstream.name,
           upstreamBaseUrl: upstream.baseUrl,
           providerId: provider.providerId,
-          serializedBody,
+          serializedBody: effectiveBody,
           adapter,
         });
       } catch {
@@ -837,6 +849,7 @@ async function handlePassthrough(
     upstreamId: number | null;
     upstreamName: string;
     upstreamBaseUrl: string;
+    serializedBody: string;
   }
   const resolvedPtUpstreams: ResolvedPtUpstream[] = [];
   for (const upstream of await resolveUpstreamCandidates(provider)) {
@@ -844,13 +857,18 @@ async function handlePassthrough(
     if (!key) continue;
     try {
       const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+      const mappedModelId = await resolveModelMapping(upstream.id, modelId);
+      const effectiveBody =
+        mappedModelId === modelId
+          ? serializedBody
+          : JSON.stringify({ ...body, model: mappedModelId });
       const base = upstream.baseUrl.replace(/\/+$/, "");
       const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
       const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
         provider,
         plainKey,
         upstreamUrl,
-        serializedBody,
+        effectiveBody,
       );
       resolvedPtUpstreams.push({
         keyId: key.id,
@@ -859,6 +877,7 @@ async function handlePassthrough(
         upstreamId: upstream.id,
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
+        serializedBody: effectiveBody,
       });
     } catch {
       continue;
@@ -900,7 +919,7 @@ async function handlePassthrough(
       start,
       inputPrice: result.model.inputPrice,
       outputPrice: result.model.outputPrice,
-      requestBody: ptLogEnabled ? serializedBody : undefined,
+      requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
     };
 
     try {
@@ -912,7 +931,7 @@ async function handlePassthrough(
           ...ptSelected.authHeaders,
           ...passthroughHeaders,
         },
-        body: c.req.method !== "GET" ? serializedBody : undefined,
+        body: c.req.method !== "GET" ? ptSelected.serializedBody : undefined,
         signal: AbortSignal.timeout(
           isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
         ),
@@ -940,7 +959,7 @@ async function handlePassthrough(
             outputPrice: result.model.outputPrice,
             requestId,
             statusCode: 200,
-            requestBody: ptLogEnabled ? serializedBody : undefined,
+            requestBody: ptLogEnabled ? billPt.serializedBody : undefined,
             responseBody: rawResponse,
           });
         };
@@ -993,7 +1012,7 @@ async function handlePassthrough(
             : !upstreamRes.ok
               ? `Upstream returned ${upstreamRes.status}`
               : undefined,
-        requestBody: ptLogEnabled ? serializedBody : undefined,
+        requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
         responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
       });
 
@@ -1031,7 +1050,7 @@ async function handlePassthrough(
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,
       upstreamBaseUrl: ptSelected.upstreamBaseUrl,
-      requestBody: ptLogEnabled ? serializedBody : undefined,
+      requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
     },
   );
 }
