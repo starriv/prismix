@@ -57,6 +57,7 @@ router.get("/providers/:id/discover-models", async (c) => {
 
   let key: Awaited<ReturnType<typeof aiKeyRepo.findAnyEnabledByUpstream>> | undefined;
   let baseUrl: string | null = null;
+  let modelsEndpointOverride: string | null = null;
 
   if (source === "official") {
     if (!provider.baseUrl) {
@@ -70,6 +71,7 @@ router.get("/providers/:id/discover-models", async (c) => {
       if (!candidateKey) continue;
       key = candidateKey;
       baseUrl = upstream.baseUrl;
+      modelsEndpointOverride = upstream.modelsEndpoint;
       break;
     }
   }
@@ -86,16 +88,16 @@ router.get("/providers/:id/discover-models", async (c) => {
   }
 
   const base = baseUrl.replace(/\/+$/, "");
-  // Gemini and Anthropic have their own model list endpoints; OpenAI-compatible use /v1/models
-  const modelsUrl = match(provider.apiFormat)
-    .with("bedrock", () => {
-      // ListFoundationModels is on the control plane (bedrock.region), not runtime (bedrock-runtime.region)
-      const controlPlaneBase = base.replace("bedrock-runtime.", "bedrock.");
-      return `${controlPlaneBase}/foundation-models`;
-    })
-    .with("gemini", () => `${base}/models`)
-    .with("anthropic", () => `${base}/models`)
-    .otherwise(() => (base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`));
+  const modelsUrl = modelsEndpointOverride
+    ? modelsEndpointOverride
+    : match(provider.apiFormat)
+        .with("bedrock", () => {
+          const controlPlaneBase = base.replace("bedrock-runtime.", "bedrock.");
+          return `${controlPlaneBase}/foundation-models`;
+        })
+        .with("gemini", () => `${base}/models`)
+        .with("anthropic", () => `${base}/models`)
+        .otherwise(() => (base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`));
   const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, modelsUrl);
 
   try {

@@ -82,6 +82,7 @@ describe("admin ai upstream routes", () => {
         name: "Friend A",
         baseUrl: "https://friend-a.example.com",
         kind: "reseller",
+        modelsEndpoint: "https://friend-a.example.com/v1/models",
         enabled: true,
         metadata: "{}",
         createdAt: new Date("2026-04-10T00:00:00Z"),
@@ -131,6 +132,7 @@ describe("admin ai upstream routes", () => {
           id: number;
           healthStatus: string;
           lastStatusCode: number | null;
+          modelsEndpoint: string | null;
           enabledKeys: number;
           requests24h: number;
           assignmentCount: number;
@@ -151,6 +153,7 @@ describe("admin ai upstream routes", () => {
       id: 11,
       healthStatus: "degraded",
       lastStatusCode: 502,
+      modelsEndpoint: "https://friend-a.example.com/v1/models",
       enabledKeys: 1,
       requests24h: 12,
       assignmentCount: 2,

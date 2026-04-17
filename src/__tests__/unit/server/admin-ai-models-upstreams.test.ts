@@ -166,6 +166,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
         upstreamId: "friend-a",
         name: "Friend A",
         baseUrl: "https://friend-a.example.com",
+        modelsEndpoint: null,
       },
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue({
@@ -199,6 +200,70 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
   });
 
+  it("uses upstream modelsEndpoint when set instead of apiFormat-based URL", async () => {
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "proxy-a",
+        name: "Proxy A",
+        baseUrl: "https://proxy-a.example.com",
+        modelsEndpoint: "https://proxy-a.example.com/v1/models",
+      },
+    ]);
+    mockFindAnyEnabledByUpstream.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ id: "claude-sonnet-4", display_name: "Claude Sonnet 4" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // Should use the custom modelsEndpoint, not {base}/models from anthropic format
+    expect(mockFetch.mock.calls[0][0]).toBe("https://proxy-a.example.com/v1/models");
+  });
+
+  it("falls back to apiFormat URL when modelsEndpoint is null", async () => {
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "friend-a",
+        name: "Friend A",
+        baseUrl: "https://friend-a.example.com",
+        modelsEndpoint: null,
+      },
+    ]);
+    mockFindAnyEnabledByUpstream.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ id: "claude-sonnet-4", display_name: "Claude Sonnet 4" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    // Should fall back to anthropic format: {base}/models
+    expect(mockFetch.mock.calls[0][0]).toBe("https://friend-a.example.com/models");
+  });
+
   it("returns 400 when official discovery has no usable key", async () => {
     mockFindAnyEnabledByProvider.mockResolvedValue(undefined);
 
@@ -218,12 +283,14 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
         upstreamId: "friend-a",
         name: "Friend A",
         baseUrl: "https://friend-a.example.com",
+        modelsEndpoint: null,
       },
       {
         id: null,
         upstreamId: "legacy",
         name: "Anthropic Default",
         baseUrl: "https://api.anthropic.com",
+        modelsEndpoint: null,
       },
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue(undefined);

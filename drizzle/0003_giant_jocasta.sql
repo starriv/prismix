@@ -1,0 +1,1 @@
+ALTER TABLE "ai_upstreams" ADD COLUMN "models_endpoint" text;

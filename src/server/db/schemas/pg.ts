@@ -534,6 +534,7 @@ export const aiUpstreams = pgTable("ai_upstreams", {
   name: text("name").notNull(),
   baseUrl: text("base_url").notNull(),
   kind: text("kind").notNull().default("custom"), // "official" | "reseller" | "openrouter" | "custom"
+  modelsEndpoint: text("models_endpoint"),
   enabled: boolean("enabled").notNull().default(true),
   metadata: text("metadata").notNull().default("{}"),
   updatedAt: timestamp("updated_at")

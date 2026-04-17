@@ -2707,6 +2707,9 @@
       "base-url": "Base URL",
       "base-url-ph": "https://api.example.com/v1",
       "kind": "类型",
+      "models-endpoint": "模型列表端点",
+      "models-endpoint-ph": "https://proxy.example.com/v1/models",
+      "models-endpoint-desc": "自定义模型发现 URL，留空则根据供应商格式自动检测。",
       "enabled": "启用"
     },
     "toast": {

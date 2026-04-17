@@ -2707,6 +2707,9 @@
       "base-url": "Base URL",
       "base-url-ph": "https://api.example.com/v1",
       "kind": "Kind",
+      "models-endpoint": "Models Endpoint",
+      "models-endpoint-ph": "https://proxy.example.com/v1/models",
+      "models-endpoint-desc": "Custom URL for model discovery. Leave empty to auto-detect from provider format.",
       "enabled": "Enabled"
     },
     "toast": {

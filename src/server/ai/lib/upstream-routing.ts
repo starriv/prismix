@@ -9,6 +9,7 @@ export interface UpstreamTarget {
   name: string;
   baseUrl: string;
   kind: string;
+  modelsEndpoint: string | null;
   priority: number;
   weight: number;
   isLegacy: boolean;
@@ -65,6 +66,7 @@ function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): Ups
     name: assignment.upstream.name,
     baseUrl: assignment.upstream.baseUrl,
     kind: assignment.upstream.kind,
+    modelsEndpoint: assignment.upstream.modelsEndpoint ?? null,
     priority: assignment.priority,
     weight: assignment.weight,
     isLegacy: false,
@@ -78,6 +80,7 @@ function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): Upstream
     name: `${provider.name} Default`,
     baseUrl: provider.baseUrl,
     kind: "official",
+    modelsEndpoint: null,
     priority: priorityFallback,
     weight: 1,
     isLegacy: true,

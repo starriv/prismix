@@ -946,6 +946,7 @@ function UpstreamHealthChart({ data }: { data: AiUpstreamHourlyRow[] }) {
 const createUpstreamSchema = z.object({
   name: z.string().min(1, "common.valid.required").max(100),
   baseUrl: z.string().url("common.valid.invalid-url").max(500),
+  modelsEndpoint: z.string().url("common.valid.invalid-url").max(500).or(z.literal("")).optional(),
   enabled: z.boolean(),
 });
 
@@ -967,7 +968,7 @@ function UpstreamFormDialog({
 
   const form = useForm<CreateUpstreamForm>({
     resolver: zodResolver(createUpstreamSchema),
-    defaultValues: { name: "", baseUrl: "", enabled: true },
+    defaultValues: { name: "", baseUrl: "", modelsEndpoint: "", enabled: true },
   });
 
   useEffect(() => {
@@ -975,10 +976,11 @@ function UpstreamFormDialog({
       form.reset({
         name: editTarget.name,
         baseUrl: editTarget.baseUrl,
+        modelsEndpoint: editTarget.modelsEndpoint ?? "",
         enabled: editTarget.enabled,
       });
     } else {
-      form.reset({ name: "", baseUrl: "", enabled: true });
+      form.reset({ name: "", baseUrl: "", modelsEndpoint: "", enabled: true });
     }
   }, [editTarget, form]);
 
@@ -990,11 +992,15 @@ function UpstreamFormDialog({
             id: editTarget.id,
             name: values.name,
             baseUrl: values.baseUrl,
+            modelsEndpoint: values.modelsEndpoint || null,
             enabled: values.enabled,
           });
           toast.success(t("ai-upstreams.toast.updated"));
         } else {
-          await createUpstream.mutateAsync(values);
+          await createUpstream.mutateAsync({
+            ...values,
+            modelsEndpoint: values.modelsEndpoint || null,
+          });
           toast.success(t("ai-upstreams.toast.created"));
         }
         onOpenChange(false);
@@ -1044,6 +1050,22 @@ function UpstreamFormDialog({
                     <FormControl>
                       <Input {...field} placeholder={t("ai-upstreams.form.base-url-ph")} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="modelsEndpoint"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-upstreams.form.models-endpoint")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder={t("ai-upstreams.form.models-endpoint-ph")} />
+                    </FormControl>
+                    <p className="text-muted-foreground text-xs">
+                      {t("ai-upstreams.form.models-endpoint-desc")}
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

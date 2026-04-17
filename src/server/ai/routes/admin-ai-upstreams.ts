@@ -41,6 +41,7 @@ router.post("/upstreams", async (c) => {
     name: parsed.data.name,
     baseUrl: parsed.data.baseUrl,
     kind: parsed.data.kind ?? "custom",
+    modelsEndpoint: parsed.data.modelsEndpoint ?? null,
     enabled: parsed.data.enabled ?? true,
     metadata: JSON.stringify(parsed.data.metadata ?? {}),
   });
@@ -94,6 +95,7 @@ router.get("/upstreams/overview", async (c) => {
       name: upstream.name,
       baseUrl: upstream.baseUrl,
       kind: upstream.kind,
+      modelsEndpoint: upstream.modelsEndpoint,
       enabled: upstream.enabled,
       assignmentCount: assignmentCounts.get(upstream.id) ?? 0,
       totalKeys: keyStat?.totalKeys ?? 0,

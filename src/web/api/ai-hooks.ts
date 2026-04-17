@@ -97,6 +97,7 @@ export function useCreateAiUpstream() {
       name: string;
       baseUrl: string;
       kind?: string;
+      modelsEndpoint?: string | null;
       enabled?: boolean;
       metadata?: Record<string, unknown>;
     }) => post(API_AI_UPSTREAMS, body, aiUpstreamSchema),
@@ -118,6 +119,7 @@ export function useUpdateAiUpstream() {
       name?: string;
       baseUrl?: string;
       kind?: string;
+      modelsEndpoint?: string | null;
       enabled?: boolean;
       metadata?: Record<string, unknown>;
     }) => put(apiAiUpstreamDetail(id), body, aiUpstreamSchema),
