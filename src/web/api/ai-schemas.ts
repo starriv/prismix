@@ -361,7 +361,16 @@ export const circuitBreakerConfigSchema = z.object({
 export type CircuitBreakerConfig = z.infer<typeof circuitBreakerConfigSchema>;
 
 export const timeoutConfigSchema = z.object({
-  upstreamFetchMs: z.number(),
+  upstreamFetchMs: z.number().int().positive(),
+  streamIdleMs: z.number().int().positive(),
+  streamMaxDurationMs: z.number().int().positive(),
+  upstreamFetchOverrides: z.array(
+    z.object({
+      providerId: z.string().optional(),
+      modelId: z.string().optional(),
+      upstreamFetchMs: z.number().int().positive(),
+    }),
+  ),
 });
 export type TimeoutConfig = z.infer<typeof timeoutConfigSchema>;
 

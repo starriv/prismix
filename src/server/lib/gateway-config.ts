@@ -31,6 +31,13 @@ export interface TimeoutConfig {
   upstreamFetchMs: number;
   streamIdleMs: number;
   streamMaxDurationMs: number;
+  upstreamFetchOverrides: UpstreamFetchTimeoutOverride[];
+}
+
+export interface UpstreamFetchTimeoutOverride {
+  providerId?: string;
+  modelId?: string;
+  upstreamFetchMs: number;
 }
 
 export interface QueueConfig {
@@ -113,6 +120,7 @@ const DEFAULT_TIMEOUTS: TimeoutConfig = {
   upstreamFetchMs: 120_000, // 120s — extended thinking models need 60-120s for first token
   streamIdleMs: 5 * 60 * 1000,
   streamMaxDurationMs: 30 * 60 * 1000,
+  upstreamFetchOverrides: [{ providerId: "deepseek", upstreamFetchMs: 600_000 }],
 };
 
 const DEFAULT_QUEUE: QueueConfig = {
@@ -202,9 +210,78 @@ export function invalidateGatewayConfig(): void {
 }
 
 export function resolveTimeoutConfig(config?: Partial<TimeoutConfig> | null): TimeoutConfig {
+  const upstreamFetchOverrides = resolveUpstreamFetchOverrides(config?.upstreamFetchOverrides);
+
   return {
     upstreamFetchMs: config?.upstreamFetchMs ?? DEFAULT_TIMEOUTS.upstreamFetchMs,
     streamIdleMs: config?.streamIdleMs ?? DEFAULT_TIMEOUTS.streamIdleMs,
     streamMaxDurationMs: config?.streamMaxDurationMs ?? DEFAULT_TIMEOUTS.streamMaxDurationMs,
+    upstreamFetchOverrides,
   };
+}
+
+function resolveUpstreamFetchOverrides(
+  overrides: Partial<UpstreamFetchTimeoutOverride>[] | undefined,
+): UpstreamFetchTimeoutOverride[] {
+  if (!overrides) return DEFAULT_TIMEOUTS.upstreamFetchOverrides;
+
+  const normalized: UpstreamFetchTimeoutOverride[] = [];
+
+  for (const override of overrides) {
+    const providerId = normalizeOverrideKey(override.providerId);
+    const modelId = normalizeOverrideKey(override.modelId);
+    const upstreamFetchMs = override.upstreamFetchMs;
+    if (
+      !(providerId || modelId) ||
+      typeof upstreamFetchMs !== "number" ||
+      !Number.isFinite(upstreamFetchMs) ||
+      upstreamFetchMs <= 0
+    ) {
+      continue;
+    }
+
+    normalized.push({ providerId, modelId, upstreamFetchMs });
+  }
+
+  if (normalized.length < overrides.length) {
+    log.gateway.warn(
+      { dropped: overrides.length - normalized.length, total: overrides.length },
+      "Dropped invalid gateway upstream fetch timeout overrides",
+    );
+  }
+
+  return normalized;
+}
+
+function normalizeOverrideKey(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/**
+ * Resolve the first-byte timeout for a public gateway model.
+ * `modelId` should be the gateway-facing model slug, not a per-upstream mapped slug.
+ */
+export function resolveUpstreamFetchTimeoutMs(
+  config: TimeoutConfig,
+  match: { providerId?: string | null; modelId?: string | null },
+): number {
+  const providerId = match.providerId ?? undefined;
+  const modelId = match.modelId ?? undefined;
+  const matches = config.upstreamFetchOverrides
+    .map((item) => {
+      const providerMatches = !item.providerId || item.providerId === providerId;
+      const modelMatches = !item.modelId || item.modelId === modelId;
+      if (!providerMatches || !modelMatches) return null;
+      return {
+        item,
+        specificity: (item.providerId ? 1 : 0) + (item.modelId ? 1 : 0),
+      };
+    })
+    .filter((item): item is { item: UpstreamFetchTimeoutOverride; specificity: number } =>
+      Boolean(item),
+    );
+  const override = matches.sort((a, b) => b.specificity - a.specificity)[0]?.item;
+
+  return override?.upstreamFetchMs ?? config.upstreamFetchMs;
 }

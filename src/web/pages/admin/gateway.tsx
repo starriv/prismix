@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Activity, Zap } from "lucide-react";
+import { Activity, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -38,56 +38,61 @@ import {
 import { Switch } from "@/web/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/web/components/ui/tabs";
 
+function parsePositiveInt(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
+}
+
 export default function AdminGatewayPage() {
   const { t } = useTranslation();
   const { data: savedConfig } = useAdminGatewayConfig();
   const { data: status } = useAdminGatewayStatus();
   const updateConfig = useUpdateAdminGatewayConfig();
 
-  const [form, setForm] = useState<GatewayConfig | null>(null);
-  const [saved, setSaved] = useState<GatewayConfig | null>(null);
-
-  useEffect(() => {
-    if (savedConfig) {
-      setSaved(savedConfig);
-      setForm((prev) => (prev ? prev : savedConfig));
-    }
-  }, [savedConfig]);
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const [draft, setDraft] = useState<GatewayConfig | null>(null);
+  const form = draft ?? savedConfig ?? null;
+  const isDirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(savedConfig);
 
   const handleSave = async () => {
     if (!form) return;
     try {
-      const data = await updateConfig.mutateAsync(form);
-      setSaved(data);
-      setForm(data);
+      await updateConfig.mutateAsync(form);
+      setDraft(null);
       toast.success(t("admin.gateway.toast.saved"));
     } catch {
       toast.error(t("admin.gateway.toast.save-error"));
     }
   };
 
-  const updateRateLimit = useCallback((index: number, patch: Partial<RateLimitRule>) => {
-    setForm((prev) => {
-      if (!prev) return prev;
-      const rules = [...prev.rateLimits];
-      rules[index] = { ...rules[index], ...patch };
-      return { ...prev, rateLimits: rules };
-    });
-  }, []);
+  const updateRateLimit = useCallback(
+    (index: number, patch: Partial<RateLimitRule>) => {
+      setDraft((prev) => {
+        const current = prev ?? savedConfig;
+        if (!current) return prev;
+        const rules = [...current.rateLimits];
+        rules[index] = { ...rules[index], ...patch };
+        return { ...current, rateLimits: rules };
+      });
+    },
+    [savedConfig],
+  );
 
-  const removeRateLimit = useCallback((index: number) => {
-    setForm((prev) => {
-      if (!prev) return prev;
-      const rules = prev.rateLimits.filter((_, i) => i !== index);
-      return { ...prev, rateLimits: rules };
-    });
-  }, []);
+  const removeRateLimit = useCallback(
+    (index: number) => {
+      setDraft((prev) => {
+        const current = prev ?? savedConfig;
+        if (!current) return prev;
+        const rules = current.rateLimits.filter((_, i) => i !== index);
+        return { ...current, rateLimits: rules };
+      });
+    },
+    [savedConfig],
+  );
 
   const addRateLimit = useCallback(() => {
-    setForm((prev) => {
-      if (!prev) return prev;
+    setDraft((prev) => {
+      const current = prev ?? savedConfig;
+      if (!current) return prev;
       const rule: RateLimitRule = {
         name: "New Rule",
         pathPattern: "*",
@@ -96,35 +101,44 @@ export default function AdminGatewayPage() {
         dimension: "ip",
         enabled: true,
       };
-      return { ...prev, rateLimits: [...prev.rateLimits, rule] };
+      return { ...current, rateLimits: [...current.rateLimits, rule] };
     });
-  }, []);
+  }, [savedConfig]);
 
   const updateCircuitBreaker = useCallback(
     (index: number, patch: Partial<CircuitBreakerConfig>) => {
-      setForm((prev) => {
-        if (!prev) return prev;
-        const cbs = [...prev.circuitBreakers];
+      setDraft((prev) => {
+        const current = prev ?? savedConfig;
+        if (!current) return prev;
+        const cbs = [...current.circuitBreakers];
         cbs[index] = { ...cbs[index], ...patch };
-        return { ...prev, circuitBreakers: cbs };
+        return { ...current, circuitBreakers: cbs };
       });
     },
-    [],
+    [savedConfig],
   );
 
-  const updateTimeouts = useCallback((patch: Partial<TimeoutConfig>) => {
-    setForm((prev) => {
-      if (!prev) return prev;
-      return { ...prev, timeouts: { ...prev.timeouts, ...patch } };
-    });
-  }, []);
+  const updateTimeouts = useCallback(
+    (patch: Partial<TimeoutConfig>) => {
+      setDraft((prev) => {
+        const current = prev ?? savedConfig;
+        if (!current) return prev;
+        return { ...current, timeouts: { ...current.timeouts, ...patch } };
+      });
+    },
+    [savedConfig],
+  );
 
-  const updateQueue = useCallback((patch: Partial<QueueConfig>) => {
-    setForm((prev) => {
-      if (!prev) return prev;
-      return { ...prev, queue: { ...prev.queue, ...patch } };
-    });
-  }, []);
+  const updateQueue = useCallback(
+    (patch: Partial<QueueConfig>) => {
+      setDraft((prev) => {
+        const current = prev ?? savedConfig;
+        if (!current) return prev;
+        return { ...current, queue: { ...current.queue, ...patch } };
+      });
+    },
+    [savedConfig],
+  );
 
   if (!form) {
     return (
@@ -372,21 +386,112 @@ function TimeoutTab({
   onUpdate: (patch: Partial<TimeoutConfig>) => void;
   t: (key: string) => string;
 }) {
+  const updateOverride = (
+    index: number,
+    patch: Partial<TimeoutConfig["upstreamFetchOverrides"][number]>,
+  ) => {
+    const overrides = [...timeouts.upstreamFetchOverrides];
+    overrides[index] = { ...overrides[index], ...patch };
+    onUpdate({ upstreamFetchOverrides: overrides });
+  };
+
+  const addOverride = () => {
+    onUpdate({
+      upstreamFetchOverrides: [
+        ...timeouts.upstreamFetchOverrides,
+        { providerId: "deepseek", modelId: "", upstreamFetchMs: 600_000 },
+      ],
+    });
+  };
+
+  const removeOverride = (index: number) => {
+    onUpdate({
+      upstreamFetchOverrides: timeouts.upstreamFetchOverrides.filter((_, i) => i !== index),
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("admin.gateway.timeout.title")}</CardTitle>
-        <CardDescription>{t("admin.gateway.timeout.desc")}</CardDescription>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle>{t("admin.gateway.timeout.title")}</CardTitle>
+            <CardDescription>{t("admin.gateway.timeout.desc")}</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={addOverride}>
+            <Plus className="h-4 w-4" />
+            {t("admin.gateway.timeout.btn-add-override")}
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <div className="max-w-sm space-y-2">
           <Label>{t("admin.gateway.timeout.upstream")}</Label>
           <Input
             type="number"
+            min={1}
+            step={1}
             value={timeouts.upstreamFetchMs}
-            onChange={(e) => onUpdate({ upstreamFetchMs: Number(e.target.value) })}
+            onChange={(e) => onUpdate({ upstreamFetchMs: parsePositiveInt(e.target.value) })}
           />
           <p className="text-xs text-muted-foreground">{t("admin.gateway.timeout.ms-hint")}</p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-medium">{t("admin.gateway.timeout.overrides")}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t("admin.gateway.timeout.overrides-desc")}
+            </p>
+          </div>
+          <div className="space-y-3">
+            {timeouts.upstreamFetchOverrides.map((override, i) => (
+              <div
+                key={i}
+                className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_160px_auto]"
+              >
+                <div className="space-y-2">
+                  <Label>{t("admin.gateway.timeout.provider-id")}</Label>
+                  <Input
+                    value={override.providerId ?? ""}
+                    onChange={(e) => updateOverride(i, { providerId: e.target.value })}
+                    placeholder="deepseek"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.gateway.timeout.model-id")}</Label>
+                  <Input
+                    value={override.modelId ?? ""}
+                    onChange={(e) => updateOverride(i, { modelId: e.target.value })}
+                    placeholder="deepseek-v4-pro"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("admin.gateway.timeout.override-ms")}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={override.upstreamFetchMs}
+                    onChange={(e) =>
+                      updateOverride(i, { upstreamFetchMs: parsePositiveInt(e.target.value) })
+                    }
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeOverride(i)}
+                    aria-label={t("admin.gateway.timeout.remove-override")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>

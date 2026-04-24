@@ -9,7 +9,11 @@ import { type Context, Hono } from "hono";
 import type { AiModel, AiProvider } from "@/server/db";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
-import { getGatewayConfigCached, resolveTimeoutConfig } from "@/server/lib/gateway-config";
+import {
+  getGatewayConfigCached,
+  resolveTimeoutConfig,
+  resolveUpstreamFetchTimeoutMs,
+} from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
 import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
@@ -210,11 +214,15 @@ relay.post("/v1/chat/completions", async (c) => {
 
       if (body.stream) {
         try {
+          const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
+            providerId: candidate.provider.providerId,
+            modelId: candidate.model.modelId,
+          });
           const upstreamRes = await fetchUpstream(
             finalUrl,
             { ...authHeaders, ...passthroughHeaders },
             attemptBody,
-            timeouts.upstreamFetchMs,
+            upstreamFetchMs,
             { provider: candidate.provider.providerId, route: "chat" },
           );
           if (upstreamRes.ok) {
@@ -537,7 +545,12 @@ relay.all("/v1/*", async (c) => {
         },
         body: c.req.method !== "GET" ? selected.serializedBody : undefined,
         signal: AbortSignal.timeout(
-          isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
+          isStreaming
+            ? resolveUpstreamFetchTimeoutMs(timeouts, {
+                providerId: provider.providerId,
+                modelId,
+              })
+            : timeouts.streamMaxDurationMs,
         ),
       });
       gatewayUpstreamDuration.observe(

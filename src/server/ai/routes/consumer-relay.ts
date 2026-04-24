@@ -9,7 +9,11 @@ import { type Context, Hono } from "hono";
 import { emit } from "@/server/events";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
-import { getGatewayConfigCached, resolveTimeoutConfig } from "@/server/lib/gateway-config";
+import {
+  getGatewayConfigCached,
+  resolveTimeoutConfig,
+  resolveUpstreamFetchTimeoutMs,
+} from "@/server/lib/gateway-config";
 import { log } from "@/server/lib/logger";
 import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
@@ -388,11 +392,15 @@ async function handleChatCompletions(
     if (body.stream) {
       try {
         const streamingHeaders = { ...selected.authHeaders, ...passthroughHeaders };
+        const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
+          providerId: selected.providerId,
+          modelId: model.modelId,
+        });
         const upstreamRes = await fetchUpstream(
           selected.finalUrl,
           streamingHeaders,
           selected.serializedBody,
-          timeouts.upstreamFetchMs,
+          upstreamFetchMs,
           {
             provider: selected.providerId,
             route: "chat",
@@ -933,7 +941,12 @@ async function handlePassthrough(
         },
         body: c.req.method !== "GET" ? ptSelected.serializedBody : undefined,
         signal: AbortSignal.timeout(
-          isStreaming ? timeouts.upstreamFetchMs : timeouts.streamMaxDurationMs,
+          isStreaming
+            ? resolveUpstreamFetchTimeoutMs(timeouts, {
+                providerId: provider.providerId,
+                modelId,
+              })
+            : timeouts.streamMaxDurationMs,
         ),
       });
       gatewayUpstreamDuration.observe(

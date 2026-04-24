@@ -418,7 +418,14 @@
         "title": "Timeouts",
         "desc": "Maximum wait time for external calls",
         "upstream": "Upstream Fetch (ms)",
-        "ms-hint": "Time in milliseconds"
+        "ms-hint": "Time in milliseconds",
+        "btn-add-override": "Add override",
+        "overrides": "Upstream request overrides",
+        "overrides-desc": "Set a longer first-byte wait by provider or gateway model. Model-only entries match every provider.",
+        "provider-id": "Provider ID",
+        "model-id": "Model ID",
+        "override-ms": "Override (ms)",
+        "remove-override": "Remove override"
       },
       "queue": {
         "title": "Write Queue",

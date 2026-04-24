@@ -418,7 +418,14 @@
         "title": "超时设置",
         "desc": "外部调用的最大等待时间",
         "upstream": "上游请求 (ms)",
-        "ms-hint": "单位：毫秒"
+        "ms-hint": "单位：毫秒",
+        "btn-add-override": "添加覆盖",
+        "overrides": "上游请求覆盖",
+        "overrides-desc": "按 provider 或网关模型为首包较慢的上游设置更长等待时间。仅填模型会匹配所有 provider。",
+        "provider-id": "Provider ID",
+        "model-id": "模型 ID",
+        "override-ms": "覆盖值 (ms)",
+        "remove-override": "删除覆盖"
       },
       "queue": {
         "title": "写入队列",

@@ -274,6 +274,19 @@ export const updateGatewayConfigBody = z.object({
       upstreamFetchMs: z.number().int().positive(),
       streamIdleMs: z.number().int().positive().optional(),
       streamMaxDurationMs: z.number().int().positive().optional(),
+      upstreamFetchOverrides: z
+        .array(
+          z
+            .object({
+              providerId: z.string().trim().optional(),
+              modelId: z.string().trim().optional(),
+              upstreamFetchMs: z.number().int().positive(),
+            })
+            .refine((value) => value.providerId || value.modelId, {
+              message: "providerId or modelId is required",
+            }),
+        )
+        .optional(),
     })
     .optional(),
   queue: z

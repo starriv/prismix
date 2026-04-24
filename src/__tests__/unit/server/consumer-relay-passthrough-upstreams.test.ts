@@ -74,7 +74,9 @@ vi.mock("@/server/lib/gateway-config", () => ({
   resolveTimeoutConfig: vi.fn().mockReturnValue({
     upstreamFetchMs: 15_000,
     streamMaxDurationMs: 60_000,
+    upstreamFetchOverrides: [],
   }),
+  resolveUpstreamFetchTimeoutMs: vi.fn().mockReturnValue(15_000),
 }));
 
 vi.mock("@/server/lib/logger", () => ({
