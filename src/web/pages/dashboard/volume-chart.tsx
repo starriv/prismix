@@ -17,12 +17,6 @@ import { formatTokens } from "@/web/pages/ai-usage/helpers";
 
 // ── Config ─────────────────────────────────────────────
 
-const barChartConfig = {
-  views: { label: "Views" },
-  requests: { label: "Requests", color: "var(--chart-1)" },
-  tokens: { label: "Tokens", color: "var(--chart-2)" },
-} satisfies ChartConfig;
-
 type BarMetric = "requests" | "tokens";
 
 // ── Component ──────────────────────────────────────────
@@ -34,6 +28,14 @@ export default function RequestVolumeChart({
 }) {
   const { t } = useTranslation();
   const [activeMetric, setActiveMetric] = useState<BarMetric>("requests");
+  const barChartConfig = useMemo(
+    () =>
+      ({
+        requests: { label: t("dash.ai.volume-requests"), color: "var(--chart-1)" },
+        tokens: { label: t("dash.ai.volume-tokens"), color: "var(--chart-2)" },
+      }) satisfies ChartConfig,
+    [t],
+  );
 
   const chartData = useMemo(
     () =>
@@ -95,7 +97,6 @@ export default function RequestVolumeChart({
               content={
                 <ChartTooltipContent
                   className="w-[150px]"
-                  nameKey="views"
                   labelFormatter={(value) => format(new Date(String(value)), "yyyy-MM-dd")}
                 />
               }
