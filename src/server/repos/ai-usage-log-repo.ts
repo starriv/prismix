@@ -133,6 +133,44 @@ function addUtcHours(value: Date, hours: number): Date {
   return date;
 }
 
+export function parseDbTimestamp(value: Date | number | string | null | undefined): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return new Date(
+      Date.UTC(
+        value.getFullYear(),
+        value.getMonth(),
+        value.getDate(),
+        value.getHours(),
+        value.getMinutes(),
+        value.getSeconds(),
+        value.getMilliseconds(),
+      ),
+    );
+  }
+
+  const raw = typeof value === "string" ? value.trim() : value;
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)) {
+    const date = new Date(`${raw.replace(" ", "T")}Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDbTimestamp(value: Date | number | string | null | undefined): string | null {
+  return parseDbTimestamp(value)?.toISOString() ?? null;
+}
+
+function normalizeUsageLogTimestamps(row: AiUsageLog): AiUsageLog {
+  return {
+    ...row,
+    createdAt: parseDbTimestamp(row.createdAt) ?? row.createdAt,
+  };
+}
+
 export function buildUpstreamHourlySeries(
   rows: Array<{
     hour: Date | string | null;
@@ -150,10 +188,8 @@ export function buildUpstreamHourlySeries(
 
   const rowsByHour = new Map<string, UpstreamHourlyRow>(
     rows.flatMap((row) => {
-      if (!row.hour) return [];
-
-      const hourDate = row.hour instanceof Date ? row.hour : new Date(row.hour);
-      if (Number.isNaN(hourDate.getTime())) return [];
+      const hourDate = parseDbTimestamp(row.hour);
+      if (!hourDate) return [];
 
       const hour = floorToUtcHour(hourDate).toISOString();
       return [
@@ -246,7 +282,7 @@ export const aiUsageLogRepo = {
 
   /** List usage logs, newest first. */
   async findAll(limit = 50, offset = 0, filters?: UsageFilters): Promise<AiUsageLog[]> {
-    return queryAll(
+    const rows = await queryAll<AiUsageLog>(
       db
         .select()
         .from(aiUsageLogs)
@@ -255,6 +291,7 @@ export const aiUsageLogRepo = {
         .limit(limit)
         .offset(offset),
     );
+    return rows.map(normalizeUsageLogTimestamps);
   },
 
   /** Count logs matching filters. */
@@ -339,8 +376,7 @@ export const aiUsageLogRepo = {
         serverErrors24h: Number(row.serverErrors24h ?? 0),
         totalTokens24h: Number(row.totalTokens24h ?? 0),
         avgLatencyMs24h: Math.round(Number(row.avgLatencyMs24h ?? 0)),
-        lastSeenAt:
-          row.lastSeenAt instanceof Date ? row.lastSeenAt.toISOString() : (row.lastSeenAt ?? null),
+        lastSeenAt: formatDbTimestamp(row.lastSeenAt),
         recentRequests: Number(row.recentRequests ?? 0),
         recentServerErrors: Number(row.recentServerErrors ?? 0),
         recentTotalErrors: Number(row.recentTotalErrors ?? 0),
