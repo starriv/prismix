@@ -28,13 +28,19 @@ function extractUsageFromObject(body: unknown): TokenUsage | null {
   };
 }
 
+function usesMaxCompletionTokens(model: string): boolean {
+  return /^(?:gpt-5|o[134])(?:[.-]|$)/.test(model);
+}
+
 export const openaiAdapter: ProviderAdapter = {
   format: "openai",
 
   transformRequest(body: OpenAIChatBody): unknown {
-    // Normalize max_tokens → max_completion_tokens (newer OpenAI models reject max_tokens)
-    const { max_tokens, ...rest } = body;
-    const normalized = max_tokens ? { ...rest, max_completion_tokens: max_tokens } : rest;
+    let normalized: OpenAIChatBody | Omit<OpenAIChatBody, "max_tokens"> = body;
+    if (body.max_tokens && usesMaxCompletionTokens(body.model)) {
+      const { max_tokens, ...rest } = body;
+      normalized = { ...rest, max_completion_tokens: max_tokens };
+    }
 
     // Inject stream_options so OpenAI-compatible providers include usage in SSE chunks
     if (normalized.stream) {

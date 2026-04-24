@@ -395,7 +395,7 @@ describe("openaiAdapter.transformRequest", () => {
 
   it("preserves existing body fields when injecting stream_options", () => {
     const body = {
-      model: "gpt-4",
+      model: "deepseek-v4-pro",
       messages: [{ role: "user" as const, content: "hi" }],
       stream: true,
       temperature: 0.7,
@@ -403,8 +403,8 @@ describe("openaiAdapter.transformRequest", () => {
     };
     const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
     expect(result.temperature).toBe(0.7);
-    expect(result.max_completion_tokens).toBe(100);
-    expect(result.max_tokens).toBeUndefined();
+    expect(result.max_tokens).toBe(100);
+    expect(result.max_completion_tokens).toBeUndefined();
     expect(result.stream_options).toEqual({ include_usage: true });
   });
 });

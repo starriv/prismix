@@ -42,7 +42,18 @@ describe("openai adapter", () => {
       expect(result.max_completion_tokens).toBeUndefined();
     });
 
-    it("renames max_tokens to max_completion_tokens", () => {
+    it("preserves max_tokens for generic OpenAI-compatible models", () => {
+      const body = {
+        model: "deepseek-v4-pro",
+        messages: [{ role: "user" as const, content: "hello" }],
+        max_tokens: 1024,
+      };
+      const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
+      expect(result.max_tokens).toBe(1024);
+      expect(result.max_completion_tokens).toBeUndefined();
+    });
+
+    it("renames max_tokens to max_completion_tokens for newer OpenAI models", () => {
       const body = {
         model: "gpt-5.4",
         messages: [{ role: "user" as const, content: "hello" }],
@@ -64,7 +75,20 @@ describe("openai adapter", () => {
       expect(result.model).toBe("gpt-4o");
     });
 
-    it("renames max_tokens and injects stream_options together", () => {
+    it("preserves max_tokens and injects stream_options together for generic models", () => {
+      const body = {
+        model: "deepseek-v4-pro",
+        messages: [{ role: "user" as const, content: "hello" }],
+        stream: true,
+        max_tokens: 2048,
+      };
+      const result = openaiAdapter.transformRequest(body) as Record<string, unknown>;
+      expect(result.max_tokens).toBe(2048);
+      expect(result.max_completion_tokens).toBeUndefined();
+      expect(result.stream_options).toEqual({ include_usage: true });
+    });
+
+    it("renames max_tokens and injects stream_options together for newer OpenAI models", () => {
       const body = {
         model: "gpt-5.4",
         messages: [{ role: "user" as const, content: "hello" }],
