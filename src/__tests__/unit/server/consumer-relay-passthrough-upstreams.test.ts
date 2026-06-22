@@ -235,6 +235,54 @@ describe("consumer relay Anthropic client protocol routing", () => {
     });
   });
 
+  it("accepts a trailing slash on the Anthropic messages route", async () => {
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "friend-a",
+        name: "Friend A",
+        baseUrl: "https://friend-a.example.com",
+      },
+    ]);
+    mockPickKey.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+      name: "friend-key",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "msg_upstream",
+          type: "message",
+          role: "assistant",
+          model: "claude-sonnet-4",
+          content: [{ type: "text", text: "hello" }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 4 },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const res = await app.request("http://localhost/v1/messages/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4",
+        messages: [{ role: "user", content: "hello" }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://friend-a.example.com/v1/messages");
+  });
+
   it("converts Anthropic messages to OpenAI chat completions for an OpenAI upstream", async () => {
     mockFindEnabledRoutesByModelId.mockResolvedValue([
       {
@@ -346,5 +394,58 @@ describe("consumer relay Anthropic client protocol routing", () => {
       content: [{ type: "text", text: "你好" }],
       usage: { input_tokens: 8, output_tokens: 3 },
     });
+  });
+
+  it("estimates Anthropic count_tokens locally for a compatible OpenAI upstream route", async () => {
+    mockFindEnabledRoutesByModelId.mockResolvedValue([
+      {
+        route: {
+          id: 201,
+          modelId: 101,
+          providerId: 7,
+          providerModelId: "glm-5.2",
+          priority: 100,
+          weight: 1,
+          enabled: true,
+        },
+        model: {
+          id: 101,
+          providerId: 7,
+          clientFormat: "anthropic",
+          modelId: "claude-glm",
+          inputPrice: "1",
+          outputPrice: "2",
+          enabled: true,
+        },
+        provider: {
+          id: 7,
+          providerId: "glm",
+          name: "GLM",
+          baseUrl: "https://glm.example.com/v1",
+          apiFormat: "openai",
+          authType: "cloudflare",
+          authConfig: JSON.stringify({ clientId: "client-id.access" }),
+          enabled: true,
+        },
+      },
+    ]);
+
+    const res = await app.request("http://localhost/v1/messages/count_tokens", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-glm",
+        system: "You are concise.",
+        messages: [{ role: "user", content: "hello" }],
+      }),
+    });
+    const json = (await res.json()) as { input_tokens: number };
+
+    expect(res.status).toBe(200);
+    expect(json.input_tokens).toBeGreaterThan(0);
+    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm", "anthropic");
+    expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
+    expect(mockPickKey).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

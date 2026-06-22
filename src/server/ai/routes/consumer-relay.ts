@@ -21,7 +21,10 @@ import { getRequestId } from "@/server/middleware/request-id";
 import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
 import { removeTailingZero } from "@/shared/number";
 
-import { anthropicClientProtocolAdapter } from "../client-protocols/anthropic";
+import {
+  anthropicClientProtocolAdapter,
+  estimateAnthropicInputTokens,
+} from "../client-protocols/anthropic";
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { billConsumer, checkConsumerSpendingLimits } from "../lib/billing";
 import {
@@ -209,7 +212,12 @@ consumerOpenAiRelay.post("/v1/chat/completions", async (c) => {
 
 // ── POST /v1/messages — Anthropic client protocol via canonical chat ──
 
-consumerAnthropicRelay.post("/v1/messages", async (c) => {
+consumerAnthropicRelay.post("/v1/messages", handleAnthropicMessagesRoute);
+consumerAnthropicRelay.post("/v1/messages/", handleAnthropicMessagesRoute);
+consumerAnthropicRelay.post("/v1/messages/count_tokens", handleAnthropicCountTokensRoute);
+consumerAnthropicRelay.post("/v1/messages/count_tokens/", handleAnthropicCountTokensRoute);
+
+async function handleAnthropicMessagesRoute(c: Context): Promise<Response> {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
@@ -225,7 +233,25 @@ consumerAnthropicRelay.post("/v1/messages", async (c) => {
       error: "Internal Server Error",
     });
   }
-});
+}
+
+async function handleAnthropicCountTokensRoute(c: Context): Promise<Response> {
+  const consumer = getConsumerSession(c);
+  const requestId = getRequestId(c);
+  const start = Date.now();
+
+  try {
+    return await handleAnthropicCountTokens(c, consumer, requestId, start);
+  } catch (err) {
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in anthropic count tokens handler",
+    );
+    return respondWithConsumerError(c, consumer, requestId, start, 500, {
+      error: "Internal Server Error",
+    });
+  }
+}
 
 async function handleChatCompletions(
   c: Context,
@@ -276,6 +302,63 @@ async function handleAnthropicMessages(
     createStreamOutputTransformer: (model) =>
       anthropicClientProtocolAdapter.createStreamTransformer(model),
   });
+}
+
+async function handleAnthropicCountTokens(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+): Promise<Response> {
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return respondWithConsumerError(c, consumer, requestId, start, 400, {
+      error: "Invalid JSON body",
+    });
+  }
+
+  const converted = anthropicClientProtocolAdapter.transformRequest(raw);
+  if (!converted.ok) {
+    return respondWithConsumerError(c, consumer, requestId, start, converted.statusCode, {
+      error: converted.error,
+    });
+  }
+
+  const { body } = converted;
+  if (consumer.allowedModels.length > 0) {
+    const allowed = consumer.allowedModels.some((pattern) => {
+      if (pattern.endsWith("*")) return body.model.startsWith(pattern.slice(0, -1));
+      return body.model === pattern;
+    });
+    if (!allowed) {
+      return respondWithConsumerError(c, consumer, requestId, start, 403, {
+        error: `Model "${body.model}" is not allowed for this key`,
+      });
+    }
+  }
+
+  const routes = orderRoutesByPriorityAndWeight(
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, "anthropic"),
+  );
+  if (routes.length === 0) {
+    return respondWithConsumerError(c, consumer, requestId, start, 404, {
+      error: `Model "${body.model}" not found or disabled`,
+    });
+  }
+
+  const hasCompatibleRoute = routes.some(({ provider }) => {
+    if (!canServeClientFormat("anthropic", provider.apiFormat)) return false;
+    return Boolean(getAdapter(provider.apiFormat));
+  });
+  if (!hasCompatibleRoute) {
+    return respondWithConsumerError(c, consumer, requestId, start, 403, {
+      error: "No compatible provider route configured for this model",
+    });
+  }
+
+  return c.json({ input_tokens: estimateAnthropicInputTokens(body) });
 }
 
 interface CanonicalChatOptions {

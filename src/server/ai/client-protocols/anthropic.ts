@@ -318,6 +318,26 @@ export const anthropicClientProtocolAdapter: ClientProtocolAdapter = {
   },
 };
 
+export function estimateAnthropicInputTokens(body: OpenAIChatBody): number {
+  const serializedLength =
+    body.messages.reduce((sum, message) => sum + estimateContentLength(message.content), 0) +
+    estimateContentLength(body.tools) +
+    estimateContentLength(body.tool_choice) +
+    estimateContentLength(body.stop);
+
+  return Math.max(1, Math.ceil(serializedLength / 4) + body.messages.length * 4);
+}
+
+function estimateContentLength(value: unknown): number {
+  if (value == null) return 0;
+  if (typeof value === "string") return value.length;
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
+}
+
 function createAnthropicStreamTransformer(defaultModel: string): ClientStreamTransformer {
   const state = {
     messageStarted: false,
