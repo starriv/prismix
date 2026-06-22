@@ -29,6 +29,15 @@ describe("anthropic adapter", () => {
         }),
       ).toBe("https://api.anthropic.com/v1/messages");
     });
+
+    it("adds /v1 when base URL omits it", () => {
+      expect(
+        anthropicAdapter.buildUrl("https://api.anthropic.com", {
+          model: "claude-sonnet-4-20250514",
+          stream: false,
+        }),
+      ).toBe("https://api.anthropic.com/v1/messages");
+    });
   });
 
   // ── transformRequest ────────────────────────────────────────────────

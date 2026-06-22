@@ -35,6 +35,13 @@ import {
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
 import { Switch } from "@/web/components/ui/switch";
 
+type ClientFormat = "openai" | "anthropic";
+
+function canProviderServeClientFormat(clientFormat: ClientFormat, apiFormat: string): boolean {
+  if (clientFormat === "openai") return true;
+  return ["anthropic", "openai", "azure-openai"].includes(apiFormat);
+}
+
 export function ModelRoutesSheet({
   open,
   onOpenChange,
@@ -54,8 +61,13 @@ export function ModelRoutesSheet({
 
   const availableProviders = useMemo(() => {
     const routedIds = new Set(routes.map((r) => r.providerId));
-    return providers.filter((p) => p.enabled && !routedIds.has(p.id));
-  }, [providers, routes]);
+    return providers.filter(
+      (p) =>
+        p.enabled &&
+        !routedIds.has(p.id) &&
+        canProviderServeClientFormat(model.clientFormat, p.apiFormat),
+    );
+  }, [model.clientFormat, providers, routes]);
 
   const sortedRoutes = useMemo(() => sortBy(routes, "priority"), [routes]);
 

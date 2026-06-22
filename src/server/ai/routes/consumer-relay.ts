@@ -21,9 +21,14 @@ import { getRequestId } from "@/server/middleware/request-id";
 import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
 import { removeTailingZero } from "@/shared/number";
 
+import { anthropicClientProtocolAdapter } from "../client-protocols/anthropic";
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
 import { billConsumer, checkConsumerSpendingLimits } from "../lib/billing";
-import { type ClientFormat, isNativePassthroughProvider } from "../lib/client-format";
+import {
+  canServeClientFormat,
+  type ClientFormat,
+  isNativePassthroughProvider,
+} from "../lib/client-format";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
@@ -39,13 +44,14 @@ import {
   forwardStream,
   RETRYABLE_STATUS,
   type StreamCompleteCallback,
+  type StreamOutputTransformer,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { type ConsumerSession, getConsumerSession } from "../middleware/consumer-key-auth";
 import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
-import type { OpenAIChatBody, TokenUsage } from "../providers/types";
+import type { OpenAIChatBody, OpenAIChatResponse, TokenUsage } from "../providers/types";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
@@ -201,19 +207,102 @@ consumerOpenAiRelay.post("/v1/chat/completions", async (c) => {
   }
 });
 
+// ── POST /v1/messages — Anthropic client protocol via canonical chat ──
+
+consumerAnthropicRelay.post("/v1/messages", async (c) => {
+  const consumer = getConsumerSession(c);
+  const requestId = getRequestId(c);
+  const start = Date.now();
+
+  try {
+    return await handleAnthropicMessages(c, consumer, requestId, start);
+  } catch (err) {
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in anthropic messages handler",
+    );
+    return respondWithConsumerError(c, consumer, requestId, start, 500, {
+      error: "Internal Server Error",
+    });
+  }
+});
+
 async function handleChatCompletions(
   c: Context,
   consumer: ConsumerSession,
   requestId: string,
   start: number,
 ): Promise<Response> {
-  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
-
-  // -- 1. Validate request body --
   const parsed = await parseBody(c, aiRelayChatBody);
   if (!parsed.ok)
     return respondWithConsumerError(c, consumer, requestId, start, 400, { error: parsed.error });
-  const body = parsed.data;
+
+  return handleCanonicalChatCompletions(c, consumer, requestId, start, {
+    body: parsed.data,
+    clientFormat: "openai",
+    cacheScope: `consumer:${consumer.consumerId}:openai`,
+    passthroughHeaders: extractPassthroughHeaders(c),
+  });
+}
+
+async function handleAnthropicMessages(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+): Promise<Response> {
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return respondWithConsumerError(c, consumer, requestId, start, 400, {
+      error: "Invalid JSON body",
+    });
+  }
+
+  const converted = anthropicClientProtocolAdapter.transformRequest(raw);
+  if (!converted.ok) {
+    return respondWithConsumerError(c, consumer, requestId, start, converted.statusCode, {
+      error: converted.error,
+    });
+  }
+
+  return handleCanonicalChatCompletions(c, consumer, requestId, start, {
+    body: converted.body,
+    clientFormat: "anthropic",
+    cacheScope: `consumer:${consumer.consumerId}:anthropic`,
+    responseTransformer: (body, publicModel) =>
+      anthropicClientProtocolAdapter.transformResponse({ ...body, model: publicModel }),
+    createStreamOutputTransformer: (model) =>
+      anthropicClientProtocolAdapter.createStreamTransformer(model),
+  });
+}
+
+interface CanonicalChatOptions {
+  body: OpenAIChatBody;
+  clientFormat: ClientFormat;
+  cacheScope: string;
+  passthroughHeaders?: Record<string, string>;
+  responseTransformer?: (body: OpenAIChatResponse, publicModel: string) => unknown;
+  createStreamOutputTransformer?: (model: string) => StreamOutputTransformer;
+}
+
+async function handleCanonicalChatCompletions(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+  options: CanonicalChatOptions,
+): Promise<Response> {
+  const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
+  const {
+    body,
+    cacheScope,
+    clientFormat,
+    createStreamOutputTransformer,
+    passthroughHeaders = {},
+    responseTransformer,
+  } = options;
 
   // -- 2. Model ACL check --
   if (consumer.allowedModels.length > 0) {
@@ -250,7 +339,7 @@ async function handleChatCompletions(
 
   // -- 4. Resolve model via routes --
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, "openai"),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, clientFormat),
   );
   if (routes.length === 0) {
     return respondWithConsumerError(c, consumer, requestId, start, 404, {
@@ -276,6 +365,10 @@ async function handleChatCompletions(
 
   for (const { route, provider, model: routeModel } of routes) {
     const providerModelId = route.providerModelId ?? routeModel.modelId;
+
+    if (!canServeClientFormat(clientFormat, provider.apiFormat)) {
+      continue;
+    }
 
     if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
       continue; // skip unsupported streaming routes
@@ -348,7 +441,6 @@ async function handleChatCompletions(
 
   // Start with first candidate; fallback to next on retryable failures
   let selected = resolvedUpstreams[0];
-  const passthroughHeaders = extractPassthroughHeaders(c);
 
   // -- 7b. Check if request logging is enabled --
   const logEnabled = await isRequestLoggingEnabled();
@@ -392,7 +484,7 @@ async function handleChatCompletions(
 
     const cacheKey = !body.stream
       ? buildCacheKey({
-          scope: `consumer:${consumer.consumerId}`,
+          scope: cacheScope,
           model: model.modelId,
           providerId: selected.providerId,
           upstreamId: selected.upstreamId,
@@ -473,7 +565,15 @@ async function handleChatCompletions(
           });
         };
 
-        return forwardStream(c, upstreamRes, selected.adapter!, meta, onComplete, timeouts);
+        return forwardStream(
+          c,
+          upstreamRes,
+          selected.adapter!,
+          meta,
+          onComplete,
+          timeouts,
+          createStreamOutputTransformer?.(model.modelId),
+        );
       } catch (err) {
         markKeyFailure(selected.keyId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
@@ -557,7 +657,10 @@ async function handleChatCompletions(
       );
     }
 
-    const transformed = selected.adapter!.transformResponse(responseBody);
+    const canonicalResponse = selected.adapter!.transformResponse(responseBody);
+    const transformed = responseTransformer
+      ? responseTransformer(canonicalResponse, model.modelId)
+      : canonicalResponse;
     const usage = selected.adapter!.extractUsage(responseBody);
     const latencyMs = Date.now() - start;
     markKeySuccess(selected.keyId);

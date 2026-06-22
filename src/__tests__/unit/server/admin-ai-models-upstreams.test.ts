@@ -312,6 +312,59 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
   });
 
+  it("scopes discovered registered flags by requested clientFormat", async () => {
+    mockFindProviderById.mockResolvedValue({
+      id: 7,
+      providerId: "glm",
+      name: "GLM",
+      baseUrl: "https://official.example.com/v1",
+      apiFormat: "openai",
+      authType: "bearer",
+      authConfig: JSON.stringify({}),
+      enabled: true,
+    });
+    mockFindAnyEnabledByProvider.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: null,
+      encryptedKey: "encrypted",
+    });
+    mockFindModelsByProviderId.mockResolvedValue([
+      {
+        id: 99,
+        providerId: 7,
+        clientFormat: "openai",
+        modelId: "glm-5.2",
+        name: "GLM 5.2 OpenAI",
+        contextWindow: null,
+        inputPrice: "1",
+        outputPrice: "2",
+        capabilities: "[]",
+        fallbackModelIds: null,
+        weight: 1,
+        enabled: true,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: "glm-5.2", name: "GLM 5.2" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const res = await app.request(
+      "http://localhost/providers/7/discover-models?clientFormat=anthropic",
+    );
+    const json = (await res.json()) as {
+      data: Array<{ modelId: string; registered: boolean }>;
+    };
+
+    expect(res.status).toBe(200);
+    expect(json.data[0]).toMatchObject({ modelId: "glm-5.2", registered: false });
+  });
+
   it("falls back to apiFormat URL when modelsEndpoint is null", async () => {
     mockResolveUpstreamCandidates.mockResolvedValue([
       {
@@ -473,7 +526,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     expect(mockUpdateRouteForModel).toHaveBeenCalledWith(42, 7, { priority: 200 });
   });
 
-  it("rejects an Anthropic model route to a non-Anthropic provider", async () => {
+  it("allows an Anthropic model route to an OpenAI-format provider", async () => {
     mockFindModelById.mockResolvedValue({
       id: 42,
       providerId: 7,
@@ -506,11 +559,48 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ providerId: 7 }),
     });
+
+    expect(res.status).toBe(201);
+    expect(mockCreateRoute).toHaveBeenCalledWith({ modelId: 42, providerId: 7 });
+  });
+
+  it("rejects an Anthropic model route to an unsupported provider format", async () => {
+    mockFindModelById.mockResolvedValue({
+      id: 42,
+      providerId: 7,
+      clientFormat: "anthropic",
+      modelId: "claude-sonnet-4",
+      name: "Claude Sonnet 4",
+      contextWindow: 200000,
+      inputPrice: "3",
+      outputPrice: "15",
+      capabilities: "[]",
+      fallbackModelIds: null,
+      weight: 1,
+      enabled: true,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mockFindProviderById.mockResolvedValue({
+      id: 7,
+      providerId: "google",
+      name: "Google AI",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      apiFormat: "gemini",
+      authType: "bearer",
+      authConfig: JSON.stringify({}),
+      enabled: true,
+    });
+
+    const res = await app.request("http://localhost/models/42/routes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ providerId: 7 }),
+    });
     const json = (await res.json()) as { error: string };
 
     expect(res.status).toBe(400);
     expect(json.error).toContain("not compatible with anthropic models");
-    expect(mockCreateRoute).not.toHaveBeenCalled();
   });
 
   it("rejects changing a model to a client format where the same model id already exists", async () => {

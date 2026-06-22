@@ -582,10 +582,15 @@ export function useBatchDeleteAiModels() {
   });
 }
 
-export function useDiscoverModels(providerId: number, source: string = "official") {
+export function useDiscoverModels(
+  providerId: number,
+  source: string = "official",
+  clientFormat?: "openai" | "anthropic",
+) {
   return useQuery({
-    queryKey: queryKeys.aiDiscoverModels(providerId, source),
-    queryFn: () => get(apiAiDiscoverModels(providerId, source), z.array(discoveredModelSchema)),
+    queryKey: queryKeys.aiDiscoverModels(providerId, source, clientFormat),
+    queryFn: () =>
+      get(apiAiDiscoverModels(providerId, source, clientFormat), z.array(discoveredModelSchema)),
     enabled: false,
   });
 }

@@ -23,6 +23,7 @@ import {
   canAttachProviderToClientFormat,
   type ClientFormat,
   defaultClientFormatForProvider,
+  isClientFormat,
 } from "../lib/client-format";
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
 import { buildProviderAuth } from "../lib/provider-auth";
@@ -55,6 +56,10 @@ router.get("/providers/:id/discover-models", async (c) => {
   const source = (c.req.query("source") ?? "official") as "official" | "upstream";
   if (source !== "official" && source !== "upstream") {
     return c.json({ error: "Invalid source — must be 'official' or 'upstream'" }, 400);
+  }
+  const requestedClientFormat = c.req.query("clientFormat");
+  if (requestedClientFormat && !isClientFormat(requestedClientFormat)) {
+    return c.json({ error: "Invalid clientFormat" }, 400);
   }
 
   const provider = await aiProviderRepo.findById(id);
@@ -162,7 +167,8 @@ router.get("/providers/:id/discover-models", async (c) => {
 
     const models = rawModels;
 
-    const clientFormat = defaultClientFormatForProvider(provider.apiFormat);
+    const clientFormat =
+      requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
     const existing = await aiModelRepo.findByProviderId(id);
     const existingIds = new Set(
       existing.filter((e) => e.clientFormat === clientFormat).map((e) => e.modelId),
@@ -205,6 +211,12 @@ router.post("/providers/:id/models", async (c) => {
     ...rest
   } = parsed.data;
   const clientFormat = requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
+  if (!canAttachProviderToClientFormat(clientFormat, provider.apiFormat)) {
+    return c.json(
+      { error: `Provider "${provider.name}" is not compatible with ${clientFormat} models` },
+      400,
+    );
+  }
 
   const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
   if (existing) {
@@ -256,6 +268,17 @@ router.post("/providers/:id/models/batch", async (c) => {
     fallbackModelIds: null,
     enabled: m.enabled ?? true,
   }));
+  const incompatible = rows.find(
+    (row) => !canAttachProviderToClientFormat(row.clientFormat, provider.apiFormat),
+  );
+  if (incompatible) {
+    return c.json(
+      {
+        error: `Provider "${provider.name}" is not compatible with ${incompatible.clientFormat} models`,
+      },
+      400,
+    );
+  }
 
   const modelIdsByFormat = new Map<string, string[]>();
   for (const row of rows) {

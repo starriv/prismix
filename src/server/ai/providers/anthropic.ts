@@ -62,7 +62,8 @@ export const anthropicAdapter: ProviderAdapter = {
   format: "anthropic",
 
   buildUrl(baseUrl: string, _opts: BuildUrlOptions): string {
-    return `${baseUrl.replace(/\/+$/, "")}/messages`;
+    const base = baseUrl.replace(/\/+$/, "");
+    return base.endsWith("/v1") ? `${base}/messages` : `${base}/v1/messages`;
   },
 
   transformRequest(body: OpenAIChatBody): unknown {
@@ -76,7 +77,7 @@ export const anthropicAdapter: ProviderAdapter = {
       .join("\n\n");
 
     // Build Anthropic request — spread to preserve extra fields (tools, etc.)
-    const { messages: _msgs, max_tokens, ...rest } = body;
+    const { max_tokens, ...rest } = body;
 
     return {
       ...rest,

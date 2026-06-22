@@ -194,8 +194,14 @@ export const queryKeys = {
     ["app", "relay-keys", params?.prefix ?? "", params?.userUuid ?? "", params?.page ?? 0] as const,
   relayKeysAll: () => ["app", "relay-keys"] as const,
   relayKeyOptions: () => ["app", "relay-key-options"] as const,
-  aiDiscoverModels: (providerId: number, source?: string) =>
-    ["app", "ai-discover-models", providerId, source ?? "official"] as const,
+  aiDiscoverModels: (providerId: number, source?: string, clientFormat?: string) =>
+    [
+      "app",
+      "ai-discover-models",
+      providerId,
+      source ?? "official",
+      clientFormat ?? "default",
+    ] as const,
 
   // ── User Portal ─────────────────────────────────────────────
   userAuthProviders: () => ["user-auth", "providers"] as const,

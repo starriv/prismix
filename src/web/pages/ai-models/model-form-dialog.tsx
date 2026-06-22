@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -104,18 +104,6 @@ export function ModelFormDialog({
   );
   const hasUpstreams = (selectedProvider?.upstreamCount ?? 0) > 0;
 
-  // Discovery
-  const [discoverEnabled, setDiscoverEnabled] = useState(true);
-  const [discoverSource, setDiscoverSource] = useState<"official" | "upstream">("official");
-  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
-  const [batchCreating, setBatchCreating] = useState(false);
-  const {
-    data: discovered,
-    error: discoverError,
-    isFetching: discovering,
-    refetch: fetchModels,
-  } = useDiscoverModels(providerId ?? 0, discoverSource);
-
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
     defaultValues: {
@@ -129,6 +117,19 @@ export function ModelFormDialog({
       enabled: true,
     },
   });
+  const clientFormat = useWatch({ control: form.control, name: "clientFormat" });
+
+  // Discovery
+  const [discoverEnabled, setDiscoverEnabled] = useState(true);
+  const [discoverSource, setDiscoverSource] = useState<"official" | "upstream">("official");
+  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
+  const [batchCreating, setBatchCreating] = useState(false);
+  const {
+    data: discovered,
+    error: discoverError,
+    isFetching: discovering,
+    refetch: fetchModels,
+  } = useDiscoverModels(providerId ?? 0, discoverSource, clientFormat);
 
   const availableModels = useMemo(
     () => discovered?.filter((m) => !m.registered) ?? [],
@@ -196,10 +197,11 @@ export function ModelFormDialog({
   // Trigger discover when provider or source changes (and discover is enabled)
   useEffect(() => {
     if (open && !isEdit && discoverEnabled && providerId && providerId > 0) {
+      setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
       fetchModels();
     }
-  }, [open, isEdit, discoverEnabled, providerId, discoverSource, fetchModels]);
+  }, [open, isEdit, discoverEnabled, providerId, discoverSource, clientFormat, fetchModels]);
 
   const handleToggleDiscover = useCallback(
     (checked: boolean) => {
@@ -365,6 +367,30 @@ export function ModelFormDialog({
                 </div>
               )}
 
+              {!needsProvider && (
+                <FormField
+                  control={form.control}
+                  name="clientFormat"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="anthropic">Anthropic</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               {/* Discover toggle — only show when provider is selected */}
               {!isEdit && providerId && (
                 <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
@@ -445,27 +471,6 @@ export function ModelFormDialog({
               {/* Single mode fields */}
               {!isBatchMode && !needsProvider && (
                 <>
-                  <FormField
-                    control={form.control}
-                    name="clientFormat"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="openai">OpenAI</SelectItem>
-                            <SelectItem value="anthropic">Anthropic</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="modelId"

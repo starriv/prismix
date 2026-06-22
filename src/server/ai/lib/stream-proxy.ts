@@ -111,6 +111,11 @@ export type StreamCompleteCallback = (
   rawResponse?: string,
 ) => Promise<void>;
 
+export interface StreamOutputTransformer {
+  transformEvent(openAiEventData: string): Array<{ event?: string; data: string }>;
+  transformDone(): Array<{ event?: string; data: string }>;
+}
+
 interface StreamLifecycleState {
   routeType: "chat" | "passthrough";
   chunkCount: number;
@@ -283,6 +288,7 @@ export function forwardStream(
   meta: StreamRelayMeta,
   onComplete?: StreamCompleteCallback,
   timeoutConfig?: Partial<TimeoutConfig>,
+  outputTransformer?: StreamOutputTransformer,
 ): Response {
   const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
@@ -404,7 +410,10 @@ export function forwardStream(
 
           if (adapter.isStreamDone(dataLine)) {
             state.abortReason = "completed";
-            await stream.writeSSE({ data: "[DONE]" });
+            const doneEvents = outputTransformer?.transformDone() ?? [{ data: "[DONE]" }];
+            for (const event of doneEvents) {
+              await stream.writeSSE(event);
+            }
             sentDone = true;
             break;
           }
@@ -418,7 +427,12 @@ export function forwardStream(
 
           const transformed = adapter.transformStreamEvent(dataLine);
           if (transformed !== null) {
-            await stream.writeSSE({ data: transformed });
+            const events = outputTransformer?.transformEvent(transformed) ?? [
+              { data: transformed },
+            ];
+            for (const event of events) {
+              await stream.writeSSE(event);
+            }
           }
         }
       }
@@ -430,7 +444,10 @@ export function forwardStream(
         (state.abortReason === null || state.abortReason === "completed")
       ) {
         state.abortReason = "completed";
-        await stream.writeSSE({ data: "[DONE]" });
+        const doneEvents = outputTransformer?.transformDone() ?? [{ data: "[DONE]" }];
+        for (const event of doneEvents) {
+          await stream.writeSSE(event);
+        }
       }
     } catch (err) {
       if (

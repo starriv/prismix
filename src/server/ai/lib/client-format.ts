@@ -22,7 +22,14 @@ export function canAttachProviderToClientFormat(
   clientFormat: ClientFormat,
   providerApiFormat: string,
 ): boolean {
+  return canServeClientFormat(clientFormat, providerApiFormat);
+}
+
+export function canServeClientFormat(
+  clientFormat: ClientFormat,
+  providerApiFormat: string,
+): boolean {
   // OpenAI chat/completions can still use adapters for Anthropic, Gemini, and Bedrock sources.
   if (clientFormat === "openai") return true;
-  return providerApiFormat === "anthropic";
+  return ["anthropic", "openai", "azure-openai"].includes(providerApiFormat);
 }
