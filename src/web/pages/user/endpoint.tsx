@@ -5,6 +5,7 @@ import { Check, Copy, Info, Key, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { useUserKeys } from "@/web/api/user-hooks";
+import { EndpointUrlList } from "@/web/components/dashboard/endpoint-url-list";
 import { Header } from "@/web/components/dashboard/header";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
@@ -60,28 +61,14 @@ export default function UserEndpointPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
-              <code className="font-mono text-xs select-all">{openAiBaseUrl}</code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={() => handleCopy(openAiBaseUrl)}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
-              <code className="font-mono text-xs select-all">{anthropicBaseUrl}</code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={() => handleCopy(anthropicBaseUrl)}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
+            <EndpointUrlList
+              items={[
+                { label: "OpenAI", value: openAiBaseUrl },
+                { label: "Anthropic", value: anthropicBaseUrl },
+              ]}
+              copyLabel={t("common.btn.copy")}
+              onCopy={handleCopy}
+            />
             <p className="text-xs text-muted-foreground">{t("user.endpoint.url-hint")}</p>
           </CardContent>
         </Card>
