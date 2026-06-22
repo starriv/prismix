@@ -86,15 +86,7 @@ export function ModelFormDialog({
   );
   const providerId = initialProviderId ?? selectedProviderId;
 
-  // Providers with at least one enabled key
-  const providerIdsWithKeys = useMemo(
-    () => new Set(keys.filter((k) => k.enabled).map((k) => k.providerId)),
-    [keys],
-  );
-  const enabledProviders = useMemo(
-    () => providers.filter((p) => p.enabled && providerIdsWithKeys.has(p.id)),
-    [providers, providerIdsWithKeys],
-  );
+  const enabledProviders = useMemo(() => providers.filter((p) => p.enabled), [providers]);
 
   const selectedProvider = useMemo(
     () => providers.find((p) => p.id === providerId) ?? null,
