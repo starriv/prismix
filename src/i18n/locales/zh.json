@@ -815,6 +815,7 @@
         "from-address": "发件地址",
         "from-name": "发件人名称",
         "bot-token": "Bot Token",
+        "chat-id": "Chat ID",
         "api-token": "API Token",
         "phone-id": "Phone Number ID"
       },
@@ -831,6 +832,7 @@
         "resend-key-invalid": "Resend API Key 必须以 re_ 开头（如 re_xxxx...）",
         "from-address-invalid": "发件地址必须是有效的邮箱格式",
         "telegram-token-invalid": "Bot Token 格式: 123456789:ABCdef...（数字ID + 35位密钥）",
+        "telegram-chat-id-invalid": "Chat ID 必须是数字，群组通常为负数",
         "whatsapp-token-invalid": "WhatsApp API Token 必须以 EAA 开头",
         "whatsapp-phone-id-invalid": "Phone Number ID 必须是 9-20 位数字"
       },
@@ -1018,7 +1020,7 @@
       "label-ph": "我的通知",
       "target": "目标",
       "target-ph-email": "user@example.com",
-      "target-ph-telegram": "Chat ID 或 @用户名",
+      "target-ph-telegram": "数字 Chat ID，如 -1001234567890",
       "target-ph-webhook": "https://example.com/webhook",
       "target-ph-whatsapp": "+1234567890",
       "secret": "签名密钥",
@@ -1030,6 +1032,7 @@
       "topup": "充值",
       "tx": "交易",
       "alert": "告警",
+      "supplier": "供应商",
       "system": "系统"
     },
     "event": {
@@ -1043,6 +1046,8 @@
       "alert-upstream-timeout": "上游超时",
       "alert-error-spike": "错误激增",
       "alert-resource-down": "资源宕机",
+      "supplier-disabled": "供应商自动禁用",
+      "supplier-reenabled": "供应商自动恢复",
       "system-announcement": "系统公告"
     },
     "toast": {

@@ -815,6 +815,7 @@
         "from-address": "From Address",
         "from-name": "From Name",
         "bot-token": "Bot Token",
+        "chat-id": "Chat ID",
         "api-token": "API Token",
         "phone-id": "Phone Number ID"
       },
@@ -831,6 +832,7 @@
         "resend-key-invalid": "Resend API key must start with re_ (e.g. re_xxxx...)",
         "from-address-invalid": "From address must be a valid email",
         "telegram-token-invalid": "Bot token format: 123456789:ABCdef... (numeric ID + 35-char secret)",
+        "telegram-chat-id-invalid": "Chat ID must be numeric. Group chat IDs are usually negative",
         "whatsapp-token-invalid": "WhatsApp API token must start with EAA",
         "whatsapp-phone-id-invalid": "Phone Number ID must be a 9-20 digit number"
       },
@@ -1018,7 +1020,7 @@
       "label-ph": "My notification",
       "target": "Target",
       "target-ph-email": "user@example.com",
-      "target-ph-telegram": "Chat ID or @username",
+      "target-ph-telegram": "Numeric Chat ID, e.g. -1001234567890",
       "target-ph-webhook": "https://example.com/webhook",
       "target-ph-whatsapp": "+1234567890",
       "secret": "Signing Secret",
@@ -1030,6 +1032,7 @@
       "topup": "Top-up",
       "tx": "Transactions",
       "alert": "Alerts",
+      "supplier": "Suppliers",
       "system": "System"
     },
     "event": {
@@ -1043,6 +1046,8 @@
       "alert-upstream-timeout": "Upstream timeout",
       "alert-error-spike": "Error rate spike",
       "alert-resource-down": "Resource down",
+      "supplier-disabled": "Supplier auto-disabled",
+      "supplier-reenabled": "Supplier auto-reenabled",
       "system-announcement": "System announcement"
     },
     "toast": {

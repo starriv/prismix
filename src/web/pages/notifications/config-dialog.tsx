@@ -131,6 +131,8 @@ export function ConfigDialog({
     "alert.upstream-timeout": t("notif.event.alert-upstream-timeout"),
     "alert.error-spike": t("notif.event.alert-error-spike"),
     "alert.resource-down": t("notif.event.alert-resource-down"),
+    "supplier.disabled": t("notif.event.supplier-disabled"),
+    "supplier.reenabled": t("notif.event.supplier-reenabled"),
     "system.announcement": t("notif.event.system-announcement"),
   };
 

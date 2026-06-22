@@ -50,6 +50,7 @@ export default function AdminNotificationProvidersPage() {
       telegram: {
         enabled: (tg?.enabled as boolean) ?? false,
         botToken: (tg?.botToken as string) ?? "",
+        chatId: (tg?.chatId as string) ?? "",
       },
       webhook: { enabled: (wh?.enabled as boolean) ?? false },
       whatsapp: {
