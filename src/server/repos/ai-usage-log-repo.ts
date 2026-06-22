@@ -1,9 +1,25 @@
 /**
  * AI Usage Log repository — append-only writes + queries for `ai_usage_logs` table.
  */
-import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, sum } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  sum,
+} from "drizzle-orm";
 
 import {
+  aiModels,
+  aiProviders,
   type AiUsageLog,
   aiUsageLogs,
   db,
@@ -252,6 +268,29 @@ interface UsageFilters {
   requestId?: string;
   from?: Date;
   to?: Date;
+}
+
+/**
+ * Filter condition that excludes logs whose denormalized provider/model slug
+ * no longer exists in the live `ai_providers` / `ai_models` tables (i.e. the
+ * provider or model was hard-deleted). Logs with NULL providerId/modelId are
+ * kept (they represent missing attribution, not deleted entities).
+ *
+ * Uses EXISTS subqueries (not JOINs) to avoid row multiplication —
+ * `ai_models.model_id` is only unique per `client_format`, so a JOIN would
+ * duplicate logs when the same slug exists under multiple client formats.
+ */
+function liveEntityFilter() {
+  return and(
+    or(
+      isNull(aiUsageLogs.providerId),
+      sql`EXISTS (SELECT 1 FROM ${aiProviders} WHERE ${aiProviders.providerId} = ${aiUsageLogs.providerId})`,
+    ),
+    or(
+      isNull(aiUsageLogs.modelId),
+      sql`EXISTS (SELECT 1 FROM ${aiModels} WHERE ${aiModels.modelId} = ${aiUsageLogs.modelId})`,
+    ),
+  );
 }
 
 function buildConditions(filters: UsageFilters) {
@@ -541,6 +580,7 @@ export const aiUsageLogRepo = {
     userId?: number,
   ): Promise<AiUsageSummary> {
     const where = buildConditions({ consumerKeyId, userId, from, to });
+    const breakdownWhere = where ? and(where, liveEntityFilter()) : liveEntityFilter();
 
     const totalsRow = await queryOne<{
       totalRequests: number;
@@ -583,7 +623,7 @@ export const aiUsageLogRepo = {
           cost: sql<string>`SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC))`,
         })
         .from(aiUsageLogs)
-        .where(where)
+        .where(breakdownWhere)
         .groupBy(aiUsageLogs.providerId)
         .orderBy(sql`count(*) desc`),
     );
@@ -606,7 +646,7 @@ export const aiUsageLogRepo = {
           cost: sql<string>`SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC))`,
         })
         .from(aiUsageLogs)
-        .where(where)
+        .where(breakdownWhere)
         .groupBy(aiUsageLogs.providerId, aiUsageLogs.modelId)
         .orderBy(sql`count(*) desc`),
     );
