@@ -1,11 +1,11 @@
 /**
  * Periodic job: supplier (AI provider + upstream) connectivity health check.
  *
- * Runs every 5 minutes via BullMQ repeatable job. For each enabled provider:
+ * Runs every 1 minute via BullMQ repeatable job. For each enabled provider:
  *   1. Pings provider.baseUrl + all bound enabled+!autoDisabled upstreams
  *   2. On success: recordSuccess (or markAutoReenabled if was auto-disabled)
  *   3. On failure: recordFailure (increments consecutiveFailures)
- *   4. When consecutiveFailures >= threshold (3): markAutoDisabled + notify
+ *   4. When consecutiveFailures >= threshold (1): markAutoDisabled + notify
  *   5. On success after auto-disabled: markAutoReenabled + notify
  *
  * Multi-instance safe: BullMQ repeatable job's jobId ensures only one
@@ -14,7 +14,7 @@
  *
  * See: docs/rfcs/rfc-supplier-health-check.md
  */
-import { Queue, Worker } from "bullmq";
+import { Queue, type RepeatableJob, Worker } from "bullmq";
 
 import { pingEndpoint, type PingResult } from "@/server/ai/lib/supplier-health";
 import type { AiProvider, AiUpstream } from "@/server/db";
@@ -30,8 +30,8 @@ const REPEAT_JOB_ID = "supplier-health-check-recurring";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
-const CHECK_INTERVAL_MS = Number(process.env.SUPPLIER_HEALTH_CHECK_INTERVAL_MS) || 5 * 60 * 1000;
-const FAILURE_THRESHOLD = Number(process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD) || 3;
+const CHECK_INTERVAL_MS = Number(process.env.SUPPLIER_HEALTH_CHECK_INTERVAL_MS) || 60 * 1000;
+const FAILURE_THRESHOLD = Number(process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD) || 1;
 const REQUEST_TIMEOUT_MS = Number(process.env.SUPPLIER_HEALTH_CHECK_TIMEOUT_MS) || 10_000;
 const PROVIDER_CONCURRENCY = 5;
 
@@ -309,6 +309,22 @@ function emitHealthInvalidation(target: CheckTarget): void {
   emit("ai.upstream-cache-invalidated", null, { upstreamId: target.id });
 }
 
+async function removeStaleRepeatableJobs(queue: Queue): Promise<void> {
+  const repeatableJobs: RepeatableJob[] = await queue.getRepeatableJobs();
+  const expectedEvery = String(CHECK_INTERVAL_MS);
+  for (const job of repeatableJobs) {
+    if (job.name !== "check-all") continue;
+    if (job.id !== REPEAT_JOB_ID) continue;
+    if (job.every === expectedEvery) continue;
+
+    await queue.removeRepeatableByKey(job.key);
+    log.supplier.info(
+      { repeatKey: job.key, previousEvery: job.every, nextEvery: expectedEvery },
+      "Removed stale supplier health repeatable job",
+    );
+  }
+}
+
 /** Initialize the supplier health check BullMQ queue + worker. Call from bootstrap. */
 export async function initSupplierHealthCheckJob(): Promise<void> {
   const redisUrl = process.env.REDIS_URL;
@@ -327,6 +343,8 @@ export async function initSupplierHealthCheckJob(): Promise<void> {
       removeOnFail: { count: 1000 },
     },
   });
+
+  await removeStaleRepeatableJobs(queue);
 
   // Register repeatable job — jobId ensures only one schedule across instances
   await queue.add(

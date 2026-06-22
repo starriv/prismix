@@ -32,8 +32,8 @@ BullMQ 的 repeatable job 由 Redis 分布式锁保证同一时刻只有一个 w
 
 ## Goals
 
-- 每 5 分钟自动检查所有 enabled 供应商（provider + 其绑定的所有 upstreams）的联通性
-- 连续 3 次失败（约 15 分钟）自动禁用，1 次成功立即恢复
+- 每 1 分钟自动检查所有 enabled 供应商（provider + 其绑定的所有 upstreams）的联通性
+- 连续 1 次失败即自动禁用并通知，1 次成功立即恢复
 - 区分"管理员手动禁用"和"系统自动禁用" — 双字段分离
 - 复用现有 `buildProviderAuth` + `/v1/models` 连通性检测逻辑（已存在于 `admin-ai-models.ts#discover-models`）
 - 路由层零行为变化（通过 `enabled && !autoDisabled` 组合判断"有效启用"）
@@ -221,8 +221,8 @@ export async function pingEndpoint(opts: {
 
 ```ts
 const QUEUE_NAME = "supplier-health-check";
-const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分钟（可通过 env 覆盖）
-const FAILURE_THRESHOLD = 3; // 连续 3 次失败才禁用（约 15 分钟）
+const CHECK_INTERVAL_MS = 60 * 1000; // 1 分钟（可通过 env 覆盖）
+const FAILURE_THRESHOLD = 1; // 首次失败即自动禁用并通知
 const REQUEST_TIMEOUT_MS = 10_000; // 10s 超时
 const WORKER_CONCURRENCY = 5; // 同时最多检查 5 个 endpoint
 
@@ -449,12 +449,12 @@ async markAutoReenabled(id: number): Promise<void> {
 
 ```env
 # ── Supplier Health Check ──
-# SUPPLIER_HEALTH_CHECK_INTERVAL_MS=300000        # 检查间隔，默认 5 分钟
-# SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD=3      # 连续失败 N 次后自动禁用
+# SUPPLIER_HEALTH_CHECK_INTERVAL_MS=60000        # 检查间隔，默认 1 分钟
+# SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD=1      # 连续失败 N 次后自动禁用
 # SUPPLIER_HEALTH_CHECK_TIMEOUT_MS=10000         # 单次 ping 超时
 ```
 
-**测试加速**：端到端验证时设 `SUPPLIER_HEALTH_CHECK_INTERVAL_MS=30000`（30s）加速。
+**测试加速**：端到端验证时可设 `SUPPLIER_HEALTH_CHECK_INTERVAL_MS=30000`（30s）进一步加速。
 
 ### 10. 可观测性
 
@@ -547,13 +547,13 @@ async markAutoReenabled(id: number): Promise<void> {
 
 ### E. 立即禁用 vs 阈值禁用
 
-| 阈值                         | 优点                             | 缺点                                  |
-| ---------------------------- | -------------------------------- | ------------------------------------- |
-| 1 次（立即禁用）             | 响应最快                         | 偶发网络抖动导致误禁用，频繁 flapping |
-| **3 次（约 15 分钟，选用）** | 容忍瞬时抖动，对真实故障响应及时 | 真实故障需 15 分钟才禁用              |
-| 5 次（约 25 分钟）           | 最保守                           | 真实故障响应慢                        |
+| 阈值                       | 优点                       | 缺点                                  |
+| -------------------------- | -------------------------- | ------------------------------------- |
+| **1 次（立即禁用，选用）** | 响应最快，首次失败即可告警 | 偶发网络抖动导致误禁用，频繁 flapping |
+| 3 次（约 3 分钟）          | 容忍瞬时抖动               | 真实故障需数分钟才禁用                |
+| 5 次（约 5 分钟）          | 最保守                     | 真实故障响应慢                        |
 
-**选择 3 次**：5 分钟一次 × 3 次 = 15 分钟容忍窗口。足以覆盖大部分瞬时网络问题，又不会让真实故障持续太久。
+**选择 1 次**：1 分钟一次 × 1 次 = 首次失败即告警。当前运维目标优先快速发现上游不可用，接受偶发抖动带来的误报风险。
 
 ---
 

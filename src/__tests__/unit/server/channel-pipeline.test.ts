@@ -367,7 +367,7 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
 
     await emitNotification("supplier.disabled", {
       title: "供应商已自动禁用: Proxy A",
-      body: `上游 "Proxy A" 连续 3 次连通性检查失败，已自动禁用。最后错误: HTTP 503: upstream-timeout
+      body: `上游 "Proxy A" 连续 1 次连通性检查失败，已自动禁用。最后错误: HTTP 503: upstream-timeout
 
 详细信息:
   类型: 上游
