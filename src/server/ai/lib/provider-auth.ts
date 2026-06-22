@@ -4,6 +4,7 @@
  * Supports four auth modes:
  * - bearer:  Authorization: Bearer <key>
  * - api-key: Custom header (default x-api-key) with the key value
+ * - cloudflare: Cloudflare Access service-token headers
  * - gemini:  API key as ?key= query parameter (no Authorization header)
  * - sigv4:   AWS Signature Version 4 (for Bedrock)
  *
@@ -25,6 +26,10 @@ export interface SigV4Config {
   region: string;
   service: string;
   accessKeyId: string;
+}
+
+export interface CloudflareAccessConfig {
+  clientId: string;
 }
 
 /**
@@ -57,6 +62,28 @@ export function buildProviderAuth(
         headers["x-api-key"] = plainKey;
       }
     })
+    .with("cloudflare", () => {
+      let config: CloudflareAccessConfig;
+      try {
+        config = JSON.parse(provider.authConfig) as CloudflareAccessConfig;
+      } catch {
+        log.gateway.warn(
+          { authType: "cloudflare" },
+          "Invalid Cloudflare Access authConfig — skipping headers",
+        );
+        return;
+      }
+      const clientId = typeof config.clientId === "string" ? config.clientId.trim() : "";
+      if (!clientId) {
+        log.gateway.warn(
+          { authType: "cloudflare" },
+          "Cloudflare Access authConfig missing clientId — skipping headers",
+        );
+        return;
+      }
+      headers["CF-Access-Client-Id"] = clientId;
+      headers["CF-Access-Client-Secret"] = plainKey;
+    })
     .with("sigv4", () => {
       let config: SigV4Config;
       try {
@@ -86,7 +113,7 @@ export function buildProviderAuth(
   }
 
   // -- Gemini uses query param instead of header --
-  if (provider.apiFormat === "gemini") {
+  if (provider.apiFormat === "gemini" && provider.authType !== "cloudflare") {
     delete headers.Authorization;
     const sep = finalUrl.includes("?") ? "&" : "?";
     finalUrl = `${finalUrl}${sep}key=${plainKey}`;

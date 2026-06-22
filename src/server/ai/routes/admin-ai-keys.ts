@@ -187,8 +187,9 @@ router.post("/keys/:id/test", async (c) => {
         );
       }
     }
-    const baseUrl = upstream?.baseUrl ?? provider.baseUrl;
-    const { headers, url } = buildProviderAuth(provider, plainKey, `${baseUrl}/models`);
+    const baseUrl = (upstream?.baseUrl ?? provider.baseUrl).replace(/\/+$/, "");
+    const modelsUrl = baseUrl.endsWith("/v1") ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
+    const { headers, url } = buildProviderAuth(provider, plainKey, modelsUrl);
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
     const latencyMs = Date.now() - start;
 

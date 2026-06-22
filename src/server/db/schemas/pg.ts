@@ -509,8 +509,8 @@ export const aiProviders = pgTable(
     name: text("name").notNull(), // display name
     baseUrl: text("base_url").notNull(), // e.g. "https://api.openai.com/v1"
     apiFormat: text("api_format").notNull(), // "openai" | "anthropic" | "gemini"
-    authType: text("auth_type").notNull(), // "bearer" | "api-key" | "sigv4"
-    authConfig: text("auth_config").notNull().default("{}"), // JSON: { headerName?: string }
+    authType: text("auth_type").notNull(), // "bearer" | "api-key" | "sigv4" | "cloudflare"
+    authConfig: text("auth_config").notNull().default("{}"), // JSON: { headerName?: string, clientId?: string }
     enabled: boolean("enabled").notNull().default(true),
     loadBalanceStrategy: text("load_balance_strategy").notNull().default("round-robin"), // "round-robin" | "random"
     upstreamRoutingStrategy: text("upstream_routing_strategy").notNull().default("priority"), // "priority" | "weighted-random"

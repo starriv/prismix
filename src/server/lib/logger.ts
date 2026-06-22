@@ -26,6 +26,10 @@ export const logger = pino({
     paths: [
       "req.headers.authorization",
       "req.headers['x-api-key']",
+      "req.headers['cf-access-client-secret']",
+      "req.headers['CF-Access-Client-Secret']",
+      "*.headers['cf-access-client-secret']",
+      "*.headers['CF-Access-Client-Secret']",
       "*.password",
       "*.passwordHash",
       "*.password_hash",

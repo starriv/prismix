@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -115,11 +115,12 @@ const providerFormSchema = z
     name: z.string().min(1, "common.valid.name-required"),
     baseUrl: z.string().url("common.valid.invalid-url"),
     apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
-    authType: z.enum(["bearer", "api-key", "sigv4"]),
+    authType: z.enum(["bearer", "api-key", "sigv4", "cloudflare"]),
     upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]),
     enabled: z.boolean(),
     sigv4Region: z.string().optional(),
     sigv4AccessKeyId: z.string().optional(),
+    cloudflareClientId: z.string().optional(),
   })
   .refine((d) => d.apiFormat !== "bedrock" || !!d.sigv4Region, {
     message: "common.valid.required",
@@ -128,6 +129,10 @@ const providerFormSchema = z
   .refine((d) => d.authType !== "sigv4" || !!d.sigv4AccessKeyId, {
     message: "common.valid.required",
     path: ["sigv4AccessKeyId"],
+  })
+  .refine((d) => d.authType !== "cloudflare" || !!d.cloudflareClientId?.trim(), {
+    message: "common.valid.required",
+    path: ["cloudflareClientId"],
   });
 type ProviderFormValues = z.infer<typeof providerFormSchema>;
 
@@ -734,6 +739,7 @@ function ProviderFormDialog({
       enabled: true,
       sigv4Region: "",
       sigv4AccessKeyId: "",
+      cloudflareClientId: "",
     },
   });
 
@@ -751,6 +757,7 @@ function ProviderFormDialog({
         enabled: provider.enabled,
         sigv4Region: (ac.region as string) ?? "",
         sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
+        cloudflareClientId: (ac.clientId as string) ?? "",
       });
     } else if (open) {
       form.reset({
@@ -763,13 +770,15 @@ function ProviderFormDialog({
         enabled: true,
         sigv4Region: "",
         sigv4AccessKeyId: "",
+        cloudflareClientId: "",
       });
     }
   }, [open, provider, form]);
 
   // Auto-link: Bedrock apiFormat → default region + baseUrl
-  const watchedApiFormat = form.watch("apiFormat");
-  const watchedRegion = form.watch("sigv4Region");
+  const watchedApiFormat = useWatch({ control: form.control, name: "apiFormat" });
+  const watchedAuthType = useWatch({ control: form.control, name: "authType" });
+  const watchedRegion = useWatch({ control: form.control, name: "sigv4Region" });
 
   useEffect(() => {
     if (watchedApiFormat === "bedrock" && !form.getValues("sigv4Region")) {
@@ -784,10 +793,12 @@ function ProviderFormDialog({
   }, [watchedApiFormat, watchedRegion, form]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { sigv4Region, sigv4AccessKeyId, ...rest } = data;
+    const { sigv4Region, sigv4AccessKeyId, cloudflareClientId, ...rest } = data;
 
     let authConfig: Record<string, unknown> | undefined;
-    if (data.authType === "sigv4" && sigv4Region) {
+    if (data.authType === "cloudflare") {
+      authConfig = { clientId: cloudflareClientId?.trim() ?? "" };
+    } else if (data.authType === "sigv4" && sigv4Region) {
       authConfig = {
         region: sigv4Region,
         service: "bedrock",
@@ -926,6 +937,7 @@ function ProviderFormDialog({
                       <SelectContent>
                         <SelectItem value="bearer">Bearer</SelectItem>
                         <SelectItem value="api-key">API Key</SelectItem>
+                        <SelectItem value="cloudflare">Cloudflare Access</SelectItem>
                         <SelectItem value="sigv4">AWS SigV4</SelectItem>
                       </SelectContent>
                     </Select>
@@ -933,7 +945,7 @@ function ProviderFormDialog({
                   </FormItem>
                 )}
               />
-              {form.watch("apiFormat") === "bedrock" && (
+              {watchedApiFormat === "bedrock" && (
                 <FormField
                   control={form.control}
                   name="sigv4Region"
@@ -960,7 +972,29 @@ function ProviderFormDialog({
                   )}
                 />
               )}
-              {form.watch("authType") === "sigv4" && (
+              {watchedAuthType === "cloudflare" && (
+                <FormField
+                  control={form.control}
+                  name="cloudflareClientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.form.cloudflare-client-id")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t("ai-providers.form.cloudflare-client-id-ph")}
+                          className="font-mono"
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.form.cloudflare-client-id-hint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {watchedAuthType === "sigv4" && (
                 <FormField
                   control={form.control}
                   name="sigv4AccessKeyId"
@@ -1798,6 +1832,7 @@ function AddKeyToBucketDialog({
     [keyProviders],
   );
   const isSigV4 = provider.authType === "sigv4";
+  const isCloudflare = provider.authType === "cloudflare";
 
   const form = useForm<AddKeyToBucketValues>({
     resolver: zodResolver(addKeyToBucketSchema),
@@ -1859,24 +1894,30 @@ function AddKeyToBucketDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {isSigV4
-                        ? t("ai-providers.keys.form.secret-access-key")
-                        : t("ai-providers.keys.form.api-key")}
+                      {isCloudflare
+                        ? t("ai-providers.keys.form.cloudflare-client-secret")
+                        : isSigV4
+                          ? t("ai-providers.keys.form.secret-access-key")
+                          : t("ai-providers.keys.form.api-key")}
                     </FormLabel>
                     <FormControl>
                       <SecretInput
                         placeholder={
-                          isSigV4
-                            ? t("ai-providers.keys.form.secret-access-key-ph")
-                            : t("ai-providers.keys.form.api-key-ph")
+                          isCloudflare
+                            ? t("ai-providers.keys.form.cloudflare-client-secret-ph")
+                            : isSigV4
+                              ? t("ai-providers.keys.form.secret-access-key-ph")
+                              : t("ai-providers.keys.form.api-key-ph")
                         }
                         {...field}
                       />
                     </FormControl>
                     <p className="text-[11px] text-muted-foreground">
-                      {isSigV4
-                        ? t("ai-providers.keys.form.secret-access-key-hint")
-                        : t("ai-providers.keys.form.api-key-hint")}
+                      {isCloudflare
+                        ? t("ai-providers.keys.form.cloudflare-client-secret-hint")
+                        : isSigV4
+                          ? t("ai-providers.keys.form.secret-access-key-hint")
+                          : t("ai-providers.keys.form.api-key-hint")}
                     </p>
                     <FormMessage />
                   </FormItem>

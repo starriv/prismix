@@ -220,6 +220,20 @@ describe("buildProviderAuth", () => {
     expect(result.headers["X-Custom-Key"]).toBe(plainKey);
   });
 
+  it("builds Cloudflare Access service-token headers", () => {
+    const provider = {
+      authType: "cloudflare",
+      authConfig: JSON.stringify({ clientId: "service-token.access" }),
+      apiFormat: "openai",
+    };
+    const result = buildProviderAuth(provider, plainKey, baseUrl);
+
+    expect(result.headers["CF-Access-Client-Id"]).toBe("service-token.access");
+    expect(result.headers["CF-Access-Client-Secret"]).toBe(plainKey);
+    expect(result.headers.Authorization).toBeUndefined();
+    expect(result.url).toBe(baseUrl);
+  });
+
   it("adds anthropic-version header for anthropic format", () => {
     const provider = {
       authType: "api-key",

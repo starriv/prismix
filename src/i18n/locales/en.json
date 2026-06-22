@@ -2272,7 +2272,10 @@
       "sigv4-region-hint": "The AWS region for your Bedrock endpoint",
       "sigv4-access-key-id": "AWS Access Key ID",
       "sigv4-access-key-id-ph": "AKIA...",
-      "sigv4-access-key-id-hint": "Your IAM access key ID for Bedrock API access"
+      "sigv4-access-key-id-hint": "Your IAM access key ID for Bedrock API access",
+      "cloudflare-client-id": "CF Access Client ID",
+      "cloudflare-client-id-ph": "xxxx.access",
+      "cloudflare-client-id-hint": "The service-token client ID sent as CF-Access-Client-Id"
     },
     "dialog": {
       "add-title": "Add Provider",
@@ -2335,6 +2338,9 @@
         "api-key": "API Key",
         "api-key-ph": "sk-...",
         "api-key-hint": "Your key will be encrypted and stored securely",
+        "cloudflare-client-secret": "CF Access Client Secret",
+        "cloudflare-client-secret-ph": "Enter your Cloudflare Access client secret",
+        "cloudflare-client-secret-hint": "Stored encrypted and sent as CF-Access-Client-Secret",
         "secret-access-key": "AWS Secret Access Key",
         "secret-access-key-ph": "Enter your AWS secret access key",
         "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",

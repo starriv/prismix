@@ -232,6 +232,52 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     expect(mockFetch.mock.calls[0][0]).toBe("https://proxy-a.example.com/v1/models");
   });
 
+  it("discovers models through a Cloudflare Access protected upstream", async () => {
+    mockFindProviderById.mockResolvedValue({
+      id: 7,
+      providerId: "glm",
+      name: "GLM",
+      baseUrl: "https://official.example.com/v1",
+      apiFormat: "openai",
+      authType: "cloudflare",
+      authConfig: JSON.stringify({ clientId: "service-token.access" }),
+      enabled: true,
+    });
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "glm-cf",
+        name: "GLM Cloudflare",
+        baseUrl: "https://class-1-violations.example.com/v1",
+        modelsEndpoint: null,
+      },
+    ]);
+    mockFindAnyEnabledByUpstream.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ id: "glm-5.2", name: "GLM 5.2" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://class-1-violations.example.com/v1/models");
+    expect(mockFetch.mock.calls[0][1]?.headers).toMatchObject({
+      "CF-Access-Client-Id": "service-token.access",
+      "CF-Access-Client-Secret": "plain-key",
+    });
+  });
+
   it("falls back to apiFormat URL when modelsEndpoint is null", async () => {
     mockResolveUpstreamCandidates.mockResolvedValue([
       {
