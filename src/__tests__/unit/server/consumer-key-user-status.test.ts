@@ -270,4 +270,18 @@ describe("consumer key auth — user status gate", () => {
     // Should get "Account is disabled", not an expiry error
     expect(body.error).toBe("Account is disabled");
   });
+
+  it("zero-balance agent passes auth (balance check deferred to route handler)", async () => {
+    mockFindByHash.mockResolvedValueOnce(buildConsumerRow({ userStatus: 1 }));
+    mockFindAgent.mockResolvedValueOnce(buildAgentRow({ balance: "0" }));
+
+    const app = createApp();
+    const res = await app.request("/test", {
+      headers: { Authorization: `Bearer ${RAW_KEY}` },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.consumerId).toBe(1);
+  });
 });

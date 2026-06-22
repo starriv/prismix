@@ -9,20 +9,28 @@ const mockDecrypt = vi.fn();
 const mockFetch = vi.fn();
 const mockBillConsumer = vi.fn();
 const mockGatewayError = vi.fn();
+const mockGetConsumerSession = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
 
-vi.mock("@/server/ai/middleware/consumer-key-auth", () => ({
-  getConsumerSession: vi.fn().mockReturnValue({
+function buildConsumerSession(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
     consumerId: 1,
     userId: 10,
     agentId: 100,
+    agentBalance: "50",
     markupPercent: 0,
     allowedModels: [],
+    rateLimitRpm: null,
     perPayLimit: null,
     dailyLimit: null,
     monthlyLimit: null,
-  }),
+    ...overrides,
+  };
+}
+
+vi.mock("@/server/ai/middleware/consumer-key-auth", () => ({
+  getConsumerSession: (...args: unknown[]) => mockGetConsumerSession(...args),
 }));
 
 vi.mock("@/server/middleware/request-id", () => ({
@@ -138,6 +146,8 @@ describe("consumer relay Anthropic client protocol routing", () => {
     mockDecrypt.mockReset();
     mockFetch.mockReset();
     mockBillConsumer.mockReset();
+    mockGetConsumerSession.mockReset();
+    mockGetConsumerSession.mockReturnValue(buildConsumerSession());
     mockBillConsumer.mockResolvedValue({ ok: true, upstreamCost: "0", costStr: "0" });
 
     mockFindEnabledRoutesByModelId.mockResolvedValue([
@@ -446,6 +456,147 @@ describe("consumer relay Anthropic client protocol routing", () => {
     expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm", "anthropic");
     expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
     expect(mockPickKey).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("free model (inputPrice=0, outputPrice=0) bypasses balance check for zero-balance agent", async () => {
+    mockGetConsumerSession.mockReturnValue(buildConsumerSession({ agentBalance: "0" }));
+    mockFindEnabledRoutesByModelId.mockResolvedValue([
+      {
+        route: {
+          id: 201,
+          modelId: 101,
+          providerId: 7,
+          providerModelId: "glm-5.2",
+          priority: 100,
+          weight: 1,
+          enabled: true,
+        },
+        model: {
+          id: 101,
+          providerId: 7,
+          clientFormat: "anthropic",
+          modelId: "claude-glm",
+          inputPrice: "0",
+          outputPrice: "0",
+          enabled: true,
+        },
+        provider: {
+          id: 7,
+          providerId: "glm",
+          name: "GLM",
+          baseUrl: "https://glm.example.com/v1",
+          apiFormat: "openai",
+          authType: "bearer",
+          authConfig: JSON.stringify({}),
+          enabled: true,
+        },
+      },
+    ]);
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "glm-official",
+        name: "GLM Official",
+        baseUrl: "https://glm.example.com/v1",
+        kind: "official",
+        modelsEndpoint: null,
+        priority: 100,
+        weight: 1,
+        isLegacy: false,
+      },
+    ]);
+    mockPickKey.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+      name: "glm-key",
+    });
+    mockDecrypt.mockReturnValue("plain-key");
+    mockResolveModelMapping.mockResolvedValue("glm-5.2");
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "chatcmpl-1",
+          object: "chat.completion",
+          created: 1,
+          model: "glm-5.2",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: "你好" },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 8, completion_tokens: 3, total_tokens: 11 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-glm",
+        messages: [{ role: "user", content: "你好" }],
+        max_tokens: 512,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("paid model rejects zero-balance agent with 402", async () => {
+    mockGetConsumerSession.mockReturnValue(buildConsumerSession({ agentBalance: "0" }));
+    mockFindEnabledRoutesByModelId.mockResolvedValue([
+      {
+        route: {
+          id: 201,
+          modelId: 101,
+          providerId: 7,
+          providerModelId: "glm-5.2",
+          priority: 100,
+          weight: 1,
+          enabled: true,
+        },
+        model: {
+          id: 101,
+          providerId: 7,
+          clientFormat: "anthropic",
+          modelId: "claude-glm",
+          inputPrice: "1",
+          outputPrice: "2",
+          enabled: true,
+        },
+        provider: {
+          id: 7,
+          providerId: "glm",
+          name: "GLM",
+          baseUrl: "https://glm.example.com/v1",
+          apiFormat: "openai",
+          authType: "bearer",
+          authConfig: JSON.stringify({}),
+          enabled: true,
+        },
+      },
+    ]);
+
+    const res = await app.request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-glm",
+        messages: [{ role: "user", content: "你好" }],
+        max_tokens: 512,
+      }),
+    });
+
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("Agent balance exhausted. Please top up the pay-agent.");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

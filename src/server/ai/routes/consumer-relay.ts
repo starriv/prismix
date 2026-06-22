@@ -19,7 +19,7 @@ import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
 import { getRequestId } from "@/server/middleware/request-id";
 import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
-import { removeTailingZero } from "@/shared/number";
+import { lte, removeTailingZero } from "@/shared/number";
 
 import {
   anthropicClientProtocolAdapter,
@@ -438,6 +438,20 @@ async function handleCanonicalChatCompletions(
 
   // -- 6. Resolve key across all routes (multi-provider failover) --
   const model = routes[0].model;
+  const isFreeModel = lte(model.inputPrice, "0") && lte(model.outputPrice, "0");
+  if (!isFreeModel && lte(consumer.agentBalance, "0")) {
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      402,
+      {
+        error: "Agent balance exhausted. Please top up the pay-agent.",
+      },
+      { modelId: model.modelId },
+    );
+  }
 
   interface ResolvedUpstream {
     keyId: number;
@@ -536,17 +550,19 @@ async function handleCanonicalChatCompletions(
 
   // -- 8. Pre-flight spending limit check (daily/monthly) --
   // Catches agents that have already exceeded their limits before we hit upstream.
-  const preflightLimit = await checkConsumerSpendingLimits(consumer);
-  if (preflightLimit) {
-    return respondWithConsumerError(
-      c,
-      consumer,
-      requestId,
-      start,
-      preflightLimit.statusCode,
-      preflightLimit.body,
-      { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
-    );
+  if (!isFreeModel) {
+    const preflightLimit = await checkConsumerSpendingLimits(consumer);
+    if (preflightLimit) {
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        preflightLimit.statusCode,
+        preflightLimit.body,
+        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
+      );
+    }
   }
 
   // -- 9. Upstream fetch with fallback retry --
@@ -920,6 +936,20 @@ async function handlePassthrough(
   }
 
   const model = routes[0].model;
+  const ptIsFreeModel = lte(model.inputPrice, "0") && lte(model.outputPrice, "0");
+  if (!ptIsFreeModel && lte(consumer.agentBalance, "0")) {
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      402,
+      {
+        error: "Agent balance exhausted. Please top up the pay-agent.",
+      },
+      { modelId },
+    );
+  }
   const serializedBody = JSON.stringify(body);
 
   // Resolve all upstream candidates for fallback retry
@@ -988,17 +1018,19 @@ async function handlePassthrough(
     );
   }
 
-  const ptPreflightLimit = await checkConsumerSpendingLimits(consumer);
-  if (ptPreflightLimit) {
-    return respondWithConsumerError(
-      c,
-      consumer,
-      requestId,
-      start,
-      ptPreflightLimit.statusCode,
-      ptPreflightLimit.body,
-      { modelId },
-    );
+  if (!ptIsFreeModel) {
+    const ptPreflightLimit = await checkConsumerSpendingLimits(consumer);
+    if (ptPreflightLimit) {
+      return respondWithConsumerError(
+        c,
+        consumer,
+        requestId,
+        start,
+        ptPreflightLimit.statusCode,
+        ptPreflightLimit.body,
+        { modelId },
+      );
+    }
   }
 
   // Forward provider-specific headers from the client (e.g. anthropic-version, anthropic-beta)

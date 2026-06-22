@@ -15,7 +15,6 @@ import { log } from "@/server/lib/logger";
 import { getRequestId } from "@/server/middleware/request-id";
 import { createRateLimitStore, type RateLimitStore } from "@/server/rate-limit";
 import { payAgentRepo, relayConsumerKeyRepo, settingsRepo } from "@/server/repos";
-import { lte } from "@/shared/number";
 
 import { enqueueAiAccessLog } from "../lib/access-log";
 
@@ -165,12 +164,6 @@ export const consumerKeyAuthMiddleware = createMiddleware<ConsumerEnv>(async (c,
     }
     if (agent.status !== "active") {
       return respondWithAuthError(403, "Linked pay-agent is suspended", {
-        consumerKeyId: consumer.id,
-        userId: consumer.userId,
-      });
-    }
-    if (lte(agent.balance, "0")) {
-      return respondWithAuthError(402, "Agent balance exhausted. Please top up the pay-agent.", {
         consumerKeyId: consumer.id,
         userId: consumer.userId,
       });
