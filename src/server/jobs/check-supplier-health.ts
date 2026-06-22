@@ -182,6 +182,28 @@ async function markTargetConfigError(target: CheckTarget, error: string): Promis
   });
 }
 
+interface SupplierNotifyMeta {
+  kind: "provider" | "upstream";
+  id: number;
+  name: string;
+  baseUrl: string;
+  providerId: number;
+  providerName: string;
+  error?: string;
+  consecutiveFailures?: number;
+}
+
+function buildSupplierBody(summary: string, meta: SupplierNotifyMeta): string {
+  const kindLabel = meta.kind === "upstream" ? "上游" : "供应商";
+  const rows: string[] = [`类型: ${kindLabel}`, `ID: ${meta.id}`, `名称: ${meta.name}`];
+  if (meta.baseUrl) rows.push(`Base URL: ${meta.baseUrl}`);
+  if (meta.providerName) rows.push(`所属供应商: ${meta.providerName}`);
+  rows.push(`Provider ID: ${meta.providerId}`);
+  if (meta.consecutiveFailures != null) rows.push(`连续失败: ${meta.consecutiveFailures}`);
+  if (meta.error) rows.push(`最后错误: ${meta.error}`);
+  return `${summary}\n\n详细信息:\n${rows.map((r) => `  ${r}`).join("\n")}`;
+}
+
 export async function applyHealthResult(target: CheckTarget, result: PingResult): Promise<void> {
   const repo = target.kind === "provider" ? aiProviderRepo : aiUpstreamRepo;
   const entity = await repo.findById(target.id);
@@ -195,10 +217,21 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
         { kind: target.kind, id: target.id, name: target.name, latencyMs: result.latencyMs },
         "Supplier auto-reenabled",
       );
+      const meta: SupplierNotifyMeta = {
+        kind: target.kind,
+        id: target.id,
+        name: target.name,
+        baseUrl: target.baseUrl,
+        providerId: target.provider.id,
+        providerName: target.provider.name,
+      };
       await emitNotification("supplier.reenabled", {
         title: `供应商已自动恢复: ${target.name}`,
-        body: `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连通性恢复正常，已自动恢复启用。`,
-        metadata: { kind: target.kind, id: target.id, name: target.name },
+        body: buildSupplierBody(
+          `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连通性恢复正常，已自动恢复启用。`,
+          meta,
+        ),
+        metadata: { ...meta },
       });
     } else {
       await repo.recordSuccess(target.id);
@@ -245,16 +278,23 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
       },
       "Supplier auto-disabled after threshold failures",
     );
+    const meta: SupplierNotifyMeta = {
+      kind: target.kind,
+      id: target.id,
+      name: target.name,
+      baseUrl: target.baseUrl,
+      providerId: target.provider.id,
+      providerName: target.provider.name,
+      error: errorMsg,
+      consecutiveFailures: updated.consecutiveFailures,
+    };
     await emitNotification("supplier.disabled", {
       title: `供应商已自动禁用: ${target.name}`,
-      body: `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连续 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${errorMsg}`,
-      metadata: {
-        kind: target.kind,
-        id: target.id,
-        name: target.name,
-        error: errorMsg,
-        consecutiveFailures: updated.consecutiveFailures,
-      },
+      body: buildSupplierBody(
+        `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连续 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${errorMsg}`,
+        meta,
+      ),
+      metadata: { ...meta },
     });
   }
 }
