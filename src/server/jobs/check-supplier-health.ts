@@ -22,7 +22,7 @@ import { emit } from "@/server/events";
 import { decrypt } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { emitNotification } from "@/server/messaging/notifications";
-import { aiKeyRepo, aiProviderRepo, aiUpstreamRepo } from "@/server/repos";
+import { aiKeyRepo, aiModelRepo, aiProviderRepo, aiUpstreamRepo } from "@/server/repos";
 import { aiUpstreamAssignmentRepo } from "@/server/repos/ai-upstream-assignment-repo";
 
 const QUEUE_NAME = "supplier-health-check";
@@ -49,6 +49,27 @@ interface CheckTarget {
   provider: AiProvider;
 }
 
+function hasChatCapability(capabilities: string): boolean {
+  try {
+    const parsed = JSON.parse(capabilities) as unknown;
+    return Array.isArray(parsed) && parsed.includes("chat");
+  } catch {
+    return false;
+  }
+}
+
+async function findAnthropicProbeModelId(provider: AiProvider): Promise<string | null> {
+  if (provider.apiFormat !== "anthropic") return null;
+
+  const models = await aiModelRepo.findEnabledByProviderId(provider.id);
+  const anthropicModels = models.filter((model) => model.clientFormat === "anthropic");
+  return (
+    anthropicModels.find((model) => hasChatCapability(model.capabilities))?.modelId ??
+    anthropicModels[0]?.modelId ??
+    null
+  );
+}
+
 async function checkAllSuppliers(): Promise<void> {
   const providers = await aiProviderRepo.findAllForHealthCheck();
   if (providers.length === 0) return;
@@ -66,6 +87,7 @@ export async function checkProvider(provider: AiProvider): Promise<void> {
   }
 
   const targets: CheckTarget[] = [];
+  const anthropicProbeModelId = await findAnthropicProbeModelId(provider);
 
   const assignments = await aiUpstreamAssignmentRepo.findByProviderId(provider.id);
   const upstreamIds = assignments.map((a) => a.upstreamId);
@@ -137,6 +159,7 @@ export async function checkProvider(provider: AiProvider): Promise<void> {
         baseUrl: target.baseUrl,
         modelsEndpointOverride: target.modelsEndpointOverride,
         plainKey,
+        anthropicProbeModelId,
         timeoutMs: REQUEST_TIMEOUT_MS,
       });
       return { target, result };

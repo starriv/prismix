@@ -6,6 +6,7 @@ const mockUpdateLastUsed = vi.fn();
 const mockFindProviderById = vi.fn();
 const mockFindUpstreamById = vi.fn();
 const mockFindProviderUpstreamAssignment = vi.fn();
+const mockFindEnabledModelsByProviderId = vi.fn();
 const mockFetch = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
@@ -42,6 +43,9 @@ vi.mock("@/server/repos", () => ({
     update: vi.fn(),
     delete: vi.fn(),
     updateLastUsed: (...args: unknown[]) => mockUpdateLastUsed(...args),
+  },
+  aiModelRepo: {
+    findEnabledByProviderId: (...args: unknown[]) => mockFindEnabledModelsByProviderId(...args),
   },
   aiProviderRepo: {
     findById: (...args: unknown[]) => mockFindProviderById(...args),
@@ -81,6 +85,7 @@ describe("admin ai key connectivity test", () => {
     });
     mockFindUpstreamById.mockResolvedValue(null);
     mockFindProviderUpstreamAssignment.mockResolvedValue(null);
+    mockFindEnabledModelsByProviderId.mockResolvedValue([]);
     mockUpdateLastUsed.mockResolvedValue(undefined);
   });
 
@@ -149,16 +154,37 @@ describe("admin ai key connectivity test", () => {
     expect(mockUpdateLastUsed).toHaveBeenCalledWith(17);
   });
 
-  it("does not use the fixed Anthropic model probe for compatible providers", async () => {
-    mockFetch.mockResolvedValue(new Response("not found", { status: 404 }));
+  it("uses the configured model for Anthropic-compatible message probes", async () => {
+    mockFindEnabledModelsByProviderId.mockResolvedValueOnce([
+      {
+        modelId: "deepseek-reasoner",
+        clientFormat: "anthropic",
+        capabilities: JSON.stringify(["chat"]),
+        enabled: true,
+      },
+    ]);
+    mockFetch
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
 
     const res = await app.request("http://localhost/keys/17/test", { method: "POST" });
     const json = (await res.json()) as { data: { success: boolean; status: number } };
 
     expect(res.status).toBe(200);
-    expect(json.data).toMatchObject({ success: false, status: 404 });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(json.data).toMatchObject({ success: true, status: 200 });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[0][0]).toBe("https://api.deepseek.com/anthropic/models");
-    expect(mockUpdateLastUsed).not.toHaveBeenCalled();
+    expect(mockFetch.mock.calls[1][0]).toBe("https://api.deepseek.com/anthropic/v1/messages");
+    expect(JSON.parse(mockFetch.mock.calls[1][1]?.body as string)).toMatchObject({
+      model: "deepseek-reasoner",
+      max_tokens: 1,
+      messages: [{ role: "user", content: "ping" }],
+    });
+    expect(mockUpdateLastUsed).toHaveBeenCalledWith(17);
   });
 });

@@ -208,12 +208,12 @@ export async function pingEndpoint(opts: {
 
 **各 apiFormat 的 models URL 构造规则**（复用现有逻辑）：
 
-| apiFormat                 | URL 构造                                                             |
-| ------------------------- | -------------------------------------------------------------------- |
-| `openai` / `azure-openai` | `baseUrl` 末尾去 `/`，若已 `/v1` 则 `+ /models`，否则 `+ /v1/models` |
-| `anthropic`               | `baseUrl + /models`                                                  |
-| `gemini`                  | `baseUrl + /models`                                                  |
-| `bedrock`                 | 将 `bedrock-runtime.` 替换为 `bedrock.`，`+ /foundation-models`      |
+| apiFormat                 | URL 构造                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `openai` / `azure-openai` | `baseUrl` 末尾去 `/`，若已 `/v1` 则 `+ /models`，否则 `+ /v1/models`                                                |
+| `anthropic`               | `baseUrl + /models`；若返回 400/404/405 且未配置自定义 models endpoint，则 fallback 到最小 `POST /v1/messages` 探测 |
+| `gemini`                  | `baseUrl + /models`                                                                                                 |
+| `bedrock`                 | 将 `bedrock-runtime.` 替换为 `bedrock.`，`+ /foundation-models`                                                     |
 
 ### 5. Job 文件设计
 

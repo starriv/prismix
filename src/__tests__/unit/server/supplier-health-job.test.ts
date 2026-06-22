@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindAnyEnabledByProvider = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
+const mockFindEnabledModelsByProviderId = vi.fn();
 const mockProviderUpdateHealth = vi.fn();
 const mockProviderFindById = vi.fn();
 const mockProviderRecordSuccess = vi.fn();
@@ -48,6 +49,9 @@ vi.mock("@/server/repos", () => ({
     findAnyEnabledByProvider: (...args: unknown[]) => mockFindAnyEnabledByProvider(...args),
     findAnyEnabledByUpstream: (...args: unknown[]) => mockFindAnyEnabledByUpstream(...args),
   },
+  aiModelRepo: {
+    findEnabledByProviderId: (...args: unknown[]) => mockFindEnabledModelsByProviderId(...args),
+  },
   aiProviderRepo: {
     updateHealth: (...args: unknown[]) => mockProviderUpdateHealth(...args),
     findById: (...args: unknown[]) => mockProviderFindById(...args),
@@ -93,6 +97,7 @@ describe("supplier health job", () => {
       autoDisabled: false,
       consecutiveFailures: 0,
     }));
+    mockFindEnabledModelsByProviderId.mockResolvedValue([]);
   });
 
   it("checks upstreams with upstream-scoped keys even when the provider has no default key", async () => {

@@ -13,20 +13,17 @@ import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
   aiKeyRepo,
+  aiModelRepo,
   aiProviderRepo,
   aiUpstreamAssignmentRepo,
   aiUpstreamRepo,
 } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
-import { buildProviderAuth } from "../lib/provider-auth";
-import { pingEndpoint, type PingResult } from "../lib/supplier-health";
-import { anthropicAdapter } from "../providers/anthropic";
-import type { OpenAIChatBody } from "../providers/types";
+import { pingEndpoint } from "../lib/supplier-health";
 import { formatKeys } from "./admin-ai-helpers";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
-const ANTHROPIC_KEY_TEST_MODEL = "claude-haiku-4-5";
 const KEY_TEST_TIMEOUT_MS = 10_000;
 
 const router = new Hono();
@@ -38,66 +35,28 @@ function redactKeyForResponse<T extends { encryptedKey?: unknown; keyHash?: unkn
   return safe;
 }
 
-function shouldFallbackToAnthropicMessageProbe(result: PingResult): boolean {
-  return result.status === 400 || result.status === 404 || result.status === 405;
-}
-
-function isOfficialAnthropicEndpoint(provider: { apiFormat: string; baseUrl: string }): boolean {
-  if (provider.apiFormat !== "anthropic") return false;
-
+function hasChatCapability(capabilities: string): boolean {
   try {
-    return new URL(provider.baseUrl).hostname.toLowerCase() === "api.anthropic.com";
+    const parsed = JSON.parse(capabilities) as unknown;
+    return Array.isArray(parsed) && parsed.includes("chat");
   } catch {
     return false;
   }
 }
 
-async function pingAnthropicMessagesEndpoint(opts: {
-  provider: Parameters<typeof buildProviderAuth>[0];
-  baseUrl: string;
-  plainKey: string;
-  timeoutMs?: number;
-}): Promise<PingResult> {
-  const { provider, baseUrl, plainKey, timeoutMs = KEY_TEST_TIMEOUT_MS } = opts;
-  const canonicalBody: OpenAIChatBody = {
-    model: ANTHROPIC_KEY_TEST_MODEL,
-    messages: [{ role: "user", content: "ping" }],
-    max_tokens: 1,
-  };
-  const body = JSON.stringify(anthropicAdapter.transformRequest(canonicalBody));
-  const url = anthropicAdapter.buildUrl(baseUrl, {
-    model: ANTHROPIC_KEY_TEST_MODEL,
-    stream: false,
-  });
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, url, body);
+async function findAnthropicProbeModelId(
+  providerId: number,
+  apiFormat: string,
+): Promise<string | null> {
+  if (apiFormat !== "anthropic") return null;
 
-  const start = Date.now();
-  try {
-    const res = await fetch(finalUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const latencyMs = Date.now() - start;
-
-    if (res.ok) {
-      await res.body?.cancel().catch(() => undefined);
-      return { ok: true, status: res.status, latencyMs };
-    }
-
-    const text = await res.text().catch(() => "");
-    return {
-      ok: false,
-      status: res.status,
-      error: `HTTP ${res.status}: ${text.slice(0, 200)}`,
-      latencyMs,
-    };
-  } catch (err) {
-    const latencyMs = Date.now() - start;
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, status: 0, error: message, latencyMs };
-  }
+  const models = await aiModelRepo.findEnabledByProviderId(providerId);
+  const anthropicModels = models.filter((model) => model.clientFormat === "anthropic");
+  return (
+    anthropicModels.find((model) => hasChatCapability(model.capabilities))?.modelId ??
+    anthropicModels[0]?.modelId ??
+    null
+  );
 }
 
 // ── Keys CRUD ───────────────────────────────────────────────────────────
@@ -261,25 +220,15 @@ router.post("/keys/:id/test", async (c) => {
     }
     const baseUrl = upstream?.baseUrl ?? provider.baseUrl;
     const modelsEndpointOverride = upstream?.modelsEndpoint ?? null;
-    const result = await pingEndpoint({
+    const anthropicProbeModelId = await findAnthropicProbeModelId(provider.id, provider.apiFormat);
+    const finalResult = await pingEndpoint({
       provider,
       baseUrl,
       modelsEndpointOverride,
       plainKey,
+      anthropicProbeModelId,
       timeoutMs: KEY_TEST_TIMEOUT_MS,
     });
-    const finalResult =
-      !result.ok &&
-      isOfficialAnthropicEndpoint({ apiFormat: provider.apiFormat, baseUrl }) &&
-      !modelsEndpointOverride &&
-      shouldFallbackToAnthropicMessageProbe(result)
-        ? await pingAnthropicMessagesEndpoint({
-            provider,
-            baseUrl,
-            plainKey,
-            timeoutMs: KEY_TEST_TIMEOUT_MS,
-          })
-        : result;
     const latencyMs = Date.now() - start;
 
     if (finalResult.ok) {
