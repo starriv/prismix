@@ -8,9 +8,12 @@ import type {
   StreamOutputEvent,
 } from "./types";
 
+type AnthropicCompatibleRole = OpenAIChatMessage["role"];
+
 interface AnthropicMessage {
-  role: "user" | "assistant";
-  content: string | Array<Record<string, unknown>>;
+  role: AnthropicCompatibleRole;
+  content?: string | Array<Record<string, unknown>> | null;
+  [key: string]: unknown;
 }
 
 interface AnthropicRequest {
@@ -65,19 +68,52 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isAnthropicMessage(value: unknown): value is AnthropicMessage {
-  if (!isRecord(value)) return false;
-  if (value.role !== "user" && value.role !== "assistant") return false;
-  return typeof value.content === "string" || Array.isArray(value.content);
+const MESSAGE_ROLES = new Set<AnthropicCompatibleRole>([
+  "system",
+  "developer",
+  "user",
+  "assistant",
+  "tool",
+]);
+
+function isMessageRole(value: unknown): value is AnthropicCompatibleRole {
+  return typeof value === "string" && MESSAGE_ROLES.has(value as AnthropicCompatibleRole);
 }
 
-function parseRequest(raw: unknown): AnthropicRequest | null {
-  if (!isRecord(raw)) return null;
-  if (typeof raw.model !== "string" || raw.model.trim() === "") return null;
-  if (!Array.isArray(raw.messages) || raw.messages.length === 0) return null;
-  if (!raw.messages.every(isAnthropicMessage)) return null;
+function isSupportedMessageContent(value: unknown): value is AnthropicMessage["content"] {
+  return value == null || typeof value === "string" || Array.isArray(value);
+}
 
-  return raw as unknown as AnthropicRequest;
+function validateAnthropicMessage(value: unknown, index: number): AnthropicMessage | string {
+  if (!isRecord(value)) return `messages[${index}] must be an object`;
+  if (!isMessageRole(value.role)) {
+    return `messages[${index}].role must be one of system, developer, user, assistant, tool`;
+  }
+  if (!isSupportedMessageContent(value.content)) {
+    return `messages[${index}].content must be a string, array, null, or omitted`;
+  }
+  return value as AnthropicMessage;
+}
+
+function parseRequest(
+  raw: unknown,
+): { ok: true; request: AnthropicRequest } | { ok: false; error: string } {
+  if (!isRecord(raw)) return { ok: false, error: "body must be a JSON object" };
+  if (typeof raw.model !== "string" || raw.model.trim() === "") {
+    return { ok: false, error: "model must be a non-empty string" };
+  }
+  if (!Array.isArray(raw.messages)) {
+    return { ok: false, error: "messages must be an array" };
+  }
+
+  const messages: AnthropicMessage[] = [];
+  for (const [index, message] of raw.messages.entries()) {
+    const validated = validateAnthropicMessage(message, index);
+    if (typeof validated === "string") return { ok: false, error: validated };
+    messages.push(validated);
+  }
+
+  return { ok: true, request: { ...(raw as unknown as AnthropicRequest), messages } };
 }
 
 function contentToText(content: unknown): string {
@@ -144,8 +180,36 @@ function mapAnthropicMessages(messages: AnthropicMessage[]): OpenAIChatMessage[]
   const result: OpenAIChatMessage[] = [];
 
   for (const message of messages) {
+    if (message.role === "system" || message.role === "developer") {
+      const text = contentToText(message.content);
+      if (text.trim()) result.push({ role: message.role, content: text });
+      continue;
+    }
+
+    if (message.role === "tool") {
+      result.push({
+        role: "tool",
+        content: contentToText(message.content),
+        ...(typeof message.tool_call_id === "string" ? { tool_call_id: message.tool_call_id } : {}),
+      });
+      continue;
+    }
+
+    if (message.content == null) {
+      result.push({
+        role: message.role,
+        content: null,
+        ...(Array.isArray(message.tool_calls) ? { tool_calls: message.tool_calls } : {}),
+      });
+      continue;
+    }
+
     if (typeof message.content === "string") {
-      result.push({ role: message.role, content: message.content });
+      result.push({
+        role: message.role,
+        content: message.content,
+        ...(Array.isArray(message.tool_calls) ? { tool_calls: message.tool_calls } : {}),
+      });
       continue;
     }
 
@@ -172,7 +236,20 @@ function mapAnthropicMessages(messages: AnthropicMessage[]): OpenAIChatMessage[]
         role: "assistant",
         content: textParts.length > 0 ? textParts.join("") : null,
         ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        ...(Array.isArray(message.tool_calls) ? { tool_calls: message.tool_calls } : {}),
       });
+      continue;
+    }
+
+    const hasUnsupportedBlocks = message.content.some((block) => {
+      if (!isRecord(block)) return true;
+      return block.type !== "text" && block.type !== "tool_result";
+    });
+    const hasToolResultBlocks = message.content.some(
+      (block) => isRecord(block) && block.type === "tool_result",
+    );
+    if (hasUnsupportedBlocks && !hasToolResultBlocks) {
+      result.push({ role: "user", content: message.content });
       continue;
     }
 
@@ -234,15 +311,16 @@ export const anthropicClientProtocolAdapter: ClientProtocolAdapter = {
   format: "anthropic",
 
   transformRequest(raw: unknown): ClientProtocolRequestResult {
-    const request = parseRequest(raw);
-    if (!request) {
+    const parsed = parseRequest(raw);
+    if (!parsed.ok) {
       return {
         ok: false,
         statusCode: 400,
-        error: "Invalid Anthropic Messages request body",
+        error: `Invalid Anthropic Messages request body: ${parsed.error}`,
       };
     }
 
+    const { request } = parsed;
     const messages = mapAnthropicMessages(request.messages);
     const system = normalizeSystem(request.system);
     if (system) messages.unshift({ role: "system", content: system });
