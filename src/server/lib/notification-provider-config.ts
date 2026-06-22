@@ -30,6 +30,7 @@ export interface EmailProviderConfig {
 export interface TelegramProviderConfig {
   enabled: boolean;
   botToken?: string;
+  chatId?: string;
 }
 
 export interface WebhookProviderConfig {
