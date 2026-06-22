@@ -143,6 +143,7 @@ export type AiModelRoute = z.infer<typeof aiModelRouteSchema>;
 export const aiModelSchema = z.object({
   id: z.number(),
   providerId: z.number().nullable().optional(), // legacy — nullable
+  clientFormat: z.enum(["openai", "anthropic"]).default("openai"),
   modelId: z.string(),
   name: z.string(),
   contextWindow: z.number().nullable().optional(),

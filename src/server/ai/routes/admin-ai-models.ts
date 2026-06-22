@@ -19,6 +19,11 @@ import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import { aiKeyRepo, aiModelRepo, aiModelRouteRepo, aiProviderRepo } from "@/server/repos";
 
+import {
+  canAttachProviderToClientFormat,
+  type ClientFormat,
+  defaultClientFormatForProvider,
+} from "../lib/client-format";
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { resolveUpstreamCandidates } from "../lib/upstream-routing";
@@ -157,8 +162,11 @@ router.get("/providers/:id/discover-models", async (c) => {
 
     const models = rawModels;
 
+    const clientFormat = defaultClientFormatForProvider(provider.apiFormat);
     const existing = await aiModelRepo.findByProviderId(id);
-    const existingIds = new Set(existing.map((e) => e.modelId));
+    const existingIds = new Set(
+      existing.filter((e) => e.clientFormat === clientFormat).map((e) => e.modelId),
+    );
 
     return ok(
       c,
@@ -190,9 +198,15 @@ router.post("/providers/:id/models", async (c) => {
 
   const parsed = await parseBody(c, createAiModelBody);
   if (!parsed.ok) return parsed.response;
-  const { capabilities, fallbackModelIds, ...rest } = parsed.data;
+  const {
+    capabilities,
+    fallbackModelIds,
+    clientFormat: requestedClientFormat,
+    ...rest
+  } = parsed.data;
+  const clientFormat = requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
 
-  const existing = await aiModelRepo.findByModelId(rest.modelId);
+  const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
   if (existing) {
     // Model exists — just ensure a route to this provider exists
     const route = await aiModelRouteRepo.findByModelAndProvider(existing.id, providerId);
@@ -205,6 +219,7 @@ router.post("/providers/:id/models", async (c) => {
   const created = await aiModelRepo.create({
     ...rest,
     providerId,
+    clientFormat,
     capabilities: JSON.stringify(capabilities ?? []),
     fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
   });
@@ -227,9 +242,11 @@ router.post("/providers/:id/models/batch", async (c) => {
 
   const parsed = await parseBody(c, batchCreateAiModelsBody);
   if (!parsed.ok) return parsed.response;
+  const defaultClientFormat = defaultClientFormatForProvider(provider.apiFormat);
 
   const rows = parsed.data.models.map((m) => ({
     providerId,
+    clientFormat: m.clientFormat ?? defaultClientFormat,
     modelId: m.modelId,
     name: m.name,
     contextWindow: m.contextWindow ?? null,
@@ -240,18 +257,38 @@ router.post("/providers/:id/models/batch", async (c) => {
     enabled: m.enabled ?? true,
   }));
 
-  const existing = await aiModelRepo.findByModelIds(parsed.data.models.map((m) => m.modelId));
-  const existingByModelId = new Map(existing.map((model) => [model.modelId, model]));
-  const rowsToCreate = rows.filter((row) => !existingByModelId.has(row.modelId));
+  const modelIdsByFormat = new Map<string, string[]>();
+  for (const row of rows) {
+    modelIdsByFormat.set(row.clientFormat, [
+      ...(modelIdsByFormat.get(row.clientFormat) ?? []),
+      row.modelId,
+    ]);
+  }
+
+  const existing = (
+    await Promise.all(
+      [...modelIdsByFormat.entries()].map(([clientFormat, modelIds]) =>
+        aiModelRepo.findByModelIds(modelIds, clientFormat as typeof defaultClientFormat),
+      ),
+    )
+  ).flat();
+  const modelKey = (clientFormat: string, modelId: string) => `${clientFormat}:${modelId}`;
+  const existingByModelKey = new Map(
+    existing.map((model) => [modelKey(model.clientFormat, model.modelId), model]),
+  );
+  const rowsToCreate = rows.filter(
+    (row) => !existingByModelKey.has(modelKey(row.clientFormat, row.modelId)),
+  );
   const created = await aiModelRepo.batchCreate(rowsToCreate);
-  const targetModelsByModelId = new Map(existingByModelId);
+  const targetModelsByModelKey = new Map(existingByModelKey);
 
   for (const model of created) {
-    targetModelsByModelId.set(model.modelId, model);
+    targetModelsByModelKey.set(modelKey(model.clientFormat, model.modelId), model);
   }
 
   const routeTargets = parsed.data.models.flatMap((m) => {
-    const model = targetModelsByModelId.get(m.modelId);
+    const clientFormat = m.clientFormat ?? defaultClientFormat;
+    const model = targetModelsByModelKey.get(modelKey(clientFormat, m.modelId));
     return model ? [model] : [];
   });
   const linked = await aiModelRouteRepo.batchCreate(
@@ -380,6 +417,29 @@ router.put("/models/:id", async (c) => {
   if (!parsed.ok) return parsed.response;
   const { capabilities, fallbackModelIds, ...rest } = parsed.data;
 
+  if (rest.clientFormat && rest.clientFormat !== existing.clientFormat) {
+    const duplicate = await aiModelRepo.findByModelId(existing.modelId, rest.clientFormat);
+    if (duplicate && duplicate.id !== existing.id) {
+      return c.json(
+        { error: `Model "${existing.modelId}" already exists for ${rest.clientFormat}` },
+        409,
+      );
+    }
+
+    const routes = await aiModelRouteRepo.findByModelPk(existing.id);
+    const incompatible = routes.find(
+      ({ provider }) => !canAttachProviderToClientFormat(rest.clientFormat!, provider.apiFormat),
+    );
+    if (incompatible) {
+      return c.json(
+        {
+          error: `Provider "${incompatible.provider.name}" is not compatible with ${rest.clientFormat} models`,
+        },
+        400,
+      );
+    }
+  }
+
   const updates: Record<string, unknown> = { ...rest };
   if (capabilities !== undefined) updates.capabilities = JSON.stringify(capabilities);
   if (fallbackModelIds !== undefined)
@@ -490,6 +550,13 @@ router.post("/models/:id/routes", async (c) => {
 
   const provider = await aiProviderRepo.findById(parsed.data.providerId);
   if (!provider) return c.json({ error: "Provider not found" }, 404);
+
+  if (!canAttachProviderToClientFormat(model.clientFormat as ClientFormat, provider.apiFormat)) {
+    return c.json(
+      { error: `Provider "${provider.name}" is not compatible with ${model.clientFormat} models` },
+      400,
+    );
+  }
 
   const existing = await aiModelRouteRepo.findByModelAndProvider(modelPk, provider.id);
   if (existing) return c.json({ error: "Route already exists for this provider" }, 409);

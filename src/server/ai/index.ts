@@ -37,7 +37,7 @@ export { default as adminAiKeysRouter } from "./routes/admin-ai-keys";
 export { default as adminAiUpstreamsRouter } from "./routes/admin-ai-upstreams";
 export { default as aiRelayRouter } from "./routes/relay";
 export { default as aiMcpRouter } from "./routes/mcp";
-export { default as consumerRelayRouter } from "./routes/consumer-relay";
+export { consumerAnthropicRelayRouter, consumerOpenAiRelayRouter } from "./routes/consumer-relay";
 export { default as relayKeysRouter } from "./routes/relay-keys";
 export { consumerKeyAuthMiddleware } from "./middleware/consumer-key-auth";
 

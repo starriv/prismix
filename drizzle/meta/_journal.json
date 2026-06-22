@@ -36,6 +36,13 @@
       "when": 1776400495845,
       "tag": "0004_elite_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782086400000,
+      "tag": "0005_split_gateway_client_formats",
+      "breakpoints": true
     }
   ]
 }

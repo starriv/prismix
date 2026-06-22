@@ -16,7 +16,11 @@ export default function UserEndpointPage() {
   const { t } = useTranslation();
   const { data: keys = [], isLoading } = useUserKeys();
 
-  const baseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/endpoint/v1`, []);
+  const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
+  const anthropicBaseUrl = useMemo(
+    () => `${window.location.origin}/api/gateway/ai/anthropic/v1`,
+    [],
+  );
   const activeKeys = keys.filter((k) => k.status === "active");
 
   const handleCopy = useCallback(
@@ -57,12 +61,23 @@ export default function UserEndpointPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
-              <code className="font-mono text-xs select-all">{baseUrl}</code>
+              <code className="font-mono text-xs select-all">{openAiBaseUrl}</code>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0"
-                onClick={() => handleCopy(baseUrl)}
+                onClick={() => handleCopy(openAiBaseUrl)}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
+              <code className="font-mono text-xs select-all">{anthropicBaseUrl}</code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => handleCopy(anthropicBaseUrl)}
               >
                 <Copy className="h-3 w-3" />
               </Button>
@@ -122,15 +137,14 @@ export default function UserEndpointPage() {
         </Card>
 
         {/* Code Examples */}
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           <ExampleCard
             title="Claude Code"
             badge={t("user.endpoint.recommended")}
-            code={claudeCodeExample(baseUrl)}
+            code={claudeCodeExample(anthropicBaseUrl)}
             onCopy={handleCopy}
           />
-          <ExampleCard title="OpenAI SDK" code={openaiExample(baseUrl)} onCopy={handleCopy} />
-          <ExampleCard title="Gemini SDK" code={geminiExample(baseUrl)} onCopy={handleCopy} />
+          <ExampleCard title="OpenAI SDK" code={openaiExample(openAiBaseUrl)} onCopy={handleCopy} />
         </div>
       </div>
     </div>
@@ -219,19 +233,4 @@ function claudeCodeExample(base: string): string {
     "ANTHROPIC_API_KEY": "ska_YOUR_CONSUMER_KEY"
   }
 }`;
-}
-
-function geminiExample(base: string): string {
-  return `import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: "ska_YOUR_CONSUMER_KEY",
-  httpOptions: { baseUrl: "${base}" },
-});
-
-const response = await ai.models.generateContent({
-  model: "gemini-2.5-flash",
-  contents: "Hello!",
-});
-console.log(response.text);`;
 }

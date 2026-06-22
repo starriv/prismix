@@ -53,26 +53,73 @@ afterEach(() => {
 });
 
 describe("buildCacheKey", () => {
+  const keyInput = (overrides: Record<string, unknown> = {}) => ({
+    scope: "consumer:1",
+    model: "gpt-4o",
+    providerId: "openai",
+    upstreamId: 10,
+    requestBody: {
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "hello" }],
+    },
+    ...overrides,
+  });
+
   it("produces deterministic keys for same input", () => {
-    const msgs = [{ role: "user" as const, content: "hello" }];
-    const k1 = buildCacheKey("gpt-4o", msgs);
-    const k2 = buildCacheKey("gpt-4o", msgs);
+    const k1 = buildCacheKey(keyInput());
+    const k2 = buildCacheKey(keyInput());
     expect(k1).toBe(k2);
   });
 
   it("produces different keys for different models", () => {
-    const msgs = [{ role: "user" as const, content: "hello" }];
-    expect(buildCacheKey("gpt-4o", msgs)).not.toBe(buildCacheKey("gpt-4o-mini", msgs));
+    expect(buildCacheKey(keyInput({ model: "gpt-4o" }))).not.toBe(
+      buildCacheKey(
+        keyInput({
+          model: "gpt-4o-mini",
+          requestBody: {
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: "hello" }],
+          },
+        }),
+      ),
+    );
   });
 
   it("produces different keys for different messages", () => {
-    expect(buildCacheKey("gpt-4o", [{ role: "user", content: "hello" }])).not.toBe(
-      buildCacheKey("gpt-4o", [{ role: "user", content: "world" }]),
+    expect(buildCacheKey(keyInput())).not.toBe(
+      buildCacheKey(
+        keyInput({
+          requestBody: {
+            model: "gpt-4o",
+            messages: [{ role: "user", content: "world" }],
+          },
+        }),
+      ),
+    );
+  });
+
+  it("produces different keys for different request parameters", () => {
+    expect(buildCacheKey(keyInput())).not.toBe(
+      buildCacheKey(
+        keyInput({
+          requestBody: {
+            model: "gpt-4o",
+            messages: [{ role: "user", content: "hello" }],
+            temperature: 0.7,
+          },
+        }),
+      ),
+    );
+  });
+
+  it("produces different keys for different scopes", () => {
+    expect(buildCacheKey(keyInput({ scope: "consumer:1" }))).not.toBe(
+      buildCacheKey(keyInput({ scope: "consumer:2" })),
     );
   });
 
   it("key starts with ai-cache: prefix", () => {
-    const key = buildCacheKey("gpt-4o", [{ role: "user", content: "hi" }]);
+    const key = buildCacheKey(keyInput());
     expect(key).toMatch(/^ai-cache:[a-f0-9]{64}$/);
   });
 });

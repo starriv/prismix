@@ -26,6 +26,15 @@ describe("openai adapter", () => {
         openaiAdapter.buildUrl("https://api.openai.com/v1/", { model: "gpt-4o", stream: false }),
       ).toBe("https://api.openai.com/v1/chat/completions");
     });
+
+    it("adds /v1 when base URL omits it", () => {
+      expect(
+        openaiAdapter.buildUrl("https://class-1-violations.ixg.be", {
+          model: "glm-5.2",
+          stream: false,
+        }),
+      ).toBe("https://class-1-violations.ixg.be/v1/chat/completions");
+    });
   });
 
   describe("transformRequest", () => {

@@ -15,14 +15,19 @@ import {
 
 // ── Hoisted mock fns ────────────────────────────────────────────────
 
-const { mockFindBlacklistedByHash, mockFindByHash, mockFindAgent, mockEnqueueJob } = vi.hoisted(
-  () => ({
-    mockFindBlacklistedByHash: vi.fn(),
-    mockFindByHash: vi.fn(),
-    mockFindAgent: vi.fn(),
-    mockEnqueueJob: vi.fn(),
-  }),
-);
+const {
+  mockFindBlacklistedByHash,
+  mockFindByHash,
+  mockFindAgent,
+  mockEnqueueJob,
+  mockRateIncrement,
+} = vi.hoisted(() => ({
+  mockFindBlacklistedByHash: vi.fn(),
+  mockFindByHash: vi.fn(),
+  mockFindAgent: vi.fn(),
+  mockEnqueueJob: vi.fn(),
+  mockRateIncrement: vi.fn(),
+}));
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
@@ -40,6 +45,14 @@ vi.mock("@/server/lib/write-queue", () => ({
   enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
 }));
 
+vi.mock("@/server/rate-limit", () => ({
+  createRateLimitStore: () => ({
+    increment: (...args: unknown[]) => mockRateIncrement(...args),
+    size: vi.fn(() => 0),
+    cleanup: vi.fn(),
+  }),
+}));
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 const RAW_KEY = "ska_aabbccdd11223344aabbccdd11223344";
@@ -51,6 +64,7 @@ function buildConsumerRow(
     userId: number | null;
     agentId: number;
     expiresAt: Date | null;
+    rateLimitRpm: number | null;
   }> = {},
 ) {
   return {
@@ -63,7 +77,7 @@ function buildConsumerRow(
     apiKeyPrefix: "ska_aabb",
     encryptedKey: "",
     markupPercent: 0,
-    rateLimitRpm: null,
+    rateLimitRpm: "rateLimitRpm" in overrides ? overrides.rateLimitRpm : null,
     allowedModels: "[]",
     status: overrides.status ?? "active",
     userStatus: "userStatus" in overrides ? overrides.userStatus : 1,
@@ -124,6 +138,7 @@ function createApp() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRateIncrement.mockResolvedValue({ count: 1, resetMs: 60_000 });
 });
 
 // ── Tests ───────────────────────────────────────────────────────────
@@ -180,6 +195,25 @@ describe("consumer key auth — user status gate", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.userId).toBeNull();
+  });
+
+  it("rateLimitRpm exceeded → 429 before agent lookup", async () => {
+    mockFindByHash.mockResolvedValueOnce(buildConsumerRow({ rateLimitRpm: 1 }));
+    mockRateIncrement.mockResolvedValueOnce({ count: 2, resetMs: 30_000 });
+
+    const app = createApp();
+    const res = await app.request("/test", {
+      headers: { Authorization: `Bearer ${RAW_KEY}` },
+    });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("30");
+    expect(res.headers.get("X-RateLimit-Limit")).toBe("1");
+    expect(res.headers.get("X-RateLimit-Remaining")).toBe("0");
+    const body = await res.json();
+    expect(body.error).toBe("Rate limit exceeded");
+    expect(mockRateIncrement).toHaveBeenCalledWith("consumer-key:1", 60_000);
+    expect(mockFindAgent).not.toHaveBeenCalled();
   });
 
   it("deleted key in blacklist → 403 'Consumer key has been deleted'", async () => {

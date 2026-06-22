@@ -3,6 +3,8 @@
  */
 import { z } from "zod";
 
+import { CLIENT_FORMATS } from "@/server/ai/lib/client-format";
+
 // ── SSRF-safe URL check ─────────────────────────────────────────────
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
@@ -124,6 +126,7 @@ export const batchCreateAiModelsBody = z.object({
   models: z
     .array(
       z.object({
+        clientFormat: z.enum(CLIENT_FORMATS).optional(),
         modelId: z.string().min(1).max(100),
         name: z.string().min(1).max(200),
         contextWindow: z.number().int().positive().optional(),
@@ -138,6 +141,7 @@ export const batchCreateAiModelsBody = z.object({
 });
 
 export const createAiModelBody = z.object({
+  clientFormat: z.enum(CLIENT_FORMATS).optional(),
   modelId: z
     .string()
     .min(1)
@@ -154,6 +158,7 @@ export const createAiModelBody = z.object({
 });
 
 export const updateAiModelBody = z.object({
+  clientFormat: z.enum(CLIENT_FORMATS).optional(),
   name: z.string().min(1).max(200).optional(),
   contextWindow: z.number().int().positive().nullable().optional(),
   inputPrice: z.string().min(1).optional(),

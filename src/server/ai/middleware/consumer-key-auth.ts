@@ -13,6 +13,7 @@ import { createMiddleware } from "hono/factory";
 import { hashApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { getRequestId } from "@/server/middleware/request-id";
+import { createRateLimitStore, type RateLimitStore } from "@/server/rate-limit";
 import { payAgentRepo, relayConsumerKeyRepo, settingsRepo } from "@/server/repos";
 import { lte } from "@/shared/number";
 
@@ -22,6 +23,8 @@ import { enqueueAiAccessLog } from "../lib/access-log";
 
 export const globalMarkupCache = { value: 0, expiresAt: 0 };
 const MARKUP_CACHE_TTL = 60_000;
+const CONSUMER_RATE_LIMIT_WINDOW_MS = 60_000;
+let consumerRateLimitStore: RateLimitStore | null = null;
 
 export async function getGlobalDefaultMarkup(): Promise<number> {
   if (globalMarkupCache.expiresAt > Date.now()) return globalMarkupCache.value;
@@ -30,6 +33,11 @@ export async function getGlobalDefaultMarkup(): Promise<number> {
   globalMarkupCache.value = value;
   globalMarkupCache.expiresAt = Date.now() + MARKUP_CACHE_TTL;
   return value;
+}
+
+function getConsumerRateLimitStore(): RateLimitStore {
+  if (!consumerRateLimitStore) consumerRateLimitStore = createRateLimitStore();
+  return consumerRateLimitStore;
 }
 
 export interface ConsumerSession {
@@ -128,6 +136,23 @@ export const consumerKeyAuthMiddleware = createMiddleware<ConsumerEnv>(async (c,
         consumerKeyId: consumer.id,
         userId: consumer.userId,
       });
+    }
+
+    if (consumer.rateLimitRpm && consumer.rateLimitRpm > 0) {
+      const { count, resetMs } = await getConsumerRateLimitStore().increment(
+        `consumer-key:${consumer.id}`,
+        CONSUMER_RATE_LIMIT_WINDOW_MS,
+      );
+      c.header("X-RateLimit-Limit", String(consumer.rateLimitRpm));
+      c.header("X-RateLimit-Remaining", String(Math.max(0, consumer.rateLimitRpm - count)));
+      if (count > consumer.rateLimitRpm) {
+        c.header("Retry-After", String(Math.ceil(resetMs / 1000)));
+        c.header("X-RateLimit-Remaining", "0");
+        return respondWithAuthError(429, "Rate limit exceeded", {
+          consumerKeyId: consumer.id,
+          userId: consumer.userId,
+        });
+      }
     }
 
     // Load linked pay-agent for balance

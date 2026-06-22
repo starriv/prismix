@@ -409,7 +409,7 @@ describe("body limit routing", () => {
       return bodyLimit({ maxSize })(c, next);
     });
 
-    app.post("/api/gateway/ai/endpoint/v1/messages", (c) => c.json({ ok: true }));
+    app.post("/api/gateway/ai/anthropic/v1/messages", (c) => c.json({ ok: true }));
     app.post("/api/other", (c) => c.json({ ok: true }));
 
     // 2 MB body — should pass gateway, fail other
@@ -417,7 +417,7 @@ describe("body limit routing", () => {
     const bodySize = 2 * 1024 * 1024;
     const largeBody = "x".repeat(bodySize);
 
-    const gatewayRes = await app.request("/api/gateway/ai/endpoint/v1/messages", {
+    const gatewayRes = await app.request("/api/gateway/ai/anthropic/v1/messages", {
       method: "POST",
       body: largeBody,
       headers: {
@@ -469,12 +469,12 @@ describe("body limit routing", () => {
         : 1 * 1024 * 1024;
       return bodyLimit({ maxSize })(c, next);
     });
-    app.post("/api/gateway/ai/endpoint/v1/chat/completions", (c) => c.json({ ok: true }));
+    app.post("/api/gateway/ai/openai/v1/chat/completions", (c) => c.json({ ok: true }));
 
     // 15 MB body — under 20 MB limit
     const bodySize = 15 * 1024 * 1024;
     const body15MB = "x".repeat(bodySize);
-    const res = await app.request("/api/gateway/ai/endpoint/v1/chat/completions", {
+    const res = await app.request("/api/gateway/ai/openai/v1/chat/completions", {
       method: "POST",
       body: body15MB,
       headers: {
@@ -493,12 +493,12 @@ describe("body limit routing", () => {
         : 1 * 1024 * 1024;
       return bodyLimit({ maxSize })(c, next);
     });
-    app.post("/api/gateway/ai/endpoint/v1/chat/completions", (c) => c.json({ ok: true }));
+    app.post("/api/gateway/ai/openai/v1/chat/completions", (c) => c.json({ ok: true }));
 
     // 21 MB body — over limit
     const bodySize = 21 * 1024 * 1024;
     const body21MB = "x".repeat(bodySize);
-    const res = await app.request("/api/gateway/ai/endpoint/v1/chat/completions", {
+    const res = await app.request("/api/gateway/ai/openai/v1/chat/completions", {
       method: "POST",
       body: body21MB,
       headers: {

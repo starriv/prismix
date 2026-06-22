@@ -77,6 +77,6 @@ export const openaiAdapter: ProviderAdapter = {
   buildUrl(baseUrl: string, _opts: BuildUrlOptions): string {
     // Ensure no double slash: strip trailing slash from baseUrl
     const base = baseUrl.replace(/\/+$/, "");
-    return `${base}/chat/completions`;
+    return base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
   },
 };

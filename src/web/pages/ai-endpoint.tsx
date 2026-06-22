@@ -17,7 +17,11 @@ export default function AiRelayPage() {
   const { data: providers = [], isLoading } = useAiProviders();
   const { data: keys = [] } = useAiKeys();
 
-  const baseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/endpoint/v1`, []);
+  const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
+  const anthropicBaseUrl = useMemo(
+    () => `${window.location.origin}/api/gateway/ai/anthropic/v1`,
+    [],
+  );
 
   const handleCopy = useCallback(
     (text: string) => {
@@ -76,12 +80,24 @@ export default function AiRelayPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
-              <code className="font-mono text-xs select-all">{baseUrl}</code>
+              <code className="font-mono text-xs select-all">{openAiBaseUrl}</code>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0"
-                onClick={() => handleCopy(baseUrl)}
+                onClick={() => handleCopy(openAiBaseUrl)}
+                aria-label={t("common.btn.copy")}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-md bg-muted pl-3 pr-1.5 py-1.5">
+              <code className="font-mono text-xs select-all">{anthropicBaseUrl}</code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => handleCopy(anthropicBaseUrl)}
                 aria-label={t("common.btn.copy")}
               >
                 <Copy className="h-3 w-3" />
@@ -155,22 +171,16 @@ export default function AiRelayPage() {
         </Card>
 
         {/* Usage Examples — 3 cards */}
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           <ExampleCard
             title="OpenAI SDK"
-            code={openaiExample(baseUrl)}
+            code={openaiExample(openAiBaseUrl)}
             onCopy={handleCopy}
             copyLabel={t("common.btn.copy")}
           />
           <ExampleCard
             title="Claude Code"
-            code={claudeCodeExample(baseUrl)}
-            onCopy={handleCopy}
-            copyLabel={t("common.btn.copy")}
-          />
-          <ExampleCard
-            title="Gemini SDK"
-            code={geminiExample(baseUrl)}
+            code={claudeCodeExample(anthropicBaseUrl)}
             onCopy={handleCopy}
             copyLabel={t("common.btn.copy")}
           />
@@ -264,19 +274,4 @@ function claudeCodeExample(base: string): string {
     "ANTHROPIC_API_KEY": "ska_YOUR_CONSUMER_KEY"
   }
 }`;
-}
-
-function geminiExample(base: string): string {
-  return `import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: "ska_YOUR_CONSUMER_KEY",
-  httpOptions: { baseUrl: "${base}" },
-});
-
-const response = await ai.models.generateContent({
-  model: "gemini-2.5-flash",
-  contents: "Hello!",
-});
-console.log(response.text);`;
 }

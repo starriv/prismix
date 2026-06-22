@@ -13,8 +13,9 @@ import {
   adminAiRouter,
   aiMcpRouter,
   aiRelayRouter,
+  consumerAnthropicRelayRouter,
   consumerKeyAuthMiddleware,
-  consumerRelayRouter,
+  consumerOpenAiRelayRouter,
   relayKeysRouter,
 } from "../ai";
 import authRoutes from "../auth/routes/auth";
@@ -43,7 +44,8 @@ export function registerRoutes(app: Hono) {
 
   // ── AI Gateway endpoint (consumerKeyAuthMiddleware) ───────
   app.use("/api/gateway/ai/*", consumerKeyAuthMiddleware);
-  app.route("/api/gateway/ai/endpoint", consumerRelayRouter);
+  app.route("/api/gateway/ai/openai", consumerOpenAiRelayRouter);
+  app.route("/api/gateway/ai/anthropic", consumerAnthropicRelayRouter);
 
   // ── SSE Events (token checked internally) ─────────
   app.route("/api/events", events);

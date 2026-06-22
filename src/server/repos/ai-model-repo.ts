@@ -7,7 +7,6 @@ import {
   type AiModel,
   aiModels,
   type AiProvider,
-  aiProviders,
   db,
   exec,
   type NewAiModel,
@@ -16,6 +15,7 @@ import {
   returningOne,
 } from "@/server/db";
 
+import type { ClientFormat } from "../ai/lib/client-format";
 import { aiModelRouteRepo } from "./ai-model-route-repo";
 
 export const aiModelRepo = {
@@ -37,13 +37,29 @@ export const aiModelRepo = {
     return queryOne(db.select().from(aiModels).where(eq(aiModels.id, id)));
   },
 
-  async findByModelId(modelId: string): Promise<AiModel | undefined> {
-    return queryOne(db.select().from(aiModels).where(eq(aiModels.modelId, modelId)));
+  async findByModelId(
+    modelId: string,
+    clientFormat: ClientFormat = "openai",
+  ): Promise<AiModel | undefined> {
+    return queryOne(
+      db
+        .select()
+        .from(aiModels)
+        .where(and(eq(aiModels.modelId, modelId), eq(aiModels.clientFormat, clientFormat))),
+    );
   },
 
-  async findByModelIds(modelIds: string[]): Promise<AiModel[]> {
+  async findByModelIds(
+    modelIds: string[],
+    clientFormat: ClientFormat = "openai",
+  ): Promise<AiModel[]> {
     if (modelIds.length === 0) return [];
-    return queryAll(db.select().from(aiModels).where(inArray(aiModels.modelId, modelIds)));
+    return queryAll(
+      db
+        .select()
+        .from(aiModels)
+        .where(and(inArray(aiModels.modelId, modelIds), eq(aiModels.clientFormat, clientFormat))),
+    );
   },
 
   /**
@@ -52,21 +68,30 @@ export const aiModelRepo = {
    */
   async findEnabledByModelId(
     modelId: string,
+    clientFormat: ClientFormat = "openai",
   ): Promise<{ model: AiModel; provider: AiProvider } | undefined> {
-    const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(modelId);
+    const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, clientFormat);
     if (routes.length === 0) return undefined;
     return { model: routes[0].model, provider: routes[0].provider };
   },
 
   /** All enabled models (for /v1/models catalog), deduplicated by modelId. */
-  async findAllEnabled(): Promise<Array<{ model: AiModel; provider: AiProvider }>> {
+  async findAllEnabled(
+    clientFormat?: ClientFormat,
+  ): Promise<Array<{ model: AiModel; provider: AiProvider }>> {
+    const where = clientFormat
+      ? and(eq(aiModels.enabled, true), eq(aiModels.clientFormat, clientFormat))
+      : eq(aiModels.enabled, true);
     const allModels = await queryAll<AiModel>(
-      db.select().from(aiModels).where(eq(aiModels.enabled, true)).orderBy(aiModels.id),
+      db.select().from(aiModels).where(where).orderBy(aiModels.id),
     );
 
     const results: Array<{ model: AiModel; provider: AiProvider }> = [];
     for (const m of allModels) {
-      const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(m.modelId);
+      const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(
+        m.modelId,
+        m.clientFormat as ClientFormat,
+      );
       if (routes.length > 0) {
         results.push({ model: m, provider: routes[0].provider });
       }

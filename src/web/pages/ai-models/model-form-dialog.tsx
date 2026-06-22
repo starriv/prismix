@@ -49,6 +49,7 @@ import { Switch } from "@/web/components/ui/switch";
 // ── Form schema ──────────────────────────────────────────────────────
 
 const modelFormSchema = z.object({
+  clientFormat: z.enum(["openai", "anthropic"]),
   modelId: z.string().min(1, "common.valid.required"),
   name: z.string().min(1, "common.valid.name-required"),
   contextWindow: z.number().int().positive().nullable().optional(),
@@ -58,6 +59,11 @@ const modelFormSchema = z.object({
   enabled: z.boolean(),
 });
 type ModelFormValues = z.infer<typeof modelFormSchema>;
+type ClientFormat = ModelFormValues["clientFormat"];
+
+function defaultClientFormatForProvider(apiFormat?: string): ClientFormat {
+  return apiFormat === "anthropic" ? "anthropic" : "openai";
+}
 
 // ── Dialog ───────────────────────────────────────────────────────────
 
@@ -109,6 +115,7 @@ export function ModelFormDialog({
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
     defaultValues: {
+      clientFormat: "openai",
       modelId: "",
       name: "",
       contextWindow: null,
@@ -140,6 +147,7 @@ export function ModelFormDialog({
   useEffect(() => {
     if (open && model) {
       form.reset({
+        clientFormat: model.clientFormat,
         modelId: model.modelId,
         name: model.name,
         contextWindow: model.contextWindow ?? null,
@@ -150,6 +158,7 @@ export function ModelFormDialog({
       });
     } else if (open) {
       form.reset({
+        clientFormat: defaultClientFormatForProvider(selectedProvider?.apiFormat),
         modelId: "",
         name: "",
         contextWindow: null,
@@ -163,7 +172,13 @@ export function ModelFormDialog({
       setDiscoverSource("official");
       if (!initialProviderId) setSelectedProviderId(null);
     }
-  }, [open, model, form, initialProviderId]);
+  }, [open, model, form, initialProviderId, selectedProvider?.apiFormat]);
+
+  useEffect(() => {
+    if (open && !isEdit && selectedProvider) {
+      form.setValue("clientFormat", defaultClientFormatForProvider(selectedProvider.apiFormat));
+    }
+  }, [open, isEdit, selectedProvider, form]);
 
   // Trigger discover when provider or source changes (and discover is enabled)
   useEffect(() => {
@@ -239,6 +254,7 @@ export function ModelFormDialog({
       .map((modelId) => availableModels.find((m) => m.modelId === modelId))
       .filter(Boolean)
       .map((m) => ({
+        clientFormat: form.getValues("clientFormat"),
         modelId: m!.modelId,
         name: m!.name,
         inputPrice: m!.inputPrice ?? fallbackInput,
@@ -416,6 +432,27 @@ export function ModelFormDialog({
               {/* Single mode fields */}
               {!isBatchMode && !needsProvider && (
                 <>
+                  <FormField
+                    control={form.control}
+                    name="clientFormat"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="openai">OpenAI</SelectItem>
+                            <SelectItem value="anthropic">Anthropic</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="modelId"

@@ -7,7 +7,7 @@
 import { emit } from "@/server/events";
 import { log } from "@/server/lib/logger";
 import { enqueueJob } from "@/server/lib/write-queue";
-import { payAgentRepo } from "@/server/repos";
+import { payAgentRepo, payAgentTransactionRepo } from "@/server/repos";
 import { gt, removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import type { TokenUsage } from "../providers/types";
@@ -43,6 +43,34 @@ export interface BillConsumerParams {
   requestBody?: string;
   /** Raw response body — for request logging. */
   responseBody?: string;
+  /**
+   * When true, limit/balance failures are returned to the caller before usage
+   * logs are written. Use for non-streaming responses that can still return
+   * 402/429 to the client. Streaming callers should leave this false because
+   * the response has already been sent.
+   */
+  rejectOnLimit?: boolean;
+}
+
+export interface ConsumerBillingFailure {
+  ok: false;
+  statusCode: 402 | 429;
+  body: Record<string, unknown>;
+  upstreamCost: string;
+  costStr: string;
+}
+
+export interface ConsumerBillingSuccess {
+  ok: true;
+  upstreamCost: string;
+  costStr: string;
+}
+
+export type ConsumerBillingResult = ConsumerBillingSuccess | ConsumerBillingFailure;
+
+export interface SpendingLimitFailure {
+  statusCode: 429;
+  body: Record<string, unknown>;
 }
 
 // ── Cost Calculation ───────────────────────────────────────────────
@@ -65,6 +93,106 @@ export function calculateConsumerCost(
   return { upstreamCost, consumerCost, costStr };
 }
 
+// ── Spending Limits ──────────────────────────────────────────────────
+
+export async function checkConsumerSpendingLimits(
+  consumer: ConsumerBillingContext,
+): Promise<SpendingLimitFailure | null> {
+  if (consumer.dailyLimit) {
+    const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
+    if (gt(spentToday, consumer.dailyLimit)) {
+      return {
+        statusCode: 429,
+        body: {
+          error: "Daily spending limit exceeded",
+          limit: consumer.dailyLimit,
+          spent: spentToday,
+        },
+      };
+    }
+  }
+
+  if (consumer.monthlyLimit) {
+    const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
+    if (gt(spentMonth, consumer.monthlyLimit)) {
+      return {
+        statusCode: 429,
+        body: {
+          error: "Monthly spending limit exceeded",
+          limit: consumer.monthlyLimit,
+          spent: spentMonth,
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+async function checkCostLimits(
+  consumer: ConsumerBillingContext,
+  costStr: string,
+): Promise<Omit<ConsumerBillingFailure, "upstreamCost" | "costStr"> | null> {
+  if (consumer.perPayLimit && gt(costStr, consumer.perPayLimit)) {
+    return {
+      ok: false,
+      statusCode: 429,
+      body: {
+        error: "Request cost exceeds per-transaction limit",
+        limit: consumer.perPayLimit,
+        cost: costStr,
+      },
+    };
+  }
+
+  if (consumer.dailyLimit) {
+    const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
+    if (gt(safePlus(spentToday, costStr), consumer.dailyLimit)) {
+      return {
+        ok: false,
+        statusCode: 429,
+        body: {
+          error: "Request would exceed daily spending limit",
+          limit: consumer.dailyLimit,
+          spent: spentToday,
+          cost: costStr,
+        },
+      };
+    }
+  }
+
+  if (consumer.monthlyLimit) {
+    const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
+    if (gt(safePlus(spentMonth, costStr), consumer.monthlyLimit)) {
+      return {
+        ok: false,
+        statusCode: 429,
+        body: {
+          error: "Request would exceed monthly spending limit",
+          limit: consumer.monthlyLimit,
+          spent: spentMonth,
+          cost: costStr,
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+async function suspendAgentForLimit(
+  consumer: ConsumerBillingContext,
+  costStr: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  log.gateway.warn(
+    { agentId: consumer.agentId, cost: costStr, limitError: body.error },
+    "AI request exceeded consumer spending limit — suspending agent",
+  );
+  await payAgentRepo.update(consumer.agentId, { status: "suspended" });
+  emit("agent.suspended", null, { agentId: consumer.agentId });
+}
+
 // ── Billing Pipeline ───────────────────────────────────────────────
 
 /**
@@ -72,7 +200,7 @@ export function calculateConsumerCost(
  *
  * Used by all consumer relay paths (chat/completions + passthrough, streaming + non-streaming).
  */
-export async function billConsumer(p: BillConsumerParams): Promise<void> {
+export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBillingResult> {
   const { upstreamCost, costStr } = calculateConsumerCost(
     p.usage,
     p.inputPrice,
@@ -80,14 +208,12 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
     p.consumer.markupPercent,
   );
 
-  // Per-pay limit check (streaming: response already sent, suspend if exceeded)
-  if (p.consumer.perPayLimit && gt(costStr, p.consumer.perPayLimit)) {
-    log.gateway.warn(
-      { agentId: p.consumer.agentId, cost: costStr, limit: p.consumer.perPayLimit },
-      "AI request exceeded per-pay limit — suspending agent",
-    );
-    await payAgentRepo.update(p.consumer.agentId, { status: "suspended" });
-    emit("agent.suspended", null, { agentId: p.consumer.agentId });
+  const limitFailure = await checkCostLimits(p.consumer, costStr);
+  if (limitFailure) {
+    if (p.rejectOnLimit) {
+      return { ...limitFailure, upstreamCost, costStr };
+    }
+    await suspendAgentForLimit(p.consumer, costStr, limitFailure.body);
   }
 
   // Debit balance
@@ -119,6 +245,15 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
       );
       await payAgentRepo.update(p.consumer.agentId, { status: "suspended" });
       emit("agent.suspended", null, { agentId: p.consumer.agentId });
+      if (p.rejectOnLimit) {
+        return {
+          ok: false,
+          statusCode: 402,
+          body: { error: "Agent balance exhausted. Please top up the pay-agent." },
+          upstreamCost,
+          costStr,
+        };
+      }
     }
   }
 
@@ -159,4 +294,6 @@ export async function billConsumer(p: BillConsumerParams): Promise<void> {
       createdAt: new Date().toISOString(),
     } as Record<string, unknown>);
   }
+
+  return { ok: true, upstreamCost, costStr };
 }

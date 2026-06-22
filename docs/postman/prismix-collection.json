@@ -921,20 +921,20 @@
       },
       "item": [
         {
-          "name": "List Models (Consumer)",
+          "name": "List OpenAI Models (Consumer)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/models",
+              "raw": "{{baseUrl}}/gateway/ai/openai/v1/models",
               "host": ["{{baseUrl}}"],
-              "path": ["gateway", "ai", "endpoint", "v1", "models"]
+              "path": ["gateway", "ai", "openai", "v1", "models"]
             },
             "description": "OpenAI-compatible model list filtered by the consumer key's allowed models ACL."
           }
         },
         {
-          "name": "Chat Completions (Consumer)",
+          "name": "OpenAI Chat Completions (Consumer)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -943,15 +943,15 @@
               "raw": "{\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, how are you?\" }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 256\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/chat/completions",
+              "raw": "{{baseUrl}}/gateway/ai/openai/v1/chat/completions",
               "host": ["{{baseUrl}}"],
-              "path": ["gateway", "ai", "endpoint", "v1", "chat", "completions"]
+              "path": ["gateway", "ai", "openai", "v1", "chat", "completions"]
             },
             "description": "Consumer chat completions with balance gate, model ACL, spending limits (per-pay, daily, monthly), guardrails, and automatic billing."
           }
         },
         {
-          "name": "Generic Passthrough (Consumer v1/*)",
+          "name": "OpenAI Generic Passthrough (Consumer v1/*)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -960,11 +960,41 @@
               "raw": "{\n  \"model\": \"gpt-4o\",\n  \"input\": \"Translate 'Hello' to French.\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/gateway/ai/endpoint/v1/embeddings",
+              "raw": "{{baseUrl}}/gateway/ai/openai/v1/embeddings",
               "host": ["{{baseUrl}}"],
-              "path": ["gateway", "ai", "endpoint", "v1", "embeddings"]
+              "path": ["gateway", "ai", "openai", "v1", "embeddings"]
             },
-            "description": "Consumer generic passthrough for any /v1/* endpoint. Same billing and ACL as chat completions."
+            "description": "Consumer OpenAI-format passthrough for compatible /v1/* endpoints. Same billing and ACL as chat completions."
+          }
+        },
+        {
+          "name": "List Anthropic Models (Consumer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/gateway/ai/anthropic/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["gateway", "ai", "anthropic", "v1", "models"]
+            },
+            "description": "Anthropic-compatible model list filtered by the consumer key's allowed models ACL."
+          }
+        },
+        {
+          "name": "Anthropic Messages (Consumer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"claude-sonnet-4\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, how are you?\" }\n  ],\n  \"stream\": false,\n  \"max_tokens\": 256\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gateway/ai/anthropic/v1/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["gateway", "ai", "anthropic", "v1", "messages"]
+            },
+            "description": "Consumer Anthropic Messages API with balance gate, model ACL, spending limits, and automatic billing."
           }
         }
       ]

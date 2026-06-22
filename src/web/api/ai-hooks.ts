@@ -480,6 +480,7 @@ export function useAiModels(providerId: number) {
 }
 
 interface CreateAiModelBody {
+  clientFormat?: "openai" | "anthropic";
   modelId: string;
   name: string;
   contextWindow?: number | null;
@@ -510,6 +511,7 @@ export function useBatchCreateAiModels() {
     }: {
       providerId: number;
       models: Array<{
+        clientFormat?: "openai" | "anthropic";
         modelId: string;
         name: string;
         inputPrice?: string;

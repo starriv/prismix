@@ -6,10 +6,14 @@ const mockFindAnyEnabledByProvider = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
 const mockFindModelsByProviderId = vi.fn();
 const mockFindModelsByIds = vi.fn();
+const mockFindModelByModelId = vi.fn();
 const mockFindAllModels = vi.fn();
 const mockFindModelById = vi.fn();
+const mockUpdateModel = vi.fn();
 const mockBatchCreateModels = vi.fn();
+const mockCreateRoute = vi.fn();
 const mockBatchCreateRoutes = vi.fn();
+const mockFindRouteByModelAndProvider = vi.fn();
 const mockFindRoutesByModelPk = vi.fn();
 const mockUpdateRouteForModel = vi.fn();
 const mockDeleteRouteForModel = vi.fn();
@@ -30,16 +34,20 @@ vi.mock("@/server/repos", () => ({
   aiModelRepo: {
     findByProviderId: (...args: unknown[]) => mockFindModelsByProviderId(...args),
     findByModelIds: (...args: unknown[]) => mockFindModelsByIds(...args),
+    findByModelId: (...args: unknown[]) => mockFindModelByModelId(...args),
     findAll: (...args: unknown[]) => mockFindAllModels(...args),
     findById: (...args: unknown[]) => mockFindModelById(...args),
     findByProviderAndModelId: vi.fn(),
     create: vi.fn(),
+    update: (...args: unknown[]) => mockUpdateModel(...args),
     batchCreate: (...args: unknown[]) => mockBatchCreateModels(...args),
     deleteByIds: vi.fn(),
     updatePricesBatch: vi.fn(),
   },
   aiModelRouteRepo: {
+    create: (...args: unknown[]) => mockCreateRoute(...args),
     batchCreate: (...args: unknown[]) => mockBatchCreateRoutes(...args),
+    findByModelAndProvider: (...args: unknown[]) => mockFindRouteByModelAndProvider(...args),
     findByModelPk: (...args: unknown[]) => mockFindRoutesByModelPk(...args),
     updateForModel: (...args: unknown[]) => mockUpdateRouteForModel(...args),
     deleteForModel: (...args: unknown[]) => mockDeleteRouteForModel(...args),
@@ -82,10 +90,14 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockFindAnyEnabledByUpstream.mockReset();
     mockFindModelsByProviderId.mockReset();
     mockFindModelsByIds.mockReset();
+    mockFindModelByModelId.mockReset();
     mockFindAllModels.mockReset();
     mockFindModelById.mockReset();
+    mockUpdateModel.mockReset();
     mockBatchCreateModels.mockReset();
+    mockCreateRoute.mockReset();
     mockBatchCreateRoutes.mockReset();
+    mockFindRouteByModelAndProvider.mockReset();
     mockFindRoutesByModelPk.mockReset();
     mockUpdateRouteForModel.mockReset();
     mockDeleteRouteForModel.mockReset();
@@ -104,13 +116,35 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
     mockFindModelsByProviderId.mockResolvedValue([]);
     mockFindModelsByIds.mockResolvedValue([]);
+    mockFindModelByModelId.mockResolvedValue(undefined);
     mockFindAllModels.mockResolvedValue([]);
+    mockUpdateModel.mockImplementation((_: number, data: Record<string, unknown>) =>
+      Promise.resolve({
+        id: 42,
+        providerId: 7,
+        clientFormat: data.clientFormat ?? "openai",
+        modelId: "gpt-4o",
+        name: data.name ?? "GPT-4o",
+        contextWindow: 128000,
+        inputPrice: "5",
+        outputPrice: "15",
+        capabilities: JSON.stringify(data.capabilities ?? []),
+        fallbackModelIds: null,
+        weight: 1,
+        enabled: true,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+    );
     mockBatchCreateModels.mockResolvedValue([]);
+    mockCreateRoute.mockResolvedValue({ id: 10, modelId: 42, providerId: 7 });
     mockBatchCreateRoutes.mockResolvedValue([]);
+    mockFindRouteByModelAndProvider.mockResolvedValue(undefined);
     mockFindRoutesByModelPk.mockResolvedValue([]);
     mockFindModelById.mockResolvedValue({
       id: 42,
       providerId: 7,
+      clientFormat: "openai",
       modelId: "gpt-4o",
       name: "GPT-4o",
       contextWindow: 128000,
@@ -354,6 +388,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       {
         id: 42,
         providerId: null,
+        clientFormat: "openai",
         modelId: "gpt-4o",
         name: "GPT-4o",
         contextWindow: 128000,
@@ -384,6 +419,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       {
         id: 99,
         providerId: 3,
+        clientFormat: "anthropic",
         modelId: "gpt-4o",
         name: "GPT-4o",
         contextWindow: 128000,
@@ -435,6 +471,76 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
 
     expect(res.status).toBe(200);
     expect(mockUpdateRouteForModel).toHaveBeenCalledWith(42, 7, { priority: 200 });
+  });
+
+  it("rejects an Anthropic model route to a non-Anthropic provider", async () => {
+    mockFindModelById.mockResolvedValue({
+      id: 42,
+      providerId: 7,
+      clientFormat: "anthropic",
+      modelId: "claude-sonnet-4",
+      name: "Claude Sonnet 4",
+      contextWindow: 200000,
+      inputPrice: "3",
+      outputPrice: "15",
+      capabilities: "[]",
+      fallbackModelIds: null,
+      weight: 1,
+      enabled: true,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    mockFindProviderById.mockResolvedValue({
+      id: 7,
+      providerId: "openai",
+      name: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      apiFormat: "openai",
+      authType: "bearer",
+      authConfig: JSON.stringify({}),
+      enabled: true,
+    });
+
+    const res = await app.request("http://localhost/models/42/routes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ providerId: 7 }),
+    });
+    const json = (await res.json()) as { error: string };
+
+    expect(res.status).toBe(400);
+    expect(json.error).toContain("not compatible with anthropic models");
+    expect(mockCreateRoute).not.toHaveBeenCalled();
+  });
+
+  it("rejects changing a model to a client format where the same model id already exists", async () => {
+    mockFindModelByModelId.mockResolvedValue({
+      id: 99,
+      providerId: 8,
+      clientFormat: "anthropic",
+      modelId: "gpt-4o",
+      name: "GPT-4o Anthropic",
+      contextWindow: 128000,
+      inputPrice: "5",
+      outputPrice: "15",
+      capabilities: "[]",
+      fallbackModelIds: null,
+      weight: 1,
+      enabled: true,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    const res = await app.request("http://localhost/models/42", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientFormat: "anthropic" }),
+    });
+    const json = (await res.json()) as { error: string };
+
+    expect(res.status).toBe(409);
+    expect(json.error).toContain('Model "gpt-4o" already exists for anthropic');
+    expect(mockUpdateModel).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the nested route does not belong to the model", async () => {

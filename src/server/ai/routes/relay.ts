@@ -205,7 +205,14 @@ relay.post("/v1/chat/completions", async (c) => {
 
       // -- Cache check (non-streaming only) --
       if (!body.stream) {
-        const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
+        const cacheKey = buildCacheKey({
+          scope: "admin",
+          model: candidate.model.modelId,
+          providerId: candidate.provider.providerId,
+          upstreamId: keyMeta.upstreamId,
+          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+          requestBody: attemptBody,
+        });
         const cached = getCachedResponse(cacheKey);
         if (cached) {
           return c.json(cached);
@@ -371,7 +378,14 @@ relay.post("/v1/chat/completions", async (c) => {
           keyType: "admin",
         });
 
-        const cacheKey = buildCacheKey(candidate.model.modelId, body.messages);
+        const cacheKey = buildCacheKey({
+          scope: "admin",
+          model: candidate.model.modelId,
+          providerId: candidate.provider.providerId,
+          upstreamId: keyMeta.upstreamId,
+          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+          requestBody: attemptBody,
+        });
         setCachedResponse(cacheKey, transformed);
 
         return c.json(transformed);
@@ -435,7 +449,7 @@ relay.all("/v1/*", async (c) => {
     });
   }
 
-  const result = await aiModelRepo.findEnabledByModelId(modelId);
+  const result = await aiModelRepo.findEnabledByModelId(modelId, "openai");
   if (!result) {
     return respondWithRelayError(c, requestId, start, 404, {
       error: `Model "${modelId}" not found or disabled`,
@@ -689,7 +703,7 @@ interface ResolvedCandidate {
  */
 async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, "openai"),
   );
   if (routes.length === 0) return [];
 
@@ -714,7 +728,7 @@ async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
       seenFallbackIds.add(fbModelId);
 
       const fbRoutes = orderRoutesByPriorityAndWeight(
-        await aiModelRouteRepo.findEnabledRoutesByModelId(fbModelId),
+        await aiModelRouteRepo.findEnabledRoutesByModelId(fbModelId, "openai"),
       );
       if (fbRoutes.length === 0) continue;
 

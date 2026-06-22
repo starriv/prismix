@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindEnabledByModelId = vi.fn();
+const mockFindEnabledRoutesByModelId = vi.fn();
 const mockResolveUpstreamCandidates = vi.fn();
 const mockResolveModelMapping = vi.fn();
 const mockPickKey = vi.fn();
@@ -31,10 +31,10 @@ vi.mock("@/server/middleware/request-id", () => ({
 vi.mock("@/server/repos", () => ({
   aiGuardrailConfigRepo: { findAllEnabled: vi.fn().mockResolvedValue([]) },
   aiModelRepo: {
-    findEnabledByModelId: (...args: unknown[]) => mockFindEnabledByModelId(...args),
+    findAllEnabled: vi.fn().mockResolvedValue([]),
   },
   aiModelRouteRepo: {
-    findEnabledRoutesByModelId: vi.fn(),
+    findEnabledRoutesByModelId: (...args: unknown[]) => mockFindEnabledRoutesByModelId(...args),
   },
   payAgentRepo: {
     findById: vi.fn(),
@@ -66,6 +66,7 @@ vi.mock("@/server/lib/crypto", () => ({
 
 vi.mock("@/server/ai/lib/billing", () => ({
   billConsumer: (...args: unknown[]) => mockBillConsumer(...args),
+  checkConsumerSpendingLimits: vi.fn().mockResolvedValue(null),
   calculateConsumerCost: vi.fn(),
 }));
 
@@ -107,41 +108,54 @@ vi.mock("@/server/ai/lib/stream-proxy", () => ({
   forwardStream: vi.fn(),
 }));
 
-const { default: consumerRelay } = await import("@/server/ai/routes/consumer-relay");
+const { consumerAnthropicRelayRouter } = await import("@/server/ai/routes/consumer-relay");
 
 const app = new Hono();
-app.route("/", consumerRelay);
+app.route("/", consumerAnthropicRelayRouter);
 
 describe("consumer relay passthrough upstream routing", () => {
   beforeEach(() => {
-    mockFindEnabledByModelId.mockReset();
+    mockFindEnabledRoutesByModelId.mockReset();
     mockResolveUpstreamCandidates.mockReset();
     mockResolveModelMapping.mockReset();
     mockPickKey.mockReset();
     mockDecrypt.mockReset();
     mockFetch.mockReset();
     mockBillConsumer.mockReset();
+    mockBillConsumer.mockResolvedValue({ ok: true, upstreamCost: "0", costStr: "0" });
 
-    mockFindEnabledByModelId.mockResolvedValue({
-      model: {
-        id: 101,
-        providerId: 7,
-        modelId: "claude-sonnet-4",
-        inputPrice: "3",
-        outputPrice: "15",
-        enabled: true,
+    mockFindEnabledRoutesByModelId.mockResolvedValue([
+      {
+        route: {
+          id: 201,
+          modelId: 101,
+          providerId: 7,
+          providerModelId: null,
+          priority: 100,
+          weight: 1,
+          enabled: true,
+        },
+        model: {
+          id: 101,
+          providerId: 7,
+          clientFormat: "anthropic",
+          modelId: "claude-sonnet-4",
+          inputPrice: "3",
+          outputPrice: "15",
+          enabled: true,
+        },
+        provider: {
+          id: 7,
+          providerId: "anthropic",
+          name: "Anthropic",
+          baseUrl: "https://api.anthropic.com",
+          apiFormat: "anthropic",
+          authType: "api-key",
+          authConfig: JSON.stringify({ headerName: "x-api-key" }),
+          enabled: true,
+        },
       },
-      provider: {
-        id: 7,
-        providerId: "anthropic",
-        name: "Anthropic",
-        baseUrl: "https://api.anthropic.com",
-        apiFormat: "anthropic",
-        authType: "api-key",
-        authConfig: JSON.stringify({ headerName: "x-api-key" }),
-        enabled: true,
-      },
-    });
+    ]);
     mockResolveModelMapping.mockImplementation(
       async (_upstreamId: number | null, modelId: string) => modelId,
     );

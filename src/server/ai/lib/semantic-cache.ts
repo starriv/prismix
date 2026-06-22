@@ -4,7 +4,7 @@
  * Phase 3: SHA-256 hash of messages → O(1) lookup via CacheStore (local LRU + Redis).
  * Phase 4 (future): embedding-based similarity search via RediSearch KNN.
  *
- * Cache key: ai-cache:{sha256(model + JSON.stringify(messages))}
+ * Cache key: ai-cache:{sha256(stable JSON of scope + model + request + route)}
  * Stored value: JSON-stringified OpenAI-compatible response.
  */
 import crypto from "crypto";
@@ -12,10 +12,20 @@ import crypto from "crypto";
 import { type CacheStore, createCacheStore } from "@/server/cache";
 import { log } from "@/server/lib/logger";
 
-import type { OpenAIChatMessage } from "../providers/types";
-
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 10_000;
+
+export interface SemanticCacheKeyInput {
+  /** Caller scope, e.g. `admin` or `consumer:123`. */
+  scope: string;
+  /** Gateway-facing model ID. */
+  model: string;
+  /** Full normalized request body or serialized upstream body. */
+  requestBody: unknown;
+  providerId?: string | null;
+  upstreamId?: number | null;
+  upstreamBaseUrl?: string | null;
+}
 
 // Lazy initialization — CacheStore requires Redis to be connected,
 // but this module is imported at route-registration time.
@@ -28,9 +38,21 @@ function getStore(): CacheStore<string> {
 
 // ── Public API ───────────────────────────────────────────────────────
 
-/** Build a cache key from model + messages. */
-export function buildCacheKey(model: string, messages: OpenAIChatMessage[]): string {
-  const payload = JSON.stringify({ model, messages });
+function normalizeForHash(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => normalizeForHash(item));
+  if (!value || typeof value !== "object") return value;
+
+  const normalized: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    const item = (value as Record<string, unknown>)[key];
+    if (item !== undefined) normalized[key] = normalizeForHash(item);
+  }
+  return normalized;
+}
+
+/** Build a cache key from full request context. */
+export function buildCacheKey(input: SemanticCacheKeyInput): string {
+  const payload = JSON.stringify(normalizeForHash(input));
   const hash = crypto.createHash("sha256").update(payload).digest("hex");
   return `ai-cache:${hash}`;
 }

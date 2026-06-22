@@ -20,6 +20,8 @@ import {
   returningOne,
 } from "@/server/db";
 
+import type { ClientFormat } from "../ai/lib/client-format";
+
 export interface RouteWithProvider {
   route: AiModelRoute;
   provider: AiProvider;
@@ -37,7 +39,10 @@ export const aiModelRouteRepo = {
    * Sorted by priority ASC (lower = tried first), then weight DESC.
    * Used by relay logic for multi-provider failover.
    */
-  async findEnabledRoutesByModelId(modelId: string): Promise<EnabledRouteResult[]> {
+  async findEnabledRoutesByModelId(
+    modelId: string,
+    clientFormat: ClientFormat = "openai",
+  ): Promise<EnabledRouteResult[]> {
     return queryAll<EnabledRouteResult>(
       db
         .select({ route: aiModelRoutes, model: aiModels, provider: aiProviders })
@@ -47,6 +52,7 @@ export const aiModelRouteRepo = {
         .where(
           and(
             eq(aiModels.modelId, modelId),
+            eq(aiModels.clientFormat, clientFormat),
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
             eq(aiProviders.enabled, true),

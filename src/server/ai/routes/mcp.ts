@@ -144,7 +144,7 @@ async function handleToolCall(params: Record<string, unknown>): Promise<unknown>
       if (!messages?.length)
         return { content: [{ type: "text", text: "Error: messages are required" }] };
 
-      const result = await aiModelRepo.findEnabledByModelId(model);
+      const result = await aiModelRepo.findEnabledByModelId(model, "openai");
       if (!result) return { content: [{ type: "text", text: `Model "${model}" not found` }] };
 
       return {

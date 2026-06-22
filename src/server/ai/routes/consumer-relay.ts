@@ -2,11 +2,11 @@
  * Consumer AI Relay route — same pipeline as relay.ts but authenticated via ska_ consumer keys.
  *
  * Adds: balance gate, model ACL, post-request billing (debit + transaction record).
- * Mounted at /api/gateway/ai/endpoint (consumerKeyAuthMiddleware applied via parent).
+ * Mounted at /api/gateway/ai/openai and /api/gateway/ai/anthropic
+ * (consumerKeyAuthMiddleware applied via parent).
  */
 import { type Context, Hono } from "hono";
 
-import { emit } from "@/server/events";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
 import {
@@ -17,19 +17,13 @@ import {
 import { log } from "@/server/lib/logger";
 import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
-import { enqueueJob } from "@/server/lib/write-queue";
 import { getRequestId } from "@/server/middleware/request-id";
-import {
-  aiGuardrailConfigRepo,
-  aiModelRepo,
-  aiModelRouteRepo,
-  payAgentRepo,
-  payAgentTransactionRepo,
-} from "@/server/repos";
-import { gt, removeTailingZero, safePlus } from "@/shared/number";
+import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
+import { removeTailingZero } from "@/shared/number";
 
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
-import { billConsumer, calculateConsumerCost } from "../lib/billing";
+import { billConsumer, checkConsumerSpendingLimits } from "../lib/billing";
+import { type ClientFormat, isNativePassthroughProvider } from "../lib/client-format";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
@@ -55,7 +49,8 @@ import type { OpenAIChatBody, TokenUsage } from "../providers/types";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
-const consumerRelay = new Hono();
+const consumerOpenAiRelay = new Hono();
+const consumerAnthropicRelay = new Hono();
 
 interface ConsumerErrorExtras {
   keyId?: number | null;
@@ -106,27 +101,27 @@ function respondWithConsumerError(
   return c.json(payload, statusCode as 400);
 }
 
+async function listConsumerModels(consumer: ConsumerSession, clientFormat: ClientFormat) {
+  const rows = await aiModelRepo.findAllEnabled(clientFormat);
+  if (consumer.allowedModels.length === 0) return rows;
+
+  return rows.filter((r) =>
+    consumer.allowedModels.some((pattern) =>
+      pattern.endsWith("*")
+        ? r.model.modelId.startsWith(pattern.slice(0, -1))
+        : r.model.modelId === pattern,
+    ),
+  );
+}
+
 // ── GET /v1/models — OpenAI-compatible model catalog ────────────────
 
-consumerRelay.get("/v1/models", async (c) => {
+consumerOpenAiRelay.get("/v1/models", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
 
   try {
-    const rows = await aiModelRepo.findAllEnabled();
-
-    // Filter by consumer's allowed models (if ACL is set)
-    const filtered =
-      consumer.allowedModels.length > 0
-        ? rows.filter((r) =>
-            consumer.allowedModels.some((pattern) =>
-              pattern.endsWith("*")
-                ? r.model.modelId.startsWith(pattern.slice(0, -1))
-                : r.model.modelId === pattern,
-            ),
-          )
-        : rows;
-
+    const filtered = await listConsumerModels(consumer, "openai");
     const data = filtered.map((r) => ({
       id: r.model.modelId,
       object: "model" as const,
@@ -150,9 +145,45 @@ consumerRelay.get("/v1/models", async (c) => {
   }
 });
 
+// ── GET /v1/models — Anthropic-compatible model catalog ─────────────
+
+consumerAnthropicRelay.get("/v1/models", async (c) => {
+  const consumer = getConsumerSession(c);
+  const requestId = getRequestId(c);
+
+  try {
+    const filtered = await listConsumerModels(consumer, "anthropic");
+    const data = filtered.map((r) => ({
+      id: r.model.modelId,
+      type: "model" as const,
+      display_name: r.model.name,
+      created_at: new Date(r.model.createdAt).toISOString(),
+    }));
+    return c.json({
+      data,
+      first_id: data[0]?.id ?? null,
+      last_id: data.at(-1)?.id ?? null,
+      has_more: false,
+    });
+  } catch (err) {
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in anthropic models handler",
+    );
+    enqueueAiAccessLog({
+      requestId,
+      statusCode: 500,
+      error: err instanceof Error ? err.message : "Internal Server Error",
+      consumerKeyId: consumer.consumerId,
+      userId: consumer.userId,
+    });
+    return c.json({ error: "Internal Server Error" }, 500);
+  }
+});
+
 // ── POST /v1/chat/completions ────────────────────────────────────────
 
-consumerRelay.post("/v1/chat/completions", async (c) => {
+consumerOpenAiRelay.post("/v1/chat/completions", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
@@ -219,21 +250,12 @@ async function handleChatCompletions(
 
   // -- 4. Resolve model via routes --
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, "openai"),
   );
   if (routes.length === 0) {
     return respondWithConsumerError(c, consumer, requestId, start, 404, {
       error: `Model "${body.model}" not found or disabled`,
     });
-  }
-
-  // -- 5. Cache check (non-streaming) --
-  // Cache hits are free — no consumer billing. This is intentional: identical
-  // requests within the TTL window cost nothing, incentivising efficient usage.
-  if (!body.stream) {
-    const cacheKey = buildCacheKey(body.model, body.messages);
-    const cached = getCachedResponse(cacheKey);
-    if (cached) return c.json(cached);
   }
 
   // -- 6. Resolve key across all routes (multi-provider failover) --
@@ -333,37 +355,17 @@ async function handleChatCompletions(
 
   // -- 8. Pre-flight spending limit check (daily/monthly) --
   // Catches agents that have already exceeded their limits before we hit upstream.
-  if (consumer.dailyLimit) {
-    const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
-    if (gt(spentToday, consumer.dailyLimit)) {
-      return respondWithConsumerError(
-        c,
-        consumer,
-        requestId,
-        start,
-        429,
-        { error: "Daily spending limit exceeded", limit: consumer.dailyLimit, spent: spentToday },
-        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
-      );
-    }
-  }
-  if (consumer.monthlyLimit) {
-    const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
-    if (gt(spentMonth, consumer.monthlyLimit)) {
-      return respondWithConsumerError(
-        c,
-        consumer,
-        requestId,
-        start,
-        429,
-        {
-          error: "Monthly spending limit exceeded",
-          limit: consumer.monthlyLimit,
-          spent: spentMonth,
-        },
-        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
-      );
-    }
+  const preflightLimit = await checkConsumerSpendingLimits(consumer);
+  if (preflightLimit) {
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      preflightLimit.statusCode,
+      preflightLimit.body,
+      { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
+    );
   }
 
   // -- 9. Upstream fetch with fallback retry --
@@ -387,6 +389,21 @@ async function handleChatCompletions(
       outputPrice: model.outputPrice,
       requestBody: logEnabled ? selected.serializedBody : undefined,
     };
+
+    const cacheKey = !body.stream
+      ? buildCacheKey({
+          scope: `consumer:${consumer.consumerId}`,
+          model: model.modelId,
+          providerId: selected.providerId,
+          upstreamId: selected.upstreamId,
+          upstreamBaseUrl: selected.upstreamBaseUrl,
+          requestBody: selected.serializedBody,
+        })
+      : null;
+    if (cacheKey) {
+      const cached = getCachedResponse(cacheKey);
+      if (cached) return c.json(cached);
+    }
 
     // -- 9a. Streaming path --
     if (body.stream) {
@@ -442,7 +459,7 @@ async function handleChatCompletions(
             latencyMs,
             consumer,
             keyId: billSelected.keyId,
-            providerId: selected.providerId,
+            providerId: billSelected.providerId,
             modelId: model.modelId,
             upstreamId: billSelected.upstreamId,
             upstreamName: billSelected.upstreamName,
@@ -451,7 +468,7 @@ async function handleChatCompletions(
             outputPrice: model.outputPrice,
             requestId,
             statusCode: 200,
-            requestBody: logEnabled ? selected.serializedBody : undefined,
+            requestBody: logEnabled ? billSelected.serializedBody : undefined,
             responseBody: rawResponse,
           });
         };
@@ -545,27 +562,33 @@ async function handleChatCompletions(
     const latencyMs = Date.now() - start;
     markKeySuccess(selected.keyId);
 
-    // -- 10. Calculate cost and debit consumer --
-    const { upstreamCost, costStr } = calculateConsumerCost(
+    // -- 10. Debit consumer + log usage --
+    const billing = await billConsumer({
       usage,
-      model.inputPrice,
-      model.outputPrice,
-      consumer.markupPercent,
-    );
-
-    // Per-pay limit (non-streaming: reject before returning response)
-    if (consumer.perPayLimit && gt(costStr, consumer.perPayLimit)) {
+      latencyMs,
+      consumer,
+      keyId: selected.keyId,
+      providerId: selected.providerId,
+      modelId: model.modelId,
+      upstreamId: selected.upstreamId,
+      upstreamName: selected.upstreamName,
+      upstreamBaseUrl: selected.upstreamBaseUrl,
+      inputPrice: model.inputPrice,
+      outputPrice: model.outputPrice,
+      requestId,
+      statusCode: upstreamRes.status,
+      requestBody: logEnabled ? selected.serializedBody : undefined,
+      responseBody: logEnabled ? JSON.stringify(responseBody) : undefined,
+      rejectOnLimit: true,
+    });
+    if (!billing.ok) {
       return respondWithConsumerError(
         c,
         consumer,
         requestId,
         start,
-        429,
-        {
-          error: "Request cost exceeds per-transaction limit",
-          limit: consumer.perPayLimit,
-          cost: costStr,
-        },
+        billing.statusCode,
+        billing.body,
         {
           keyId: selected.keyId,
           providerId: selected.providerId,
@@ -574,166 +597,16 @@ async function handleChatCompletions(
           upstreamName: selected.upstreamName,
           upstreamBaseUrl: selected.upstreamBaseUrl,
           requestBody: logEnabled ? selected.serializedBody : undefined,
-          estimatedCost: costStr,
-          upstreamCost: removeTailingZero(upstreamCost, 6),
+          estimatedCost: billing.costStr,
+          upstreamCost: removeTailingZero(billing.upstreamCost, 6),
         },
       );
     }
-    // Daily/monthly post-response check (cost may push over limit)
-    if (consumer.dailyLimit) {
-      const spentToday = await payAgentTransactionRepo.sumSpendingToday(consumer.agentId);
-      if (gt(safePlus(spentToday, costStr), consumer.dailyLimit)) {
-        return respondWithConsumerError(
-          c,
-          consumer,
-          requestId,
-          start,
-          429,
-          {
-            error: "Request would exceed daily spending limit",
-            limit: consumer.dailyLimit,
-            spent: spentToday,
-            cost: costStr,
-          },
-          {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
-            modelId: model.modelId,
-            upstreamId: selected.upstreamId,
-            upstreamName: selected.upstreamName,
-            upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? selected.serializedBody : undefined,
-            estimatedCost: costStr,
-            upstreamCost: removeTailingZero(upstreamCost, 6),
-          },
-        );
-      }
-    }
-    if (consumer.monthlyLimit) {
-      const spentMonth = await payAgentTransactionRepo.sumSpendingThisMonth(consumer.agentId);
-      if (gt(safePlus(spentMonth, costStr), consumer.monthlyLimit)) {
-        return respondWithConsumerError(
-          c,
-          consumer,
-          requestId,
-          start,
-          429,
-          {
-            error: "Request would exceed monthly spending limit",
-            limit: consumer.monthlyLimit,
-            spent: spentMonth,
-            cost: costStr,
-          },
-          {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
-            modelId: model.modelId,
-            upstreamId: selected.upstreamId,
-            upstreamName: selected.upstreamName,
-            upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? selected.serializedBody : undefined,
-            estimatedCost: costStr,
-            upstreamCost: removeTailingZero(upstreamCost, 6),
-          },
-        );
-      }
-    }
-
-    if (gt(costStr, "0")) {
-      const debited = await payAgentRepo.debitBalance(consumer.agentId, costStr);
-      if (debited) {
-        enqueueJob("agent-ai-txn", {
-          agentId: consumer.agentId,
-          userId: consumer.userId,
-          type: "ai_usage",
-          amount: costStr,
-          balanceBefore: safePlus(debited.balance, costStr),
-          balanceAfter: debited.balance,
-          referenceType: "ai_usage",
-          description: `AI: ${model.modelId} (${usage?.totalTokens ?? 0} tokens)`,
-          source: "platform",
-          consumerKeyId: consumer.consumerId,
-          modelId: model.modelId,
-          tokens: usage?.totalTokens ?? 0,
-          requestId,
-          upstreamCost: removeTailingZero(upstreamCost, 6),
-          markupPercent: consumer.markupPercent,
-          aiKeyId: selected.keyId,
-        } as Record<string, unknown>);
-      } else {
-        log.gateway.warn(
-          { agentId: consumer.agentId, cost: costStr },
-          "AI debit failed — suspending agent",
-        );
-        await payAgentRepo.update(consumer.agentId, { status: "suspended" });
-        emit("agent.suspended", null, { agentId: consumer.agentId });
-        return respondWithConsumerError(
-          c,
-          consumer,
-          requestId,
-          start,
-          402,
-          { error: "Agent balance exhausted. Please top up the pay-agent." },
-          {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
-            modelId: model.modelId,
-            upstreamId: selected.upstreamId,
-            upstreamName: selected.upstreamName,
-            upstreamBaseUrl: selected.upstreamBaseUrl,
-            requestBody: logEnabled ? selected.serializedBody : undefined,
-            estimatedCost: costStr,
-            upstreamCost: removeTailingZero(upstreamCost, 6),
-          },
-        );
-      }
-    }
-
-    // -- 11. Log usage --
-    enqueueJob("ai-usage-log", {
-      keyId: selected.keyId,
-      consumerKeyId: consumer.consumerId,
-      userId: consumer.userId,
-      providerId: selected.providerId,
-      modelId: model.modelId,
-      upstreamId: selected.upstreamId,
-      upstreamName: selected.upstreamName,
-      upstreamBaseUrl: selected.upstreamBaseUrl,
-      inputTokens: usage?.inputTokens ?? 0,
-      outputTokens: usage?.outputTokens ?? 0,
-      totalTokens: usage?.totalTokens ?? 0,
-      cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
-      cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
-      estimatedCost: costStr,
-      upstreamCost: removeTailingZero(upstreamCost, 6),
-      markupPercent: consumer.markupPercent,
-      latencyMs,
-      statusCode: upstreamRes.status,
-      requestId,
-      error: null,
-    } as Record<string, unknown>);
-
-    // Request/response body logging (opt-in)
-    if (logEnabled) {
-      enqueueJob("ai-request-log", {
-        requestId,
-        consumerKeyId: consumer.consumerId,
-        modelId: model.modelId,
-        requestBody: selected.serializedBody,
-        responseBody: JSON.stringify(responseBody),
-        createdAt: new Date().toISOString(),
-      } as Record<string, unknown>);
-    }
 
     // Cache
-    if (!body.stream) {
-      const cacheKey = buildCacheKey(model.modelId, body.messages);
+    if (cacheKey) {
       setCachedResponse(cacheKey, transformed);
     }
-
-    // Touch consumer key + provider key last_used (LRU rotation)
-    enqueueJob("consumer-key-touch", { consumerId: consumer.consumerId });
-    enqueueJob("ai-key-touch", { keyId: selected.keyId, keyType: "admin" });
 
     return c.json(transformed);
   }
@@ -761,19 +634,37 @@ async function handleChatCompletions(
   );
 }
 
-// ── ALL /v1/* — Generic passthrough proxy (must be LAST) ────────────
+// ── ALL /v1/* — Format-specific passthrough proxy (must be LAST) ────
 
-consumerRelay.all("/v1/*", async (c) => {
+consumerOpenAiRelay.all("/v1/*", async (c) => {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
 
   try {
-    return await handlePassthrough(c, consumer, requestId, start);
+    return await handlePassthrough(c, consumer, requestId, start, "openai");
   } catch (err) {
     log.gateway.error(
       { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
       "Unhandled error in passthrough handler",
+    );
+    return respondWithConsumerError(c, consumer, requestId, start, 500, {
+      error: "Internal Server Error",
+    });
+  }
+});
+
+consumerAnthropicRelay.all("/v1/*", async (c) => {
+  const consumer = getConsumerSession(c);
+  const requestId = getRequestId(c);
+  const start = Date.now();
+
+  try {
+    return await handlePassthrough(c, consumer, requestId, start, "anthropic");
+  } catch (err) {
+    log.gateway.error(
+      { err, requestId, consumerId: consumer.consumerId, userId: consumer.userId },
+      "Unhandled error in anthropic passthrough handler",
     );
     return respondWithConsumerError(c, consumer, requestId, start, 500, {
       error: "Internal Server Error",
@@ -786,6 +677,7 @@ async function handlePassthrough(
   consumer: ConsumerSession,
   requestId: string,
   start: number,
+  clientFormat: ClientFormat,
 ): Promise<Response> {
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
@@ -826,27 +718,16 @@ async function handlePassthrough(
     }
   }
 
-  const result = await aiModelRepo.findEnabledByModelId(modelId);
-  if (!result) {
+  const routes = orderRoutesByPriorityAndWeight(
+    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, clientFormat),
+  );
+  if (routes.length === 0) {
     return respondWithConsumerError(c, consumer, requestId, start, 404, {
       error: `Model "${modelId}" not found or disabled`,
     });
   }
 
-  const { provider } = result;
-
-  if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
-    return respondWithConsumerError(
-      c,
-      consumer,
-      requestId,
-      start,
-      400,
-      { error: "Bedrock streaming is not supported yet" },
-      { providerId: provider.providerId, modelId },
-    );
-  }
-
+  const model = routes[0].model;
   const serializedBody = JSON.stringify(body);
 
   // Resolve all upstream candidates for fallback retry
@@ -857,38 +738,50 @@ async function handlePassthrough(
     upstreamId: number | null;
     upstreamName: string;
     upstreamBaseUrl: string;
+    providerId: string;
     serializedBody: string;
   }
   const resolvedPtUpstreams: ResolvedPtUpstream[] = [];
-  for (const upstream of await resolveUpstreamCandidates(provider)) {
-    const key = await pickKey(provider.id, upstream.id);
-    if (!key) continue;
-    try {
-      const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-      const mappedModelId = await resolveModelMapping(upstream.id, modelId);
-      const effectiveBody =
-        mappedModelId === modelId
-          ? serializedBody
-          : JSON.stringify({ ...body, model: mappedModelId });
-      const base = upstream.baseUrl.replace(/\/+$/, "");
-      const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
-      const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-        provider,
-        plainKey,
-        upstreamUrl,
-        effectiveBody,
-      );
-      resolvedPtUpstreams.push({
-        keyId: key.id,
-        authHeaders,
-        finalUrl,
-        upstreamId: upstream.id,
-        upstreamName: upstream.name,
-        upstreamBaseUrl: upstream.baseUrl,
-        serializedBody: effectiveBody,
-      });
-    } catch {
+
+  for (const { route, provider, model: routeModel } of routes) {
+    if (!isNativePassthroughProvider(clientFormat, provider.apiFormat)) continue;
+    if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
       continue;
+    }
+
+    const providerModelId = route.providerModelId ?? routeModel.modelId;
+
+    for (const upstream of await resolveUpstreamCandidates(provider)) {
+      const key = await pickKey(provider.id, upstream.id);
+      if (!key) continue;
+      try {
+        const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+        const mappedModelId = await resolveModelMapping(upstream.id, providerModelId);
+        const effectiveBody =
+          mappedModelId === modelId && providerModelId === modelId
+            ? serializedBody
+            : JSON.stringify({ ...body, model: mappedModelId });
+        const base = upstream.baseUrl.replace(/\/+$/, "");
+        const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
+        const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
+          provider,
+          plainKey,
+          upstreamUrl,
+          effectiveBody,
+        );
+        resolvedPtUpstreams.push({
+          keyId: key.id,
+          authHeaders,
+          finalUrl,
+          upstreamId: upstream.id,
+          upstreamName: upstream.name,
+          upstreamBaseUrl: upstream.baseUrl,
+          providerId: provider.providerId,
+          serializedBody: effectiveBody,
+        });
+      } catch {
+        continue;
+      }
     }
   }
   if (resolvedPtUpstreams.length === 0) {
@@ -898,8 +791,21 @@ async function handlePassthrough(
       requestId,
       start,
       403,
-      { error: "No API key configured for this provider" },
-      { providerId: provider.providerId, modelId },
+      { error: "No compatible provider key configured for this model" },
+      { modelId },
+    );
+  }
+
+  const ptPreflightLimit = await checkConsumerSpendingLimits(consumer);
+  if (ptPreflightLimit) {
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      ptPreflightLimit.statusCode,
+      ptPreflightLimit.body,
+      { modelId },
     );
   }
 
@@ -918,15 +824,15 @@ async function handlePassthrough(
 
     const meta: StreamRelayMeta = {
       keyId: ptSelected.keyId,
-      providerId: provider.providerId,
+      providerId: ptSelected.providerId,
       modelId,
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,
       upstreamBaseUrl: ptSelected.upstreamBaseUrl,
       requestId,
       start,
-      inputPrice: result.model.inputPrice,
-      outputPrice: result.model.outputPrice,
+      inputPrice: model.inputPrice,
+      outputPrice: model.outputPrice,
       requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
     };
 
@@ -943,14 +849,14 @@ async function handlePassthrough(
         signal: AbortSignal.timeout(
           isStreaming
             ? resolveUpstreamFetchTimeoutMs(timeouts, {
-                providerId: provider.providerId,
+                providerId: ptSelected.providerId,
                 modelId,
               })
             : timeouts.streamMaxDurationMs,
         ),
       });
       gatewayUpstreamDuration.observe(
-        { provider: provider.providerId, route: "passthrough", phase: "response" },
+        { provider: ptSelected.providerId, route: "passthrough", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
 
@@ -963,13 +869,13 @@ async function handlePassthrough(
             latencyMs,
             consumer,
             keyId: billPt.keyId,
-            providerId: provider.providerId,
+            providerId: billPt.providerId,
             modelId,
             upstreamId: billPt.upstreamId,
             upstreamName: billPt.upstreamName,
             upstreamBaseUrl: billPt.upstreamBaseUrl,
-            inputPrice: result.model.inputPrice,
-            outputPrice: result.model.outputPrice,
+            inputPrice: model.inputPrice,
+            outputPrice: model.outputPrice,
             requestId,
             statusCode: 200,
             requestBody: ptLogEnabled ? billPt.serializedBody : undefined,
@@ -1005,18 +911,18 @@ async function handlePassthrough(
         markKeyFailure(ptSelected.keyId);
       }
 
-      await billConsumer({
+      const billing = await billConsumer({
         usage,
         latencyMs,
         consumer,
         keyId: ptSelected.keyId,
-        providerId: provider.providerId,
+        providerId: ptSelected.providerId,
         modelId,
         upstreamId: ptSelected.upstreamId,
         upstreamName: ptSelected.upstreamName,
         upstreamBaseUrl: ptSelected.upstreamBaseUrl,
-        inputPrice: result.model.inputPrice,
-        outputPrice: result.model.outputPrice,
+        inputPrice: model.inputPrice,
+        outputPrice: model.outputPrice,
         requestId,
         statusCode: upstreamRes.status,
         error:
@@ -1027,7 +933,30 @@ async function handlePassthrough(
               : undefined,
         requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
         responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
+        rejectOnLimit: !isStreaming,
       });
+      if (!billing.ok) {
+        return respondWithConsumerError(
+          c,
+          consumer,
+          requestId,
+          start,
+          billing.statusCode,
+          billing.body,
+          {
+            keyId: ptSelected.keyId,
+            providerId: ptSelected.providerId,
+            modelId,
+            upstreamId: ptSelected.upstreamId,
+            upstreamName: ptSelected.upstreamName,
+            upstreamBaseUrl: ptSelected.upstreamBaseUrl,
+            requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
+            responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
+            estimatedCost: billing.costStr,
+            upstreamCost: removeTailingZero(billing.upstreamCost, 6),
+          },
+        );
+      }
 
       const resHeaders = new Headers();
       upstreamRes.headers.forEach((v, k) => {
@@ -1058,7 +987,7 @@ async function handlePassthrough(
     { error: "All upstream candidates failed", detail: ptLastError?.message ?? "Unknown error" },
     {
       keyId: ptSelected.keyId,
-      providerId: provider.providerId,
+      providerId: ptSelected.providerId,
       modelId,
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,
@@ -1068,4 +997,7 @@ async function handlePassthrough(
   );
 }
 
-export default consumerRelay;
+export {
+  consumerAnthropicRelay as consumerAnthropicRelayRouter,
+  consumerOpenAiRelay as consumerOpenAiRelayRouter,
+};

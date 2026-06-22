@@ -600,7 +600,8 @@ export const aiModels = pgTable(
     providerId: integer("provider_id").references(() => aiProviders.id, {
       onDelete: "set null",
     }), // legacy — nullable, kept for migration; use ai_model_routes instead
-    modelId: text("model_id").notNull().unique(), // slug: "gpt-4o", "claude-sonnet-4-20250514"
+    clientFormat: text("client_format").notNull().default("openai"), // "openai" | "anthropic"
+    modelId: text("model_id").notNull(), // format-local slug: "gpt-4o", "claude-sonnet-4-20250514"
     name: text("name").notNull(), // display name
     contextWindow: integer("context_window"), // max tokens
     inputPrice: text("input_price").notNull().default("0"), // per 1M tokens
@@ -616,7 +617,11 @@ export const aiModels = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_ai_models_model_id").on(t.modelId)],
+  (t) => [
+    unique().on(t.clientFormat, t.modelId),
+    index("idx_ai_models_model_id").on(t.modelId),
+    index("idx_ai_models_client_format").on(t.clientFormat),
+  ],
 );
 
 export const aiModelRoutes = pgTable(

@@ -7,9 +7,9 @@
 ## 全链路架构图
 
 ```
-HTTP Request (POST /api/gateway/ai/endpoint/v1/chat/completions)
+HTTP Request (POST /api/gateway/ai/openai/v1/chat/completions)
   │  Authorization: Bearer ska_xxxx
-  │  Body: { model: "claude-opus-4-7", messages: [...], stream: true }
+  │  Body: { model: "gpt-4o", messages: [...], stream: true }
   │
   ▼
 ┌──────────────────────────────────────────────────────────────────┐
@@ -25,7 +25,8 @@ HTTP Request (POST /api/gateway/ai/endpoint/v1/chat/completions)
   │  src/server/routes/index.ts:45-46                              │
   │                                                                │
   │  app.use("/api/gateway/ai/*", consumerKeyAuthMiddleware);      │
-  │  app.route("/api/gateway/ai/endpoint", consumerRelayRouter);   │
+  │  app.route("/api/gateway/ai/openai", consumerOpenAiRelayRouter);│
+  │  app.route("/api/gateway/ai/anthropic", consumerAnthropicRelayRouter);│
   └────────────────────────────┬───────────────────────────────────┘
                                │
   ┌────────────────────────────▼───────────────────────────────────┐
@@ -68,25 +69,25 @@ HTTP Request (POST /api/gateway/ai/endpoint/v1/chat/completions)
 
 **文件**: `src/server/index.ts:30-107`
 
-| 顺序 | 中间件 | 说明 |
-|------|--------|------|
-| 1 | `requestId()` | 读取 `X-Request-ID` 头或生成 UUID，注入 AsyncLocalStorage |
-| 2 | `secureHeaders()` | CSP, HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff |
-| 3 | `httpLogger()` | 记录每个请求的方法、路径、状态码、耗时 |
-| 4 | `cors()` | `/api/gateway/*` 对所有来源开放；管理接口仅同源 |
-| 5 | `bodyLimit()` | AI 路由 20MB（支持长对话 + 扩展思考），其他路由 1MB |
-| 6 | `rateLimiter()` | 全局滑动窗口限流（Redis 后端），默认规则见下 |
-| 7 | error handler | 捕获 `AppError` 子类，返回结构化 JSON；未知错误返回 500 |
+| 顺序 | 中间件            | 说明                                                              |
+| ---- | ----------------- | ----------------------------------------------------------------- |
+| 1    | `requestId()`     | 读取 `X-Request-ID` 头或生成 UUID，注入 AsyncLocalStorage         |
+| 2    | `secureHeaders()` | CSP, HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff |
+| 3    | `httpLogger()`    | 记录每个请求的方法、路径、状态码、耗时                            |
+| 4    | `cors()`          | `/api/gateway/*` 对所有来源开放；管理接口仅同源                   |
+| 5    | `bodyLimit()`     | AI 路由 20MB（支持长对话 + 扩展思考），其他路由 1MB               |
+| 6    | `rateLimiter()`   | 全局滑动窗口限流（Redis 后端），默认规则见下                      |
+| 7    | error handler     | 捕获 `AppError` 子类，返回结构化 JSON；未知错误返回 500           |
 
 ### 默认限流规则
 
-| 规则 | 路径 | 限制 | 窗口 | 维度 |
-|------|------|------|------|------|
-| 全局 per-IP | `*` | 10,000 | 1 分钟 | IP |
+| 规则                 | 路径                | 限制    | 窗口   | 维度           |
+| -------------------- | ------------------- | ------- | ------ | -------------- |
+| 全局 per-IP          | `*`                 | 10,000  | 1 分钟 | IP             |
 | AI Gateway per-token | `/api/gateway/ai/*` | 100,000 | 1 分钟 | Token (`ska_`) |
-| Auth per-IP | `/api/auth/*` | 30 | 1 分钟 | IP |
-| Admin Auth per-IP | `/api/admin-auth/*` | 30 | 1 分钟 | IP |
-| Admin API per-token | `/api/admin/*` | 10,000 | 1 分钟 | Token |
+| Auth per-IP          | `/api/auth/*`       | 30      | 1 分钟 | IP             |
+| Admin Auth per-IP    | `/api/admin-auth/*` | 30      | 1 分钟 | IP             |
+| Admin API per-token  | `/api/admin/*`      | 10,000  | 1 分钟 | Token          |
 
 配置来源: `src/server/lib/gateway-config.ts:59-100`，存储在 DB `global_settings` 表，可通过 Admin → Gateway Config 调整。
 
@@ -177,7 +178,7 @@ Zod schema `aiRelayChatBody` 校验: `model`（必填）, `messages`（≥1）, 
 ### 3b. 模型 ACL 检查 (L184-194)
 
 ```typescript
-consumer.allowedModels.some(pattern => {
+consumer.allowedModels.some((pattern) => {
   if (pattern.endsWith("*")) return body.model.startsWith(pattern.slice(0, -1));
   return body.model === pattern;
 });
@@ -371,10 +372,10 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
 
 ### 两种策略
 
-| 策略 | 算法 | 默认 |
-|------|------|------|
-| `round-robin` | Smooth Weighted Round-Robin (Nginx 风格) | ✅ |
-| `random` | 加权随机概率选择 | |
+| 策略          | 算法                                     | 默认 |
+| ------------- | ---------------------------------------- | ---- |
+| `round-robin` | Smooth Weighted Round-Robin (Nginx 风格) | ✅   |
+| `random`      | 加权随机概率选择                         |      |
 
 由 provider 的 `loadBalanceStrategy` 列配置。
 
@@ -424,12 +425,12 @@ getEffectiveWeight():
 
 **文件**: `src/server/ai/lib/provider-auth.ts:38-96`
 
-| Auth 类型 | 输出 | 来源 |
-|-----------|------|------|
-| `bearer` | `Authorization: Bearer <key>` | OpenAI 等 |
-| `api-key` | 自定义 header（默认 `x-api-key`），可从 `authConfig.headerName` 配置 | Anthropic 等 |
-| `sigv4` | `Authorization: AWS4-HMAC-SHA256 ...`, `X-Amz-Date`, `X-Amz-Content-Sha256` | AWS Bedrock |
-| `gemini` | `?key=<key>` query 参数（不设 Authorization header） | Google Gemini |
+| Auth 类型 | 输出                                                                        | 来源          |
+| --------- | --------------------------------------------------------------------------- | ------------- |
+| `bearer`  | `Authorization: Bearer <key>`                                               | OpenAI 等     |
+| `api-key` | 自定义 header（默认 `x-api-key`），可从 `authConfig.headerName` 配置        | Anthropic 等  |
+| `sigv4`   | `Authorization: AWS4-HMAC-SHA256 ...`, `X-Amz-Date`, `X-Amz-Content-Sha256` | AWS Bedrock   |
+| `gemini`  | `?key=<key>` query 参数（不设 Authorization header）                        | Google Gemini |
 
 ### 特殊处理
 
@@ -499,13 +500,13 @@ share = platformProfit * provider.revenueSharePercent / 100
 
 所有计费和日志通过 `enqueueJob()` 异步处理，不阻塞 HTTP 响应。
 
-| Job 名称 | 处理方式 | 内容 |
-|----------|---------|------|
-| `agent-ai-txn` | write handler | 交易记录 + Key Provider 分润 |
-| `ai-usage-log` | **batch handler** (50条/1s) | 用量日志批量 INSERT |
-| `ai-request-log` | write handler（按开关） | 请求/响应体日志 |
-| `consumer-key-touch` | write handler | 更新 `relay_consumer_keys.last_used_at` |
-| `ai-key-touch` | write handler | 更新 `ai_keys.last_used_at` |
+| Job 名称             | 处理方式                    | 内容                                    |
+| -------------------- | --------------------------- | --------------------------------------- |
+| `agent-ai-txn`       | write handler               | 交易记录 + Key Provider 分润            |
+| `ai-usage-log`       | **batch handler** (50条/1s) | 用量日志批量 INSERT                     |
+| `ai-request-log`     | write handler（按开关）     | 请求/响应体日志                         |
+| `consumer-key-touch` | write handler               | 更新 `relay_consumer_keys.last_used_at` |
+| `ai-key-touch`       | write handler               | 更新 `ai_keys.last_used_at`             |
 
 降级: Redis 不可用时静默丢弃 + 节流告警。
 
@@ -515,13 +516,13 @@ share = platformProfit * provider.revenueSharePercent / 100
 
 **文件**: `src/server/ai/lib/stream-proxy.ts`
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `STREAM_IDLE_TIMEOUT_MS` | 300,000 (5min) | 上游无数据传输则中断 |
-| `STREAM_MAX_DURATION_MS` | 1,800,000 (30min) | 流式传输硬上限 |
-| `HEARTBEAT_INTERVAL_MS` | 15,000 (15s) | SSE 心跳间隔（防止代理断连） |
-| `MAX_BUFFER_SIZE` | 1,048,576 (1MB) | SSE 缓冲区溢出保护 |
-| `upstreamFetchMs` | 120,000 (120s) | 等待上游首字节（含思考模型） |
+| 参数                     | 默认值            | 说明                         |
+| ------------------------ | ----------------- | ---------------------------- |
+| `STREAM_IDLE_TIMEOUT_MS` | 300,000 (5min)    | 上游无数据传输则中断         |
+| `STREAM_MAX_DURATION_MS` | 1,800,000 (30min) | 流式传输硬上限               |
+| `HEARTBEAT_INTERVAL_MS`  | 15,000 (15s)      | SSE 心跳间隔（防止代理断连） |
+| `MAX_BUFFER_SIZE`        | 1,048,576 (1MB)   | SSE 缓冲区溢出保护           |
+| `upstreamFetchMs`        | 120,000 (120s)    | 等待上游首字节（含思考模型） |
 
 超时配置可通过 Admin → Gateway Config 调整，存储在 `global_settings` 表。
 
@@ -529,45 +530,45 @@ share = platformProfit * provider.revenueSharePercent / 100
 
 ## 流式 vs 非流式差异
 
-| 方面 | 流式 | 非流式 |
-|------|------|--------|
-| 响应方式 | SSE 逐帧转发 | 一次性 JSON |
-| 计费时机 | 流结束后异步（响应已发送，不可回退） | 响应前同步（可拒绝） |
-| 单次限额 | 流后检查，超限挂起 Agent | 响应前检查，超限返回 429 |
-| 日/月限额 | 仅预检 | 预检 + 响应前二次检查（含本次消费） |
-| 语义缓存 | 不参与 | 读 + 写 |
-| 超时 | 空闲 5min + 硬限 30min + 心跳 15s | 单一 AbortSignal.timeout(30min) |
+| 方面      | 流式                                 | 非流式                              |
+| --------- | ------------------------------------ | ----------------------------------- |
+| 响应方式  | SSE 逐帧转发                         | 一次性 JSON                         |
+| 计费时机  | 流结束后异步（响应已发送，不可回退） | 响应前同步（可拒绝）                |
+| 单次限额  | 流后检查，超限挂起 Agent             | 响应前检查，超限返回 429            |
+| 日/月限额 | 仅预检                               | 预检 + 响应前二次检查（含本次消费） |
+| 语义缓存  | 不参与                               | 读 + 写                             |
+| 超时      | 空闲 5min + 硬限 30min + 心跳 15s    | 单一 AbortSignal.timeout(30min)     |
 
 ---
 
 ## 核心数据表
 
-| 表 | 用途 | 关键字段 |
-|----|------|---------|
-| `relay_consumer_keys` | 消费者 API Key | hash, agentId, allowedModels, markupPercent, expiresAt, rateLimitRpm |
-| `relay_consumer_key_blacklist` | 已删除 Key 防重放 | apiKeyHash |
-| `pay_agents` | 钱包/余额账户 | balance, perPayLimit, dailyLimit, monthlyLimit, defaultMarkupPercent |
-| `pay_agent_transactions` | 交易流水 | agentId, amount, consumerKeyId, modelId, tokens, upstreamCost |
-| `ai_models` | 模型目录 | modelId, inputPrice, outputPrice, fallbackModelIds |
-| `ai_model_routes` | 模型→Provider 路由 | modelId, providerId, providerModelId, priority, weight |
-| `ai_providers` | Provider 配置 | apiFormat, authType, baseUrl, loadBalanceStrategy, upstreamRoutingStrategy |
-| `ai_keys` | 上游 API Key（加密存储） | encryptedKey, weight, upstreamId, ownerId |
-| `ai_upstreams` | 上游端点 | baseUrl, kind (official/reseller/custom), modelsEndpoint |
-| `ai_upstream_assignments` | Provider↔Upstream N:N | providerId, upstreamId, priority, weight |
-| `ai_upstream_model_mappings` | 模型名重映射 | upstreamId, sourceModelId, mappedModelId |
-| `ai_guardrail_config` | 内容审核规则 | rules (JSON), action (warn/block) |
+| 表                             | 用途                     | 关键字段                                                                   |
+| ------------------------------ | ------------------------ | -------------------------------------------------------------------------- |
+| `relay_consumer_keys`          | 消费者 API Key           | hash, agentId, allowedModels, markupPercent, expiresAt, rateLimitRpm       |
+| `relay_consumer_key_blacklist` | 已删除 Key 防重放        | apiKeyHash                                                                 |
+| `pay_agents`                   | 钱包/余额账户            | balance, perPayLimit, dailyLimit, monthlyLimit, defaultMarkupPercent       |
+| `pay_agent_transactions`       | 交易流水                 | agentId, amount, consumerKeyId, modelId, tokens, upstreamCost              |
+| `ai_models`                    | 模型目录                 | modelId, inputPrice, outputPrice, fallbackModelIds                         |
+| `ai_model_routes`              | 模型→Provider 路由       | modelId, providerId, providerModelId, priority, weight                     |
+| `ai_providers`                 | Provider 配置            | apiFormat, authType, baseUrl, loadBalanceStrategy, upstreamRoutingStrategy |
+| `ai_keys`                      | 上游 API Key（加密存储） | encryptedKey, weight, upstreamId, ownerId                                  |
+| `ai_upstreams`                 | 上游端点                 | baseUrl, kind (official/reseller/custom), modelsEndpoint                   |
+| `ai_upstream_assignments`      | Provider↔Upstream N:N    | providerId, upstreamId, priority, weight                                   |
+| `ai_upstream_model_mappings`   | 模型名重映射             | upstreamId, sourceModelId, mappedModelId                                   |
+| `ai_guardrail_config`          | 内容审核规则             | rules (JSON), action (warn/block)                                          |
 
 ---
 
 ## Provider 适配器
 
-| 适配器 | apiFormat | 文件 |
-|--------|-----------|------|
-| OpenAI | `openai` | `src/server/ai/providers/openai.ts` |
-| Anthropic | `anthropic` | `src/server/ai/providers/anthropic.ts` |
-| Gemini | `gemini` | `src/server/ai/providers/gemini.ts` |
+| 适配器       | apiFormat      | 文件                                      |
+| ------------ | -------------- | ----------------------------------------- |
+| OpenAI       | `openai`       | `src/server/ai/providers/openai.ts`       |
+| Anthropic    | `anthropic`    | `src/server/ai/providers/anthropic.ts`    |
+| Gemini       | `gemini`       | `src/server/ai/providers/gemini.ts`       |
 | Azure OpenAI | `azure-openai` | `src/server/ai/providers/azure-openai.ts` |
-| AWS Bedrock | `bedrock` | `src/server/ai/providers/bedrock.ts` |
+| AWS Bedrock  | `bedrock`      | `src/server/ai/providers/bedrock.ts`      |
 
 每个适配器实现: `transformRequest`, `transformResponse`, `extractUsage`, `transformStreamEvent`, `extractStreamUsage`, `isStreamDone`, `buildUrl`。
 
