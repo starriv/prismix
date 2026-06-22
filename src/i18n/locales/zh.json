@@ -1176,6 +1176,18 @@
       "ai-desc": "专门适配 Claude Code，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
       "cta-primary": "开始接入"
     },
+    "hero-chat": {
+      "q1": "用 3 条总结 Q4 业绩",
+      "a1": "Q4 核心亮点：\n\n1. 营收同比增长 23% 至 420 万美元\n2. 客户留存率提升至 94%\n3. 营业利润率扩大 340 个基点",
+      "q2": "写一个 Python 合并排序辅助函数",
+      "a2": "def merge_sorted(a, b):\n    result, i, j = [], 0, 0\n    while i < len(a) and j < len(b):\n        if a[i] <= b[j]:\n            result.append(a[i]); i += 1\n        else:\n            result.append(b[j]); j += 1\n    return result + a[i:] + b[j:]",
+      "q3": "翻译成日语：会议在下午3点",
+      "a3": "会議は午後3時です。\n(Kaigi wa gogo san-ji desu.)\n\n这是礼貌的商务日语，适用于邮件或正式沟通场景。",
+      "q4": "REST 和 GraphQL 的区别？",
+      "a4": "核心区别：\n\n- REST 返回固定结构；GraphQL 让客户端自选字段\n- REST 用多个 URL；GraphQL 用单一端点\n- REST 常过度获取；GraphQL 消除了这个问题\n- REST 需 URL 版本化；GraphQL 通过 Schema 演进",
+      "q5": "简单解释 CAP 定理",
+      "a5": "分布式系统只能同时保证三者中的两个：\n\n- 一致性：读取总能获得最新写入\n- 可用性：每个请求都能获得响应\n- 分区容错：网络故障时系统仍可运行\n\n网络分区不可避免，因此需在 CP 和 AP 间选择。"
+    },
     "cta": {
       "ai-title": "把 AI 流量统一到一个端点",
       "ai-desc": "连接供应商，配置模型与访问策略，然后通过统一端点稳定对外提供服务。",
