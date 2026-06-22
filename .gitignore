@@ -53,3 +53,7 @@ next-env.d.ts
 # claude local settings
 .claude/settings.local.json
 src/__tests__/integration/.test-state.json
+
+# IDE
+.idea/
+.vscode/
