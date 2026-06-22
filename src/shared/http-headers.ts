@@ -13,7 +13,13 @@ const HEADER_NAME_RE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * Header values must not contain control characters (except HTAB).
  * RFC 7230 §3.2.6: field-value = *( field-content / obs-fold )
  */
-const HEADER_VALUE_INVALID_RE = /[\x00-\x08\x0A-\x1F\x7F]/;
+function hasInvalidHeaderValueChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if ((code < 32 && code !== 9) || code === 127) return true;
+  }
+  return false;
+}
 
 /** Headers that must never be set by user config — they break HTTP transport or security. */
 const FORBIDDEN_HEADERS = new Set([
@@ -95,7 +101,7 @@ export function validateCustomHeaders(input: unknown): HeaderValidationResult {
         error: `Header "${name}" value exceeds ${MAX_VALUE_LEN} characters`,
       };
     }
-    if (HEADER_VALUE_INVALID_RE.test(value)) {
+    if (hasInvalidHeaderValueChar(value)) {
       return {
         valid: false,
         error: `Header "${name}" value contains invalid control characters`,

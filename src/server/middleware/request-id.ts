@@ -17,12 +17,19 @@ const HEADER = "X-Request-ID";
 /** AsyncLocalStorage holding the current request ID. Used by pino mixin. */
 export const requestIdStore = new AsyncLocalStorage<string>();
 
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    if (value.charCodeAt(i) < 32) return true;
+  }
+  return false;
+}
+
 export function requestId(): MiddlewareHandler {
   return async (c, next) => {
     const incoming = c.req.header(HEADER);
     // Cap length to prevent log bloat from spoofed headers; reject non-printable chars
     const id =
-      incoming && incoming.length <= 128 && !/[\x00-\x1f]/.test(incoming)
+      incoming && incoming.length <= 128 && !hasControlChar(incoming)
         ? incoming
         : crypto.randomUUID();
     c.set("requestId" as never, id);
