@@ -49,12 +49,26 @@ vi.mock("@/server/lib/write-queue", () => ({
   enqueueJob: vi.fn(),
 }));
 
+vi.mock("@/server/lib/wallet", () => ({
+  ensureAgentWallet: vi.fn(),
+}));
+
 vi.mock("@/server/cache", () => ({
   createCacheStore: vi.fn(() => ({
     get: vi.fn(),
     set: vi.fn(),
-    delete: vi.fn(),
+    del: vi.fn(),
     has: vi.fn(() => false),
+    clear: vi.fn(),
+    size: vi.fn(() => 0),
+  })),
+  lazyCacheStore: vi.fn(() => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    has: vi.fn(() => false),
+    clear: vi.fn(),
+    size: vi.fn(() => 0),
   })),
 }));
 
@@ -85,11 +99,11 @@ beforeEach(() => {
 // ── App ─────────────────────────────────────────────────────────────
 
 async function createApp() {
-  const { default: admin } = await import("@/server/admin/routes/admin");
+  const { default: adminUsers } = await import("@/server/admin/routes/admin-users");
   const { adminAuthMiddleware } = await import("@/server/middleware/auth");
   const app = new Hono();
   app.use("/*", adminAuthMiddleware);
-  app.route("/", admin);
+  app.route("/", adminUsers);
   return app;
 }
 

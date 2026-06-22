@@ -37,14 +37,15 @@ vi.mock("@/server/lib/logger", () => ({
 
 // Build a minimal test app mounting the admin announcements routes
 // We import the router and mount it without auth middleware
-const { default: adminRouter } = await import("@/server/admin/routes/admin");
+const { default: adminAnnouncementsRouter } =
+  await import("@/server/admin/routes/admin-announcements");
 const app = new Hono();
 // Inject a fake admin session for all requests
 app.use("/*", async (c, next) => {
   c.set("admin" as never, { adminId: 1, address: "0xadmin" } as never);
   await next();
 });
-app.route("/api/admin", adminRouter);
+app.route("/api/admin", adminAnnouncementsRouter);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ describe("announcement route handlers", () => {
 
       const json = (await res.json()) as { data: unknown[] };
       expect(json.data).toHaveLength(2);
-      expect(mockFindAll).toHaveBeenCalledWith({ limit: 50, offset: 0 });
+      expect(mockFindAll).toHaveBeenCalledWith({ limit: 10, offset: 0 });
     });
 
     it("returns empty array when no announcements exist", async () => {

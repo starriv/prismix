@@ -21,6 +21,29 @@ vi.mock("@/server/cache", () => ({
         store.set(key, { value, expiry: Date.now() + ttl });
       },
       del: (key: string) => store.delete(key),
+      has: (key: string) => store.has(key),
+      clear: () => store.clear(),
+      size: () => store.size,
+    };
+  },
+  lazyCacheStore: () => {
+    const store = new Map<string, { value: unknown; expiry: number }>();
+    return {
+      get: (key: string) => {
+        const entry = store.get(key);
+        if (!entry || entry.expiry < Date.now()) {
+          store.delete(key);
+          return undefined;
+        }
+        return entry.value;
+      },
+      set: (key: string, value: unknown, ttl: number) => {
+        store.set(key, { value, expiry: Date.now() + ttl });
+      },
+      del: (key: string) => store.delete(key),
+      has: (key: string) => store.has(key),
+      clear: () => store.clear(),
+      size: () => store.size,
     };
   },
 }));
@@ -50,6 +73,7 @@ const MOCK_DISCOVERY = {
   userinfo_endpoint: "https://test.idp.com/userinfo",
   jwks_uri: "https://test.idp.com/.well-known/jwks.json",
 };
+const ORIGINAL_CORS_ORIGIN = process.env.CORS_ORIGIN;
 
 function mockConfig(overrides?: Record<string, unknown>) {
   vi.mocked(getProviderFullConfig).mockReturnValue({
@@ -84,6 +108,7 @@ describe("OidcStrategy", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    process.env.CORS_ORIGIN = "https://app.example.com";
     resetDiscoveryCache();
     strategy = new OidcStrategy();
     mockConfig();
@@ -91,6 +116,8 @@ describe("OidcStrategy", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (ORIGINAL_CORS_ORIGIN === undefined) delete process.env.CORS_ORIGIN;
+    else process.env.CORS_ORIGIN = ORIGINAL_CORS_ORIGIN;
   });
 
   // ── Discovery ────────────────────────────────────────────────────

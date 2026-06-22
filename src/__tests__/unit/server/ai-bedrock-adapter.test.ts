@@ -4,6 +4,8 @@
  * Covers: URL construction, multi-vendor dispatch, SigV4 signing,
  * buildProviderAuth integration, and anthropic-version header injection.
  */
+import crypto from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { buildProviderAuth, signSigV4 } from "@/server/ai/lib/provider-auth";
@@ -326,7 +328,6 @@ describe("signSigV4", () => {
 
   it("content hash matches body SHA-256", () => {
     const body = '{"test":"data"}';
-    const crypto = require("crypto");
     const expectedHash = crypto.createHash("sha256").update(body).digest("hex");
 
     const headers = signSigV4({

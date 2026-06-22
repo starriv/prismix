@@ -15,7 +15,7 @@ interface AuthFixtures {
 }
 
 export const test = base.extend<AuthFixtures>({
-  authedPage: async ({ page }, use) => {
+  authedPage: async ({ page }, runFixture) => {
     // Inject tokens and E2E flag before any page JS executes
     await page.addInitScript(() => {
       localStorage.setItem("prismix_admin_token", "e2e-test-jwt-token");
@@ -27,7 +27,7 @@ export const test = base.extend<AuthFixtures>({
     const mockApi = new MockApi(page);
     await mockApi.setupDefaults();
 
-    await use({ page, mockApi });
+    await runFixture({ page, mockApi });
   },
 });
 

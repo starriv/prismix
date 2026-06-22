@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SamlStrategy } from "@/server/auth/strategies/saml";
 import { getProviderFullConfig } from "@/server/lib/auth-provider-config";
 
+const ORIGINAL_CORS_ORIGIN = process.env.CORS_ORIGIN;
+
 // Mock dependencies before importing the strategy
 vi.mock("@/server/cache", () => ({
   createCacheStore: () => {
@@ -20,6 +22,29 @@ vi.mock("@/server/cache", () => ({
         store.set(key, { value, expiry: Date.now() + ttl });
       },
       del: (key: string) => store.delete(key),
+      has: (key: string) => store.has(key),
+      clear: () => store.clear(),
+      size: () => store.size,
+    };
+  },
+  lazyCacheStore: () => {
+    const store = new Map<string, { value: unknown; expiry: number }>();
+    return {
+      get: (key: string) => {
+        const entry = store.get(key);
+        if (!entry || entry.expiry < Date.now()) {
+          store.delete(key);
+          return undefined;
+        }
+        return entry.value;
+      },
+      set: (key: string, value: unknown, ttl: number) => {
+        store.set(key, { value, expiry: Date.now() + ttl });
+      },
+      del: (key: string) => store.delete(key),
+      has: (key: string) => store.has(key),
+      clear: () => store.clear(),
+      size: () => store.size,
     };
   },
 }));
@@ -41,6 +66,9 @@ const mockGenerateServiceProviderMetadata = vi.fn();
 
 vi.mock("@node-saml/node-saml", () => {
   return {
+    ValidateInResponseTo: {
+      always: "always",
+    },
     SAML: class MockSAML {
       getAuthorizeUrlAsync = mockGetAuthorizeUrlAsync;
       validatePostResponseAsync = mockValidatePostResponseAsync;
@@ -69,12 +97,15 @@ describe("SamlStrategy", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    process.env.CORS_ORIGIN = "https://app.example.com";
     strategy = new SamlStrategy();
     mockConfig();
   });
 
   afterEach(() => {
     vi.resetAllMocks();
+    if (ORIGINAL_CORS_ORIGIN === undefined) delete process.env.CORS_ORIGIN;
+    else process.env.CORS_ORIGIN = ORIGINAL_CORS_ORIGIN;
   });
 
   // ── Initialize ───────────────────────────────────────────────────

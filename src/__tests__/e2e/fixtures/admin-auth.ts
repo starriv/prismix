@@ -15,7 +15,7 @@ interface AdminFixtures {
 }
 
 export const test = base.extend<AdminFixtures>({
-  adminPage: async ({ page }, use) => {
+  adminPage: async ({ page }, runFixture) => {
     await page.addInitScript(() => {
       localStorage.setItem("prismix_admin_token", "e2e-test-admin-jwt-token");
       localStorage.setItem("prismix_admin_refresh_token", "e2e-test-admin-refresh-token");
@@ -51,7 +51,7 @@ export const test = base.extend<AdminFixtures>({
       (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
     );
 
-    await use({ page, mockApi });
+    await runFixture({ page, mockApi });
   },
 });
 
