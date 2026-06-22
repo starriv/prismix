@@ -98,6 +98,10 @@ export function ModelFormDialog({
     () => providers.find((p) => p.id === providerId) ?? null,
     [providers, providerId],
   );
+  const initialProvider = useMemo(
+    () => (initialProviderId ? (providers.find((p) => p.id === initialProviderId) ?? null) : null),
+    [providers, initialProviderId],
+  );
   const hasUpstreams = (selectedProvider?.upstreamCount ?? 0) > 0;
 
   // Discovery
@@ -133,6 +137,7 @@ export function ModelFormDialog({
 
   // Track previous discovered ref to auto-select only on fresh discovery
   const prevDiscoveredRef = useRef(discovered);
+  const didResetForOpenRef = useRef(false);
 
   useEffect(() => {
     if (discovered && discovered !== prevDiscoveredRef.current) {
@@ -145,6 +150,14 @@ export function ModelFormDialog({
   }, [discovered]);
 
   useEffect(() => {
+    if (!open) {
+      didResetForOpenRef.current = false;
+      return;
+    }
+
+    if (didResetForOpenRef.current) return;
+    didResetForOpenRef.current = true;
+
     if (open && model) {
       form.reset({
         clientFormat: model.clientFormat,
@@ -158,7 +171,7 @@ export function ModelFormDialog({
       });
     } else if (open) {
       form.reset({
-        clientFormat: defaultClientFormatForProvider(selectedProvider?.apiFormat),
+        clientFormat: defaultClientFormatForProvider(initialProvider?.apiFormat),
         modelId: "",
         name: "",
         contextWindow: null,
@@ -170,9 +183,9 @@ export function ModelFormDialog({
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
       setDiscoverSource("official");
-      if (!initialProviderId) setSelectedProviderId(null);
+      setSelectedProviderId(initialProviderId ?? null);
     }
-  }, [open, model, form, initialProviderId, selectedProvider?.apiFormat]);
+  }, [open, model, form, initialProviderId, initialProvider?.apiFormat]);
 
   useEffect(() => {
     if (open && !isEdit && selectedProvider) {
