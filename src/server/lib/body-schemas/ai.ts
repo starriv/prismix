@@ -4,6 +4,7 @@
 import { z } from "zod";
 
 import { CLIENT_FORMATS } from "@/server/ai/lib/client-format";
+import { PRICE_RE } from "@/shared/number";
 
 // ── SSRF-safe URL check ─────────────────────────────────────────────
 
@@ -130,8 +131,8 @@ export const batchCreateAiModelsBody = z.object({
         modelId: z.string().min(1).max(100),
         name: z.string().min(1).max(200),
         contextWindow: z.number().int().positive().optional(),
-        inputPrice: z.string().min(1).default("0"),
-        outputPrice: z.string().min(1).default("0"),
+        inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
+        outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         capabilities: z.array(z.string()).optional(),
         enabled: z.boolean().optional(),
       }),
@@ -149,8 +150,8 @@ export const createAiModelBody = z.object({
     .regex(/^[a-z0-9._:-]+$/, "Model ID must be lowercase alphanumeric with dots, colons, hyphens"),
   name: z.string().min(1).max(200),
   contextWindow: z.number().int().positive().optional(),
-  inputPrice: z.string().min(1).default("0"),
-  outputPrice: z.string().min(1).default("0"),
+  inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
+  outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).optional(),
   weight: z.number().int().min(0).max(100).optional(),
@@ -161,8 +162,8 @@ export const updateAiModelBody = z.object({
   clientFormat: z.enum(CLIENT_FORMATS).optional(),
   name: z.string().min(1).max(200).optional(),
   contextWindow: z.number().int().positive().nullable().optional(),
-  inputPrice: z.string().min(1).optional(),
-  outputPrice: z.string().min(1).optional(),
+  inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").optional(),
+  outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").optional(),
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).nullable().optional(),
   weight: z.number().int().min(0).max(100).optional(),
