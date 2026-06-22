@@ -86,10 +86,17 @@ router.put("/providers/:id", async (c) => {
 
   const updates: Record<string, unknown> = { ...rest };
   if (authConfig !== undefined) updates.authConfig = JSON.stringify(authConfig);
+  if (parsed.data.enabled !== undefined) {
+    updates.autoDisabled = false;
+    updates.consecutiveFailures = 0;
+    updates.healthStatus = "unknown";
+    updates.lastError = null;
+  }
 
   const updated = await aiProviderRepo.update(id, updates);
 
   if (
+    parsed.data.enabled !== undefined ||
     parsed.data.baseUrl !== undefined ||
     parsed.data.upstreamRoutingStrategy !== undefined ||
     parsed.data.loadBalanceStrategy !== undefined

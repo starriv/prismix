@@ -136,6 +136,10 @@ const providerFormSchema = z
   });
 type ProviderFormValues = z.infer<typeof providerFormSchema>;
 
+function isProviderEffectiveEnabled(provider: AiProvider): boolean {
+  return provider.enabled && !provider.autoDisabled;
+}
+
 const assignUpstreamFormSchema = z.object({
   upstreamId: z.coerce.number().min(1, "common.valid.required"),
   priority: z.coerce.number().int().min(0).max(10_000),
@@ -254,6 +258,7 @@ function ProviderCard({
   onClick: () => void;
 }) {
   const { t } = useTranslation();
+  const effectiveEnabled = isProviderEffectiveEnabled(provider);
 
   const upstreamLabel =
     upstreamCount > 0
@@ -274,7 +279,7 @@ function ProviderCard({
         className={cn(
           "h-full transition-[box-shadow,border-color,opacity] hover:shadow-md hover:border-primary/30",
           "flex flex-col justify-between",
-          !provider.enabled && "opacity-60",
+          !effectiveEnabled && "opacity-60",
         )}
       >
         <CardHeader className="pb-2">
@@ -298,9 +303,9 @@ function ProviderCard({
             <div
               className={cn(
                 "h-2.5 w-2.5 shrink-0 rounded-full",
-                provider.enabled ? "bg-green-500" : "bg-yellow-500",
+                effectiveEnabled ? "bg-green-500" : "bg-yellow-500",
               )}
-              title={provider.enabled ? t("common.status.active") : t("common.status.disabled")}
+              title={effectiveEnabled ? t("common.status.active") : t("common.status.disabled")}
             />
           </div>
         </CardHeader>
@@ -335,7 +340,10 @@ function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: ()
 
   const handleToggle = useCallback(async () => {
     try {
-      await updateProvider.mutateAsync({ id: provider.id, enabled: !provider.enabled });
+      await updateProvider.mutateAsync({
+        id: provider.id,
+        enabled: !isProviderEffectiveEnabled(provider),
+      });
       toast.success(t("ai-providers.toast.updated"));
     } catch {
       toast.error(t("ai-providers.toast.update-error"));
@@ -387,7 +395,7 @@ function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: ()
             </div>
             <div className="flex items-center gap-2">
               <Switch
-                checked={provider.enabled}
+                checked={isProviderEffectiveEnabled(provider)}
                 onCheckedChange={handleToggle}
                 disabled={updateProvider.isPending}
               />

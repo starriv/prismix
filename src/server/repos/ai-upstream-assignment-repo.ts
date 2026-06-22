@@ -50,7 +50,7 @@ export const aiUpstreamAssignmentRepo = {
     return rows.map(toAssignmentWithUpstream);
   },
 
-  /** Enabled assignments for a provider (both assignment and upstream must be enabled). */
+  /** Enabled assignments for a provider (both assignment and upstream must be enabled + !autoDisabled). */
   async findEnabledByProviderId(providerId: number): Promise<AssignmentWithUpstream[]> {
     const rows = await queryAll<JoinRow>(
       db
@@ -62,6 +62,7 @@ export const aiUpstreamAssignmentRepo = {
             eq(aiUpstreamAssignments.providerId, providerId),
             eq(aiUpstreamAssignments.enabled, true),
             eq(aiUpstreams.enabled, true),
+            eq(aiUpstreams.autoDisabled, false),
           ),
         )
         .orderBy(asc(aiUpstreamAssignments.priority), asc(aiUpstreamAssignments.id)),

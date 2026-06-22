@@ -73,7 +73,7 @@ export const createAiUpstreamBody = z.object({
   name: z.string().min(1).max(100),
   baseUrl: safeUrlSchema,
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
-  modelsEndpoint: z.string().url().max(500).nullish(),
+  modelsEndpoint: safeUrlSchema.nullish(),
   enabled: z.boolean().optional(),
   metadata: z
     .record(z.string(), z.unknown())
@@ -85,7 +85,7 @@ export const updateAiUpstreamBody = z.object({
   name: z.string().min(1).max(100).optional(),
   baseUrl: safeUrlSchema.optional(),
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
-  modelsEndpoint: z.string().url().max(500).nullish(),
+  modelsEndpoint: safeUrlSchema.nullish(),
   enabled: z.boolean().optional(),
   metadata: z
     .record(z.string(), z.unknown())

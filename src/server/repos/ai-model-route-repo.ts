@@ -56,6 +56,7 @@ export const aiModelRouteRepo = {
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
             eq(aiProviders.enabled, true),
+            eq(aiProviders.autoDisabled, false),
           ),
         )
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),

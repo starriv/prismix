@@ -44,7 +44,13 @@ async function checkPriceDrift(): Promise<void> {
         })
         .from(aiModels)
         .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
-        .where(and(eq(aiModels.enabled, true), eq(aiProviders.enabled, true))),
+        .where(
+          and(
+            eq(aiModels.enabled, true),
+            eq(aiProviders.enabled, true),
+            eq(aiProviders.autoDisabled, false),
+          ),
+        ),
     );
 
     let driftCount = 0;

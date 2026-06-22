@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+const healthCheckStatusSchema = z.enum(["unknown", "healthy", "degraded", "down"]);
+const nullableDateSchema = z.string().or(z.number()).nullable().optional();
+
 // ── AI Providers ────────────────────────────────────────────────
 
 export const aiProviderSchema = z.object({
@@ -14,6 +17,13 @@ export const aiProviderSchema = z.object({
   loadBalanceStrategy: z.string().optional().default("round-robin"),
   upstreamRoutingStrategy: z.string().optional().default("priority"),
   iconUrl: z.string().nullable().optional(),
+  healthStatus: healthCheckStatusSchema.optional().default("unknown"),
+  lastCheckedAt: nullableDateSchema,
+  lastSuccessAt: nullableDateSchema,
+  lastFailureAt: nullableDateSchema,
+  lastError: z.string().nullable().optional(),
+  consecutiveFailures: z.number().optional().default(0),
+  autoDisabled: z.coerce.boolean().optional().default(false),
   upstreamCount: z.number().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
@@ -31,6 +41,13 @@ export const aiUpstreamSchema = z.object({
   modelsEndpoint: z.string().nullable().optional(),
   enabled: z.coerce.boolean(),
   metadata: z.record(z.string(), z.unknown()),
+  healthStatus: healthCheckStatusSchema.optional().default("unknown"),
+  lastCheckedAt: nullableDateSchema,
+  lastSuccessAt: nullableDateSchema,
+  lastFailureAt: nullableDateSchema,
+  lastError: z.string().nullable().optional(),
+  consecutiveFailures: z.number().optional().default(0),
+  autoDisabled: z.coerce.boolean().optional().default(false),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
@@ -56,6 +73,7 @@ export const aiUpstreamOverviewItemSchema = z.object({
   kind: z.string(),
   modelsEndpoint: z.string().nullable().optional(),
   enabled: z.coerce.boolean(),
+  autoDisabled: z.coerce.boolean().optional().default(false),
   assignmentCount: z.number(),
   totalKeys: z.number(),
   enabledKeys: z.number(),
@@ -68,7 +86,9 @@ export const aiUpstreamOverviewItemSchema = z.object({
   lastSeenAt: z.string().nullable(),
   lastStatusCode: z.number().nullable(),
   lastError: z.string().nullable(),
-  healthStatus: z.enum(["healthy", "degraded", "idle", "no-key", "disabled"]),
+  healthStatus: z.enum(["unknown", "healthy", "degraded", "down", "idle", "no-key", "disabled"]),
+  lastCheckedAt: nullableDateSchema,
+  consecutiveFailures: z.number().optional().default(0),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });

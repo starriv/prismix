@@ -43,6 +43,13 @@
       "when": 1782086400000,
       "tag": "0005_split_gateway_client_formats",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782126100780,
+      "tag": "0006_smart_bug",
+      "breakpoints": true
     }
   ]
 }

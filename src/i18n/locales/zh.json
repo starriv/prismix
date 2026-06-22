@@ -2667,8 +2667,10 @@
     "empty": "当前还没有配置任何 upstream",
     "never": "从未",
     "health": {
+      "unknown": "未知",
       "healthy": "正常",
       "degraded": "异常",
+      "down": "宕机",
       "idle": "空闲",
       "no-key": "无密钥",
       "disabled": "已禁用"

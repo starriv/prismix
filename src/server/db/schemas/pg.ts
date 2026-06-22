@@ -515,6 +515,15 @@ export const aiProviders = pgTable(
     loadBalanceStrategy: text("load_balance_strategy").notNull().default("round-robin"), // "round-robin" | "random"
     upstreamRoutingStrategy: text("upstream_routing_strategy").notNull().default("priority"), // "priority" | "weighted-random"
     iconUrl: text("icon_url"),
+    // `enabled` = admin intent; `autoDisabled` = system status.
+    // Effective active = enabled && !autoDisabled.
+    healthStatus: text("health_status").notNull().default("unknown"), // "unknown" | "healthy" | "degraded" | "down"
+    lastCheckedAt: timestamp("last_checked_at"),
+    lastSuccessAt: timestamp("last_success_at"),
+    lastFailureAt: timestamp("last_failure_at"),
+    lastError: text("last_error"),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    autoDisabled: boolean("auto_disabled").notNull().default(false),
     updatedAt: timestamp("updated_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -537,6 +546,13 @@ export const aiUpstreams = pgTable("ai_upstreams", {
   modelsEndpoint: text("models_endpoint"),
   enabled: boolean("enabled").notNull().default(true),
   metadata: text("metadata").notNull().default("{}"),
+  healthStatus: text("health_status").notNull().default("unknown"), // "unknown" | "healthy" | "degraded" | "down"
+  lastCheckedAt: timestamp("last_checked_at"),
+  lastSuccessAt: timestamp("last_success_at"),
+  lastFailureAt: timestamp("last_failure_at"),
+  lastError: text("last_error"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  autoDisabled: boolean("auto_disabled").notNull().default(false),
   updatedAt: timestamp("updated_at")
     .notNull()
     .$defaultFn(() => new Date()),

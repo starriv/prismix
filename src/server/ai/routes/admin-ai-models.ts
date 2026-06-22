@@ -27,6 +27,7 @@ import {
 } from "../lib/client-format";
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
 import { buildProviderAuth } from "../lib/provider-auth";
+import { buildModelsUrl } from "../lib/supplier-health";
 import { resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { formatModel } from "./admin-ai-helpers";
 
@@ -97,17 +98,7 @@ router.get("/providers/:id/discover-models", async (c) => {
     return c.json({ error: "Failed to decrypt key" }, 500);
   }
 
-  const base = baseUrl.replace(/\/+$/, "");
-  const modelsUrl = modelsEndpointOverride
-    ? modelsEndpointOverride
-    : match(provider.apiFormat)
-        .with("bedrock", () => {
-          const controlPlaneBase = base.replace("bedrock-runtime.", "bedrock.");
-          return `${controlPlaneBase}/foundation-models`;
-        })
-        .with("gemini", () => `${base}/models`)
-        .with("anthropic", () => `${base}/models`)
-        .otherwise(() => (base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`));
+  const modelsUrl = buildModelsUrl(provider, baseUrl, modelsEndpointOverride);
   const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, modelsUrl);
 
   try {

@@ -28,6 +28,10 @@ vi.mock("@/server/events", () => ({
   initEventBus: vi.fn(() => track("initEventBus")),
 }));
 
+vi.mock("@/server/db", () => ({
+  initDb: vi.fn(async () => track("initDb")),
+}));
+
 vi.mock("@/server/jobs/expire-topup-orders", () => ({
   initTopupExpiryJob: vi.fn(() => track("initTopupExpiryJob")),
 }));
@@ -104,6 +108,10 @@ vi.mock("@/server/jobs/refresh-litellm-pricing", () => ({
   initLiteLLMPricingJob: vi.fn(() => track("initLiteLLMPricingJob")),
 }));
 
+vi.mock("@/server/jobs/check-supplier-health", () => ({
+  initSupplierHealthCheckJob: vi.fn(async () => track("initSupplierHealthCheckJob")),
+}));
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("bootstrap initialization order", () => {
@@ -117,12 +125,15 @@ describe("bootstrap initialization order", () => {
     expect(callOrder.length).toBeGreaterThan(0);
   });
 
-  it("initJwtSecret runs BEFORE everything else", async () => {
+  it("initJwtSecret runs before auth and queue initialization", async () => {
     const { bootstrap } = await import("@/server/lib/bootstrap");
     await bootstrap();
 
     const jwtIdx = callOrder.indexOf("initJwtSecret");
-    expect(jwtIdx).toBe(0);
+    expect(jwtIdx).toBeGreaterThanOrEqual(0);
+    expect(jwtIdx).toBeLessThan(callOrder.indexOf("cleanExpiredRefreshTokens"));
+    expect(jwtIdx).toBeLessThan(callOrder.indexOf("initAuthProviderConfig"));
+    expect(jwtIdx).toBeLessThan(callOrder.indexOf("initWriteQueue"));
   });
 
   it("initGatewayConfig runs during bootstrap", async () => {
@@ -139,5 +150,13 @@ describe("bootstrap initialization order", () => {
 
     const aiRelayIdx = callOrder.indexOf("initAiRelay");
     expect(aiRelayIdx).toBeGreaterThanOrEqual(0);
+  });
+
+  it("initSupplierHealthCheckJob runs during bootstrap", async () => {
+    const { bootstrap } = await import("@/server/lib/bootstrap");
+    await bootstrap();
+
+    const supplierHealthIdx = callOrder.indexOf("initSupplierHealthCheckJob");
+    expect(supplierHealthIdx).toBeGreaterThanOrEqual(0);
   });
 });

@@ -83,11 +83,15 @@ router.get("/upstreams/overview", async (c) => {
     const recentErrorRate =
       recentRequests > 0 ? (usage?.recentTotalErrors ?? 0) / recentRequests : 0;
 
-    let healthStatus: "healthy" | "degraded" | "idle" | "no-key" | "disabled";
+    let healthStatus: "unknown" | "healthy" | "degraded" | "down" | "idle" | "no-key" | "disabled";
     if (!upstream.enabled) {
       healthStatus = "disabled";
+    } else if (upstream.autoDisabled || upstream.healthStatus === "down") {
+      healthStatus = "down";
     } else if ((keyStat?.enabledKeys ?? 0) === 0) {
       healthStatus = "no-key";
+    } else if (upstream.healthStatus === "healthy" || upstream.healthStatus === "degraded") {
+      healthStatus = upstream.healthStatus;
     } else if (recentRequests === 0) {
       healthStatus = "idle";
     } else if ((usage?.recentServerErrors ?? 0) > 0 || recentErrorRate >= 0.2) {
@@ -104,6 +108,7 @@ router.get("/upstreams/overview", async (c) => {
       kind: upstream.kind,
       modelsEndpoint: upstream.modelsEndpoint,
       enabled: upstream.enabled,
+      autoDisabled: upstream.autoDisabled,
       assignmentCount: assignmentCounts.get(upstream.id) ?? 0,
       totalKeys: keyStat?.totalKeys ?? 0,
       enabledKeys: keyStat?.enabledKeys ?? 0,
@@ -117,6 +122,8 @@ router.get("/upstreams/overview", async (c) => {
       lastStatusCode: latest?.statusCode ?? null,
       lastError: latest?.error ?? null,
       healthStatus,
+      lastCheckedAt: upstream.lastCheckedAt,
+      consecutiveFailures: upstream.consecutiveFailures,
       updatedAt: upstream.updatedAt,
       createdAt: upstream.createdAt,
     };
@@ -125,9 +132,11 @@ router.get("/upstreams/overview", async (c) => {
   return ok(c, {
     totals: {
       totalUpstreams: items.length,
-      enabledUpstreams: items.filter((i) => i.enabled).length,
+      enabledUpstreams: items.filter((i) => i.enabled && !i.autoDisabled).length,
       activeUpstreams24h: items.filter((i) => i.requests24h > 0).length,
-      degradedUpstreams30m: items.filter((i) => i.healthStatus === "degraded").length,
+      degradedUpstreams30m: items.filter(
+        (i) => i.healthStatus === "degraded" || i.healthStatus === "down",
+      ).length,
     },
     upstreams: items,
   });
@@ -177,6 +186,12 @@ router.put("/upstreams/:id", async (c) => {
 
   const updates: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.metadata !== undefined) updates.metadata = JSON.stringify(parsed.data.metadata);
+  if (parsed.data.enabled !== undefined) {
+    updates.autoDisabled = false;
+    updates.consecutiveFailures = 0;
+    updates.healthStatus = "unknown";
+    updates.lastError = null;
+  }
 
   const updated = await aiUpstreamRepo.update(id, updates);
 

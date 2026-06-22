@@ -157,7 +157,7 @@ async function handleToolCall(params: Record<string, unknown>): Promise<unknown>
       };
     })
     .with("list_models", async () => {
-      const providers = await aiProviderRepo.findAllEnabled();
+      const providers = await aiProviderRepo.findAllActive();
       const keys = await aiKeyRepo.findAll();
       const keyProviderIds = new Set(keys.filter((k) => k.enabled).map((k) => k.providerId));
 

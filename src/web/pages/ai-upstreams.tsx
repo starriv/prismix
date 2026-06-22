@@ -114,6 +114,14 @@ function HealthBadge({
       variant: "destructive" as const,
       Icon: ShieldAlert,
     }))
+    .with("down", () => ({
+      variant: "destructive" as const,
+      Icon: AlertTriangle,
+    }))
+    .with("unknown", () => ({
+      variant: "outline" as const,
+      Icon: PauseCircle,
+    }))
     .with("idle", () => ({
       variant: "secondary" as const,
       Icon: PauseCircle,
@@ -140,6 +148,8 @@ function healthDotColor(status: AiUpstreamOverviewItem["healthStatus"]) {
   return match(status)
     .with("healthy", () => "bg-green-500")
     .with("degraded", () => "bg-red-500")
+    .with("down", () => "bg-red-600")
+    .with("unknown", () => "bg-muted-foreground/50")
     .with("idle", () => "bg-yellow-500")
     .with("no-key", () => "bg-orange-500")
     .with("disabled", () => "bg-muted-foreground/40")
@@ -163,11 +173,13 @@ function formatRelativeTimeLabel(
 }
 
 const SEVERITY_RANK: Record<AiUpstreamOverviewItem["healthStatus"], number> = {
-  degraded: 0,
-  "no-key": 1,
-  idle: 2,
-  healthy: 3,
-  disabled: 4,
+  down: 0,
+  degraded: 1,
+  "no-key": 2,
+  unknown: 3,
+  idle: 4,
+  healthy: 5,
+  disabled: 6,
 };
 
 // ── Page ────────────────────────────────────────────────────────────
@@ -384,6 +396,7 @@ function UpstreamCard({
   updating: boolean;
 }) {
   const { t, i18n } = useTranslation();
+  const effectiveEnabled = upstream.enabled && !upstream.autoDisabled;
   const lastSeenLabel = formatRelativeTimeLabel(
     upstream.lastSeenAt,
     i18n.language,
@@ -395,7 +408,7 @@ function UpstreamCard({
     <Card
       className={cn(
         "h-full transition-[box-shadow,border-color,opacity] hover:shadow-md hover:border-primary/30",
-        !upstream.enabled && "opacity-60",
+        !effectiveEnabled && "opacity-60",
       )}
     >
       <CardHeader className="pb-2">
@@ -448,7 +461,7 @@ function UpstreamCard({
       <CardFooter className="justify-between gap-3">
         <div className="flex items-center gap-2">
           <Switch
-            checked={upstream.enabled}
+            checked={effectiveEnabled}
             disabled={updating}
             aria-label={t("ai-upstreams.th.enabled")}
             onCheckedChange={onToggle}
@@ -528,7 +541,10 @@ function UpstreamDetail({
 
   const handleToggle = useCallback(async () => {
     try {
-      await updateUpstream.mutateAsync({ id: upstream.id, enabled: !upstream.enabled });
+      await updateUpstream.mutateAsync({
+        id: upstream.id,
+        enabled: !(upstream.enabled && !upstream.autoDisabled),
+      });
       toast.success(t("ai-upstreams.toast.updated"));
     } catch {
       toast.error(t("ai-upstreams.toast.update-error"));
@@ -674,7 +690,7 @@ function UpstreamDetail({
             </div>
             <div className="flex items-center gap-2">
               <Switch
-                checked={upstream.enabled}
+                checked={upstream.enabled && !upstream.autoDisabled}
                 onCheckedChange={handleToggle}
                 disabled={updateUpstream.isPending}
               />

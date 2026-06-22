@@ -1,6 +1,7 @@
 import { initBlockchainConfig } from "@/blockchain/config";
 import { initAiRelay } from "@/server/ai";
 import { initDb } from "@/server/db";
+import { initSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
 import { initLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
 import { initDepositScanQueue } from "@/server/jobs/scan-topup-deposit";
 import { initWebhookRetryJob } from "@/server/messaging/jobs/retry-webhook-deliveries";
@@ -145,4 +146,5 @@ export async function bootstrap() {
   initTopupExpiryJob();
   initWebhookRetryJob();
   await initDepositScanQueue();
+  await initSupplierHealthCheckJob();
 }

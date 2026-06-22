@@ -50,7 +50,7 @@ adminAi.route("/", adminAiKeys);
 
 adminAi.get("/catalog", async (c) => {
   getAdminSession(c);
-  const providers = await aiProviderRepo.findAllEnabled();
+  const providers = await aiProviderRepo.findAllActive();
   const keys = await aiKeyRepo.findAll();
   const enabledKeyProviderIds = new Set(keys.filter((k) => k.enabled).map((k) => k.providerId));
 

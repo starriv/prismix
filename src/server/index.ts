@@ -13,6 +13,7 @@ import { closeEventBus } from "@/server/events";
 import { createRateLimiterMiddleware } from "@/server/middleware/rate-limiter";
 
 import { env } from "./env";
+import { closeSupplierHealthCheckJob } from "./jobs/check-supplier-health";
 import { stopTopupExpiryJob } from "./jobs/expire-topup-orders";
 import { stopLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "./jobs/scan-topup-deposit";
@@ -187,6 +188,7 @@ async function shutdown(signal: string) {
   // 1. Stop all periodic timers immediately — they hold the event loop alive
   stopTopupExpiryJob();
   await closeDepositScanQueue();
+  await closeSupplierHealthCheckJob();
   stopLiteLLMPricingJob();
   stopWebhookRetryJob();
 
