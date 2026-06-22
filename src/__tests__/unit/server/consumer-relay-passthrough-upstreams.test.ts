@@ -396,6 +396,97 @@ describe("consumer relay Anthropic client protocol routing", () => {
     });
   });
 
+  it("accepts duplicated /v1 prefix before converting Anthropic messages", async () => {
+    mockFindEnabledRoutesByModelId.mockResolvedValue([
+      {
+        route: {
+          id: 201,
+          modelId: 101,
+          providerId: 7,
+          providerModelId: "glm-5.2",
+          priority: 100,
+          weight: 1,
+          enabled: true,
+        },
+        model: {
+          id: 101,
+          providerId: 7,
+          clientFormat: "anthropic",
+          modelId: "GLM-5.2",
+          inputPrice: "1",
+          outputPrice: "2",
+          enabled: true,
+        },
+        provider: {
+          id: 7,
+          providerId: "glm",
+          name: "GLM",
+          baseUrl: "https://glm.example.com/v1",
+          apiFormat: "openai",
+          authType: "bearer",
+          authConfig: JSON.stringify({}),
+          enabled: true,
+        },
+      },
+    ]);
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "glm-cf",
+        name: "GLM CF",
+        baseUrl: "https://glm.example.com/v1",
+      },
+    ]);
+    mockPickKey.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+      name: "glm-key",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "chatcmpl-1",
+          object: "chat.completion",
+          created: 1,
+          model: "glm-5.2",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: "ok" },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 8, completion_tokens: 3, total_tokens: 11 },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    const res = await app.request("http://localhost/v1/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "GLM-5.2",
+        messages: [{ role: "user", content: "hello" }],
+        max_tokens: 512,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("GLM-5.2", "anthropic");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://glm.example.com/v1/chat/completions");
+    expect(JSON.parse(String(mockFetch.mock.calls[0][1]?.body))).toMatchObject({
+      model: "glm-5.2",
+      messages: [{ role: "user", content: "hello" }],
+    });
+  });
+
   it("estimates Anthropic count_tokens locally for a compatible OpenAI upstream route", async () => {
     mockFindEnabledRoutesByModelId.mockResolvedValue([
       {

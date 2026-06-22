@@ -123,9 +123,13 @@ async function listConsumerModels(consumer: ConsumerSession, clientFormat: Clien
   );
 }
 
+// Some SDKs expect a base URL without /v1 and append /v1 themselves. If a
+// deployment URL already includes /v1, requests arrive as /v1/v1/*; keep the
+// typed handlers reachable so they do not fall through to raw passthrough.
+
 // ── GET /v1/models — OpenAI-compatible model catalog ────────────────
 
-consumerOpenAiRelay.get("/v1/models", async (c) => {
+async function handleOpenAiModelsRoute(c: Context): Promise<Response> {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
 
@@ -152,11 +156,14 @@ consumerOpenAiRelay.get("/v1/models", async (c) => {
     });
     return c.json({ error: "Internal Server Error" }, 500);
   }
-});
+}
+
+consumerOpenAiRelay.get("/v1/models", handleOpenAiModelsRoute);
+consumerOpenAiRelay.get("/v1/v1/models", handleOpenAiModelsRoute);
 
 // ── GET /v1/models — Anthropic-compatible model catalog ─────────────
 
-consumerAnthropicRelay.get("/v1/models", async (c) => {
+async function handleAnthropicModelsRoute(c: Context): Promise<Response> {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
 
@@ -188,11 +195,14 @@ consumerAnthropicRelay.get("/v1/models", async (c) => {
     });
     return c.json({ error: "Internal Server Error" }, 500);
   }
-});
+}
+
+consumerAnthropicRelay.get("/v1/models", handleAnthropicModelsRoute);
+consumerAnthropicRelay.get("/v1/v1/models", handleAnthropicModelsRoute);
 
 // ── POST /v1/chat/completions ────────────────────────────────────────
 
-consumerOpenAiRelay.post("/v1/chat/completions", async (c) => {
+async function handleOpenAiChatCompletionsRoute(c: Context): Promise<Response> {
   const consumer = getConsumerSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
@@ -208,14 +218,21 @@ consumerOpenAiRelay.post("/v1/chat/completions", async (c) => {
       error: "Internal Server Error",
     });
   }
-});
+}
+
+consumerOpenAiRelay.post("/v1/chat/completions", handleOpenAiChatCompletionsRoute);
+consumerOpenAiRelay.post("/v1/v1/chat/completions", handleOpenAiChatCompletionsRoute);
 
 // ── POST /v1/messages — Anthropic client protocol via canonical chat ──
 
 consumerAnthropicRelay.post("/v1/messages", handleAnthropicMessagesRoute);
 consumerAnthropicRelay.post("/v1/messages/", handleAnthropicMessagesRoute);
+consumerAnthropicRelay.post("/v1/v1/messages", handleAnthropicMessagesRoute);
+consumerAnthropicRelay.post("/v1/v1/messages/", handleAnthropicMessagesRoute);
 consumerAnthropicRelay.post("/v1/messages/count_tokens", handleAnthropicCountTokensRoute);
 consumerAnthropicRelay.post("/v1/messages/count_tokens/", handleAnthropicCountTokensRoute);
+consumerAnthropicRelay.post("/v1/v1/messages/count_tokens", handleAnthropicCountTokensRoute);
+consumerAnthropicRelay.post("/v1/v1/messages/count_tokens/", handleAnthropicCountTokensRoute);
 
 async function handleAnthropicMessagesRoute(c: Context): Promise<Response> {
   const consumer = getConsumerSession(c);
