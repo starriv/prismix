@@ -102,6 +102,7 @@ export const MOCK_NOTIFICATION_EVENTS = {
         "alert.resource-down",
       ],
     },
+    { key: "supplier", events: ["supplier.disabled", "supplier.reenabled"] },
     { key: "system", events: ["system.announcement"] },
   ],
   enabledChannels: ["webhook", "email"],
@@ -176,7 +177,7 @@ export const MOCK_ADMIN_NOTIFICATION_PROVIDERS = {
     fromAddress: "noreply@example.com",
     fromName: "Prismix",
   },
-  telegram: { enabled: false, botToken: "" },
+  telegram: { enabled: false, botToken: "", chatId: "" },
   webhook: { enabled: true },
   whatsapp: { enabled: false, apiToken: "", phoneNumberId: "" },
 };

@@ -18,10 +18,18 @@ const SAMPLE_PAYLOAD: NotificationPayload = {
 };
 
 /** All RFC-defined events — these MUST match the server EVENT_GROUPS */
-const ALL_EVENTS = ["topup.requested", "topup.confirmed", "topup.rejected", "system.announcement"];
+const ALL_EVENTS = [
+  "topup.requested",
+  "topup.confirmed",
+  "topup.rejected",
+  "supplier.disabled",
+  "supplier.reenabled",
+  "system.announcement",
+];
 
 const EVENT_GROUPS = [
   { key: "topup", events: ["topup.requested", "topup.confirmed", "topup.rejected"] },
+  { key: "supplier", events: ["supplier.disabled", "supplier.reenabled"] },
   { key: "system", events: ["system.announcement"] },
 ];
 
@@ -313,6 +321,22 @@ describe("telegram — send() with fetch mock", () => {
     );
   });
 
+  it("uses provider config chatId when target is omitted", async () => {
+    const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
+    const ch = new TelegramChannel();
+
+    await ch.send("", SAMPLE_PAYLOAD, {
+      providerConfig: {
+        botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a",
+        chatId: "-100123456",
+      },
+    });
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.chat_id).toBe("-100123456");
+  });
+
   it("throws on API error", async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ ok: false, description: "Unauthorized" }), { status: 401 }),
@@ -404,7 +428,7 @@ describe("event system — RFC event consistency", () => {
 
   it("event groups have correct keys", () => {
     const groupKeys = EVENT_GROUPS.map((g) => g.key);
-    expect(groupKeys).toEqual(["topup", "system"]);
+    expect(groupKeys).toEqual(["topup", "supplier", "system"]);
   });
 
   it("each group contains only events with its prefix", () => {
@@ -493,6 +517,9 @@ describe("telegram — MarkdownV2 escaping", () => {
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
+    const escapedIso = new Date(payload.timestamp)
+      .toISOString()
+      .replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
 
     // MarkdownV2 special chars: _ * [ ] ( ) ~ ` > # + - = | { } . ! \
     // Note: $ is NOT a special char in MarkdownV2
@@ -500,6 +527,7 @@ describe("telegram — MarkdownV2 escaping", () => {
     expect(body.text).toContain("\\#link"); // # is escaped
     expect(body.text).toContain("\\[admin\\]"); // [ ] are escaped
     expect(body.text).toContain("\\(100% off\\!\\)"); // ( ) ! are escaped
+    expect(body.text).toContain(escapedIso);
 
     fetchSpy.mockRestore();
   });

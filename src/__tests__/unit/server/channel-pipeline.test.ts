@@ -361,6 +361,60 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
     );
   });
 
+  it("uses provider chatId for supplier health notifications without explicit configs", async () => {
+    _channelConfig = { botToken: BOT_TOKEN, chatId: "-100333444555" };
+    mockFindByEvent.mockResolvedValue([]);
+
+    await emitNotification("supplier.disabled", {
+      title: "供应商已自动禁用: Proxy A",
+      body: `上游 "Proxy A" 连续 3 次连通性检查失败，已自动禁用。最后错误: HTTP 503: upstream-timeout
+
+详细信息:
+  类型: 上游
+  ID: 10
+  名称: Proxy A
+  Base URL: https://proxy-a.example.com/v1
+  所属供应商: OpenAI
+  Provider ID: 1
+  连续失败: 3
+  最后错误: HTTP 503: upstream-timeout`,
+      metadata: {
+        kind: "upstream",
+        id: 10,
+        name: "Proxy A",
+        baseUrl: "https://proxy-a.example.com/v1",
+        providerId: 1,
+        providerName: "OpenAI",
+        consecutiveFailures: 3,
+        error: "HTTP 503: upstream-timeout",
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.chat_id).toBe("-100333444555");
+    expect(body.text).toContain("supplier\\.disabled");
+    expect(body.text).toContain("详细信息");
+    expect(body.text).toContain("类型: 上游");
+    expect(body.text).toContain("ID: 10");
+    expect(body.text).toContain("名称: Proxy A");
+    expect(body.text).toContain("Base URL: https://proxy\\-a\\.example\\.com/v1");
+    expect(body.text).toContain("所属供应商: OpenAI");
+    expect(body.text).toContain("Provider ID: 1");
+    expect(body.text).toContain("连续失败: 3");
+    expect(body.text).toContain("最后错误: HTTP 503: upstream\\-timeout");
+
+    expect(mockInsertLog.mock.calls[0][0]).toMatchObject({
+      configId: null,
+      channel: "telegram",
+      event: "supplier.disabled",
+      target: "-100333444555",
+    });
+  });
+
   it("full pipeline: emit('system.announcement') → Telegram message", async () => {
     const bus = new RedisEventBus(mockRedis());
     registerNotificationConsumer(bus);
@@ -432,7 +486,7 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
       {
         id: 504,
         channel: "telegram",
-        target: "-100blocked",
+        target: "-100777888999",
         secret: null,
         events: '["system.announcement"]',
         enabled: true,
