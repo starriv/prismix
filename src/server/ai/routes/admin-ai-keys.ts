@@ -20,11 +20,85 @@ import {
 
 import { invalidateKeyPool } from "../lib/key-balancer";
 import { buildProviderAuth } from "../lib/provider-auth";
+import { pingEndpoint, type PingResult } from "../lib/supplier-health";
+import { anthropicAdapter } from "../providers/anthropic";
+import type { OpenAIChatBody } from "../providers/types";
 import { formatKeys } from "./admin-ai-helpers";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
+const ANTHROPIC_KEY_TEST_MODEL = "claude-haiku-4-5";
+const KEY_TEST_TIMEOUT_MS = 10_000;
 
 const router = new Hono();
+
+function redactKeyForResponse<T extends { encryptedKey?: unknown; keyHash?: unknown }>(key: T) {
+  const safe: Record<string, unknown> = { ...key };
+  delete safe.encryptedKey;
+  delete safe.keyHash;
+  return safe;
+}
+
+function shouldFallbackToAnthropicMessageProbe(result: PingResult): boolean {
+  return result.status === 400 || result.status === 404 || result.status === 405;
+}
+
+function isOfficialAnthropicEndpoint(provider: { apiFormat: string; baseUrl: string }): boolean {
+  if (provider.apiFormat !== "anthropic") return false;
+
+  try {
+    return new URL(provider.baseUrl).hostname.toLowerCase() === "api.anthropic.com";
+  } catch {
+    return false;
+  }
+}
+
+async function pingAnthropicMessagesEndpoint(opts: {
+  provider: Parameters<typeof buildProviderAuth>[0];
+  baseUrl: string;
+  plainKey: string;
+  timeoutMs?: number;
+}): Promise<PingResult> {
+  const { provider, baseUrl, plainKey, timeoutMs = KEY_TEST_TIMEOUT_MS } = opts;
+  const canonicalBody: OpenAIChatBody = {
+    model: ANTHROPIC_KEY_TEST_MODEL,
+    messages: [{ role: "user", content: "ping" }],
+    max_tokens: 1,
+  };
+  const body = JSON.stringify(anthropicAdapter.transformRequest(canonicalBody));
+  const url = anthropicAdapter.buildUrl(baseUrl, {
+    model: ANTHROPIC_KEY_TEST_MODEL,
+    stream: false,
+  });
+  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, url, body);
+
+  const start = Date.now();
+  try {
+    const res = await fetch(finalUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const latencyMs = Date.now() - start;
+
+    if (res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      return { ok: true, status: res.status, latencyMs };
+    }
+
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false,
+      status: res.status,
+      error: `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      latencyMs,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: 0, error: message, latencyMs };
+  }
+}
 
 // ── Keys CRUD ───────────────────────────────────────────────────────────
 
@@ -82,8 +156,7 @@ router.post("/keys", async (c) => {
   invalidateKeyPool(providerId, upstreamId ?? null);
   emit("ai.key-pool-invalidated", null, { providerId, upstreamId: upstreamId ?? null });
 
-  const { encryptedKey: _, keyHash: _h, ...safe } = created;
-  return ok(c, { ...safe, providerName: provider.name }, 201);
+  return ok(c, { ...redactKeyForResponse(created), providerName: provider.name }, 201);
 });
 
 router.put("/keys/:id", async (c) => {
@@ -131,8 +204,7 @@ router.put("/keys/:id", async (c) => {
     });
   }
 
-  const { encryptedKey: _, keyHash: _h, ...safe } = updated;
-  return ok(c, safe);
+  return ok(c, redactKeyForResponse(updated));
 });
 
 router.delete("/keys/:id", async (c) => {
@@ -187,19 +259,40 @@ router.post("/keys/:id/test", async (c) => {
         );
       }
     }
-    const baseUrl = (upstream?.baseUrl ?? provider.baseUrl).replace(/\/+$/, "");
-    const modelsUrl = baseUrl.endsWith("/v1") ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
-    const { headers, url } = buildProviderAuth(provider, plainKey, modelsUrl);
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+    const baseUrl = upstream?.baseUrl ?? provider.baseUrl;
+    const modelsEndpointOverride = upstream?.modelsEndpoint ?? null;
+    const result = await pingEndpoint({
+      provider,
+      baseUrl,
+      modelsEndpointOverride,
+      plainKey,
+      timeoutMs: KEY_TEST_TIMEOUT_MS,
+    });
+    const finalResult =
+      !result.ok &&
+      isOfficialAnthropicEndpoint({ apiFormat: provider.apiFormat, baseUrl }) &&
+      !modelsEndpointOverride &&
+      shouldFallbackToAnthropicMessageProbe(result)
+        ? await pingAnthropicMessagesEndpoint({
+            provider,
+            baseUrl,
+            plainKey,
+            timeoutMs: KEY_TEST_TIMEOUT_MS,
+          })
+        : result;
     const latencyMs = Date.now() - start;
 
-    if (res.ok) {
+    if (finalResult.ok) {
       await aiKeyRepo.updateLastUsed(id);
-      return ok(c, { success: true, latencyMs, status: res.status });
+      return ok(c, { success: true, latencyMs, status: finalResult.status });
     }
 
-    const body = await res.text().catch(() => "");
-    return ok(c, { success: false, latencyMs, status: res.status, error: body.slice(0, 500) });
+    return ok(c, {
+      success: false,
+      latencyMs,
+      status: finalResult.status,
+      error: finalResult.error?.slice(0, 500),
+    });
   } catch (err) {
     const latencyMs = Date.now() - start;
     const message = err instanceof Error ? err.message : String(err);

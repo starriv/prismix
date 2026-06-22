@@ -128,6 +128,7 @@ export const apiAiProviderUpstreamAssignment = (providerId: number, assignmentId
 export const API_AI_UPSTREAMS = "/api/admin/ai/upstreams";
 export const apiAiUpstreamDetail = (id: number) => `/api/admin/ai/upstreams/${id}`;
 export const API_AI_UPSTREAMS_OVERVIEW = "/api/admin/ai/upstreams/overview";
+export const API_AI_PROVIDERS_OVERVIEW = "/api/admin/ai/providers/overview";
 export const apiAiUpstreamHourly = (id: number) => `/api/admin/ai/upstreams/${id}/hourly`;
 export const apiAiUpstreamRecent = (id: number) => `/api/admin/ai/upstreams/${id}/recent`;
 export const apiAiUpstreamModelMappings = (id: number) =>

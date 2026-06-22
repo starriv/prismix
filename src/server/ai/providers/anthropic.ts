@@ -56,6 +56,149 @@ interface AnthropicStreamEvent {
   [key: string]: unknown;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (isRecord(value)) return value;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function textFromContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) => {
+      if (!isRecord(part)) return "";
+      if (part.type === "text" && typeof part.text === "string") return part.text;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mapOpenAiToolToAnthropic(tool: unknown): unknown {
+  if (!isRecord(tool)) return tool;
+  if (tool.type !== "function" || !isRecord(tool.function)) return tool;
+
+  const fn = tool.function;
+  const result: Record<string, unknown> = {
+    name: typeof fn.name === "string" ? fn.name : "",
+    input_schema: isRecord(fn.parameters) ? fn.parameters : { type: "object" },
+  };
+
+  if (typeof fn.description === "string") {
+    result.description = fn.description;
+  }
+
+  for (const key of [
+    "cache_control",
+    "strict",
+    "defer_loading",
+    "allowed_callers",
+    "input_examples",
+    "eager_input_streaming",
+  ]) {
+    if (key in tool) result[key] = tool[key];
+    if (key in fn) result[key] = fn[key];
+  }
+
+  return result;
+}
+
+function mapTools(tools: unknown): unknown {
+  if (!Array.isArray(tools)) return tools;
+  return tools.map(mapOpenAiToolToAnthropic);
+}
+
+function mapToolChoice(toolChoice: unknown): unknown {
+  if (toolChoice == null) return undefined;
+
+  if (typeof toolChoice === "string") {
+    if (toolChoice === "required" || toolChoice === "any") return { type: "any" };
+    if (toolChoice === "auto" || toolChoice === "none") return { type: toolChoice };
+    return toolChoice;
+  }
+
+  if (!isRecord(toolChoice)) return toolChoice;
+  if (toolChoice.type === "function" && isRecord(toolChoice.function)) {
+    const name = toolChoice.function.name;
+    if (typeof name === "string") return { type: "tool", name };
+  }
+
+  return toolChoice;
+}
+
+function mapStopSequences(stop: unknown, existing: unknown): unknown {
+  if (existing !== undefined) return existing;
+  if (typeof stop === "string" && stop.length > 0) return [stop];
+  if (Array.isArray(stop)) {
+    const values = stop.filter((item): item is string => typeof item === "string");
+    return values.length > 0 ? values : undefined;
+  }
+  return undefined;
+}
+
+function mapAssistantMessage(message: OpenAIChatBody["messages"][number]) {
+  const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  if (toolCalls.length === 0 && typeof message.content === "string") {
+    return { role: "assistant", content: message.content };
+  }
+
+  const content: Array<Record<string, unknown>> = [];
+  const text = textFromContent(message.content);
+  if (text) content.push({ type: "text", text });
+
+  for (const [index, toolCall] of toolCalls.entries()) {
+    if (!isRecord(toolCall)) continue;
+    const fn = isRecord(toolCall.function) ? toolCall.function : {};
+    if (typeof fn.name !== "string") continue;
+
+    content.push({
+      type: "tool_use",
+      id: typeof toolCall.id === "string" ? toolCall.id : `toolu_${index}`,
+      name: fn.name,
+      input: parseJsonObject(fn.arguments),
+    });
+  }
+
+  return {
+    role: "assistant",
+    content: content.length > 0 ? content : "",
+  };
+}
+
+function mapToolResultMessage(message: OpenAIChatBody["messages"][number]) {
+  const block: Record<string, unknown> = {
+    type: "tool_result",
+    tool_use_id: typeof message.tool_call_id === "string" ? message.tool_call_id : "",
+    content:
+      typeof message.content === "string" || Array.isArray(message.content) ? message.content : "",
+  };
+
+  if (typeof message.is_error === "boolean") {
+    block.is_error = message.is_error;
+  }
+
+  return { role: "user", content: [block] };
+}
+
+function mapMessages(messages: OpenAIChatBody["messages"]) {
+  return messages.map((message) => {
+    if (message.role === "assistant") return mapAssistantMessage(message);
+    if (message.role === "tool") return mapToolResultMessage(message);
+    return message;
+  });
+}
+
 // ── Adapter ──────────────────────────────────────────────────────────
 
 export const anthropicAdapter: ProviderAdapter = {
@@ -72,18 +215,34 @@ export const anthropicAdapter: ProviderAdapter = {
     const nonSystemMessages = body.messages.filter((m) => !INSTRUCTION_ROLES.has(m.role));
 
     const systemText = systemMessages
-      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .map((m) => textFromContent(m.content))
       .filter(Boolean)
       .join("\n\n");
 
-    // Build Anthropic request — spread to preserve extra fields (tools, etc.)
-    const { max_tokens, ...rest } = body;
+    const { max_tokens, stop, stop_sequences, tool_choice, tools, ...rest } = body;
+    const providerFields: Record<string, unknown> = { ...rest };
+    for (const key of [
+      "max_completion_tokens",
+      "messages",
+      "parallel_tool_calls",
+      "response_format",
+      "stream_options",
+    ]) {
+      delete providerFields[key];
+    }
+
+    const mappedTools = mapTools(tools);
+    const mappedToolChoice = mapToolChoice(tool_choice);
+    const mappedStopSequences = mapStopSequences(stop, stop_sequences);
 
     return {
-      ...rest,
-      messages: nonSystemMessages,
+      ...providerFields,
+      messages: mapMessages(nonSystemMessages),
       max_tokens: max_tokens ?? DEFAULT_MAX_TOKENS,
       ...(systemText ? { system: systemText } : {}),
+      ...(mappedTools ? { tools: mappedTools } : {}),
+      ...(mappedToolChoice ? { tool_choice: mappedToolChoice } : {}),
+      ...(mappedStopSequences ? { stop_sequences: mappedStopSequences } : {}),
     };
   },
 

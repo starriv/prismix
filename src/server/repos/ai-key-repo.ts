@@ -233,6 +233,39 @@ export const aiKeyRepo = {
       }));
   },
 
+  async countByProviderIds(
+    providerIds: number[],
+  ): Promise<Array<{ providerId: number; totalKeys: number; enabledKeys: number }>> {
+    if (providerIds.length === 0) return [];
+
+    const rows = await queryAll<{
+      providerId: number | null;
+      totalKeys: number;
+      enabledKeys: number;
+    }>(
+      db
+        .select({
+          providerId: aiKeys.providerId,
+          totalKeys: count(),
+          enabledKeys: sql<number>`SUM(CASE WHEN ${aiKeys.enabled} = true THEN 1 ELSE 0 END)`,
+        })
+        .from(aiKeys)
+        .where(inArray(aiKeys.providerId, providerIds))
+        .groupBy(aiKeys.providerId),
+    );
+
+    return rows
+      .filter(
+        (row): row is { providerId: number; totalKeys: number; enabledKeys: number } =>
+          row.providerId != null,
+      )
+      .map((row) => ({
+        providerId: row.providerId,
+        totalKeys: Number(row.totalKeys ?? 0),
+        enabledKeys: Number(row.enabledKeys ?? 0),
+      }));
+  },
+
   /** Bulk set enabled/disabled for all keys owned by a key provider. */
   async setEnabledByOwnerId(ownerId: number, enabled: boolean): Promise<AiKey[]> {
     return queryAll(

@@ -20,6 +20,7 @@ import {
   aiProviderRepo,
   aiUpstreamAssignmentRepo,
   aiUpstreamRepo,
+  aiUsageLogRepo,
 } from "@/server/repos";
 
 import { invalidateKeyPool } from "../lib/key-balancer";
@@ -29,17 +30,107 @@ import { formatKeys, formatProvider, formatUpstream } from "./admin-ai-helpers";
 
 const router = new Hono();
 
+async function findProvidersWithDefaults() {
+  let providers = await aiProviderRepo.findAll();
+
+  // Auto-seed default providers on first access (handles resetdb + re-login).
+  if (providers.length === 0) {
+    await seedDefaultProviders();
+    providers = await aiProviderRepo.findAll();
+  }
+
+  return providers;
+}
+
 // ── Providers CRUD ──────────────────────────────────────────────────────
+
+router.get("/providers/overview", async (c) => {
+  getAdminSession(c);
+  const hours = Math.min(Math.max(Number(c.req.query("hours")) || 24, 1), 24 * 30);
+
+  const providers = await findProvidersWithDefaults();
+  const providerIds = providers.map((p) => p.id);
+
+  const keyCounts = await aiKeyRepo.countByProviderIds(providerIds);
+  const keyCountMap = new Map(keyCounts.map((row) => [row.providerId, row]));
+
+  const usageRows = await aiUsageLogRepo.providerOverview(hours);
+  const usageMap = new Map(usageRows.map((row) => [row.providerId, row]));
+
+  const assignmentCounts = await aiUpstreamAssignmentRepo.countByProviderIds(providerIds);
+
+  const items = providers.map((provider) => {
+    const keyStat = keyCountMap.get(provider.id);
+    const usage = usageMap.get(provider.providerId);
+    const totalErrors = (usage?.clientErrors24h ?? 0) + (usage?.serverErrors24h ?? 0);
+    const errorRate24h = usage && usage.requests24h > 0 ? totalErrors / usage.requests24h : 0;
+
+    const recentRequests = usage?.recentRequests ?? 0;
+    const recentErrorRate =
+      recentRequests > 0 ? (usage?.recentTotalErrors ?? 0) / recentRequests : 0;
+
+    let healthStatus: "unknown" | "healthy" | "degraded" | "down" | "idle" | "no-key" | "disabled";
+    if (!provider.enabled) {
+      healthStatus = "disabled";
+    } else if (provider.autoDisabled || provider.healthStatus === "down") {
+      healthStatus = "down";
+    } else if ((keyStat?.enabledKeys ?? 0) === 0) {
+      healthStatus = "no-key";
+    } else if (provider.healthStatus === "healthy" || provider.healthStatus === "degraded") {
+      healthStatus = provider.healthStatus;
+    } else if (recentRequests === 0) {
+      healthStatus = "idle";
+    } else if ((usage?.recentServerErrors ?? 0) > 0 || recentErrorRate >= 0.2) {
+      healthStatus = "degraded";
+    } else {
+      healthStatus = "healthy";
+    }
+
+    return {
+      id: provider.id,
+      providerId: provider.providerId,
+      name: provider.name,
+      baseUrl: provider.baseUrl,
+      apiFormat: provider.apiFormat,
+      authType: provider.authType,
+      iconUrl: provider.iconUrl,
+      enabled: provider.enabled,
+      autoDisabled: provider.autoDisabled,
+      upstreamCount: assignmentCounts.get(provider.id) ?? 0,
+      totalKeys: keyStat?.totalKeys ?? 0,
+      enabledKeys: keyStat?.enabledKeys ?? 0,
+      requests24h: usage?.requests24h ?? 0,
+      clientErrors24h: usage?.clientErrors24h ?? 0,
+      serverErrors24h: usage?.serverErrors24h ?? 0,
+      totalTokens24h: usage?.totalTokens24h ?? 0,
+      avgLatencyMs24h: usage?.avgLatencyMs24h ?? 0,
+      errorRate24h,
+      lastSeenAt: usage?.lastSeenAt ?? null,
+      healthStatus,
+      lastCheckedAt: provider.lastCheckedAt,
+      lastError: provider.lastError,
+      consecutiveFailures: provider.consecutiveFailures,
+      updatedAt: provider.updatedAt,
+      createdAt: provider.createdAt,
+    };
+  });
+
+  return ok(c, {
+    totals: {
+      totalProviders: items.length,
+      enabledProviders: items.filter((i) => i.enabled && !i.autoDisabled).length,
+      activeProviders24h: items.filter((i) => i.requests24h > 0).length,
+      degradedProviders30m: items.filter(
+        (i) => i.healthStatus === "degraded" || i.healthStatus === "down",
+      ).length,
+    },
+    providers: items,
+  });
+});
 
 router.get("/providers", async (c) => {
   getAdminSession(c);
-  let all = await aiProviderRepo.findAll();
-
-  // Auto-seed default providers on first access (handles resetdb + re-login)
-  if (all.length === 0) {
-    await seedDefaultProviders();
-    all = await aiProviderRepo.findAll();
-  }
+  const all = await findProvidersWithDefaults();
 
   const counts = await aiUpstreamAssignmentRepo.countByProviderIds(
     all.map((provider) => provider.id),

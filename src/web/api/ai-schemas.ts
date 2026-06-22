@@ -105,6 +105,48 @@ export const aiUpstreamsOverviewSchema = z.object({
 });
 export type AiUpstreamsOverview = z.infer<typeof aiUpstreamsOverviewSchema>;
 
+// ── AI Providers Overview (health + usage aggregation) ────────
+
+export const aiProviderOverviewItemSchema = z.object({
+  id: z.number(),
+  providerId: z.string(),
+  name: z.string(),
+  baseUrl: z.string(),
+  apiFormat: z.string(),
+  authType: z.string(),
+  iconUrl: z.string().nullable().optional(),
+  enabled: z.coerce.boolean(),
+  autoDisabled: z.coerce.boolean().optional().default(false),
+  upstreamCount: z.number(),
+  totalKeys: z.number(),
+  enabledKeys: z.number(),
+  requests24h: z.number(),
+  clientErrors24h: z.number(),
+  serverErrors24h: z.number(),
+  totalTokens24h: z.number(),
+  avgLatencyMs24h: z.number(),
+  errorRate24h: z.number(),
+  lastSeenAt: z.string().nullable(),
+  healthStatus: z.enum(["unknown", "healthy", "degraded", "down", "idle", "no-key", "disabled"]),
+  lastCheckedAt: nullableDateSchema,
+  lastError: z.string().nullable().optional(),
+  consecutiveFailures: z.number().optional().default(0),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiProviderOverviewItem = z.infer<typeof aiProviderOverviewItemSchema>;
+
+export const aiProvidersOverviewSchema = z.object({
+  totals: z.object({
+    totalProviders: z.number(),
+    enabledProviders: z.number(),
+    activeProviders24h: z.number(),
+    degradedProviders30m: z.number(),
+  }),
+  providers: z.array(aiProviderOverviewItemSchema),
+});
+export type AiProvidersOverview = z.infer<typeof aiProvidersOverviewSchema>;
+
 // ── AI Upstream Hourly (time-series for chart) ─────────────────
 
 export const aiUpstreamHourlyRowSchema = z.object({

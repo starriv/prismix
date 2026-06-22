@@ -119,6 +119,24 @@ export interface UpstreamUsageOverviewRow {
   recentTotalErrors: number;
 }
 
+export interface ProviderUsageOverviewRow {
+  providerId: string;
+  providerName: string | null;
+  providerBaseUrl: string | null;
+  requests24h: number;
+  clientErrors24h: number;
+  serverErrors24h: number;
+  totalTokens24h: number;
+  avgLatencyMs24h: number;
+  lastSeenAt: string | null;
+  /** Requests in the last 30 minutes (health-check window). */
+  recentRequests: number;
+  /** 5xx errors in the last 30 minutes (health-check window). */
+  recentServerErrors: number;
+  /** Total errors (4xx+5xx) in the last 30 minutes (health-check window). */
+  recentTotalErrors: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function floorToUtcHour(value: Date): Date {
@@ -371,6 +389,63 @@ export const aiUsageLogRepo = {
         upstreamId: row.upstreamId,
         upstreamName: row.upstreamName ?? null,
         upstreamBaseUrl: row.upstreamBaseUrl ?? null,
+        requests24h: Number(row.requests24h ?? 0),
+        clientErrors24h: Number(row.clientErrors24h ?? 0),
+        serverErrors24h: Number(row.serverErrors24h ?? 0),
+        totalTokens24h: Number(row.totalTokens24h ?? 0),
+        avgLatencyMs24h: Math.round(Number(row.avgLatencyMs24h ?? 0)),
+        lastSeenAt: formatDbTimestamp(row.lastSeenAt),
+        recentRequests: Number(row.recentRequests ?? 0),
+        recentServerErrors: Number(row.recentServerErrors ?? 0),
+        recentTotalErrors: Number(row.recentTotalErrors ?? 0),
+      }));
+  },
+
+  async providerOverview(hours = 24): Promise<ProviderUsageOverviewRow[]> {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const recent30m = sql`NOW() - interval '30 minutes'`;
+    const rows = await queryAll<{
+      providerId: string | null;
+      providerName: string | null;
+      providerBaseUrl: string | null;
+      requests24h: number;
+      clientErrors24h: number;
+      serverErrors24h: number;
+      totalTokens24h: string | null;
+      avgLatencyMs24h: string | null;
+      lastSeenAt: Date | string | null;
+      recentRequests: number;
+      recentServerErrors: number;
+      recentTotalErrors: number;
+    }>(
+      db
+        .select({
+          providerId: aiUsageLogs.providerId,
+          // aiUsageLogs does not denormalize providerName / providerBaseUrl;
+          // surface null (route uses aiProviders row for name/baseUrl).
+          providerName: sql<string | null>`NULL`,
+          providerBaseUrl: sql<string | null>`NULL`,
+          requests24h: count(),
+          clientErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 THEN 1 ELSE 0 END)`,
+          serverErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 THEN 1 ELSE 0 END)`,
+          totalTokens24h: sum(aiUsageLogs.totalTokens),
+          avgLatencyMs24h: sql<string>`AVG(${aiUsageLogs.latencyMs})`,
+          lastSeenAt: sql<Date | string | null>`MAX(${aiUsageLogs.createdAt})`,
+          recentRequests: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.createdAt} >= ${recent30m})`,
+          recentServerErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${recent30m})`,
+          recentTotalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${recent30m})`,
+        })
+        .from(aiUsageLogs)
+        .where(and(isNotNull(aiUsageLogs.providerId), gte(aiUsageLogs.createdAt, since)))
+        .groupBy(aiUsageLogs.providerId),
+    );
+
+    return rows
+      .filter((row): row is typeof row & { providerId: string } => row.providerId != null)
+      .map((row) => ({
+        providerId: row.providerId,
+        providerName: row.providerName ?? null,
+        providerBaseUrl: row.providerBaseUrl ?? null,
         requests24h: Number(row.requests24h ?? 0),
         clientErrors24h: Number(row.clientErrors24h ?? 0),
         serverErrors24h: Number(row.serverErrors24h ?? 0),

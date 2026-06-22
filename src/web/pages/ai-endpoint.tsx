@@ -1,12 +1,14 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Check, Copy, Info, Key, Zap } from "lucide-react";
+import { Copy, Info, Key, Zap } from "lucide-react";
 import { toast } from "sonner";
 
-import { useAiKeys, useAiProviders } from "@/web/api/hooks";
+import type { HealthStatus } from "@/web/api/health-status";
+import { useAiProvidersOverview } from "@/web/api/hooks";
 import { EndpointUrlList } from "@/web/components/dashboard/endpoint-url-list";
 import { Header } from "@/web/components/dashboard/header";
+import { HealthBadge } from "@/web/components/health/health-badge";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -15,8 +17,7 @@ import { Skeleton } from "@/web/components/ui/skeleton";
 
 export default function AiRelayPage() {
   const { t } = useTranslation();
-  const { data: providers = [], isLoading } = useAiProviders();
-  const { data: keys = [] } = useAiKeys();
+  const { data: overview, isLoading } = useAiProvidersOverview(24, 30_000);
 
   const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
   const anthropicBaseUrl = useMemo(
@@ -30,16 +31,6 @@ export default function AiRelayPage() {
       toast.success(t("ai-relay.toast.copied"));
     },
     [t],
-  );
-
-  // Build provider status: has merchant key OR admin shared key
-  const providerStatus = useMemo(
-    () =>
-      providers.map((p) => ({
-        ...p,
-        hasKey: keys.some((k) => k.providerId === p.id && k.enabled),
-      })),
-    [providers, keys],
   );
 
   return (
@@ -121,35 +112,35 @@ export default function AiRelayPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
-            ) : providerStatus.length === 0 ? (
+            ) : (overview?.providers ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-3">
                 {t("ai-relay.providers.empty")}
               </p>
             ) : (
               <div className="grid gap-2">
-                {providerStatus.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2"
-                  >
-                    <span className="text-sm font-medium">{p.name}</span>
-                    <Badge
-                      variant={p.hasKey ? "outline" : "outline"}
-                      className={
-                        p.hasKey ? "border-green-500/50 bg-green-500/10 text-green-600" : ""
-                      }
+                {overview?.providers.map((p) => {
+                  const status: HealthStatus = p.healthStatus;
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2"
                     >
-                      {p.hasKey ? (
-                        <span className="flex items-center gap-1">
-                          <Check className="h-3 w-3" />
-                          {t("ai-relay.providers.ready")}
-                        </span>
-                      ) : (
-                        t("ai-relay.providers.no-key")
-                      )}
-                    </Badge>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2 min-w-0">
+                        {p.iconUrl ? (
+                          <img
+                            src={p.iconUrl}
+                            alt={p.name}
+                            className="h-5 w-5 rounded object-contain shrink-0"
+                            width={20}
+                            height={20}
+                          />
+                        ) : null}
+                        <span className="text-sm font-medium truncate">{p.name}</span>
+                      </div>
+                      <HealthBadge status={status} label={t(`ai-upstreams.health.${status}`)} />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

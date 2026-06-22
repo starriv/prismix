@@ -13,6 +13,7 @@ import {
   API_AI_MODELS,
   API_AI_MODELS_BATCH_DELETE,
   API_AI_PROVIDERS,
+  API_AI_PROVIDERS_OVERVIEW,
   API_AI_REQUEST_LOGGING,
   API_AI_UPSTREAMS,
   API_AI_UPSTREAMS_OVERVIEW,
@@ -56,6 +57,7 @@ import {
   aiModelRouteSchema,
   aiModelSchema,
   aiProviderSchema,
+  aiProvidersOverviewSchema,
   aiRequestLogSchema,
   aiUpstreamAssignmentSchema,
   aiUpstreamDetailSchema,
@@ -237,6 +239,14 @@ export function useAiUpstreamsOverview(hours = 24, refetchInterval?: number | fa
   return useQuery({
     queryKey: queryKeys.aiUpstreamsOverview(hours),
     queryFn: () => get(`${API_AI_UPSTREAMS_OVERVIEW}?hours=${hours}`, aiUpstreamsOverviewSchema),
+    refetchInterval,
+  });
+}
+
+export function useAiProvidersOverview(hours = 24, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiProvidersOverview(hours),
+    queryFn: () => get(`${API_AI_PROVIDERS_OVERVIEW}?hours=${hours}`, aiProvidersOverviewSchema),
     refetchInterval,
   });
 }

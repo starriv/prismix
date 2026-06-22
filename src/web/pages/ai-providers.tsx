@@ -21,10 +21,12 @@ import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import type { HealthStatus } from "@/web/api/health-status";
 import {
   useAiProviderAssignments,
   useAiProviderKeys,
   useAiProviders,
+  useAiProvidersOverview,
   useAiUpstreams,
   useCreateAiKey,
   useCreateAiProvider,
@@ -38,7 +40,12 @@ import {
   useUpdateAiProvider,
   useUpdateAiProviderAssignment,
 } from "@/web/api/hooks";
-import type { AiKey, AiProvider, AiUpstreamAssignment } from "@/web/api/schemas";
+import type {
+  AiKey,
+  AiProvider,
+  AiProviderOverviewItem,
+  AiUpstreamAssignment,
+} from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import {
   DataTable,
@@ -46,6 +53,7 @@ import {
   dataTableMeta,
   DataTableText,
 } from "@/web/components/data-table";
+import { HealthBadge, healthDotColor } from "@/web/components/health/health-badge";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -162,6 +170,11 @@ type EditAssignmentFormValues = z.output<typeof editAssignmentFormSchema>;
 export default function AiProvidersPage() {
   const { t } = useTranslation();
   const { data: providers = [], isLoading } = useAiProviders();
+  const { data: overview } = useAiProvidersOverview(24, 30_000);
+  const healthMap = useMemo(
+    () => new Map(overview?.providers.map((p) => [p.id, p]) ?? []),
+    [overview?.providers],
+  );
   const [selectedId, setSelectedId] = useQueryState("providerId", parseAsInteger);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -177,7 +190,11 @@ export default function AiProvidersPage() {
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         {selectedProvider ? (
-          <ProviderDetail provider={selectedProvider} onBack={handleBack} />
+          <ProviderDetail
+            provider={selectedProvider}
+            onBack={handleBack}
+            healthOverview={healthMap.get(selectedProvider.id)}
+          />
         ) : (
           <>
             <div className="flex items-center justify-end">
@@ -186,7 +203,12 @@ export default function AiProvidersPage() {
                 {t("ai-providers.btn.new")}
               </Button>
             </div>
-            <ProviderGrid providers={providers} loading={isLoading} onSelect={handleSelect} />
+            <ProviderGrid
+              providers={providers}
+              loading={isLoading}
+              onSelect={handleSelect}
+              healthMap={healthMap}
+            />
           </>
         )}
       </div>
@@ -202,10 +224,12 @@ function ProviderGrid({
   providers,
   loading,
   onSelect,
+  healthMap,
 }: {
   providers: AiProvider[];
   loading: boolean;
   onSelect: (p: AiProvider) => void;
+  healthMap: Map<number, AiProviderOverviewItem>;
 }) {
   const { t } = useTranslation();
 
@@ -242,6 +266,7 @@ function ProviderGrid({
           provider={provider}
           upstreamCount={provider.upstreamCount ?? 0}
           onClick={() => onSelect(provider)}
+          healthOverview={healthMap.get(provider.id)}
         />
       ))}
     </div>
@@ -252,13 +277,16 @@ function ProviderCard({
   provider,
   upstreamCount,
   onClick,
+  healthOverview,
 }: {
   provider: AiProvider;
   upstreamCount: number;
   onClick: () => void;
+  healthOverview?: AiProviderOverviewItem;
 }) {
   const { t } = useTranslation();
   const effectiveEnabled = isProviderEffectiveEnabled(provider);
+  const healthStatus: HealthStatus = healthOverview?.healthStatus ?? "unknown";
 
   const upstreamLabel =
     upstreamCount > 0
@@ -301,11 +329,8 @@ function ProviderCard({
               <h3 className="truncate text-sm font-semibold">{provider.name}</h3>
             </div>
             <div
-              className={cn(
-                "h-2.5 w-2.5 shrink-0 rounded-full",
-                effectiveEnabled ? "bg-green-500" : "bg-yellow-500",
-              )}
-              title={effectiveEnabled ? t("common.status.active") : t("common.status.disabled")}
+              className={cn("h-2.5 w-2.5 shrink-0 rounded-full", healthDotColor(healthStatus))}
+              title={t(`ai-upstreams.health.${healthStatus}`)}
             />
           </div>
         </CardHeader>
@@ -330,13 +355,23 @@ function ProviderCard({
 
 // ── Provider Detail ─────────────────────────────────────────────────
 
-function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: () => void }) {
+function ProviderDetail({
+  provider,
+  onBack,
+  healthOverview,
+}: {
+  provider: AiProvider;
+  onBack: () => void;
+  healthOverview?: AiProviderOverviewItem;
+}) {
   const { t } = useTranslation();
   const updateProvider = useUpdateAiProvider();
   const deleteProvider = useDeleteAiProvider();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const healthStatus: HealthStatus = healthOverview?.healthStatus ?? "unknown";
 
   const handleToggle = useCallback(async () => {
     try {
@@ -438,6 +473,49 @@ function ProviderDetail({ provider, onBack }: { provider: AiProvider; onBack: ()
                 {provider.upstreamRoutingStrategy === "weighted-random"
                   ? t("ai-providers.strategy.weighted-random")
                   : t("ai-providers.strategy.priority")}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4 border-t pt-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-upstreams.detail.health")}
+              </div>
+              <div className="mt-1">
+                <HealthBadge
+                  status={healthStatus}
+                  label={t(`ai-upstreams.health.${healthStatus}`)}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-upstreams.detail.last-checked")}
+              </div>
+              <div>
+                {healthOverview?.lastCheckedAt
+                  ? formatDistanceToNow(new Date(healthOverview.lastCheckedAt), {
+                      addSuffix: true,
+                    })
+                  : t("ai-upstreams.never")}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-upstreams.detail.consecutive-failures")}
+              </div>
+              <div>{healthOverview?.consecutiveFailures ?? 0}</div>
+            </div>
+            <div className="xl:col-span-1 md:col-span-2">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {t("ai-upstreams.detail.last-error")}
+              </div>
+              <div
+                className="text-destructive truncate text-xs"
+                title={healthOverview?.lastError ?? undefined}
+              >
+                {healthOverview?.lastError ?? "—"}
               </div>
             </div>
           </div>

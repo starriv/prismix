@@ -141,6 +141,7 @@ export const queryKeys = {
   aiProviderAssignments: (providerId: number) =>
     ["app", "ai-provider-assignments", providerId] as const,
   aiUpstreamsOverview: (hours: number) => ["app", "ai-upstreams-overview", hours] as const,
+  aiProvidersOverview: (hours: number) => ["app", "ai-providers-overview", hours] as const,
   aiUpstreamDetailPrefix: () => ["app", "ai-upstream-detail"] as const,
   aiUpstreamDetail: (id: number) => ["app", "ai-upstream-detail", id] as const,
   aiUpstreamModelMappings: (id: number) => ["app", "ai-upstream-model-mappings", id] as const,

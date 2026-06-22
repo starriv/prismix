@@ -9,13 +9,11 @@ import { enUS, zhCN } from "date-fns/locale";
 import { orderBy, sumBy } from "lodash-es";
 import {
   Activity,
-  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ExternalLink,
   Loader2,
   Network,
-  PauseCircle,
   Pencil,
   Plus,
   Server,
@@ -29,6 +27,7 @@ import { match } from "ts-pattern";
 import { z } from "zod";
 
 import { removeTailingZero, safeMultipliedBy } from "@/shared/number";
+import { HEALTH_SEVERITY_RANK } from "@/web/api/health-status";
 import {
   useAiUpstreamDetail,
   useAiUpstreamHourly,
@@ -52,11 +51,11 @@ import { Header } from "@/web/components/dashboard/header";
 import { StatCard } from "@/web/components/dashboard/stat-card";
 import {
   DataTable,
-  DataTableBadge,
   dataTableMeta,
   DataTableRelativeTime,
   DataTableText,
 } from "@/web/components/data-table";
+import { HealthBadge, healthDotColor } from "@/web/components/health/health-badge";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -96,66 +95,6 @@ import { Switch } from "@/web/components/ui/switch";
 import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
 import { cn } from "@/web/shared/utils";
 
-// ── Health helpers ──────────────────────────────────────────────────
-
-function HealthBadge({
-  status,
-  label,
-}: {
-  status: AiUpstreamOverviewItem["healthStatus"];
-  label: string;
-}) {
-  const config = match(status)
-    .with("healthy", () => ({
-      variant: "default" as const,
-      Icon: CheckCircle2,
-    }))
-    .with("degraded", () => ({
-      variant: "destructive" as const,
-      Icon: ShieldAlert,
-    }))
-    .with("down", () => ({
-      variant: "destructive" as const,
-      Icon: AlertTriangle,
-    }))
-    .with("unknown", () => ({
-      variant: "outline" as const,
-      Icon: PauseCircle,
-    }))
-    .with("idle", () => ({
-      variant: "secondary" as const,
-      Icon: PauseCircle,
-    }))
-    .with("no-key", () => ({
-      variant: "outline" as const,
-      Icon: AlertTriangle,
-    }))
-    .with("disabled", () => ({
-      variant: "outline" as const,
-      Icon: PauseCircle,
-    }))
-    .exhaustive();
-
-  return (
-    <DataTableBadge variant={config.variant} className="gap-1">
-      <config.Icon className="h-3 w-3" />
-      {label}
-    </DataTableBadge>
-  );
-}
-
-function healthDotColor(status: AiUpstreamOverviewItem["healthStatus"]) {
-  return match(status)
-    .with("healthy", () => "bg-green-500")
-    .with("degraded", () => "bg-red-500")
-    .with("down", () => "bg-red-600")
-    .with("unknown", () => "bg-muted-foreground/50")
-    .with("idle", () => "bg-yellow-500")
-    .with("no-key", () => "bg-orange-500")
-    .with("disabled", () => "bg-muted-foreground/40")
-    .exhaustive();
-}
-
 function formatRelativeTimeLabel(
   value: Date | number | string | null | undefined,
   language: string,
@@ -172,16 +111,6 @@ function formatRelativeTimeLabel(
   });
 }
 
-const SEVERITY_RANK: Record<AiUpstreamOverviewItem["healthStatus"], number> = {
-  down: 0,
-  degraded: 1,
-  "no-key": 2,
-  unknown: 3,
-  idle: 4,
-  healthy: 5,
-  disabled: 6,
-};
-
 // ── Page ────────────────────────────────────────────────────────────
 
 export default function AiUpstreamsPage() {
@@ -197,7 +126,7 @@ export default function AiUpstreamsPage() {
     () =>
       orderBy(
         data?.upstreams ?? [],
-        [(u) => SEVERITY_RANK[u.healthStatus], (u) => u.requests24h],
+        [(u) => HEALTH_SEVERITY_RANK[u.healthStatus], (u) => u.requests24h],
         ["asc", "desc"],
       ),
     [data?.upstreams],

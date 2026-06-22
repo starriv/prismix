@@ -110,18 +110,129 @@ describe("anthropic adapter", () => {
       expect(result.max_tokens).toBe(1000);
     });
 
-    it("passes through extra fields (temperature, tools, stream)", () => {
+    it("passes through compatible extra fields", () => {
       const result = anthropicAdapter.transformRequest({
         model: "claude-sonnet-4-20250514",
         messages: [{ role: "user", content: "Hello" }],
         temperature: 0.7,
         stream: true,
-        tools: [{ type: "function", function: { name: "test" } }],
       }) as Record<string, unknown>;
 
       expect(result.temperature).toBe(0.7);
       expect(result.stream).toBe(true);
-      expect(result.tools).toBeDefined();
+    });
+
+    it("maps OpenAI function tools to Anthropic tool schema", () => {
+      const result = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [{ role: "user", content: "Hello" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "lookup",
+              description: "Look up a value",
+              parameters: {
+                type: "object",
+                properties: { query: { type: "string" } },
+                required: ["query"],
+              },
+            },
+          },
+        ],
+      }) as Record<string, unknown>;
+
+      expect(result.tools).toEqual([
+        {
+          name: "lookup",
+          description: "Look up a value",
+          input_schema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+        },
+      ]);
+    });
+
+    it("preserves Anthropic native tool definitions", () => {
+      const webSearch = { type: "web_search_20260209", name: "web_search", max_uses: 2 };
+      const result = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [{ role: "user", content: "Hello" }],
+        tools: [webSearch],
+      }) as Record<string, unknown>;
+
+      expect(result.tools).toEqual([webSearch]);
+    });
+
+    it("maps OpenAI tool_choice to Anthropic tool_choice", () => {
+      const required = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [{ role: "user", content: "Hello" }],
+        tool_choice: "required",
+      }) as Record<string, unknown>;
+      const named = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [{ role: "user", content: "Hello" }],
+        tool_choice: { type: "function", function: { name: "lookup" } },
+      }) as Record<string, unknown>;
+
+      expect(required.tool_choice).toEqual({ type: "any" });
+      expect(named.tool_choice).toEqual({ type: "tool", name: "lookup" });
+    });
+
+    it("maps OpenAI stop to Anthropic stop_sequences and omits stream_options", () => {
+      const result = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [{ role: "user", content: "Hello" }],
+        stop: ["END"],
+        stream: true,
+        stream_options: { include_usage: true },
+      }) as Record<string, unknown>;
+
+      expect(result.stop).toBeUndefined();
+      expect(result.stop_sequences).toEqual(["END"]);
+      expect(result.stream_options).toBeUndefined();
+    });
+
+    it("maps assistant tool calls and tool results to Anthropic content blocks", () => {
+      const result = anthropicAdapter.transformRequest({
+        model: "claude-sonnet-4-20250514",
+        messages: [
+          {
+            role: "assistant",
+            content: "I'll check.",
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "lookup", arguments: '{"query":"abc"}' },
+              },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_1", content: "result" },
+        ],
+      }) as Record<string, unknown>;
+
+      expect(result.messages).toEqual([
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "I'll check." },
+            {
+              type: "tool_use",
+              id: "call_1",
+              name: "lookup",
+              input: { query: "abc" },
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "call_1", content: "result" }],
+        },
+      ]);
     });
 
     it("preserves model field", () => {
