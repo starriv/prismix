@@ -208,6 +208,23 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
     p.consumer.markupPercent,
   );
 
+  const isPaidModel = gt(p.inputPrice, "0") || gt(p.outputPrice, "0");
+  if (isPaidModel && !p.usage && p.statusCode === 200) {
+    log.gateway.warn(
+      {
+        agentId: p.consumer.agentId,
+        consumerKeyId: p.consumer.consumerId,
+        keyId: p.keyId,
+        providerId: p.providerId,
+        modelId: p.modelId,
+        upstreamId: p.upstreamId,
+        upstreamName: p.upstreamName,
+        requestId: p.requestId,
+      },
+      "Paid model returned no usage — billing skipped (upstream may be misconfigured)",
+    );
+  }
+
   const limitFailure = await checkCostLimits(p.consumer, costStr);
   if (limitFailure) {
     if (p.rejectOnLimit) {

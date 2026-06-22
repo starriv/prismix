@@ -41,6 +41,7 @@ vi.mock("@/server/lib/logger", () => ({
   },
 }));
 
+const { log } = await import("@/server/lib/logger");
 const { billConsumer, checkConsumerSpendingLimits } = await import("@/server/ai/lib/billing");
 
 const consumer = {
@@ -117,5 +118,38 @@ describe("consumer billing limits", () => {
       "ai-usage-log",
       expect.objectContaining({ consumerKeyId: 1, estimatedCost: "2" }),
     );
+  });
+
+  it("paid model with null usage on 200 logs warning (upstream misconfigured)", async () => {
+    const result = await billConsumer({ ...baseBill, usage: null });
+
+    expect(result).toMatchObject({ ok: true, costStr: "0" });
+    expect(mockDebitBalance).not.toHaveBeenCalled();
+    expect(log.gateway.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 100,
+        keyId: 7,
+        modelId: "gpt-4o",
+        requestId: "req-1",
+      }),
+      "Paid model returned no usage — billing skipped (upstream may be misconfigured)",
+    );
+  });
+
+  it("paid model with null usage on non-200 does not log warning", async () => {
+    await billConsumer({ ...baseBill, usage: null, statusCode: 500 });
+
+    expect(log.gateway.warn).not.toHaveBeenCalled();
+  });
+
+  it("free model with null usage does not log warning", async () => {
+    await billConsumer({
+      ...baseBill,
+      usage: null,
+      inputPrice: "0",
+      outputPrice: "0",
+    });
+
+    expect(log.gateway.warn).not.toHaveBeenCalled();
   });
 });
