@@ -497,6 +497,7 @@ interface CreateAiModelBody {
   inputPrice: string;
   outputPrice: string;
   capabilities: string[];
+  limitedFreeUntil?: string | null;
   enabled?: boolean;
 }
 
@@ -527,6 +528,7 @@ export function useBatchCreateAiModels() {
         inputPrice?: string;
         outputPrice?: string;
         capabilities?: string[];
+        limitedFreeUntil?: string | null;
         enabled?: boolean;
       }>;
     }) =>

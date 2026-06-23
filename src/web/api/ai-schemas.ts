@@ -212,6 +212,8 @@ export const aiModelSchema = z.object({
   inputPrice: z.string(),
   outputPrice: z.string(),
   capabilities: z.array(z.string()),
+  limitedFreeUntil: z.string().nullable().optional(),
+  isLimitedFree: z.coerce.boolean().optional(),
   enabled: z.coerce.boolean(),
   routes: z.array(aiModelRouteSchema).optional(),
   createdAt: z.string().or(z.number()),

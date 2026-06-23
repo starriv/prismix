@@ -72,6 +72,8 @@ const userModelSchema = z.object({
   consumerOutputPrice: z.string(),
   capabilities: z.array(z.string()),
   contextWindow: z.number().nullable(),
+  limitedFreeUntil: z.string().nullable().optional(),
+  isLimitedFree: z.coerce.boolean().optional(),
 });
 
 const userModelProviderSchema = z.object({
