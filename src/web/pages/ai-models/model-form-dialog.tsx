@@ -56,6 +56,7 @@ const modelFormSchema = z.object({
   inputPrice: z.string().min(1, "common.valid.required"),
   outputPrice: z.string().min(1, "common.valid.required"),
   capabilities: z.string(),
+  limitedFreeUntil: z.string(),
   enabled: z.boolean(),
 });
 type ModelFormValues = z.infer<typeof modelFormSchema>;
@@ -63,6 +64,27 @@ type ClientFormat = ModelFormValues["clientFormat"];
 
 function defaultClientFormatForProvider(apiFormat?: string): ClientFormat {
   return apiFormat === "anthropic" ? "anthropic" : "openai";
+}
+
+function toDatetimeLocalValue(value: string | number | Date | null | undefined): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function toLimitedFreeIso(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function isZeroPriceValue(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed === 0;
 }
 
 // ── Dialog ───────────────────────────────────────────────────────────
@@ -114,10 +136,14 @@ export function ModelFormDialog({
       inputPrice: "0",
       outputPrice: "0",
       capabilities: "",
+      limitedFreeUntil: "",
       enabled: true,
     },
   });
   const clientFormat = useWatch({ control: form.control, name: "clientFormat" });
+  const inputPrice = useWatch({ control: form.control, name: "inputPrice" });
+  const outputPrice = useWatch({ control: form.control, name: "outputPrice" });
+  const limitedFreeEnabled = isZeroPriceValue(inputPrice) && isZeroPriceValue(outputPrice);
 
   // Discovery
   const [discoverEnabled, setDiscoverEnabled] = useState(true);
@@ -168,6 +194,7 @@ export function ModelFormDialog({
         inputPrice: model.inputPrice,
         outputPrice: model.outputPrice,
         capabilities: model.capabilities.join(", "),
+        limitedFreeUntil: toDatetimeLocalValue(model.limitedFreeUntil),
         enabled: model.enabled,
       });
     } else if (open) {
@@ -179,6 +206,7 @@ export function ModelFormDialog({
         inputPrice: "0",
         outputPrice: "0",
         capabilities: "",
+        limitedFreeUntil: "",
         enabled: true,
       });
       setSelectedModels(new Set());
@@ -193,6 +221,12 @@ export function ModelFormDialog({
       form.setValue("clientFormat", defaultClientFormatForProvider(selectedProvider.apiFormat));
     }
   }, [open, isEdit, selectedProvider, form]);
+
+  useEffect(() => {
+    if (!limitedFreeEnabled && form.getValues("limitedFreeUntil")) {
+      form.setValue("limitedFreeUntil", "");
+    }
+  }, [limitedFreeEnabled, form]);
 
   // Trigger discover when provider or source changes (and discover is enabled)
   useEffect(() => {
@@ -264,6 +298,7 @@ export function ModelFormDialog({
       .filter(Boolean);
     const fallbackInput = form.getValues("inputPrice");
     const fallbackOutput = form.getValues("outputPrice");
+    const limitedFreeUntil = toLimitedFreeIso(form.getValues("limitedFreeUntil"));
 
     const models = [...selectedModels]
       .map((modelId) => availableModels.find((m) => m.modelId === modelId))
@@ -275,6 +310,7 @@ export function ModelFormDialog({
         inputPrice: m!.inputPrice ?? fallbackInput,
         outputPrice: m!.outputPrice ?? fallbackOutput,
         capabilities: m!.capabilities ?? fallbackCaps,
+        limitedFreeUntil,
         enabled: true,
       }));
 
@@ -294,22 +330,24 @@ export function ModelFormDialog({
 
   // Single create/edit
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { capabilities: capsRaw, ...rest } = data;
+    const { capabilities: capsRaw, limitedFreeUntil: limitedFreeRaw, ...rest } = data;
     const capabilities = capsRaw
       .split(",")
       .map((s: string) => s.trim())
       .filter(Boolean);
+    const limitedFreeUntil = toLimitedFreeIso(limitedFreeRaw);
     try {
       if (isEdit) {
         await updateModel.mutateAsync({
           id: model.id,
           ...rest,
           capabilities,
+          limitedFreeUntil,
         });
         toast.success(t("ai-models.toast.updated"));
       } else {
         if (!providerId) return;
-        await createModel.mutateAsync({ providerId, ...rest, capabilities });
+        await createModel.mutateAsync({ providerId, ...rest, capabilities, limitedFreeUntil });
         toast.success(t("ai-models.toast.created"));
       }
       onOpenChange(false);
@@ -535,6 +573,30 @@ export function ModelFormDialog({
                       )}
                     />
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="limitedFreeUntil"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("ai-models.form.limited-free-until")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="datetime-local"
+                            disabled={!limitedFreeEnabled}
+                            min={toDatetimeLocalValue(new Date())}
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          {limitedFreeEnabled
+                            ? t("ai-models.form.limited-free-hint")
+                            : t("ai-models.form.limited-free-disabled-hint")}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}

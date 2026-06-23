@@ -22,6 +22,12 @@ import { Input } from "@/web/components/ui/input";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { cn } from "@/web/shared/utils";
 
+function formatDateTime(value: string | null | undefined, locale: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString(locale) : "";
+}
+
 export default function UserModelsPage() {
   const { t } = useTranslation();
   const { data, isLoading } = useUserModels();
@@ -108,6 +114,9 @@ function ProviderGrid({
 }
 
 function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onClick: () => void }) {
+  const { t } = useTranslation();
+  const limitedFreeCount = provider.models.filter((model) => model.isLimitedFree).length;
+
   return (
     <Card
       className={cn(
@@ -125,7 +134,7 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
         </div>
       </CardHeader>
       <CardContent className="pt-0 pb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {provider.iconUrl ? (
             <img
               src={provider.iconUrl}
@@ -142,6 +151,14 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
           <Badge variant="outline" className="text-xs">
             {provider.apiFormat}
           </Badge>
+          {limitedFreeCount > 0 && (
+            <Badge
+              variant="outline"
+              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+            >
+              {t("user-models.tag.limited-free")}
+            </Badge>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -151,7 +168,7 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
 // ── Model List ──────────────────────────────────────────────────
 
 function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filteredModels = useMemo(() => {
@@ -167,9 +184,22 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
       {
         accessorKey: "modelId",
         cell: ({ row }) => (
-          <DataTableBadge variant="secondary" className="font-mono">
-            {row.original.modelId}
-          </DataTableBadge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DataTableBadge variant="secondary" className="font-mono">
+              {row.original.modelId}
+            </DataTableBadge>
+            {row.original.isLimitedFree && (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                title={t("user-models.tag.limited-free-until", {
+                  time: formatDateTime(row.original.limitedFreeUntil, i18n.language),
+                })}
+              >
+                {t("user-models.tag.limited-free")}
+              </Badge>
+            )}
+          </div>
         ),
         header: t("user-models.th.model-id"),
       },
@@ -215,7 +245,7 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
         meta: dataTableMeta.wrap,
       },
     ],
-    [t],
+    [i18n.language, t],
   );
 
   return (

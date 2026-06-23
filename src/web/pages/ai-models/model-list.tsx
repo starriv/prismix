@@ -55,6 +55,27 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/too
 import { ModelFormDialog } from "./model-form-dialog";
 import { SyncPricesDialog } from "./sync-prices-dialog";
 
+function isZeroPriceValue(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed === 0;
+}
+
+function isZeroPriceModel(model: AiModel): boolean {
+  return isZeroPriceValue(model.inputPrice) && isZeroPriceValue(model.outputPrice);
+}
+
+function isSuspiciousZeroPriceModel(model: AiModel): boolean {
+  return isZeroPriceModel(model) && !model.isLimitedFree;
+}
+
+function formatDateTime(value: string | null | undefined, locale: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString(locale) : "";
+}
+
 export function ModelList({
   models,
   providers,
@@ -66,7 +87,7 @@ export function ModelList({
   loading: boolean;
   onManageRoutes: (model: AiModel) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const updateModel = useUpdateAiModel();
   const deleteModel = useDeleteAiModel();
   const batchDelete = useBatchDeleteAiModels();
@@ -119,10 +140,7 @@ export function ModelList({
     setSearch("");
   }, []);
 
-  const zeroPriceModels = useMemo(
-    () => models.filter((m) => m.inputPrice === "0" && m.outputPrice === "0"),
-    [models],
-  );
+  const zeroPriceModels = useMemo(() => models.filter(isSuspiciousZeroPriceModel), [models]);
 
   const allSelected = filteredModels.length > 0 && filteredModels.every((m) => selected.has(m.id));
 
@@ -218,9 +236,22 @@ export function ModelList({
       {
         accessorKey: "modelId",
         cell: ({ row }) => (
-          <DataTableBadge variant="secondary" className="font-mono">
-            {row.original.modelId}
-          </DataTableBadge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DataTableBadge variant="secondary" className="font-mono">
+              {row.original.modelId}
+            </DataTableBadge>
+            {row.original.isLimitedFree && (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                title={t("ai-models.tag.limited-free-until", {
+                  time: formatDateTime(row.original.limitedFreeUntil, i18n.language),
+                })}
+              >
+                {t("ai-models.tag.limited-free")}
+              </Badge>
+            )}
+          </div>
         ),
         header: t("ai-models.th.model-id"),
         meta: { headerClassName: "w-[18%]" },
@@ -256,9 +287,11 @@ export function ModelList({
             mono
             numeric
             className={
-              row.original.inputPrice === "0" && row.original.outputPrice === "0"
-                ? "text-yellow-600"
-                : undefined
+              row.original.isLimitedFree
+                ? "text-emerald-700 dark:text-emerald-300"
+                : isSuspiciousZeroPriceModel(row.original)
+                  ? "text-yellow-600"
+                  : undefined
             }
           >
             ${row.original.inputPrice}
@@ -274,9 +307,11 @@ export function ModelList({
             mono
             numeric
             className={
-              row.original.inputPrice === "0" && row.original.outputPrice === "0"
-                ? "text-yellow-600"
-                : undefined
+              row.original.isLimitedFree
+                ? "text-emerald-700 dark:text-emerald-300"
+                : isSuspiciousZeroPriceModel(row.original)
+                  ? "text-yellow-600"
+                  : undefined
             }
           >
             ${row.original.outputPrice}
@@ -345,6 +380,7 @@ export function ModelList({
       handleToggle,
       handleToggleAll,
       handleToggleSelect,
+      i18n.language,
       onManageRoutes,
       selected,
       t,
@@ -497,9 +533,11 @@ export function ModelList({
             getRowId={(row) => String(row.id)}
             loading={loading}
             rowClassName={(row) =>
-              row.inputPrice === "0" && row.outputPrice === "0"
-                ? "bg-yellow-50/50 dark:bg-yellow-950/10"
-                : undefined
+              row.isLimitedFree
+                ? "bg-emerald-50/40 dark:bg-emerald-950/10"
+                : isSuspiciousZeroPriceModel(row)
+                  ? "bg-yellow-50/50 dark:bg-yellow-950/10"
+                  : undefined
             }
             showPagination
             tableClassName="min-w-[1080px]"
