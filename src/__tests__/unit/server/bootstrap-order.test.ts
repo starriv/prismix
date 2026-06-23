@@ -36,6 +36,10 @@ vi.mock("@/server/jobs/expire-topup-orders", () => ({
   initTopupExpiryJob: vi.fn(() => track("initTopupExpiryJob")),
 }));
 
+vi.mock("@/server/jobs/expire-limited-free-models", () => ({
+  initLimitedFreeModelExpiryJob: vi.fn(async () => track("initLimitedFreeModelExpiryJob")),
+}));
+
 vi.mock("@/server/messaging/notifications/dispatcher", () => ({
   initNotificationQueue: vi.fn(() => track("initNotificationQueue")),
 }));
@@ -70,6 +74,7 @@ vi.mock("@/server/messaging/jobs/retry-webhook-deliveries", () => ({
 vi.mock("@/server/lib/logger", () => ({
   log: {
     bootstrap: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    gateway: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     webhook: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   },
 }));
@@ -158,5 +163,13 @@ describe("bootstrap initialization order", () => {
 
     const supplierHealthIdx = callOrder.indexOf("initSupplierHealthCheckJob");
     expect(supplierHealthIdx).toBeGreaterThanOrEqual(0);
+  });
+
+  it("initLimitedFreeModelExpiryJob runs during bootstrap", async () => {
+    const { bootstrap } = await import("@/server/lib/bootstrap");
+    await bootstrap();
+
+    const limitedFreeIdx = callOrder.indexOf("initLimitedFreeModelExpiryJob");
+    expect(limitedFreeIdx).toBeGreaterThanOrEqual(0);
   });
 });
