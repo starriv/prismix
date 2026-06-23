@@ -1,8 +1,16 @@
 "use client";
 
-import { Fragment, type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import type {
+  Column,
   ColumnDef,
   OnChangeFn,
   PaginationState,
@@ -37,6 +45,99 @@ import { DataTablePagination } from "./data-table-pagination";
 interface DataTableLoadingState {
   fetching: boolean;
   initial: boolean;
+}
+
+type CssSize = number | string;
+
+interface StickyOffsets {
+  left: Map<string, number>;
+  right: Map<string, number>;
+}
+
+function toCssSize(value: CssSize | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === "number" ? `${value}px` : value;
+}
+
+function toPixelSize(value: CssSize | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return value;
+
+  const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function getStickySide(columnId: string, sticky?: "left" | "right"): "left" | "right" | undefined {
+  return sticky ?? (columnId === "actions" ? "right" : undefined);
+}
+
+function getColumnOffsetWidth<TData, TValue>(column: Column<TData, TValue>): number {
+  const meta = column.columnDef.meta;
+  return (
+    toPixelSize(meta?.width) ??
+    toPixelSize(column.columnDef.size) ??
+    toPixelSize(meta?.minWidth) ??
+    toPixelSize(column.columnDef.minSize) ??
+    column.getSize()
+  );
+}
+
+function getStickyOffsets<TData>(columns: Column<TData, unknown>[]): StickyOffsets {
+  const left = new Map<string, number>();
+  const right = new Map<string, number>();
+  let leftOffset = 0;
+  let rightOffset = 0;
+
+  for (const column of columns) {
+    if (getStickySide(column.id, column.columnDef.meta?.sticky) !== "left") continue;
+    left.set(column.id, leftOffset);
+    leftOffset += getColumnOffsetWidth(column);
+  }
+
+  for (let i = columns.length - 1; i >= 0; i -= 1) {
+    const column = columns[i];
+    if (!column || getStickySide(column.id, column.columnDef.meta?.sticky) !== "right") continue;
+    right.set(column.id, rightOffset);
+    rightOffset += getColumnOffsetWidth(column);
+  }
+
+  return { left, right };
+}
+
+function getColumnStyle<TData, TValue>(
+  column: Column<TData, TValue>,
+  stickyOffsets: StickyOffsets,
+): CSSProperties | undefined {
+  const meta = column.columnDef.meta;
+  const stickySide = getStickySide(column.id, meta?.sticky);
+  const style: CSSProperties = {};
+
+  const width = toCssSize(meta?.width ?? column.columnDef.size);
+  const minWidth = toCssSize(meta?.minWidth ?? column.columnDef.minSize);
+  const maxWidth = toCssSize(meta?.maxWidth ?? column.columnDef.maxSize);
+
+  if (width) style.width = width;
+  if (minWidth) style.minWidth = minWidth;
+  if (maxWidth) style.maxWidth = maxWidth;
+
+  if (stickySide === "left") {
+    style.left = stickyOffsets.left.get(column.id) ?? 0;
+  } else if (stickySide === "right") {
+    style.right = stickyOffsets.right.get(column.id) ?? 0;
+  }
+
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
+function getStickyClasses(stickySide: "left" | "right" | undefined, header = false) {
+  return cn(
+    header && "sticky top-0 z-20 bg-background",
+    stickySide && "sticky bg-background",
+    stickySide && !header && "z-10 group-hover:bg-muted/50",
+    stickySide === "left" && "border-r",
+    stickySide === "right" && "border-l",
+    stickySide && header && "z-30",
+  );
 }
 
 interface DataTableProps<TData, TValue> {
@@ -153,7 +254,9 @@ export function DataTable<TData, TValue>({
   const showOverlay = isFetching && !showSkeleton && data.length > 0;
   const skeletonRows = Math.min(Math.max(pagination.pageSize, 1), 6);
   const renderedRows = table.getRowModel().rows;
-  const visibleColumnCount = table.getVisibleLeafColumns().length || columns.length;
+  const visibleLeafColumns = table.getVisibleLeafColumns();
+  const visibleColumnCount = visibleLeafColumns.length || columns.length;
+  const stickyOffsets = getStickyOffsets(visibleLeafColumns);
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -169,17 +272,20 @@ export function DataTable<TData, TValue>({
         )}
 
         <div className="overflow-hidden rounded-md border">
-          <Table className={cn("md:table-fixed", tableClassName)}>
+          <Table className={cn("table-auto", tableClassName)}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const meta = header.column.columnDef.meta;
+                    const stickySide = getStickySide(header.column.id, meta?.sticky);
 
                     return (
                       <TableHead
                         key={header.id}
+                        style={getColumnStyle(header.column, stickyOffsets)}
                         className={cn(
+                          getStickyClasses(stickySide, true),
                           meta?.align === "center" && "text-center",
                           meta?.align === "right" && "text-right",
                           meta?.hiddenOnMobile && "hidden md:table-cell",
@@ -198,14 +304,20 @@ export function DataTable<TData, TValue>({
             <TableBody>
               {showSkeleton
                 ? Array.from({ length: skeletonRows }).map((_, rowIndex) => (
-                    <TableRow key={rowIndex} className="pointer-events-none hover:bg-transparent">
-                      {table.getVisibleLeafColumns().map((column) => {
+                    <TableRow
+                      key={rowIndex}
+                      className="group pointer-events-none hover:bg-transparent"
+                    >
+                      {visibleLeafColumns.map((column) => {
                         const meta = column.columnDef.meta;
+                        const stickySide = getStickySide(column.id, meta?.sticky);
 
                         return (
                           <TableCell
                             key={column.id}
+                            style={getColumnStyle(column, stickyOffsets)}
                             className={cn(
+                              getStickyClasses(stickySide),
                               meta?.align === "center" && "text-center",
                               meta?.align === "right" && "text-right",
                               meta?.hiddenOnMobile && "hidden md:table-cell",
@@ -236,6 +348,7 @@ export function DataTable<TData, TValue>({
                       <Fragment key={row.id}>
                         <TableRow
                           className={cn(
+                            "group",
                             clickable && "cursor-pointer",
                             rowClassName?.(row.original),
                           )}
@@ -255,11 +368,14 @@ export function DataTable<TData, TValue>({
                         >
                           {row.getVisibleCells().map((cell) => {
                             const meta = cell.column.columnDef.meta;
+                            const stickySide = getStickySide(cell.column.id, meta?.sticky);
 
                             return (
                               <TableCell
                                 key={cell.id}
+                                style={getColumnStyle(cell.column, stickyOffsets)}
                                 className={cn(
+                                  getStickyClasses(stickySide),
                                   meta?.align === "center" && "text-center",
                                   meta?.align === "right" && "text-right",
                                   meta?.hiddenOnMobile && "hidden md:table-cell",

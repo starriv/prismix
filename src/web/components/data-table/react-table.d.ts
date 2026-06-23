@@ -7,6 +7,10 @@ declare module "@tanstack/react-table" {
     cellClassName?: string;
     headerClassName?: string;
     hiddenOnMobile?: boolean;
+    maxWidth?: number | string;
+    minWidth?: number | string;
+    sticky?: "left" | "right";
     visibilityLabel?: string;
+    width?: number | string;
   }
 }

@@ -143,39 +143,51 @@ export default function AdminDashboardPage() {
         accessorKey: "id",
         cell: ({ row }) => <DataTableText muted>{row.original.id}</DataTableText>,
         header: t("admin.users.th.id"),
-        meta: { headerClassName: "w-[8%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 72, width: 72 },
       },
       {
         accessorKey: "uuid",
-        cell: ({ row }) => <DataTableText mono>{row.original.uuid ?? "---"}</DataTableText>,
+        cell: ({ row }) => {
+          const uuid = row.original.uuid ?? "---";
+          return (
+            <DataTableText mono title={uuid}>
+              {uuid}
+            </DataTableText>
+          );
+        },
         header: t("admin.users.th.uuid"),
-        meta: { headerClassName: "w-[22%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 340, width: 340 },
       },
       {
         accessorKey: "name",
         cell: ({ row }) => (
-          <DataTableText className="font-medium">{row.original.name}</DataTableText>
+          <DataTableText className="font-medium" title={row.original.name}>
+            {row.original.name}
+          </DataTableText>
         ),
         header: t("admin.users.th.name"),
-        meta: { headerClassName: "w-[16%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 180, width: 220 },
       },
       {
         accessorKey: "email",
-        cell: ({ row }) => <DataTableText>{row.original.email ?? "---"}</DataTableText>,
+        cell: ({ row }) => {
+          const email = row.original.email ?? "---";
+          return <DataTableText title={email}>{email}</DataTableText>;
+        },
         header: t("admin.users.th.email"),
-        meta: { headerClassName: "w-[20%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 240, width: 280 },
       },
       {
         accessorKey: "address",
         cell: ({ row }) => (
-          <DataTableText mono muted>
+          <DataTableText mono muted title={row.original.address ?? undefined}>
             {row.original.address
               ? `${row.original.address.slice(0, 6)}...${row.original.address.slice(-4)}`
               : "---"}
           </DataTableText>
         ),
         header: t("admin.users.th.address"),
-        meta: { headerClassName: "w-[14%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 150, width: 160 },
       },
       {
         accessorKey: "status",
@@ -183,7 +195,7 @@ export default function AdminDashboardPage() {
           <StatusBadge status={String(row.original.status)} colorMap={userStatusColorMap} />
         ),
         header: t("admin.users.th.status"),
-        meta: { headerClassName: "w-[10%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 110, width: 120 },
       },
       {
         accessorKey: "createdAt",
@@ -194,7 +206,7 @@ export default function AdminDashboardPage() {
             <DataTableText muted>---</DataTableText>
           ),
         header: t("common.th.time"),
-        meta: { headerClassName: "w-[10%] text-xs" },
+        meta: { headerClassName: "text-xs", minWidth: 150, width: 160 },
       },
     ],
     [i18n.language, t, userStatusColorMap],
@@ -269,7 +281,7 @@ export default function AdminDashboardPage() {
                 DEFAULT_PAGE_SIZE,
               )}
               pagination={pagination}
-              tableClassName="min-w-[980px]"
+              tableClassName="min-w-[1320px]"
             />
           </CardContent>
         </Card>

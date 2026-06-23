@@ -12,6 +12,7 @@ export const dataTableMeta = {
   right: { align: "right" as const },
   rightHiddenOnMobile: { align: "right" as const, hiddenOnMobile: true as const },
   hiddenOnMobile: { hiddenOnMobile: true as const },
+  stickyRight: { align: "right" as const, sticky: "right" as const },
   wrap: { cellClassName: "whitespace-normal" as const },
 };
 
