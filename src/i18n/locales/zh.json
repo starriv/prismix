@@ -2452,6 +2452,7 @@
       "capabilities": "能力",
       "capabilities-ph": "chat, vision, tools, streaming",
       "limited-free-until": "限时免费到期时间",
+      "limited-free-ph": "选择日期和时间",
       "limited-free-hint": "到期后模型将被自动禁用，需重新定价后手动启用。",
       "limited-free-disabled-hint": "限时免费仅适用于输入和输出价格均为 0 的模型。",
       "enabled": "启用"

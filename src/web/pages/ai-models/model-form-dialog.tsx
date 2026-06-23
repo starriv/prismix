@@ -19,6 +19,7 @@ import type { AiModel } from "@/web/api/schemas";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Checkbox } from "@/web/components/ui/checkbox";
+import { DateTimePicker } from "@/web/components/ui/date-picker";
 import {
   Dialog,
   DialogBody,
@@ -581,11 +582,12 @@ export function ModelFormDialog({
                       <FormItem>
                         <FormLabel>{t("ai-models.form.limited-free-until")}</FormLabel>
                         <FormControl>
-                          <Input
-                            type="datetime-local"
+                          <DateTimePicker
                             disabled={!limitedFreeEnabled}
-                            min={toDatetimeLocalValue(new Date())}
-                            {...field}
+                            placeholder={t("ai-models.form.limited-free-ph")}
+                            min={new Date()}
+                            value={field.value}
+                            onChange={field.onChange}
                           />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
