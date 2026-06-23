@@ -14,6 +14,26 @@ import {
   users,
 } from "@/server/db";
 
+interface UserFilters {
+  address?: string;
+  email?: string;
+  id?: number;
+  name?: string;
+  uuid?: string;
+}
+
+const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
+
+function buildUserFilterConditions(filters?: UserFilters) {
+  const conditions = [];
+  if (filters?.id) conditions.push(eq(users.id, filters.id));
+  if (filters?.uuid) conditions.push(ilike(users.uuid, `%${esc(filters.uuid)}%`));
+  if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
+  if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
+  if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));
+  return conditions;
+}
+
 export const userRepo = {
   async findById(id: number): Promise<User | undefined> {
     return queryOne(db.select().from(users).where(eq(users.id, id)));
@@ -35,18 +55,8 @@ export const userRepo = {
     return queryOne(db.select().from(users).where(eq(users.agentId, agentId)));
   },
 
-  async findAll(
-    limit = 50,
-    offset = 0,
-    filters?: { id?: number; uuid?: string; name?: string; email?: string; address?: string },
-  ): Promise<User[]> {
-    const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
-    const conditions = [];
-    if (filters?.id) conditions.push(eq(users.id, filters.id));
-    if (filters?.uuid) conditions.push(ilike(users.uuid, `%${esc(filters.uuid)}%`));
-    if (filters?.name) conditions.push(ilike(users.name, `%${esc(filters.name)}%`));
-    if (filters?.email) conditions.push(ilike(users.email, `%${esc(filters.email)}%`));
-    if (filters?.address) conditions.push(ilike(users.address, `%${esc(filters.address)}%`));
+  async findAll(limit = 50, offset = 0, filters?: UserFilters): Promise<User[]> {
+    const conditions = buildUserFilterConditions(filters);
 
     const qb = db.select().from(users);
     if (conditions.length) qb.where(and(...conditions));
@@ -76,8 +86,14 @@ export const userRepo = {
     await exec(db.delete(users).where(eq(users.id, id)));
   },
 
-  async count(): Promise<number> {
-    const row = await queryOne<{ total: number }>(db.select({ total: count() }).from(users));
+  async count(filters?: UserFilters): Promise<number> {
+    const conditions = buildUserFilterConditions(filters);
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(users)
+        .where(conditions.length ? and(...conditions) : undefined),
+    );
     return row?.total ?? 0;
   },
 };

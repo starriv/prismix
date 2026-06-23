@@ -101,20 +101,22 @@ adminAi.get("/usage/recent", async (c) => {
     rawStatusClass === "4xx" || rawStatusClass === "5xx" ? rawStatusClass : undefined;
   const requestId = c.req.query("requestId") || undefined;
   const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
-  return ok(
-    c,
-    await aiUsageLogRepo.findAll(limit, offset, {
-      from,
-      to,
-      consumerKeyId,
-      userId,
-      modelId,
-      providerId,
-      statusCode,
-      statusClass,
-      requestId,
-    }),
-  );
+  const filters = {
+    from,
+    to,
+    consumerKeyId,
+    userId,
+    modelId,
+    providerId,
+    statusCode,
+    statusClass,
+    requestId,
+  } satisfies NonNullable<Parameters<typeof aiUsageLogRepo.findAll>[2]>;
+  const [items, total] = await Promise.all([
+    aiUsageLogRepo.findAll(limit, offset, filters),
+    aiUsageLogRepo.count(filters),
+  ]);
+  return ok(c, { items, total });
 });
 
 adminAi.get("/usage/daily", async (c) => {

@@ -22,6 +22,22 @@ export type WithdrawOrderWithUser = WithdrawOrder & {
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
+type WithdrawOrderListOptions = {
+  status?: string;
+  userUuid?: string;
+  limit?: number;
+  offset?: number;
+};
+
+function buildWithdrawOrderListConditions(
+  opts?: Pick<WithdrawOrderListOptions, "status" | "userUuid">,
+) {
+  const conditions = [];
+  if (opts?.status) conditions.push(eq(withdrawOrders.status, opts.status));
+  if (opts?.userUuid) conditions.push(ilike(users.uuid, `%${esc(opts.userUuid)}%`));
+  return conditions;
+}
+
 export const withdrawOrderRepo = {
   async create(data: NewWithdrawOrder): Promise<WithdrawOrder> {
     return returningOne(db.insert(withdrawOrders).values(data));
@@ -71,16 +87,8 @@ export const withdrawOrderRepo = {
     return row?.total ?? 0;
   },
 
-  async findAll(opts?: {
-    status?: string;
-    userUuid?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<WithdrawOrderWithUser[]> {
-    const conditions = [];
-    if (opts?.status) conditions.push(eq(withdrawOrders.status, opts.status));
-    if (opts?.userUuid) conditions.push(ilike(users.uuid, `%${esc(opts.userUuid)}%`));
-
+  async findAll(opts?: WithdrawOrderListOptions): Promise<WithdrawOrderWithUser[]> {
+    const conditions = buildWithdrawOrderListConditions(opts);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     return queryAll(
@@ -128,14 +136,20 @@ export const withdrawOrderRepo = {
     );
   },
 
-  async count(status?: string): Promise<number> {
-    const conditions = [];
-    if (status) conditions.push(eq(withdrawOrders.status, status));
+  async count(
+    opts?: string | Pick<WithdrawOrderListOptions, "status" | "userUuid">,
+  ): Promise<number> {
+    const filters = typeof opts === "string" ? { status: opts } : opts;
+    const conditions = buildWithdrawOrderListConditions(filters);
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const row = await queryOne<{ total: number }>(
-      db.select({ total: count() }).from(withdrawOrders).where(whereClause),
+      db
+        .select({ total: count() })
+        .from(withdrawOrders)
+        .leftJoin(users, eq(withdrawOrders.userId, users.id))
+        .where(whereClause),
     );
     return row?.total ?? 0;
   },

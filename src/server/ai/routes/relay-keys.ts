@@ -36,15 +36,19 @@ relayKeys.get("/", async (c) => {
   const page = Math.max(0, Number(c.req.query("page") ?? 0));
   const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset")) || page * limit;
+  const filters = { prefix, userUuid };
 
-  const keys = await relayConsumerKeyRepo.findFiltered(limit, offset, { prefix, userUuid });
-  return ok(
-    c,
-    keys.map(({ apiKeyHash: _h, encryptedKey: _e, ...rest }) => ({
+  const [keys, total] = await Promise.all([
+    relayConsumerKeyRepo.findFiltered(limit, offset, filters),
+    relayConsumerKeyRepo.countFiltered(filters),
+  ]);
+  return ok(c, {
+    items: keys.map(({ apiKeyHash: _h, encryptedKey: _e, ...rest }) => ({
       ...rest,
       allowedModels: JSON.parse(rest.allowedModels),
     })),
-  );
+    total,
+  });
 });
 
 // ── Options (lightweight lookup for all keys — no secrets, no pagination) ──

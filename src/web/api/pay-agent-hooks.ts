@@ -34,6 +34,15 @@ import {
   type UpdateAgentBody,
 } from "./schemas";
 
+const paginatedPayAgentsSchema = z.object({
+  items: z.array(payAgentSchema),
+  total: z.number(),
+});
+const paginatedPayAgentTransactionsSchema = z.object({
+  items: z.array(payAgentTransactionSchema),
+  total: z.number(),
+});
+
 // ── Pay Agents ────────────────────────────────────────────────────────
 
 /**
@@ -66,9 +75,9 @@ export function usePayAgentsList(params: {
   qp.set("limit", String(DEFAULT_PAGE_SIZE));
   qp.set("offset", String(page * DEFAULT_PAGE_SIZE));
   const url = `${API_PAY_AGENTS}?${qp}`;
-  return useQuery<PayAgent[]>({
+  return useQuery({
     queryKey: queryKeys.payAgents(params),
-    queryFn: () => get(url, z.array(payAgentSchema)),
+    queryFn: () => get(url, paginatedPayAgentsSchema),
     placeholderData: keepPreviousData,
   });
 }
@@ -193,7 +202,7 @@ export function usePayAgentTxnsList(params: {
   const url = `${API_PAY_AGENT_TXNS}?${qp}`;
   return useQuery({
     queryKey: queryKeys.payAgentTxnsList(params),
-    queryFn: () => get(url, z.array(payAgentTransactionSchema)),
+    queryFn: () => get(url, paginatedPayAgentTransactionsSchema),
     placeholderData: keepPreviousData,
   });
 }

@@ -24,7 +24,6 @@ import {
   dataTableMeta,
   DataTableRelativeTime,
   DataTableText,
-  getHeuristicPageCount,
 } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -55,9 +54,11 @@ export default function AdminAnnouncementsPage() {
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   });
-  const { data: announcements = [], isLoading } = useAdminAnnouncements({
+  const { data: announcementsData, isLoading } = useAdminAnnouncements({
     page: pagination.pageIndex,
   });
+  const announcements = useMemo(() => announcementsData?.items ?? [], [announcementsData?.items]);
+  const announcementPageCount = Math.ceil((announcementsData?.total ?? 0) / DEFAULT_PAGE_SIZE);
   const deleteAnnouncement = useDeleteAnnouncement();
   const sendAnnouncement = useSendAnnouncement();
 
@@ -214,11 +215,7 @@ export default function AdminAnnouncementsPage() {
               loading={isLoading}
               manualPagination
               onPaginationChange={setPagination}
-              pageCount={getHeuristicPageCount(
-                pagination.pageIndex,
-                announcements.length,
-                DEFAULT_PAGE_SIZE,
-              )}
+              pageCount={announcementPageCount}
               pagination={pagination}
               tableClassName="min-w-[980px]"
             />

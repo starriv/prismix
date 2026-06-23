@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -18,6 +18,13 @@ export const announcementRepo = {
     if (opts?.limit != null) q = q.limit(opts.limit);
     if (opts?.offset != null) q = q.offset(opts.offset);
     return queryAll(q);
+  },
+
+  async count(): Promise<number> {
+    const row = await queryOne<{ total: number }>(
+      db.select({ total: count() }).from(announcements),
+    );
+    return row?.total ?? 0;
   },
 
   async findById(id: string): Promise<Announcement | undefined> {

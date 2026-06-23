@@ -2,7 +2,7 @@
  * Relay Consumer Key repository — CRUD for consumer-facing API keys.
  * Balance is managed by the linked pay-agent; this repo has no balance ops.
  */
-import { and, desc, eq, getTableColumns, ilike } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, ilike } from "drizzle-orm";
 
 import {
   db,
@@ -19,6 +19,16 @@ import {
 } from "@/server/db";
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
+
+type ConsumerKeyFilters = { prefix?: string; userUuid?: string };
+
+function buildConsumerKeyFilterConditions(filters?: ConsumerKeyFilters) {
+  const conditions = [];
+  if (filters?.prefix)
+    conditions.push(ilike(relayConsumerKeys.apiKeyPrefix, `%${esc(filters.prefix)}%`));
+  if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
+  return conditions;
+}
 
 /** Consumer key row with the owning user's status (null for orphan keys). */
 export type ConsumerKeyWithUserStatus = RelayConsumerKey & {
@@ -56,12 +66,9 @@ export const relayConsumerKeyRepo = {
   async findFiltered(
     limit = 200,
     offset = 0,
-    filters?: { prefix?: string; userUuid?: string },
+    filters?: ConsumerKeyFilters,
   ): Promise<ConsumerKeyWithUser[]> {
-    const conditions = [];
-    if (filters?.prefix)
-      conditions.push(ilike(relayConsumerKeys.apiKeyPrefix, `%${esc(filters.prefix)}%`));
-    if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
+    const conditions = buildConsumerKeyFilterConditions(filters);
 
     const qb = db
       .select({ ...getTableColumns(relayConsumerKeys), userName: users.name, userUuid: users.uuid })
@@ -69,6 +76,18 @@ export const relayConsumerKeyRepo = {
       .leftJoin(users, eq(relayConsumerKeys.userId, users.id));
     if (conditions.length) qb.where(and(...conditions));
     return queryAll(qb.orderBy(desc(relayConsumerKeys.createdAt)).limit(limit).offset(offset));
+  },
+
+  async countFiltered(filters?: ConsumerKeyFilters): Promise<number> {
+    const conditions = buildConsumerKeyFilterConditions(filters);
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(relayConsumerKeys)
+        .leftJoin(users, eq(relayConsumerKeys.userId, users.id))
+        .where(conditions.length ? and(...conditions) : undefined),
+    );
+    return row?.total ?? 0;
   },
 
   async findByUserId(userId: number): Promise<RelayConsumerKey[]> {

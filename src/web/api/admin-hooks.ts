@@ -44,14 +44,24 @@ import {
 // ── Announcements ───────────────────────────────────────────────────
 
 import {
-  type Announcement,
   announcementSchema,
   type CreateAnnouncementBody,
   type UpdateAnnouncementBody,
 } from "./schemas";
 import { withdrawOrderSchema } from "./schemas";
 
-const userListSchema = z.array(merchantSchema);
+const paginatedUserListSchema = z.object({
+  items: z.array(merchantSchema),
+  total: z.number(),
+});
+const paginatedAnnouncementSchema = z.object({
+  items: z.array(announcementSchema),
+  total: z.number(),
+});
+const paginatedWithdrawOrderSchema = z.object({
+  items: z.array(withdrawOrderSchema),
+  total: z.number(),
+});
 
 // ── Admin Members ───────────────────────────────────────────────────
 
@@ -127,7 +137,7 @@ export function useAdminUsers(params?: {
   const query = qs.toString();
   return useQuery({
     queryKey: queryKeys.adminUsers(params),
-    queryFn: () => adminGet(`${API_ADMIN_USERS}?${query}`, userListSchema),
+    queryFn: () => adminGet(`${API_ADMIN_USERS}?${query}`, paginatedUserListSchema),
     placeholderData: keepPreviousData,
   });
 }
@@ -400,9 +410,9 @@ export function useAdminAnnouncements(params?: { page?: number }) {
   const qs = new URLSearchParams();
   qs.set("limit", String(DEFAULT_PAGE_SIZE));
   qs.set("offset", String(page * DEFAULT_PAGE_SIZE));
-  return useQuery<Announcement[]>({
+  return useQuery({
     queryKey: queryKeys.adminAnnouncements(params),
-    queryFn: () => adminGet(`${API_ADMIN_ANNOUNCEMENTS}?${qs}`, z.array(announcementSchema)),
+    queryFn: () => adminGet(`${API_ADMIN_ANNOUNCEMENTS}?${qs}`, paginatedAnnouncementSchema),
     placeholderData: keepPreviousData,
   });
 }
@@ -462,7 +472,8 @@ export function useAdminWithdrawals(params?: {
   qs.set("offset", String((params?.page ?? 0) * DEFAULT_PAGE_SIZE));
   return useQuery({
     queryKey: queryKeys.adminWithdrawals(params),
-    queryFn: () => adminGet(`${API_ADMIN_WITHDRAWALS}?${qs}`, z.array(withdrawOrderSchema)),
+    queryFn: () => adminGet(`${API_ADMIN_WITHDRAWALS}?${qs}`, paginatedWithdrawOrderSchema),
+    placeholderData: keepPreviousData,
   });
 }
 

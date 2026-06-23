@@ -18,8 +18,11 @@ const router = new Hono();
 router.get("/announcements", async (c) => {
   const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
-  const all = await announcementRepo.findAll({ limit, offset });
-  return ok(c, all);
+  const [items, total] = await Promise.all([
+    announcementRepo.findAll({ limit, offset }),
+    announcementRepo.count(),
+  ]);
+  return ok(c, { items, total });
 });
 
 router.post("/announcements", async (c) => {

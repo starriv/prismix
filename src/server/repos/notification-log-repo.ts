@@ -22,6 +22,16 @@ export interface NotificationLogFilters {
   offset: number;
 }
 
+function buildNotificationLogConditions(
+  filters?: Partial<Pick<NotificationLogFilters, "event" | "channel" | "status">>,
+) {
+  const conditions = [];
+  if (filters?.event) conditions.push(eq(notificationLogs.event, filters.event));
+  if (filters?.channel) conditions.push(eq(notificationLogs.channel, filters.channel));
+  if (filters?.status) conditions.push(eq(notificationLogs.status, filters.status));
+  return conditions;
+}
+
 export const notificationLogRepo = {
   async insert(data: NewNotificationLog): Promise<NotificationLog> {
     return returningOne(db.insert(notificationLogs).values(data));
@@ -47,10 +57,7 @@ export const notificationLogRepo = {
   },
 
   async list(filters: NotificationLogFilters): Promise<NotificationLog[]> {
-    const conditions = [];
-    if (filters.event) conditions.push(eq(notificationLogs.event, filters.event));
-    if (filters.channel) conditions.push(eq(notificationLogs.channel, filters.channel));
-    if (filters.status) conditions.push(eq(notificationLogs.status, filters.status));
+    const conditions = buildNotificationLogConditions(filters);
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -65,9 +72,13 @@ export const notificationLogRepo = {
     );
   },
 
-  async count(): Promise<number> {
+  async count(
+    filters?: Partial<Pick<NotificationLogFilters, "event" | "channel" | "status">>,
+  ): Promise<number> {
+    const conditions = buildNotificationLogConditions(filters);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     const row = await queryOne<{ total: number }>(
-      db.select({ total: count() }).from(notificationLogs),
+      db.select({ total: count() }).from(notificationLogs).where(whereClause),
     );
     return row?.total ?? 0;
   },

@@ -14,12 +14,7 @@ import type { WithdrawOrder } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { InfoLinkRow, InfoRow } from "@/web/components/dashboard/info-row";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
-import {
-  DataTable,
-  DataTableRelativeTime,
-  DataTableText,
-  getHeuristicPageCount,
-} from "@/web/components/data-table";
+import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
@@ -83,11 +78,13 @@ export default function AdminWithdrawOrdersPage() {
     [t],
   );
 
-  const { data: orders = [], isLoading } = useAdminWithdrawals({
+  const { data: ordersData, isLoading } = useAdminWithdrawals({
     status: appliedStatus !== "all" ? appliedStatus : undefined,
     userUuid: appliedUserUuid || undefined,
     page: pagination.pageIndex,
   });
+  const orders = useMemo(() => ordersData?.items ?? [], [ordersData?.items]);
+  const orderPageCount = Math.ceil((ordersData?.total ?? 0) / DEFAULT_PAGE_SIZE);
 
   const hasFilters = draftStatus !== "all" || draftUserUuid !== "" || appliedUserUuid !== "";
 
@@ -253,11 +250,7 @@ export default function AdminWithdrawOrdersPage() {
               manualPagination
               onPaginationChange={setPagination}
               onRowClick={setSelected}
-              pageCount={getHeuristicPageCount(
-                pagination.pageIndex,
-                orders.length,
-                DEFAULT_PAGE_SIZE,
-              )}
+              pageCount={orderPageCount}
               pagination={pagination}
               tableClassName="min-w-[980px]"
             />

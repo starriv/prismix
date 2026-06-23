@@ -24,7 +24,6 @@ import {
   dataTableMeta,
   DataTableRelativeTime,
   DataTableText,
-  getHeuristicPageCount,
 } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
@@ -66,11 +65,13 @@ export default function ConsumerKeysPage() {
     pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const { data: keys = [], isLoading } = useRelayKeyList({
+  const { data: keysData, isLoading } = useRelayKeyList({
     prefix: appliedPrefix || undefined,
     userUuid: appliedUserUuid || undefined,
     page: pagination.pageIndex,
   });
+  const keys = useMemo(() => keysData?.items ?? [], [keysData?.items]);
+  const keyPageCount = Math.ceil((keysData?.total ?? 0) / DEFAULT_PAGE_SIZE);
 
   const hasFilters =
     draftPrefix !== "" || draftUserUuid !== "" || appliedPrefix !== "" || appliedUserUuid !== "";
@@ -297,11 +298,7 @@ export default function ConsumerKeysPage() {
               loading={isLoading}
               manualPagination
               onPaginationChange={setPagination}
-              pageCount={getHeuristicPageCount(
-                pagination.pageIndex,
-                keys.length,
-                DEFAULT_PAGE_SIZE,
-              )}
+              pageCount={keyPageCount}
               pagination={pagination}
               tableClassName="min-w-[980px]"
             />

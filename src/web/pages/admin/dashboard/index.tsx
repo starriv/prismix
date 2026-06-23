@@ -9,12 +9,7 @@ import { useAdminUsers } from "@/web/api/admin-hooks";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { Header } from "@/web/components/dashboard/header";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
-import {
-  DataTable,
-  DataTableRelativeTime,
-  DataTableText,
-  getHeuristicPageCount,
-} from "@/web/components/data-table";
+import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Input } from "@/web/components/ui/input";
@@ -51,7 +46,7 @@ export default function AdminDashboardPage() {
     pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const { data: users = [], isLoading } = useAdminUsers({
+  const { data: usersData, isLoading } = useAdminUsers({
     id: idFromUrl,
     uuid: appliedUuid || undefined,
     name: appliedName || undefined,
@@ -59,6 +54,8 @@ export default function AdminDashboardPage() {
     address: appliedAddress || undefined,
     page: pagination.pageIndex,
   });
+  const users = useMemo(() => usersData?.items ?? [], [usersData?.items]);
+  const userPageCount = Math.ceil((usersData?.total ?? 0) / DEFAULT_PAGE_SIZE);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -275,11 +272,7 @@ export default function AdminDashboardPage() {
               manualPagination
               onPaginationChange={setPagination}
               onRowClick={(row) => setSelectedId(row.id)}
-              pageCount={getHeuristicPageCount(
-                pagination.pageIndex,
-                users.length,
-                DEFAULT_PAGE_SIZE,
-              )}
+              pageCount={userPageCount}
               pagination={pagination}
               tableClassName="min-w-[1320px]"
             />

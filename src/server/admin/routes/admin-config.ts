@@ -23,9 +23,10 @@ import {
   saveNotificationProviderConfig,
 } from "@/server/lib/notification-provider-config";
 import { ok } from "@/server/lib/response";
-import { parseBody } from "@/server/lib/validate";
+import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { getWriteQueueStats } from "@/server/lib/write-queue";
 import { getRateLimiterStats } from "@/server/middleware/rate-limiter";
+import { notificationLogRepo } from "@/server/repos";
 
 const router = new Hono();
 
@@ -217,6 +218,23 @@ router.put("/notification-providers", async (c) => {
     log.admin.error({ err: e }, "Failed to save notification provider config");
     return c.json({ error: "Failed to save notification provider config" }, 500);
   }
+});
+
+// GET /notification-logs — notification delivery logs
+router.get("/notification-logs", async (c) => {
+  const event = c.req.query("event") || undefined;
+  const channel = c.req.query("channel") || undefined;
+  const status = c.req.query("status") || undefined;
+  const limit = parsePaginationLimit(c.req.query("limit"));
+  const offset = parsePaginationOffset(c.req.query("offset"));
+  const filters = { event, channel, status };
+
+  const [items, total] = await Promise.all([
+    notificationLogRepo.list({ ...filters, limit, offset }),
+    notificationLogRepo.count(filters),
+  ]);
+
+  return ok(c, { items, total });
 });
 
 export default router;

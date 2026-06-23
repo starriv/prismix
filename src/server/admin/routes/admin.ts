@@ -426,8 +426,11 @@ admin.get("/wallet/withdrawals", async (c) => {
   const status = c.req.query("status") || undefined;
   const userUuid = c.req.query("userUuid") || undefined;
   const { withdrawOrderRepo } = await import("@/server/repos");
-  const rows = await withdrawOrderRepo.findAll({ status, userUuid, limit, offset });
-  return ok(c, rows);
+  const [items, total] = await Promise.all([
+    withdrawOrderRepo.findAll({ status, userUuid, limit, offset }),
+    withdrawOrderRepo.count({ status, userUuid }),
+  ]);
+  return ok(c, { items, total });
 });
 
 // GET /wallet/withdrawals/count — count by status (for badges)

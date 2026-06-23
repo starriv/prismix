@@ -18,6 +18,11 @@ import {
   notificationLogSchema,
 } from "./schemas";
 
+const paginatedNotificationLogsSchema = z.object({
+  items: z.array(notificationLogSchema),
+  total: z.number(),
+});
+
 // ── Notifications ─────────────────────────────────────────────────────
 
 export function useNotificationEvents() {
@@ -94,7 +99,7 @@ export function useNotificationLogs(params?: {
 
   return useQuery({
     queryKey: queryKeys.notificationLogs(params),
-    queryFn: () => get(url, z.array(notificationLogSchema)),
+    queryFn: () => get(url, paginatedNotificationLogsSchema),
     placeholderData: keepPreviousData,
   });
 }

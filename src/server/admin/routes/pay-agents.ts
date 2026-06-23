@@ -23,16 +23,27 @@ const payAgentsRouter = new Hono();
 // ── List all pay agents ──────────────────────────────────────────────
 
 payAgentsRouter.get("/", async (c) => {
+  const hasListParams = ["limit", "offset", "id", "userName", "userUuid", "address"].some(
+    (key) => c.req.query(key) != null,
+  );
   const limit = parsePaginationLimit(c.req.query("limit"));
   const offset = parsePaginationOffset(c.req.query("offset"));
   const id = parseIntParam(c.req.query("id")) ?? undefined;
   const userName = c.req.query("userName") || undefined;
   const userUuid = c.req.query("userUuid") || undefined;
   const address = c.req.query("address") || undefined;
+  const filters = { id, address, userName, userUuid };
 
-  const agents = await payAgentRepo.findAll(limit, offset, { id, address, userName, userUuid });
+  if (!hasListParams) {
+    return ok(c, await payAgentRepo.findAll(limit, offset));
+  }
 
-  return ok(c, agents);
+  const [agents, total] = await Promise.all([
+    payAgentRepo.findAll(limit, offset, filters),
+    payAgentRepo.count(filters),
+  ]);
+
+  return ok(c, { items: agents, total });
 });
 
 // ── Create a new pay agent ───────────────────────────────────────────
@@ -66,13 +77,14 @@ payAgentsRouter.get("/txns", async (c) => {
   const offset = parsePaginationOffset(c.req.query("offset"));
   const agentId = parseIntParam(c.req.query("agentId"));
   const type = c.req.query("type") || undefined;
+  const source = c.req.query("source") || undefined;
+  const filters = { agentId: agentId ?? undefined, type, source };
 
-  const rows = await payAgentTransactionRepo.findFiltered(
-    { agentId: agentId ?? undefined, type },
-    limit,
-    offset,
-  );
-  return ok(c, rows);
+  const [rows, total] = await Promise.all([
+    payAgentTransactionRepo.findFiltered(filters, limit, offset),
+    payAgentTransactionRepo.countFiltered(filters),
+  ]);
+  return ok(c, { items: rows, total });
 });
 
 // ── Get single agent detail ──────────────────────────────────────────

@@ -30,7 +30,11 @@ router.get("/users", async (c) => {
   const name = c.req.query("name")?.trim() || undefined;
   const email = c.req.query("email")?.trim() || undefined;
   const address = c.req.query("address")?.trim() || undefined;
-  const all = await userRepo.findAll(limit, offset, { id, uuid, name, email, address });
+  const filters = { id, uuid, name, email, address };
+  const [all, total] = await Promise.all([
+    userRepo.findAll(limit, offset, filters),
+    userRepo.count(filters),
+  ]);
   const userIds = all.map((u) => u.id);
   const identities = userIds.length ? await identityRepo.findByUserIds(userIds) : [];
   const identitiesByUserId = groupBy(identities, "userId");
@@ -39,7 +43,7 @@ router.get("/users", async (c) => {
     ...u,
     providers: (identitiesByUserId[u.id] ?? []).map((i) => i.provider),
   }));
-  return ok(c, enriched);
+  return ok(c, { items: enriched, total });
 });
 
 // DELETE /users?id=N — delete user + cascade

@@ -77,6 +77,15 @@ import {
   testAiKeyResultSchema,
 } from "./schemas";
 
+const paginatedAiUsageRecordsSchema = z.object({
+  items: z.array(aiUsageRecordSchema),
+  total: z.number(),
+});
+const paginatedRelayConsumerKeysSchema = z.object({
+  items: z.array(relayConsumerKeySchema),
+  total: z.number(),
+});
+
 // ── AI Providers ──────────────────────────────────────────────────────
 
 export function useAiProviders() {
@@ -713,7 +722,7 @@ export function useAiUsageSummary(refetchInterval?: number | false) {
 export function useAiUsageRecent(refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.aiUsageRecent(),
-    queryFn: () => get(API_AI_USAGE_RECENT, z.array(aiUsageRecordSchema)),
+    queryFn: async () => (await get(API_AI_USAGE_RECENT, paginatedAiUsageRecordsSchema)).items,
     refetchInterval,
   });
 }
@@ -761,7 +770,9 @@ export function useAiUsageRecentByKey(keyId: number, refetchInterval?: number | 
   return useQuery({
     queryKey: queryKeys.aiUsageRecentByKey(keyId),
     queryFn: () =>
-      get(`${API_AI_USAGE_RECENT}?consumerKeyId=${keyId}`, z.array(aiUsageRecordSchema)),
+      get(`${API_AI_USAGE_RECENT}?consumerKeyId=${keyId}`, paginatedAiUsageRecordsSchema).then(
+        (data) => data.items,
+      ),
     refetchInterval,
   });
 }
@@ -788,7 +799,10 @@ export function useAiUsageSummaryByUser(userId: number, refetchInterval?: number
 export function useAiUsageRecentByUser(userId: number, refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.aiUsageRecentByUser(userId),
-    queryFn: () => get(`${API_AI_USAGE_RECENT}?userId=${userId}`, z.array(aiUsageRecordSchema)),
+    queryFn: () =>
+      get(`${API_AI_USAGE_RECENT}?userId=${userId}`, paginatedAiUsageRecordsSchema).then(
+        (data) => data.items,
+      ),
     refetchInterval,
     enabled: userId > 0,
   });
@@ -840,7 +854,7 @@ export function useAiLogs(opts?: {
       requestId: opts?.requestId,
       page,
     }),
-    queryFn: () => get(`${API_AI_USAGE_RECENT}?${qs}`, z.array(aiUsageRecordSchema)),
+    queryFn: () => get(`${API_AI_USAGE_RECENT}?${qs}`, paginatedAiUsageRecordsSchema),
     placeholderData: keepPreviousData,
     refetchInterval: opts?.refetchInterval,
   });
@@ -909,7 +923,8 @@ export function useRelayKeyList(params?: { prefix?: string; userUuid?: string; p
 
   return useQuery({
     queryKey: queryKeys.relayKeys(params),
-    queryFn: () => get(url, z.array(relayConsumerKeySchema)),
+    queryFn: () => get(url, paginatedRelayConsumerKeysSchema),
+    placeholderData: keepPreviousData,
   });
 }
 

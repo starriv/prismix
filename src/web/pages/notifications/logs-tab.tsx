@@ -11,7 +11,6 @@ import {
   DataTableBadge,
   DataTableRelativeTime,
   DataTableText,
-  getHeuristicPageCount,
 } from "@/web/components/data-table";
 import { cn } from "@/web/shared/utils";
 
@@ -24,7 +23,9 @@ export function LogsTab() {
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   });
-  const { data: logs = [], isLoading } = useNotificationLogs({ page: pagination.pageIndex });
+  const { data: logsData, isLoading } = useNotificationLogs({ page: pagination.pageIndex });
+  const logs = useMemo(() => logsData?.items ?? [], [logsData?.items]);
+  const logPageCount = Math.ceil((logsData?.total ?? 0) / DEFAULT_PAGE_SIZE);
   const columns = useMemo<ColumnDef<NotificationLog>[]>(
     () => [
       {
@@ -81,7 +82,7 @@ export function LogsTab() {
         loading={isLoading}
         manualPagination
         onPaginationChange={setPagination}
-        pageCount={getHeuristicPageCount(pagination.pageIndex, logs.length, DEFAULT_PAGE_SIZE)}
+        pageCount={logPageCount}
         pagination={pagination}
         tableClassName="min-w-[840px]"
       />

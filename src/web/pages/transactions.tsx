@@ -16,7 +16,6 @@ import {
   DataTableBadge,
   DataTableRelativeTime,
   DataTableText,
-  getHeuristicPageCount,
 } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
@@ -50,7 +49,7 @@ export default function TransactionLedgerPage() {
   });
 
   const {
-    data: txns = [],
+    data: txnsData,
     isLoading,
     isFetching,
   } = usePayAgentTxnsList({
@@ -59,6 +58,8 @@ export default function TransactionLedgerPage() {
     source,
     page: pagination.pageIndex,
   });
+  const txns = useMemo(() => txnsData?.items ?? [], [txnsData?.items]);
+  const txnPageCount = Math.ceil((txnsData?.total ?? 0) / PAGE_SIZE);
 
   const hasFilters =
     draftType !== "all" ||
@@ -248,7 +249,7 @@ export default function TransactionLedgerPage() {
               }
               manualPagination
               onPaginationChange={setPagination}
-              pageCount={getHeuristicPageCount(pagination.pageIndex, txns.length, PAGE_SIZE)}
+              pageCount={txnPageCount}
               pagination={pagination}
               tableClassName="min-w-[1080px]"
             />

@@ -11,7 +11,7 @@ import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { useAiLogs, useAiRequestLog, useRelayKeyOptions } from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
-import { DataTable, getHeuristicPageCount } from "@/web/components/data-table";
+import { DataTable } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Input } from "@/web/components/ui/input";
@@ -55,6 +55,7 @@ export default function AiLogsPage() {
 
   // Keep draft controls aligned with URL-backed filters after navigation.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Draft controls mirror URL-backed filters after browser navigation.
     setDraftModel(appliedModel);
     setDraftKey(appliedKey);
     setDraftStatus(appliedStatus);
@@ -65,7 +66,7 @@ export default function AiLogsPage() {
   const LIVE_REFETCH_MS = 5_000;
   const { data: keys = [] } = useRelayKeyOptions();
   const {
-    data: logs = [],
+    data: logsData,
     isLoading,
     isFetching,
   } = useAiLogs({
@@ -76,6 +77,8 @@ export default function AiLogsPage() {
     page,
     refetchInterval: LIVE_REFETCH_MS,
   });
+  const logs = useMemo(() => logsData?.items ?? [], [logsData?.items]);
+  const logPageCount = Math.ceil((logsData?.total ?? 0) / DEFAULT_PAGE_SIZE);
 
   // Derive unique models from current page
   const modelOptions = useMemo(() => {
@@ -231,7 +234,7 @@ export default function AiLogsPage() {
               manualPagination
               onRowClick={setSelected}
               onPaginationChange={handlePaginationChange}
-              pageCount={getHeuristicPageCount(page, logs.length, DEFAULT_PAGE_SIZE)}
+              pageCount={logPageCount}
               pagination={pagination}
             />
           </CardContent>

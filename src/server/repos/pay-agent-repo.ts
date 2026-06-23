@@ -1,7 +1,7 @@
 /**
  * Pay Agent repository — CRUD + balance operations for the `pay_agents` table.
  */
-import { and, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
 
 import {
   db,
@@ -17,6 +17,17 @@ import {
 
 const esc = (v: string) => v.replace(/[%_]/g, "\\$&");
 
+type PayAgentFilters = { id?: number; address?: string; userName?: string; userUuid?: string };
+
+function buildPayAgentFilterConditions(filters?: PayAgentFilters) {
+  const conditions = [];
+  if (filters?.id) conditions.push(eq(payAgents.id, filters.id));
+  if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
+  if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
+  if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
+  return conditions;
+}
+
 export type PayAgentWithOwner = PayAgent & {
   userId: number | null;
   userUuid: string | null;
@@ -28,16 +39,8 @@ export const payAgentRepo = {
    * Fetch all pay agents with optional filters.
    * Joins with users table to include owner info and enable userName filtering at DB level.
    */
-  async findAll(
-    limit = 200,
-    offset = 0,
-    filters?: { id?: number; address?: string; userName?: string; userUuid?: string },
-  ): Promise<PayAgentWithOwner[]> {
-    const conditions = [];
-    if (filters?.id) conditions.push(eq(payAgents.id, filters.id));
-    if (filters?.address) conditions.push(ilike(payAgents.address, `%${esc(filters.address)}%`));
-    if (filters?.userName) conditions.push(ilike(users.name, `%${esc(filters.userName)}%`));
-    if (filters?.userUuid) conditions.push(ilike(users.uuid, `%${esc(filters.userUuid)}%`));
+  async findAll(limit = 200, offset = 0, filters?: PayAgentFilters): Promise<PayAgentWithOwner[]> {
+    const conditions = buildPayAgentFilterConditions(filters);
 
     const rows = await queryAll(
       db
@@ -70,6 +73,18 @@ export const payAgentRepo = {
     );
 
     return rows as PayAgentWithOwner[];
+  },
+
+  async count(filters?: PayAgentFilters): Promise<number> {
+    const conditions = buildPayAgentFilterConditions(filters);
+    const row = await queryOne<{ total: number }>(
+      db
+        .select({ total: count() })
+        .from(payAgents)
+        .leftJoin(users, eq(users.agentId, payAgents.id))
+        .where(conditions.length ? and(...conditions) : undefined),
+    );
+    return row?.total ?? 0;
   },
 
   async findById(id: number): Promise<PayAgent | undefined> {

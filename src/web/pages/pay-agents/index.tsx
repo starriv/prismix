@@ -10,12 +10,7 @@ import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { usePayAgentsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
-import {
-  DataTable,
-  DataTableRelativeTime,
-  DataTableText,
-  getHeuristicPageCount,
-} from "@/web/components/data-table";
+import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -67,13 +62,15 @@ export default function PayAgentsPage() {
     pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  const { data: agents = [], isLoading } = usePayAgentsList({
+  const { data: agentsData, isLoading } = usePayAgentsList({
     id: idFromUrl,
     userName: appliedUser || undefined,
     userUuid: appliedUserUuid || undefined,
     address: appliedAddress || undefined,
     page: pagination.pageIndex,
   });
+  const agents = useMemo(() => agentsData?.items ?? [], [agentsData?.items]);
+  const agentPageCount = Math.ceil((agentsData?.total ?? 0) / DEFAULT_PAGE_SIZE);
 
   const agentStatusMap = useMemo(
     () =>
@@ -212,7 +209,7 @@ export default function PayAgentsPage() {
         meta: { headerClassName: "w-[14%]" },
       },
     ],
-    [agentStatusMap, t],
+    [agentStatusMap, i18n.language, t],
   );
 
   return (
@@ -294,11 +291,7 @@ export default function PayAgentsPage() {
               manualPagination
               onPaginationChange={setPagination}
               onRowClick={(row) => setEditingId(row.id)}
-              pageCount={getHeuristicPageCount(
-                pagination.pageIndex,
-                agents.length,
-                DEFAULT_PAGE_SIZE,
-              )}
+              pageCount={agentPageCount}
               pagination={pagination}
               tableClassName="min-w-[980px]"
             />
