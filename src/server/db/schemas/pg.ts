@@ -624,6 +624,7 @@ export const aiModels = pgTable(
     outputPrice: text("output_price").notNull().default("0"), // per 1M tokens
     capabilities: text("capabilities").notNull().default("[]"), // JSON array: ["chat","vision","tools","streaming"]
     fallbackModelIds: text("fallback_model_ids"), // JSON array of model_id slugs for fallback chain, nullable
+    limitedFreeUntil: timestamp("limited_free_until"), // nullable — active limited-free tag until this timestamp
     weight: integer("weight").notNull().default(1), // load balancing weight for fallback shuffling
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at")
@@ -637,6 +638,7 @@ export const aiModels = pgTable(
     unique().on(t.clientFormat, t.modelId),
     index("idx_ai_models_model_id").on(t.modelId),
     index("idx_ai_models_client_format").on(t.clientFormat),
+    index("idx_ai_models_limited_free_until").on(t.limitedFreeUntil),
   ],
 );
 

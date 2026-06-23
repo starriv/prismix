@@ -50,6 +50,13 @@
       "when": 1782126100780,
       "tag": "0006_smart_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782188075104,
+      "tag": "0007_dark_vapor",
+      "breakpoints": true
     }
   ]
 }
