@@ -4,8 +4,8 @@
  * Runs every 1 minute via BullMQ repeatable job. For each enabled provider:
  *   1. Pings provider.baseUrl + all bound enabled+!autoDisabled upstreams
  *   2. On success: recordSuccess (or markAutoReenabled if was auto-disabled)
- *   3. On failure: recordFailure (increments consecutiveFailures)
- *   4. When consecutiveFailures >= threshold (1): markAutoDisabled + notify
+ *   3. On failure: reset stale failure window, then recordFailure
+ *   4. When failures >= threshold within the window: markAutoDisabled + notify
  *   5. On success after auto-disabled: markAutoReenabled + notify
  *
  * Multi-instance safe: BullMQ repeatable job's jobId ensures only one
@@ -31,7 +31,9 @@ const REPEAT_JOB_ID = "supplier-health-check-recurring";
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
 const CHECK_INTERVAL_MS = Number(process.env.SUPPLIER_HEALTH_CHECK_INTERVAL_MS) || 60 * 1000;
-const FAILURE_THRESHOLD = Number(process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD) || 1;
+const FAILURE_THRESHOLD = Number(process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD) || 2;
+const FAILURE_WINDOW_MS =
+  Number(process.env.SUPPLIER_HEALTH_CHECK_FAILURE_WINDOW_MS) || 3 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = Number(process.env.SUPPLIER_HEALTH_CHECK_TIMEOUT_MS) || 10_000;
 const PROVIDER_CONCURRENCY = 5;
 
@@ -47,6 +49,12 @@ interface CheckTarget {
   baseUrl: string;
   modelsEndpointOverride: string | null;
   provider: AiProvider;
+}
+
+interface HealthEntity {
+  autoDisabled: boolean;
+  consecutiveFailures: number;
+  lastFailureAt?: Date | null;
 }
 
 function hasChatCapability(capabilities: string): boolean {
@@ -204,6 +212,18 @@ function buildSupplierBody(summary: string, meta: SupplierNotifyMeta): string {
   return `${summary}\n\n详细信息:\n${rows.join("\n")}`;
 }
 
+function isFailureWindowExpired(entity: HealthEntity): boolean {
+  if (entity.consecutiveFailures === 0) return false;
+  if (!entity.lastFailureAt) return false;
+  return Date.now() - entity.lastFailureAt.getTime() > FAILURE_WINDOW_MS;
+}
+
+function formatFailureWindow(): string {
+  const minutes = FAILURE_WINDOW_MS / 60_000;
+  if (Number.isInteger(minutes)) return `${minutes} 分钟`;
+  return `${Math.round(FAILURE_WINDOW_MS / 1000)} 秒`;
+}
+
 export async function applyHealthResult(target: CheckTarget, result: PingResult): Promise<void> {
   const repo = target.kind === "provider" ? aiProviderRepo : aiUpstreamRepo;
   const entity = await repo.findById(target.id);
@@ -244,7 +264,12 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
   }
 
   const errorMsg = result.error ?? `HTTP ${result.status}`;
+  if (!entity.autoDisabled && isFailureWindowExpired(entity)) {
+    await repo.updateHealth(target.id, { consecutiveFailures: 0 });
+  }
   await repo.recordFailure(target.id, errorMsg);
+  const updated = await repo.findById(target.id);
+  const consecutiveFailures = updated?.consecutiveFailures ?? entity.consecutiveFailures + 1;
 
   log.supplier.warn(
     {
@@ -253,13 +278,14 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
       name: target.name,
       status: result.status,
       error: errorMsg,
-      consecutiveFailures: entity.consecutiveFailures + 1,
+      consecutiveFailures,
+      failureThreshold: FAILURE_THRESHOLD,
+      failureWindowMs: FAILURE_WINDOW_MS,
     },
     "Health check failed",
   );
 
   // Auto-disable when threshold reached
-  const updated = await repo.findById(target.id);
   if (
     updated &&
     updated.consecutiveFailures >= FAILURE_THRESHOLD &&
@@ -291,7 +317,7 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
     await emitNotification("supplier.disabled", {
       title: `供应商已自动禁用: ${target.name}`,
       body: buildSupplierBody(
-        `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连续 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${errorMsg}`,
+        `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 在 ${formatFailureWindow()}内累计 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${errorMsg}`,
         meta,
       ),
       metadata: { ...meta },

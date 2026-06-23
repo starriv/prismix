@@ -81,7 +81,23 @@ vi.mock("@/server/ai/lib/supplier-health", () => ({
   pingEndpoint: (...args: unknown[]) => mockPingEndpoint(...args),
 }));
 
+process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD = "2";
+process.env.SUPPLIER_HEALTH_CHECK_FAILURE_WINDOW_MS = "180000";
+
 const { checkProvider } = await import("@/server/jobs/check-supplier-health");
+
+function providerFixture() {
+  return {
+    id: 1,
+    name: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    apiFormat: "openai",
+    authType: "bearer",
+    authConfig: "{}",
+    enabled: true,
+    autoDisabled: false,
+  } as never;
+}
 
 describe("supplier health job", () => {
   beforeEach(() => {
@@ -91,12 +107,18 @@ describe("supplier health job", () => {
       id: 1,
       autoDisabled: false,
       consecutiveFailures: 0,
+      lastFailureAt: null,
     });
     mockUpstreamFindById.mockImplementation(async (id: number) => ({
       id,
       autoDisabled: false,
       consecutiveFailures: 0,
+      lastFailureAt: null,
     }));
+    mockFindAssignmentsByProviderId.mockResolvedValue([]);
+    mockUpstreamFindByIds.mockResolvedValue([]);
+    mockFindAnyEnabledByProvider.mockResolvedValue({ id: 100, encryptedKey: "provider-key" });
+    mockFindAnyEnabledByUpstream.mockResolvedValue({ id: 101, encryptedKey: "upstream-key" });
     mockFindEnabledModelsByProviderId.mockResolvedValue([]);
   });
 
@@ -128,16 +150,7 @@ describe("supplier health job", () => {
       },
     ]);
 
-    await checkProvider({
-      id: 1,
-      name: "OpenAI",
-      baseUrl: "https://api.openai.com/v1",
-      apiFormat: "openai",
-      authType: "bearer",
-      authConfig: "{}",
-      enabled: true,
-      autoDisabled: false,
-    } as never);
+    await checkProvider(providerFixture());
 
     expect(mockProviderUpdateHealth).toHaveBeenCalledWith(
       1,
@@ -164,5 +177,95 @@ describe("supplier health job", () => {
     );
     expect(mockUpstreamRecordSuccess).toHaveBeenCalledWith(10);
     expect(mockUpstreamRecordSuccess).toHaveBeenCalledWith(11);
+  });
+
+  it("does not notify on the first failed check", async () => {
+    mockPingEndpoint.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: "upstream-timeout",
+      latencyMs: 10,
+    });
+    mockProviderFindById
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 0,
+        lastFailureAt: null,
+      })
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 1,
+        lastFailureAt: new Date(),
+      });
+
+    await checkProvider(providerFixture());
+
+    expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
+    expect(mockEmitNotification).not.toHaveBeenCalled();
+  });
+
+  it("notifies on the second failed check within the 3 minute window", async () => {
+    mockPingEndpoint.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: "upstream-timeout",
+      latencyMs: 10,
+    });
+    mockProviderFindById
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 1,
+        lastFailureAt: new Date(Date.now() - 60_000),
+      })
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 2,
+        lastFailureAt: new Date(),
+      });
+
+    await checkProvider(providerFixture());
+
+    expect(mockProviderMarkAutoDisabled).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockEmitNotification).toHaveBeenCalledWith(
+      "supplier.disabled",
+      expect.objectContaining({
+        title: "供应商已自动禁用: OpenAI",
+        body: expect.stringContaining("在 3 分钟内累计 2 次连通性检查失败"),
+      }),
+    );
+  });
+
+  it("resets stale failure counts before recording a new failure", async () => {
+    mockPingEndpoint.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: "upstream-timeout",
+      latencyMs: 10,
+    });
+    mockProviderFindById
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 1,
+        lastFailureAt: new Date(Date.now() - 4 * 60_000),
+      })
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 1,
+        lastFailureAt: new Date(),
+      });
+
+    await checkProvider(providerFixture());
+
+    expect(mockProviderUpdateHealth).toHaveBeenCalledWith(1, { consecutiveFailures: 0 });
+    expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
+    expect(mockEmitNotification).not.toHaveBeenCalled();
   });
 });

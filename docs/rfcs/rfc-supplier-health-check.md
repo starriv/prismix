@@ -222,7 +222,8 @@ export async function pingEndpoint(opts: {
 ```ts
 const QUEUE_NAME = "supplier-health-check";
 const CHECK_INTERVAL_MS = 60 * 1000; // 1 分钟（可通过 env 覆盖）
-const FAILURE_THRESHOLD = 1; // 首次失败即自动禁用并通知
+const FAILURE_THRESHOLD = 2; // 失败窗口内累计 2 次后自动禁用并通知
+const FAILURE_WINDOW_MS = 3 * 60 * 1000; // 3 分钟失败计数窗口
 const REQUEST_TIMEOUT_MS = 10_000; // 10s 超时
 const WORKER_CONCURRENCY = 5; // 同时最多检查 5 个 endpoint
 
@@ -357,7 +358,10 @@ async function applyHealthResult(repo, entity, result: PingResult) {
       await repo.recordSuccess(entity.id);
     }
   } else {
-    // 失败 — 累加失败计数
+    // 失败 — 超出失败窗口则先重置计数，再累加失败计数
+    if (isFailureWindowExpired(entity)) {
+      await repo.updateHealth(entity.id, { consecutiveFailures: 0 });
+    }
     await repo.recordFailure(entity.id, result.error ?? `HTTP ${result.status}`);
 
     // 检查是否达到禁用阈值
@@ -366,7 +370,7 @@ async function applyHealthResult(repo, entity, result: PingResult) {
       await repo.markAutoDisabled(entity.id, updated.lastError ?? "Unknown error");
       await emitNotification("supplier.disabled", {
         title: `供应商已自动禁用: ${entity.name}`,
-        body: `连续 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${updated.lastError}`,
+        body: `3 分钟内累计 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${updated.lastError}`,
         metadata: { id: entity.id, name: entity.name, error: updated.lastError },
       });
     }
@@ -442,7 +446,7 @@ async markAutoReenabled(id: number): Promise<void> {
 
 | 事件                 | 触发时机                     | 标题                       | 元数据                |
 | -------------------- | ---------------------------- | -------------------------- | --------------------- |
-| `supplier.disabled`  | 连续失败达阈值，自动禁用时   | `供应商已自动禁用: {name}` | `{ id, name, error }` |
+| `supplier.disabled`  | 失败窗口内累计达阈值时       | `供应商已自动禁用: {name}` | `{ id, name, error }` |
 | `supplier.reenabled` | auto-disabled 状态下首次成功 | `供应商已自动恢复: {name}` | `{ id, name }`        |
 
 ### 9. 环境变量
@@ -450,7 +454,8 @@ async markAutoReenabled(id: number): Promise<void> {
 ```env
 # ── Supplier Health Check ──
 # SUPPLIER_HEALTH_CHECK_INTERVAL_MS=60000        # 检查间隔，默认 1 分钟
-# SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD=1      # 连续失败 N 次后自动禁用
+# SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD=2      # 失败窗口内累计 N 次失败后自动禁用
+# SUPPLIER_HEALTH_CHECK_FAILURE_WINDOW_MS=180000 # 失败计数窗口，默认 3 分钟
 # SUPPLIER_HEALTH_CHECK_TIMEOUT_MS=10000         # 单次 ping 超时
 ```
 
@@ -545,15 +550,16 @@ async markAutoReenabled(id: number): Promise<void> {
 
 **本次选择**：Provider + 所有绑定的 enabled + !autoDisabled upstreams 都检查。粒度更细，能精确定位哪个上游挂了。
 
-### E. 立即禁用 vs 阈值禁用
+### E. 立即禁用 vs 窗口阈值禁用
 
-| 阈值                       | 优点                       | 缺点                                  |
-| -------------------------- | -------------------------- | ------------------------------------- |
-| **1 次（立即禁用，选用）** | 响应最快，首次失败即可告警 | 偶发网络抖动导致误禁用，频繁 flapping |
-| 3 次（约 3 分钟）          | 容忍瞬时抖动               | 真实故障需数分钟才禁用                |
-| 5 次（约 5 分钟）          | 最保守                     | 真实故障响应慢                        |
+| 策略                      | 优点                         | 缺点                   |
+| ------------------------- | ---------------------------- | ---------------------- |
+| 1 次（立即禁用）          | 响应最快，首次失败即可告警   | 偶发网络抖动容易误禁用 |
+| **3 分钟内 2 次（选用）** | 容忍单次瞬时抖动，响应仍较快 | 真实故障需二次失败确认 |
+| 3 次（约 3 分钟）         | 更保守                       | 真实故障需数分钟才禁用 |
+| 5 次（约 5 分钟）         | 最保守                       | 真实故障响应慢         |
 
-**选择 1 次**：1 分钟一次 × 1 次 = 首次失败即告警。当前运维目标优先快速发现上游不可用，接受偶发抖动带来的误报风险。
+**选择 3 分钟内 2 次**：默认 1 分钟检查一次，单次网络抖动只标记 degraded，不自动禁用/通知；3 分钟窗口内第二次失败才触发 `supplier.disabled`。
 
 ---
 
