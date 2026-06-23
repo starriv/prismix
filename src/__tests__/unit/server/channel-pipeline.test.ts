@@ -370,14 +370,14 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
       body: `上游 "Proxy A" 连续 1 次连通性检查失败，已自动禁用。最后错误: HTTP 503: upstream-timeout
 
 详细信息:
-  类型: 上游
-  ID: 10
-  名称: Proxy A
-  Base URL: https://proxy-a.example.com/v1
-  所属供应商: OpenAI
-  Provider ID: 1
-  连续失败: 3
-  最后错误: HTTP 503: upstream-timeout`,
+类型: 上游
+ID: 10
+名称: Proxy A
+Base URL: https://proxy-a.example.com/v1
+所属供应商: OpenAI
+Provider ID: 1
+连续失败: 3
+最后错误: HTTP 503: upstream-timeout`,
       metadata: {
         kind: "upstream",
         id: 10,
@@ -396,8 +396,12 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
     expect(body.chat_id).toBe("-100333444555");
+    expect(body.text).toContain("\\[Prismix\\.live\\] 事件关注");
     expect(body.text).toContain("supplier\\.disabled");
+    expect(body.text).toContain("CST\\(UTC\\+8\\): ");
     expect(body.text).toContain("详细信息");
+    expect(body.text).toContain("\n类型: 上游");
+    expect(body.text).not.toContain("\n  类型: 上游");
     expect(body.text).toContain("类型: 上游");
     expect(body.text).toContain("ID: 10");
     expect(body.text).toContain("名称: Proxy A");

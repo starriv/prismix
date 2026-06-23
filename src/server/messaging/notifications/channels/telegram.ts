@@ -22,8 +22,18 @@ export class TelegramChannel implements NotificationChannel {
     const targetError = this.validateTarget(chatId);
     if (targetError) throw new Error(targetError);
 
-    const timestamp = escapeMarkdown(new Date(payload.timestamp).toISOString());
-    const text = `*${escapeMarkdown(payload.title)}*\n\n${escapeMarkdown(payload.body)}\n\n_${escapeMarkdown(payload.event)} • ${timestamp}_`;
+    const utcTimestamp = new Date(payload.timestamp).toISOString();
+    const cstTimestamp = formatCstTimestamp(payload.timestamp);
+    const text = [
+      `*${escapeMarkdown("[Prismix.live] 事件关注")}*`,
+      `*${escapeMarkdown(payload.title)}*`,
+      escapeMarkdown(payload.body),
+      [
+        `${escapeMarkdown("事件")}: ${escapeMarkdown(payload.event)}`,
+        `${escapeMarkdown("UTC")}: ${escapeMarkdown(utcTimestamp)}`,
+        `${escapeMarkdown("CST(UTC+8)")}: ${escapeMarkdown(cstTimestamp)}`,
+      ].join("\n"),
+    ].join("\n\n");
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
@@ -52,4 +62,20 @@ export class TelegramChannel implements NotificationChannel {
 /** Escape special MarkdownV2 characters */
 function escapeMarkdown(text: string): string {
   return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
+}
+
+function formatCstTimestamp(timestamp: number): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(timestamp));
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day} ${byType.hour}:${byType.minute}:${byType.second}`;
 }

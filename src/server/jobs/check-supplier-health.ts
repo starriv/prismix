@@ -201,7 +201,7 @@ function buildSupplierBody(summary: string, meta: SupplierNotifyMeta): string {
   rows.push(`Provider ID: ${meta.providerId}`);
   if (meta.consecutiveFailures != null) rows.push(`连续失败: ${meta.consecutiveFailures}`);
   if (meta.error) rows.push(`最后错误: ${meta.error}`);
-  return `${summary}\n\n详细信息:\n${rows.map((r) => `  ${r}`).join("\n")}`;
+  return `${summary}\n\n详细信息:\n${rows.join("\n")}`;
 }
 
 export async function applyHealthResult(target: CheckTarget, result: PingResult): Promise<void> {

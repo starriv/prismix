@@ -309,7 +309,9 @@ describe("telegram — send() with fetch mock", () => {
     expect(body.chat_id).toBe("-100123456");
     expect(body.parse_mode).toBe("MarkdownV2");
     // Title should appear in the text (escaped)
+    expect(body.text).toContain("\\[Prismix\\.live\\] 事件关注");
     expect(body.text).toContain("New top\\-up request");
+    expect(body.text).toContain("CST\\(UTC\\+8\\): 2024\\-03\\-24 06:56:07");
   });
 
   it("throws if botToken is missing", async () => {
@@ -528,6 +530,7 @@ describe("telegram — MarkdownV2 escaping", () => {
     expect(body.text).toContain("\\[admin\\]"); // [ ] are escaped
     expect(body.text).toContain("\\(100% off\\!\\)"); // ( ) ! are escaped
     expect(body.text).toContain(escapedIso);
+    expect(body.text).toContain("CST\\(UTC\\+8\\): 2024\\-03\\-24 06:56:07");
 
     fetchSpy.mockRestore();
   });
