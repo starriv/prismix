@@ -6,6 +6,7 @@ import { compact, uniq } from "lodash-es";
 import type { AiKey } from "@/server/db";
 import { aiProviderRepo, aiUpstreamRepo, keyProviderRepo } from "@/server/repos";
 
+import { isLimitedFreeActive, serializeLimitedFreeUntil } from "../lib/limited-free";
 import { safeParseJsonArray } from "../lib/safe-json";
 
 export function parseJsonField(value: string): unknown {
@@ -61,6 +62,7 @@ export async function formatKeys(keys: AiKey[]) {
 export function formatModel(m: {
   capabilities: string;
   fallbackModelIds: string | null;
+  limitedFreeUntil?: Date | string | number | null;
   [key: string]: unknown;
 }) {
   return {
@@ -69,5 +71,7 @@ export function formatModel(m: {
     fallbackModelIds: m.fallbackModelIds
       ? safeParseJsonArray(m.fallbackModelIds, "fallbackModelIds")
       : null,
+    limitedFreeUntil: serializeLimitedFreeUntil(m.limitedFreeUntil),
+    isLimitedFree: isLimitedFreeActive(m.limitedFreeUntil),
   };
 }

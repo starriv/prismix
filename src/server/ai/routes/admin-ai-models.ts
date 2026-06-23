@@ -18,6 +18,7 @@ import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import { aiKeyRepo, aiModelRepo, aiModelRouteRepo, aiProviderRepo } from "@/server/repos";
+import { lte } from "@/shared/number";
 
 import {
   canAttachProviderToClientFormat,
@@ -34,6 +35,22 @@ import { formatModel } from "./admin-ai-helpers";
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
 const router = new Hono();
+
+function validateLimitedFreeConfig(
+  inputPrice: string,
+  outputPrice: string,
+  limitedFreeUntil: Date | null | undefined,
+  options: { requireFuture?: boolean } = {},
+): string | null {
+  if (!limitedFreeUntil) return null;
+  if (limitedFreeUntil.getTime() <= Date.now()) {
+    return options.requireFuture ? "Limited-free expiry must be in the future" : null;
+  }
+  if (!lte(inputPrice, "0") || !lte(outputPrice, "0")) {
+    return "Limited-free models must have zero input and output prices";
+  }
+  return null;
+}
 
 // ── Models CRUD ─────────────────────────────────────────────────────────
 
@@ -208,6 +225,13 @@ router.post("/providers/:id/models", async (c) => {
       400,
     );
   }
+  const limitedFreeError = validateLimitedFreeConfig(
+    rest.inputPrice,
+    rest.outputPrice,
+    rest.limitedFreeUntil,
+    { requireFuture: true },
+  );
+  if (limitedFreeError) return c.json({ error: limitedFreeError }, 400);
 
   const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
   if (existing) {
@@ -257,6 +281,7 @@ router.post("/providers/:id/models/batch", async (c) => {
     outputPrice: m.outputPrice ?? "0",
     capabilities: JSON.stringify(m.capabilities ?? []),
     fallbackModelIds: null,
+    limitedFreeUntil: m.limitedFreeUntil ?? null,
     enabled: m.enabled ?? true,
   }));
   const incompatible = rows.find(
@@ -269,6 +294,17 @@ router.post("/providers/:id/models/batch", async (c) => {
       },
       400,
     );
+  }
+  const limitedFreeError = rows
+    .map((row) => ({
+      modelId: row.modelId,
+      error: validateLimitedFreeConfig(row.inputPrice, row.outputPrice, row.limitedFreeUntil, {
+        requireFuture: true,
+      }),
+    }))
+    .find((result) => result.error);
+  if (limitedFreeError) {
+    return c.json({ error: `${limitedFreeError.modelId}: ${limitedFreeError.error}` }, 400);
   }
 
   const modelIdsByFormat = new Map<string, string[]>();
@@ -430,6 +466,13 @@ router.put("/models/:id", async (c) => {
   const parsed = await parseBody(c, updateAiModelBody);
   if (!parsed.ok) return parsed.response;
   const { capabilities, fallbackModelIds, ...rest } = parsed.data;
+  const limitedFreeError = validateLimitedFreeConfig(
+    rest.inputPrice ?? existing.inputPrice,
+    rest.outputPrice ?? existing.outputPrice,
+    rest.limitedFreeUntil === undefined ? existing.limitedFreeUntil : rest.limitedFreeUntil,
+    { requireFuture: rest.limitedFreeUntil !== undefined && rest.limitedFreeUntil !== null },
+  );
+  if (limitedFreeError) return c.json({ error: limitedFreeError }, 400);
 
   if (rest.clientFormat && rest.clientFormat !== existing.clientFormat) {
     const duplicate = await aiModelRepo.findByModelId(existing.modelId, rest.clientFormat);
