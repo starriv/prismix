@@ -14,6 +14,7 @@ import { createRateLimiterMiddleware } from "@/server/middleware/rate-limiter";
 
 import { env } from "./env";
 import { closeSupplierHealthCheckJob } from "./jobs/check-supplier-health";
+import { closeLimitedFreeModelExpiryJob } from "./jobs/expire-limited-free-models";
 import { stopTopupExpiryJob } from "./jobs/expire-topup-orders";
 import { stopLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "./jobs/scan-topup-deposit";
@@ -189,6 +190,7 @@ async function shutdown(signal: string) {
   stopTopupExpiryJob();
   await closeDepositScanQueue();
   await closeSupplierHealthCheckJob();
+  await closeLimitedFreeModelExpiryJob();
   stopLiteLLMPricingJob();
   stopWebhookRetryJob();
 
