@@ -2434,6 +2434,10 @@
       "capabilities": "能力",
       "enabled": "启用"
     },
+    "tag": {
+      "limited-free": "限时免费",
+      "limited-free-until": "限时免费至 {{time}}"
+    },
     "form": {
       "client-format": "客户端格式",
       "model-id": "模型 ID",
@@ -2447,6 +2451,9 @@
       "provider-ph": "选择供应商以发现模型",
       "capabilities": "能力",
       "capabilities-ph": "chat, vision, tools, streaming",
+      "limited-free-until": "限时免费到期时间",
+      "limited-free-hint": "到期后模型将被自动禁用，需重新定价后手动启用。",
+      "limited-free-disabled-hint": "限时免费仅适用于输入和输出价格均为 0 的模型。",
       "enabled": "启用"
     },
     "discover": {
@@ -2467,7 +2474,7 @@
       "batch-delete-title": "批量删除模型",
       "batch-delete-body": "删除 {{count}} 个已选模型？此操作不可撤销。",
       "clean-zero-title": "清理无效定价",
-      "clean-zero-body": "删除 {{count}} 个价格为 $0 的模型？无有效定价的模型无法计费，存在被滥用的风险。"
+      "clean-zero-body": "删除 {{count}} 个价格为 $0 且未处于限时免费的模型？无有效定价的模型无法计费，存在被滥用的风险。"
     },
     "sync": {
       "title": "同步价格",
@@ -2531,6 +2538,10 @@
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
     "no-providers": "暂无已配置的供应商",
+    "tag": {
+      "limited-free": "限时免费",
+      "limited-free-until": "限时免费至 {{time}}"
+    },
     "filter-ph": "搜索模型 ID 或名称...",
     "filter-count": "{{count}} 个模型",
     "filter-count-filtered": "{{filtered}} / {{total}} 个模型",

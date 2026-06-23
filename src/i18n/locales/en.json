@@ -2434,6 +2434,10 @@
       "capabilities": "Capabilities",
       "enabled": "Enabled"
     },
+    "tag": {
+      "limited-free": "Limited free",
+      "limited-free-until": "Limited free until {{time}}"
+    },
     "form": {
       "client-format": "Client format",
       "model-id": "Model ID",
@@ -2447,6 +2451,9 @@
       "provider-ph": "Select a provider to discover models",
       "capabilities": "Capabilities",
       "capabilities-ph": "chat, vision, tools, streaming",
+      "limited-free-until": "Limited-free expiry",
+      "limited-free-hint": "Model is automatically disabled when the expiry passes. Re-enable manually after setting prices.",
+      "limited-free-disabled-hint": "Limited-free tags require both input and output prices to be zero.",
       "enabled": "Enabled"
     },
     "discover": {
@@ -2467,7 +2474,7 @@
       "batch-delete-title": "Batch Delete Models",
       "batch-delete-body": "Delete {{count}} selected models? This cannot be undone.",
       "clean-zero-title": "Clean Invalid Pricing",
-      "clean-zero-body": "Delete {{count}} models with $0 pricing? Models without valid pricing cannot be billed and may be abused."
+      "clean-zero-body": "Delete {{count}} models with $0 pricing that are not currently limited-free? Models without valid pricing cannot be billed and may be abused."
     },
     "sync": {
       "title": "Sync Prices",
@@ -2531,6 +2538,10 @@
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
     "no-providers": "No providers configured yet",
+    "tag": {
+      "limited-free": "Limited free",
+      "limited-free-until": "Limited free until {{time}}"
+    },
     "filter-ph": "Search model ID or name...",
     "filter-count": "{{count}} models",
     "filter-count-filtered": "{{filtered}} / {{total}} models",
