@@ -9,7 +9,9 @@
  *   - round-robin (default): deterministic weighted rotation via smooth weighted round-robin
  *   - random: probabilistic weighted selection
  *
- * The pool is lazily initialized from DB on first access and invalidated on key CRUD.
+ * The pool is lazily initialized from DB on first access, invalidated on key CRUD,
+ * and refreshed after a short TTL so direct DB repairs or missed invalidation events
+ * cannot leave a running process pinned to a stale empty key pool.
  */
 import type { AiKey } from "@/server/db";
 import { log } from "@/server/lib/logger";
@@ -27,6 +29,7 @@ interface Pool {
   entries: PoolEntry[];
   totalWeight: number;
   strategy: BalancerStrategy;
+  loadedAt: number;
 }
 
 interface KeyHealth {
@@ -43,10 +46,33 @@ export type BalancerStrategy = "round-robin" | "random";
 
 /** Pool cache: "providerId" → Pool */
 const pools = new Map<string, Pool>();
+const pendingLoads = new Map<string, Promise<Pool>>();
 const keyHealth = new Map<number, KeyHealth>();
+let poolCacheVersion = 0;
 
 const BASE_PENALTY_MS = 30_000;
 const MAX_PENALTY_MS = 2 * 60 * 1000;
+const DEFAULT_POOL_TTL_MS = 30_000;
+const MIN_POOL_TTL_MS = 1_000;
+const MAX_POOL_TTL_MS = 5 * 60 * 1000;
+
+function readPoolTtlMs(): number {
+  const raw = process.env.AI_KEY_POOL_CACHE_TTL_MS;
+  if (!raw) return DEFAULT_POOL_TTL_MS;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    log.pricing.warn(
+      { value: raw, fallbackMs: DEFAULT_POOL_TTL_MS },
+      "Invalid AI key pool cache TTL; using default",
+    );
+    return DEFAULT_POOL_TTL_MS;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsed), MIN_POOL_TTL_MS), MAX_POOL_TTL_MS);
+}
+
+const POOL_TTL_MS = readPoolTtlMs();
 
 function poolKey(providerId: number, upstreamId: number | null): string {
   return `${providerId}:${upstreamId ?? "legacy"}`;
@@ -95,15 +121,39 @@ async function loadPool(providerId: number, upstreamId: number | null): Promise<
 
   const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0);
 
-  return { entries, totalWeight, strategy };
+  return { entries, totalWeight, strategy, loadedAt: Date.now() };
+}
+
+async function refreshPool(
+  pk: string,
+  providerId: number,
+  upstreamId: number | null,
+): Promise<Pool> {
+  const pending = pendingLoads.get(pk);
+  if (pending) return pending;
+
+  const loadVersion = poolCacheVersion;
+  const nextLoad = loadPool(providerId, upstreamId)
+    .then((pool) => {
+      if (loadVersion === poolCacheVersion) {
+        pools.set(pk, pool);
+      }
+      return pool;
+    })
+    .finally(() => {
+      pendingLoads.delete(pk);
+    });
+
+  pendingLoads.set(pk, nextLoad);
+  return nextLoad;
 }
 
 async function getPool(providerId: number, upstreamId: number | null): Promise<Pool> {
   const pk = poolKey(providerId, upstreamId);
   let pool = pools.get(pk);
-  if (!pool) {
-    pool = await loadPool(providerId, upstreamId);
-    pools.set(pk, pool);
+  const expired = pool ? Date.now() - pool.loadedAt >= POOL_TTL_MS : false;
+  if (!pool || expired) {
+    pool = await refreshPool(pk, providerId, upstreamId);
   }
   return pool;
 }
@@ -204,6 +254,7 @@ export async function pickKey(
  * Next `pickKey` call will reload from DB.
  */
 export function invalidateKeyPool(providerId: number, upstreamId?: number | null): void {
+  poolCacheVersion++;
   if (upstreamId !== undefined) {
     pools.delete(poolKey(providerId, upstreamId));
     return;
@@ -217,7 +268,9 @@ export function invalidateKeyPool(providerId: number, upstreamId?: number | null
  * Clear all pools (call on shutdown or for testing).
  */
 export function clearAllPools(): void {
+  poolCacheVersion++;
   pools.clear();
+  pendingLoads.clear();
   keyHealth.clear();
 }
 

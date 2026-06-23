@@ -465,20 +465,66 @@ async function handleCanonicalChatCompletions(
     adapter: ReturnType<typeof getAdapter>;
   }
   const resolvedUpstreams: ResolvedUpstream[] = [];
+  const routeDiagnostics: Array<{
+    providerId: string;
+    apiFormat: string;
+    routeId: number;
+    providerModelId: string;
+    upstreamCandidates: number;
+    missingKeys: number;
+    authFailures: number;
+    resolved: number;
+    skipped?: string;
+  }> = [];
 
   for (const { route, provider, model: routeModel } of routes) {
     const providerModelId = route.providerModelId ?? routeModel.modelId;
 
     if (!canServeClientFormat(clientFormat, provider.apiFormat)) {
+      routeDiagnostics.push({
+        providerId: provider.providerId,
+        apiFormat: provider.apiFormat,
+        routeId: route.id,
+        providerModelId,
+        upstreamCandidates: 0,
+        missingKeys: 0,
+        authFailures: 0,
+        resolved: 0,
+        skipped: "incompatible-client-format",
+      });
       continue;
     }
 
     if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+      routeDiagnostics.push({
+        providerId: provider.providerId,
+        apiFormat: provider.apiFormat,
+        routeId: route.id,
+        providerModelId,
+        upstreamCandidates: 0,
+        missingKeys: 0,
+        authFailures: 0,
+        resolved: 0,
+        skipped: "bedrock-streaming-unsupported",
+      });
       continue; // skip unsupported streaming routes
     }
 
     const adapter = getAdapter(provider.apiFormat);
-    if (!adapter) continue;
+    if (!adapter) {
+      routeDiagnostics.push({
+        providerId: provider.providerId,
+        apiFormat: provider.apiFormat,
+        routeId: route.id,
+        providerModelId,
+        upstreamCandidates: 0,
+        missingKeys: 0,
+        authFailures: 0,
+        resolved: 0,
+        skipped: "missing-adapter",
+      });
+      continue;
+    }
 
     const candidateBody = {
       ...body,
@@ -488,9 +534,25 @@ async function handleCanonicalChatCompletions(
     const transformedBody = adapter.transformRequest(candidateBody);
     const serializedBody = JSON.stringify(transformedBody);
 
-    for (const upstream of await resolveUpstreamCandidates(provider)) {
+    const upstreamCandidates = await resolveUpstreamCandidates(provider);
+    const diagnostics = {
+      providerId: provider.providerId,
+      apiFormat: provider.apiFormat,
+      routeId: route.id,
+      providerModelId,
+      upstreamCandidates: upstreamCandidates.length,
+      missingKeys: 0,
+      authFailures: 0,
+      resolved: 0,
+    };
+    routeDiagnostics.push(diagnostics);
+
+    for (const upstream of upstreamCandidates) {
       const key = await pickKey(provider.id, upstream.id);
-      if (!key) continue;
+      if (!key) {
+        diagnostics.missingKeys++;
+        continue;
+      }
       try {
         const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
         const mappedModelId = await resolveModelMapping(upstream.id, providerModelId);
@@ -525,12 +587,18 @@ async function handleCanonicalChatCompletions(
           serializedBody: effectiveBody,
           adapter,
         });
+        diagnostics.resolved++;
       } catch {
+        diagnostics.authFailures++;
         continue;
       }
     }
   }
   if (resolvedUpstreams.length === 0) {
+    log.gateway.warn(
+      { requestId, modelId: model.modelId, clientFormat, routeDiagnostics },
+      "No API key configured for any provider route",
+    );
     return respondWithConsumerError(
       c,
       consumer,
