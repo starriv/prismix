@@ -1,7 +1,7 @@
 /**
  * AI Model repository — CRUD for `ai_models` table.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import {
   type AiModel,
@@ -9,6 +9,7 @@ import {
   type AiProvider,
   db,
   exec,
+  execWithChanges,
   type NewAiModel,
   queryAll,
   queryOne,
@@ -160,5 +161,15 @@ export const aiModelRepo = {
     if (ids.length === 0) return 0;
     await exec(db.delete(aiModels).where(inArray(aiModels.id, ids)));
     return ids.length;
+  },
+
+  /** Clears the tag AND disables the model — zero-price enabled models are an abuse risk. */
+  async disableExpiredLimitedFreeModels(now = new Date()): Promise<number> {
+    return execWithChanges(
+      db
+        .update(aiModels)
+        .set({ limitedFreeUntil: null, enabled: false, updatedAt: now })
+        .where(and(isNotNull(aiModels.limitedFreeUntil), lte(aiModels.limitedFreeUntil, now))),
+    );
   },
 };

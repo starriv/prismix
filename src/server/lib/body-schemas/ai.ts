@@ -123,6 +123,18 @@ export const updateAiUpstreamAssignmentBody = z.object({
 
 // ── AI: Models ─────────────────────────────────────────────────────────
 
+const limitedFreeUntilSchema = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .refine((value) => Number.isFinite(Date.parse(value)), "Invalid limited-free expiry")
+    .transform((value) => new Date(value))
+    .nullable(),
+);
+
 export const batchCreateAiModelsBody = z.object({
   models: z
     .array(
@@ -134,6 +146,7 @@ export const batchCreateAiModelsBody = z.object({
         inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         capabilities: z.array(z.string()).optional(),
+        limitedFreeUntil: limitedFreeUntilSchema.optional(),
         enabled: z.boolean().optional(),
       }),
     )
@@ -154,6 +167,7 @@ export const createAiModelBody = z.object({
   outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).optional(),
+  limitedFreeUntil: limitedFreeUntilSchema.optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });
@@ -166,6 +180,7 @@ export const updateAiModelBody = z.object({
   outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").optional(),
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).nullable().optional(),
+  limitedFreeUntil: limitedFreeUntilSchema.optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });
