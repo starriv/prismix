@@ -20,10 +20,7 @@ export default function AiRelayPage() {
   const { data: overview, isLoading } = useAiProvidersOverview(24, 30_000);
 
   const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
-  const anthropicBaseUrl = useMemo(
-    () => `${window.location.origin}/api/gateway/ai/anthropic/v1`,
-    [],
-  );
+  const anthropicBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/anthropic`, []);
 
   const handleCopy = useCallback(
     (text: string) => {

@@ -2554,7 +2554,7 @@
       "title": "Base URLs",
       "hint-before": "使用此 Base URL 配合",
       "hint-link": "消费者密钥 (ska_)",
-      "hint-after": "。OpenAI SDK 使用 OpenAI URL，Claude Code 使用 Anthropic URL。"
+      "hint-after": "。OpenAI SDK 使用 OpenAI URL；Claude Code 使用 Anthropic URL，客户端会自动追加 /v1。"
     },
     "providers": {
       "title": "提供商状态",
@@ -3018,7 +3018,7 @@
       "intro-title": "推荐接入：Claude Code",
       "intro-body": "如果你主要使用 Claude Code，请把 ANTHROPIC_BASE_URL 和 ANTHROPIC_API_KEY 指向 Anthropic 端点。OpenAI SDK 客户端应使用 OpenAI 端点。Prismix 会在后台处理模型路由、用量追踪和计费。",
       "url-title": "Base URLs",
-      "url-hint": "OpenAI URL 用于 OpenAI SDK；Anthropic URL 可作为 Claude Code 的 ANTHROPIC_BASE_URL。",
+      "url-hint": "OpenAI URL 用于 OpenAI SDK；Anthropic URL 可作为 Claude Code 的 ANTHROPIC_BASE_URL，客户端会自动追加 /v1。",
       "keys-title": "我的 API 密钥",
       "manage-keys": "管理密钥",
       "no-keys": "你还没有 API 密钥，创建一个即可开始使用。",

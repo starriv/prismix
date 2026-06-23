@@ -2554,7 +2554,7 @@
       "title": "Base URLs",
       "hint-before": "Use this base URL with your ",
       "hint-link": "consumer key (ska_)",
-      "hint-after": ". Use the OpenAI URL for OpenAI SDKs and the Anthropic URL for Claude Code."
+      "hint-after": ". Use the OpenAI URL for OpenAI SDKs and the Anthropic URL for Claude Code; Anthropic clients append /v1 automatically."
     },
     "providers": {
       "title": "Provider Status",
@@ -3018,7 +3018,7 @@
       "intro-title": "Recommended: Claude Code",
       "intro-body": "If Claude Code is your main client, point ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY at the Anthropic endpoint. OpenAI SDK clients should use the OpenAI endpoint. Prismix handles model routing, usage tracking, and billing behind the scenes.",
       "url-title": "Base URLs",
-      "url-hint": "Use the OpenAI URL for OpenAI SDKs and the Anthropic URL as ANTHROPIC_BASE_URL for Claude Code.",
+      "url-hint": "Use the OpenAI URL for OpenAI SDKs and the Anthropic URL as ANTHROPIC_BASE_URL for Claude Code; Anthropic clients append /v1 automatically.",
       "keys-title": "My API Keys",
       "manage-keys": "Manage Keys",
       "no-keys": "You don't have any API keys yet. Create one to get started.",

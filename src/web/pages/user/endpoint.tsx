@@ -18,10 +18,7 @@ export default function UserEndpointPage() {
   const { data: keys = [], isLoading } = useUserKeys();
 
   const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
-  const anthropicBaseUrl = useMemo(
-    () => `${window.location.origin}/api/gateway/ai/anthropic/v1`,
-    [],
-  );
+  const anthropicBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/anthropic`, []);
   const activeKeys = keys.filter((k) => k.status === "active");
 
   const handleCopy = useCallback(
