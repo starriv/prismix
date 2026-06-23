@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import { groupBy, pick, uniq } from "lodash-es";
 
+import { isLimitedFreeActive, serializeLimitedFreeUntil } from "@/server/ai/lib/limited-free";
 import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth";
 import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
@@ -146,6 +147,8 @@ user.get("/models", async (c) => {
         ),
         capabilities: safeParseJsonArray(model.capabilities, "capabilities") as string[],
         contextWindow: model.contextWindow,
+        limitedFreeUntil: serializeLimitedFreeUntil(model.limitedFreeUntil),
+        isLimitedFree: isLimitedFreeActive(model.limitedFreeUntil),
       })),
     };
   });
