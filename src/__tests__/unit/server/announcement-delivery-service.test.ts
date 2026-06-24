@@ -6,6 +6,7 @@ import {
   type AnnouncementNoticePayload,
   buildAnnouncementErrorPayload,
   buildCliNoticeStreamEvents,
+  buildCliVisibleAnnouncementErrorPayload,
   canInjectCliTextNotice,
   canInjectCliTextNoticeIntoBody,
   findCliAnnouncementForConsumer,
@@ -95,6 +96,36 @@ describe("announcement delivery service", () => {
     // error must stay intact so SDK/consumer error-message matching still works
     expect(payload.error).toBe("Model not found");
     expect(payload.announcement).toMatchObject({ id: "ann-1", surface: "cli" });
+  });
+
+  it("can append notices to Anthropic provider error messages for CLI display", () => {
+    const payload = buildCliVisibleAnnouncementErrorPayload(
+      {
+        type: "error",
+        error: {
+          type: "not_found_error",
+          message: "Claude Fable 5 is not available.",
+        },
+        request_id: "req_123",
+      },
+      NOTICE,
+    );
+
+    expect((payload.error as { message: string }).message).toContain(
+      "Claude Fable 5 is not available.",
+    );
+    expect((payload.error as { message: string }).message).toContain(
+      "[Prismix Notice] Model retirement",
+    );
+    expect(payload.announcement).toMatchObject({ id: "ann-1" });
+  });
+
+  it("can append notices to gateway string errors for CLI display", () => {
+    const payload = buildCliVisibleAnnouncementErrorPayload({ error: "Model not found" }, NOTICE);
+
+    expect(payload.error).toContain("Model not found");
+    expect(payload.error).toContain("[Prismix Notice] Model retirement");
+    expect(payload.announcement).toMatchObject({ id: "ann-1" });
   });
 
   it("returns the payload unchanged when there is no notice", () => {

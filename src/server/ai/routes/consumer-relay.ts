@@ -9,8 +9,8 @@ import { type Context, Hono } from "hono";
 
 import {
   type AnnouncementNoticePayload,
-  buildAnnouncementErrorPayload,
   buildCliNoticeStreamEvents,
+  buildCliVisibleAnnouncementErrorPayload,
   canInjectCliTextNoticeIntoBody,
   findCliAnnouncementForConsumer,
   findModelErrorAnnouncement,
@@ -123,6 +123,37 @@ function respondWithConsumerError(
   return c.json(payload, statusCode as 400);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseUpstreamErrorPayload(
+  statusCode: number,
+  responseText: string,
+): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(responseText);
+    if (isRecord(parsed)) return parsed;
+  } catch {
+    // Fall back to the gateway-shaped payload below.
+  }
+  return {
+    error: `Upstream returned ${statusCode}`,
+    detail: responseText.slice(0, 2000),
+  };
+}
+
+function shouldInjectModelErrorNoticeFromUpstream(
+  statusCode: number,
+  responseText: string,
+): boolean {
+  if (statusCode === 403 || statusCode === 404 || statusCode === 410) return true;
+  if (statusCode !== 400) return false;
+  return /model|not[_ -]?found|not available|does not exist|no access|not supported|disabled/i.test(
+    responseText,
+  );
+}
+
 async function respondWithModelAnnouncementError(
   c: Context,
   consumer: ConsumerSession,
@@ -149,9 +180,40 @@ async function respondWithModelAnnouncementError(
     requestId,
     start,
     statusCode,
-    buildAnnouncementErrorPayload(payload, notice),
+    buildCliVisibleAnnouncementErrorPayload(payload, notice),
     extras,
   );
+}
+
+async function respondWithUpstreamModelAnnouncementError(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+  statusCode: number,
+  responseText: string,
+  modelId: string,
+  reason: ModelErrorReason,
+  extras?: ConsumerErrorExtras,
+): Promise<Response> {
+  let notice = null;
+  try {
+    notice = await findModelErrorAnnouncement(modelId, reason);
+  } catch (err) {
+    log.gateway.warn(
+      { err, requestId, consumerId: consumer.consumerId, modelId, reason },
+      "Failed to resolve upstream model-error announcement",
+    );
+  }
+
+  const payload = buildCliVisibleAnnouncementErrorPayload(
+    parseUpstreamErrorPayload(statusCode, responseText),
+    notice,
+  );
+  return respondWithConsumerError(c, consumer, requestId, start, statusCode, payload, {
+    ...extras,
+    responseBody: extras?.responseBody ?? responseText,
+  });
 }
 
 async function findCliAnnouncementNotice(
@@ -815,6 +877,27 @@ async function handleCanonicalChatCompletions(
           }
           // Non-retryable — return immediately
           const errBody = await upstreamRes.text().catch(() => "");
+          if (shouldInjectModelErrorNoticeFromUpstream(upstreamRes.status, errBody)) {
+            return respondWithUpstreamModelAnnouncementError(
+              c,
+              consumer,
+              requestId,
+              start,
+              upstreamRes.status,
+              errBody,
+              model.modelId,
+              upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
+              {
+                keyId: selected.keyId,
+                providerId: selected.providerId,
+                modelId: model.modelId,
+                upstreamId: selected.upstreamId,
+                upstreamName: selected.upstreamName,
+                upstreamBaseUrl: selected.upstreamBaseUrl,
+                requestBody: logEnabled ? selected.serializedBody : undefined,
+              },
+            );
+          }
           return respondWithConsumerError(
             c,
             consumer,
@@ -915,6 +998,27 @@ async function handleCanonicalChatCompletions(
       }
       // Non-retryable — return immediately
       const errBody = await upstreamRes.text().catch(() => "");
+      if (shouldInjectModelErrorNoticeFromUpstream(upstreamRes.status, errBody)) {
+        return respondWithUpstreamModelAnnouncementError(
+          c,
+          consumer,
+          requestId,
+          start,
+          upstreamRes.status,
+          errBody,
+          model.modelId,
+          upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
+          {
+            keyId: selected.keyId,
+            providerId: selected.providerId,
+            modelId: model.modelId,
+            upstreamId: selected.upstreamId,
+            upstreamName: selected.upstreamName,
+            upstreamBaseUrl: selected.upstreamBaseUrl,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
+          },
+        );
+      }
       return respondWithConsumerError(
         c,
         consumer,
@@ -1421,7 +1525,11 @@ async function handlePassthrough(
 
       const resHeaders = new Headers();
       upstreamRes.headers.forEach((v, k) => {
-        if (!["transfer-encoding", "content-encoding", "connection"].includes(k.toLowerCase())) {
+        if (
+          !["transfer-encoding", "content-encoding", "connection", "content-length"].includes(
+            k.toLowerCase(),
+          )
+        ) {
           resHeaders.set(k, v);
         }
       });
@@ -1442,6 +1550,33 @@ async function handlePassthrough(
           log.gateway.warn(
             { err, requestId, consumerId: consumer.consumerId, modelId },
             "Failed to inject CLI notice into passthrough response",
+          );
+        }
+      }
+
+      if (
+        !upstreamRes.ok &&
+        isJson &&
+        responseText !== null &&
+        shouldInjectModelErrorNoticeFromUpstream(upstreamRes.status, responseText)
+      ) {
+        try {
+          const notice = await findModelErrorAnnouncement(
+            modelId,
+            upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
+          );
+          if (notice) {
+            responseBody = JSON.stringify(
+              buildCliVisibleAnnouncementErrorPayload(
+                parseUpstreamErrorPayload(upstreamRes.status, responseText),
+                notice,
+              ),
+            );
+          }
+        } catch (err) {
+          log.gateway.warn(
+            { err, requestId, consumerId: consumer.consumerId, modelId },
+            "Failed to inject model-error announcement into passthrough error response",
           );
         }
       }

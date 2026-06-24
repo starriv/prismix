@@ -102,6 +102,48 @@ export function buildAnnouncementErrorPayload(
   };
 }
 
+function appendNoticeToMessage(message: string, notice: AnnouncementNoticePayload): string {
+  const noticeText = formatCliAnnouncementText(notice).trimEnd();
+  if (message.includes(noticeText)) return message;
+  return `${message}\n\n${noticeText}`;
+}
+
+export function buildCliVisibleAnnouncementErrorPayload(
+  payload: Record<string, unknown>,
+  notice: AnnouncementNoticePayload | null,
+): Record<string, unknown> {
+  if (!notice) return payload;
+
+  if (isRecord(payload.error)) {
+    const error = { ...payload.error };
+    if (typeof error.message === "string") {
+      error.message = appendNoticeToMessage(error.message, notice);
+    }
+    return { ...payload, error, announcement: notice };
+  }
+
+  if (typeof payload.error === "string") {
+    return {
+      ...payload,
+      error: appendNoticeToMessage(payload.error, notice),
+      announcement: notice,
+    };
+  }
+
+  if (typeof payload.message === "string") {
+    return {
+      ...payload,
+      message: appendNoticeToMessage(payload.message, notice),
+      announcement: notice,
+    };
+  }
+
+  return {
+    ...payload,
+    announcement: notice,
+  };
+}
+
 /**
  * Shared injection-safety check for a raw request body.
  * CLI notice text is prepended to assistant content, so it is only safe for
