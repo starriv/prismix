@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Route,
   Server,
   Sparkles,
   Trash2,
@@ -164,6 +165,9 @@ const editAssignmentFormSchema = z.object({
 });
 type EditAssignmentFormInput = z.input<typeof editAssignmentFormSchema>;
 type EditAssignmentFormValues = z.output<typeof editAssignmentFormSchema>;
+
+const DEFAULT_UPSTREAM_PRIORITY = 1000;
+const DEFAULT_UPSTREAM_WEIGHT = 1;
 
 // ── Page ────────────────────────────────────────────────────────────
 
@@ -727,12 +731,12 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {sortedAssignments.length === 0 && !isLoading ? (
-            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-              {t("ai-providers.upstreams.empty")}
-            </div>
-          ) : (
+        <CardContent className="space-y-3">
+          <OfficialUpstreamRouteCard
+            provider={provider}
+            hasAssignments={sortedAssignments.length > 0}
+          />
+          {(sortedAssignments.length > 0 || isLoading) && (
             <DataTable
               columns={columns}
               data={sortedAssignments}
@@ -794,6 +798,84 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function OfficialUpstreamRouteCard({
+  provider,
+  hasAssignments,
+}: {
+  provider: AiProvider;
+  hasAssignments: boolean;
+}) {
+  const { t } = useTranslation();
+  const enabled = isProviderEffectiveEnabled(provider);
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-muted/20 p-4 transition-[border-color,background-color,opacity]",
+        "border-primary/20 bg-primary/[0.03]",
+        !enabled && "opacity-60",
+      )}
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
+            <Route aria-hidden="true" className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-medium">{t("ai-providers.upstreams.official-title")}</h3>
+              <Badge variant="secondary" className="text-[10px]">
+                {t("ai-providers.upstreams.kind.official")}
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                P{DEFAULT_UPSTREAM_PRIORITY} W{DEFAULT_UPSTREAM_WEIGHT}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {hasAssignments
+                ? t("ai-providers.upstreams.official-fallback-desc")
+                : t("ai-providers.upstreams.official-default-desc")}
+            </p>
+          </div>
+        </div>
+        <Badge variant={enabled ? "secondary" : "outline"} className="w-fit text-xs">
+          {enabled ? t("common.status.active") : t("common.status.disabled")}
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm md:grid-cols-[minmax(0,1fr)_160px_120px]">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("ai-providers.upstreams.th.base-url")}
+          </div>
+          <CopyableText
+            value={provider.baseUrl}
+            className="rounded-sm font-mono text-xs break-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {provider.baseUrl}
+          </CopyableText>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("ai-providers.upstreams.route-role")}
+          </div>
+          <div>
+            {hasAssignments
+              ? t("ai-providers.upstreams.fallback")
+              : t("ai-providers.upstreams.default-route")}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("ai-providers.upstreams.th.upstream-id")}
+          </div>
+          <div className="font-mono text-xs">{t("ai-providers.upstreams.official-id")}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1477,8 +1559,8 @@ function ProviderKeyBucketsSection({ provider }: { provider: AiProvider }) {
       kind: null,
       baseUrl: provider.baseUrl,
       upstreamId: null,
-      priority: 1000,
-      weight: 0,
+      priority: DEFAULT_UPSTREAM_PRIORITY,
+      weight: DEFAULT_UPSTREAM_WEIGHT,
       enabled: true,
       keys: orderBy(
         grouped["official"] ?? [],
