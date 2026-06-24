@@ -132,8 +132,8 @@ function getColumnStyle<TData, TValue>(
 function getStickyClasses(stickySide: "left" | "right" | undefined, header = false) {
   return cn(
     header && "sticky top-0 z-20 bg-background",
-    stickySide && "sticky bg-background",
-    stickySide && !header && "z-10 group-hover:bg-muted/50",
+    stickySide && "sticky isolate bg-background bg-clip-padding",
+    stickySide && !header && "z-20 group-hover:bg-muted",
     stickySide === "left" && "border-r",
     stickySide === "right" && "border-l",
     stickySide && header && "z-30",
