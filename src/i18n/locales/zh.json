@@ -2356,9 +2356,16 @@
       "delete-upstream-body": "从此供应商移除上游「{{name}}」？绑定到该上游的所有密钥也会被一并删除。"
     },
     "upstreams": {
-      "section-title": "Upstreams",
-      "desc": "为同一个 provider 配置多个不同的执行入口，并设置调度优先级或权重。",
-      "empty": "还没有配置任何 upstream。未添加前，系统会继续使用 provider 的 Base URL。",
+      "section-title": "上游",
+      "desc": "为同一个供应商配置多个执行入口，并设置调度优先级或权重。",
+      "empty": "暂无已分配上游。",
+      "official-title": "官方上游",
+      "official-id": "official",
+      "official-default-desc": "当前使用供应商 Base URL 作为默认执行入口。",
+      "official-fallback-desc": "额外上游不可用时回退到供应商 Base URL。",
+      "route-role": "调度角色",
+      "default-route": "默认入口",
+      "fallback": "兜底入口",
       "th": {
         "name": "名称",
         "upstream-id": "上游 ID",

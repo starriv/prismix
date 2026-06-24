@@ -2357,8 +2357,15 @@
     },
     "upstreams": {
       "section-title": "Upstreams",
-      "desc": "Configure multiple execution endpoints for one provider and control their routing order or weights.",
-      "empty": "No upstreams configured yet. Until one is added, the relay will keep using the provider base URL.",
+      "desc": "Configure additional execution endpoints for one provider and control their routing order or weights.",
+      "empty": "No additional upstreams assigned.",
+      "official-title": "Official Upstream",
+      "official-id": "official",
+      "official-default-desc": "Currently uses the provider base URL as the default execution endpoint.",
+      "official-fallback-desc": "Falls back to the provider base URL when higher-priority upstreams are unavailable.",
+      "route-role": "Route Role",
+      "default-route": "Default",
+      "fallback": "Fallback",
       "th": {
         "name": "Name",
         "upstream-id": "Upstream ID",
