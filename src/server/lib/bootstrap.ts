@@ -164,14 +164,14 @@ export async function bootstrapWorker() {
   // Worker consumes background work and runs scheduled jobs.
   await initWriteQueue();
   await initWorkerHandlers();
-  initLiteLLMPricingJob();
+  await initLiteLLMPricingJob();
 
   // Initialize event bus + register consumers (notification, webhook, infra).
   // SSE consumer is skipped — the worker has no HTTP routes, so no browser is connected.
   await initEventBus({ sse: false });
 
   // Start periodic jobs
-  initTopupExpiryJob();
+  await initTopupExpiryJob();
   initWebhookRetryJob();
   await initDepositScanQueue();
   await initSupplierHealthCheckJob();
@@ -186,13 +186,13 @@ export async function bootstrapAll() {
   await initWriteQueue();
   await initWorkerHandlers();
   initAiAdapters();
-  initLiteLLMPricingJob();
+  await initLiteLLMPricingJob();
 
-  // Initialize event bus + register consumers (SSE, notification, webhook)
+  // Initialize event bus + register consumers (SSE, notification, webhook, infra).
   await initEventBus();
 
   // Start periodic jobs
-  initTopupExpiryJob();
+  await initTopupExpiryJob();
   initWebhookRetryJob();
   await initDepositScanQueue();
   await initSupplierHealthCheckJob();

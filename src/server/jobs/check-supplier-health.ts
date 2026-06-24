@@ -14,18 +14,20 @@
  *
  * See: docs/rfcs/rfc-supplier-health-check.md
  */
-import { Queue, type RepeatableJob, Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 
 import { pingEndpoint, type PingResult } from "@/server/ai/lib/supplier-health";
 import type { AiProvider } from "@/server/db";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
+import { removeStaleRepeatableJobs } from "@/server/jobs/repeatable";
 import { decrypt } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { aiKeyRepo, aiModelRepo, aiProviderRepo, aiUpstreamRepo } from "@/server/repos";
 import { aiUpstreamAssignmentRepo } from "@/server/repos/ai-upstream-assignment-repo";
 
 const QUEUE_NAME = "supplier-health-check";
+const JOB_NAME = "check-all";
 const REPEAT_JOB_ID = "supplier-health-check-recurring";
 
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
@@ -335,22 +337,6 @@ function emitHealthInvalidation(target: CheckTarget): void {
   emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { upstreamId: target.id });
 }
 
-async function removeStaleRepeatableJobs(queue: Queue): Promise<void> {
-  const repeatableJobs: RepeatableJob[] = await queue.getRepeatableJobs();
-  const expectedEvery = String(CHECK_INTERVAL_MS);
-  for (const job of repeatableJobs) {
-    if (job.name !== "check-all") continue;
-    if (job.id !== REPEAT_JOB_ID) continue;
-    if (job.every === expectedEvery) continue;
-
-    await queue.removeRepeatableByKey(job.key);
-    log.supplier.info(
-      { repeatKey: job.key, previousEvery: job.every, nextEvery: expectedEvery },
-      "Removed stale supplier health repeatable job",
-    );
-  }
-}
-
 /** Initialize the supplier health check BullMQ queue + worker. Call from bootstrap. */
 export async function initSupplierHealthCheckJob(): Promise<void> {
   const redisUrl = process.env.REDIS_URL;
@@ -370,11 +356,17 @@ export async function initSupplierHealthCheckJob(): Promise<void> {
     },
   });
 
-  await removeStaleRepeatableJobs(queue);
+  await removeStaleRepeatableJobs(queue, {
+    jobName: JOB_NAME,
+    repeatJobId: REPEAT_JOB_ID,
+    everyMs: CHECK_INTERVAL_MS,
+    log: log.supplier,
+    label: "supplier health",
+  });
 
   // Register repeatable job — jobId ensures only one schedule across instances
   await queue.add(
-    "check-all",
+    JOB_NAME,
     {},
     {
       repeat: { every: CHECK_INTERVAL_MS },

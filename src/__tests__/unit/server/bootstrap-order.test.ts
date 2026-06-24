@@ -33,7 +33,8 @@ vi.mock("@/server/db", () => ({
 }));
 
 vi.mock("@/server/jobs/expire-topup-orders", () => ({
-  initTopupExpiryJob: vi.fn(() => track("initTopupExpiryJob")),
+  initTopupExpiryJob: vi.fn(async () => track("initTopupExpiryJob")),
+  closeTopupExpiryJob: vi.fn(async () => {}),
 }));
 
 vi.mock("@/server/jobs/expire-limited-free-models", () => ({
@@ -111,7 +112,8 @@ vi.mock("@/server/ai/init", () => ({
 }));
 
 vi.mock("@/server/jobs/refresh-litellm-pricing", () => ({
-  initLiteLLMPricingJob: vi.fn(() => track("initLiteLLMPricingJob")),
+  initLiteLLMPricingJob: vi.fn(async () => track("initLiteLLMPricingJob")),
+  closeLiteLLMPricingJob: vi.fn(async () => {}),
 }));
 
 vi.mock("@/server/jobs/check-supplier-health", () => ({

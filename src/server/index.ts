@@ -18,8 +18,8 @@ import "./auth/index";
 import { env } from "./env";
 import { closeSupplierHealthCheckJob } from "./jobs/check-supplier-health";
 import { closeLimitedFreeModelExpiryJob } from "./jobs/expire-limited-free-models";
-import { stopTopupExpiryJob } from "./jobs/expire-topup-orders";
-import { stopLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
+import { closeTopupExpiryJob } from "./jobs/expire-topup-orders";
+import { closeLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "./jobs/scan-topup-deposit";
 import { bootstrapAll, bootstrapApi } from "./lib/bootstrap";
 import { AppError } from "./lib/errors";
@@ -204,10 +204,10 @@ async function shutdown(signal: string) {
 
   // 1. Stop timers/queues started by this process.
   if (ROLE === "all") {
-    stopTopupExpiryJob();
+    await closeTopupExpiryJob();
     await closeSupplierHealthCheckJob();
     await closeLimitedFreeModelExpiryJob();
-    stopLiteLLMPricingJob();
+    await closeLiteLLMPricingJob();
     stopWebhookRetryJob();
   }
   await closeDepositScanQueue();

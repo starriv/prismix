@@ -7,8 +7,8 @@ import { closeDb } from "@/server/db";
 import { closeEventBus } from "@/server/events";
 import { closeSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
 import { closeLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
-import { stopTopupExpiryJob } from "@/server/jobs/expire-topup-orders";
-import { stopLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
+import { closeTopupExpiryJob } from "@/server/jobs/expire-topup-orders";
+import { closeLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "@/server/jobs/scan-topup-deposit";
 import { bootstrapWorker } from "@/server/lib/bootstrap";
 import { log, logger } from "@/server/lib/logger";
@@ -64,8 +64,8 @@ async function shutdown(signal: string) {
   ready = false;
   log.shutdown.info({ signal }, "Worker shutting down");
 
-  stopTopupExpiryJob();
-  stopLiteLLMPricingJob();
+  await closeTopupExpiryJob();
+  await closeLiteLLMPricingJob();
   stopWebhookRetryJob();
 
   await closeDepositScanQueue();

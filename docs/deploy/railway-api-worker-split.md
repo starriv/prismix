@@ -28,7 +28,7 @@ startCommand = "pnpm start:worker"
 healthcheckPath = "/health"
 ```
 
-Do not bind a public domain to the worker service. Keep it at 1 replica unless the scheduled jobs are made multi-worker safe.
+Do not bind a public domain to the worker service. All scheduled jobs use BullMQ repeatable jobs with a shared `jobId`, so the worker can be scaled to multiple replicas — each repeatable job fires once system-wide regardless of replica count.
 
 ## Job queues
 
