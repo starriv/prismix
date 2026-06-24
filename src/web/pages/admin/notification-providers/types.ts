@@ -13,7 +13,6 @@ export interface EmailConfig {
 export interface TelegramConfig {
   enabled: boolean;
   botToken: string;
-  chatId: string;
 }
 
 export interface WebhookConfig {
@@ -45,7 +44,7 @@ export const INITIAL_STATE: ConfigState = {
     fromAddress: "",
     fromName: "",
   },
-  telegram: { enabled: false, botToken: "", chatId: "" },
+  telegram: { enabled: false, botToken: "" },
   webhook: { enabled: false },
   whatsapp: { enabled: false, apiToken: "", phoneNumberId: "" },
 };
@@ -57,7 +56,6 @@ export const HOSTNAME_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const RESEND_KEY_RE = /^re_[a-zA-Z0-9_]{10,}$/;
 export const TELEGRAM_TOKEN_RE = /^[0-9]+:[A-Za-z0-9_-]{35}$/;
-export const TELEGRAM_CHAT_ID_RE = /^-?\d+$/;
 export const WHATSAPP_TOKEN_RE = /^EAA/;
 export const WHATSAPP_PHONE_ID_RE = /^\d{9,20}$/;
 
@@ -86,8 +84,6 @@ export function validateConfig(config: ConfigState): string | null {
       !TELEGRAM_TOKEN_RE.test(config.telegram.botToken)
     )
       return "telegram-token-invalid";
-    if (config.telegram.chatId && !TELEGRAM_CHAT_ID_RE.test(config.telegram.chatId))
-      return "telegram-chat-id-invalid";
   }
   if (config.whatsapp.enabled) {
     if (
@@ -109,7 +105,7 @@ export function emailHasSecrets(c: EmailConfig): boolean {
 }
 
 export function telegramHasSecrets(c: TelegramConfig): boolean {
-  return !!(c.botToken || c.chatId);
+  return !!c.botToken;
 }
 
 export function whatsappHasSecrets(c: WhatsAppConfig): boolean {
@@ -125,5 +121,5 @@ export const EMAIL_BLANK: Partial<EmailConfig> = {
   fromAddress: "",
   fromName: "",
 };
-export const TELEGRAM_BLANK: Partial<TelegramConfig> = { botToken: "", chatId: "" };
+export const TELEGRAM_BLANK: Partial<TelegramConfig> = { botToken: "" };
 export const WHATSAPP_BLANK: Partial<WhatsAppConfig> = { apiToken: "", phoneNumberId: "" };

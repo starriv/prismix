@@ -16,10 +16,9 @@ export class TelegramChannel implements NotificationChannel {
   ): Promise<void> {
     const botToken = options?.providerConfig?.botToken as string | undefined;
     if (!botToken) throw new Error("Telegram Bot Token not configured");
-    const chatId = target || (options?.providerConfig?.chatId as string | undefined);
-    if (!chatId) throw new Error("Telegram Chat ID not configured");
+    if (!target) throw new Error("Telegram Chat ID not configured");
 
-    const targetError = this.validateTarget(chatId);
+    const targetError = this.validateTarget(target);
     if (targetError) throw new Error(targetError);
 
     const utcTimestamp = new Date(payload.timestamp).toISOString();
@@ -39,7 +38,7 @@ export class TelegramChannel implements NotificationChannel {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: chatId,
+        chat_id: target,
         text,
         parse_mode: "MarkdownV2",
       }),
@@ -50,7 +49,7 @@ export class TelegramChannel implements NotificationChannel {
       throw new Error(`Telegram API error (${res.status}): ${body}`);
     }
 
-    log.notification.info({ target: chatId, event: payload.event }, "Telegram message sent");
+    log.notification.info({ target, event: payload.event }, "Telegram message sent");
   }
 
   validateTarget(target: string): string | null {

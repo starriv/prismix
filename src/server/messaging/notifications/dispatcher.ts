@@ -46,10 +46,7 @@ export async function emitNotification(
 ): Promise<void> {
   try {
     const configs = await notificationConfigRepo.findByEvent(event);
-    if (configs.length === 0) {
-      await emitDefaultSupplierTelegramNotification(event, data);
-      return;
-    }
+    if (configs.length === 0) return;
 
     for (const config of configs) {
       const channel = config.channel as ChannelType;
@@ -170,58 +167,4 @@ async function deliverWithRetry(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function emitDefaultSupplierTelegramNotification(
-  event: string,
-  data: { title: string; body: string; html?: string; metadata?: Record<string, unknown> },
-): Promise<void> {
-  if (!event.startsWith("supplier.")) return;
-  if (!isChannelEnabled("telegram")) return;
-
-  const providerConfig = getChannelConfig("telegram");
-  const chatId = providerConfig.chatId;
-  if (typeof chatId !== "string" || chatId.length === 0) return;
-
-  const payload: NotificationPayload = {
-    event,
-    title: data.title,
-    body: data.body,
-    html: data.html,
-    metadata: data.metadata,
-    timestamp: Date.now(),
-  };
-
-  const tsSecond = Math.floor(payload.timestamp / 1000);
-  const dedupeInput = `${event}:telegram-default:${chatId}:${tsSecond}`;
-  const dedupeKey = crypto.createHash("sha256").update(dedupeInput).digest("hex").slice(0, 32);
-
-  let logEntry;
-  try {
-    logEntry = await notificationLogRepo.insert({
-      configId: null,
-      channel: "telegram",
-      event,
-      target: chatId,
-      payload: JSON.stringify(payload),
-      dedupeKey,
-      status: "pending",
-      attempts: 0,
-      createdAt: new Date(),
-    });
-  } catch (insertErr) {
-    if (insertErr instanceof Error && insertErr.message.includes("UNIQUE")) {
-      log.notification.debug({ dedupeKey, event }, "Duplicate notification skipped");
-      return;
-    }
-    throw insertErr;
-  }
-
-  enqueueJob("notification-deliver", {
-    logId: logEntry.id,
-    channel: "telegram",
-    target: chatId,
-    payload,
-    encryptedSecret: null,
-  });
 }

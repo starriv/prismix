@@ -10,19 +10,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/web/components/ui/card";
-import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
 import { SecretInput } from "@/web/components/ui/secret-input";
 import { Switch } from "@/web/components/ui/switch";
 import { cn } from "@/web/shared/utils";
 
 import { ClearConfirmDialog } from "./clear-confirm-dialog";
-import {
-  TELEGRAM_BLANK,
-  TELEGRAM_CHAT_ID_RE,
-  TELEGRAM_TOKEN_RE,
-  telegramHasSecrets,
-} from "./types";
+import { TELEGRAM_BLANK, TELEGRAM_TOKEN_RE, telegramHasSecrets } from "./types";
 import type { TelegramConfig } from "./types";
 
 export function TelegramCard({
@@ -48,7 +42,6 @@ export function TelegramCard({
 
   const tokenInvalid =
     config.botToken && config.botToken !== "****" && !TELEGRAM_TOKEN_RE.test(config.botToken);
-  const chatIdInvalid = config.chatId && !TELEGRAM_CHAT_ID_RE.test(config.chatId);
 
   return (
     <>
@@ -80,20 +73,6 @@ export function TelegramCard({
               {tokenInvalid && (
                 <p className="text-[11px] text-destructive">
                   {t("admin.notif.validation.telegram-token-invalid")}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">{t("admin.notif.form.chat-id")}</Label>
-              <Input
-                value={config.chatId}
-                onChange={(e) => onUpdate({ chatId: e.target.value })}
-                placeholder="-1001234567890"
-                className={cn("text-xs", chatIdInvalid && "border-destructive")}
-              />
-              {chatIdInvalid && (
-                <p className="text-[11px] text-destructive">
-                  {t("admin.notif.validation.telegram-chat-id-invalid")}
                 </p>
               )}
             </div>

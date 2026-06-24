@@ -343,20 +343,19 @@ describe("telegram — send() with fetch mock", () => {
     );
   });
 
-  it("uses provider config chatId when target is omitted", async () => {
+  it("requires an explicit target chatId", async () => {
     const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
     const ch = new TelegramChannel();
 
-    await ch.send("", SAMPLE_PAYLOAD, {
-      providerConfig: {
-        botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a",
-        chatId: "-100123456",
-      },
-    });
-
-    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.chat_id).toBe("-100123456");
+    await expect(
+      ch.send("", SAMPLE_PAYLOAD, {
+        providerConfig: {
+          botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a",
+          chatId: "-100123456",
+        },
+      }),
+    ).rejects.toThrow("Telegram Chat ID not configured");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("throws on API error", async () => {

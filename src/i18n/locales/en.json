@@ -800,7 +800,7 @@
       "email-title": "Email",
       "email-desc": "Send notifications via SMTP or Resend API",
       "telegram-title": "Telegram",
-      "telegram-desc": "Send notifications via Telegram Bot",
+      "telegram-desc": "Configure the Telegram Bot token. Chat IDs are set on each notification rule.",
       "webhook-title": "Webhook",
       "webhook-desc": "Users configure their own webhook URLs",
       "whatsapp-title": "WhatsApp",
@@ -815,7 +815,6 @@
         "from-address": "From Address",
         "from-name": "From Name",
         "bot-token": "Bot Token",
-        "chat-id": "Chat ID",
         "api-token": "API Token",
         "phone-id": "Phone Number ID"
       },
@@ -832,7 +831,6 @@
         "resend-key-invalid": "Resend API key must start with re_ (e.g. re_xxxx...)",
         "from-address-invalid": "From address must be a valid email",
         "telegram-token-invalid": "Bot token format: 123456789:ABCdef... (numeric ID + 35-char secret)",
-        "telegram-chat-id-invalid": "Chat ID must be numeric. Group chat IDs are usually negative",
         "whatsapp-token-invalid": "WhatsApp API token must start with EAA",
         "whatsapp-phone-id-invalid": "Phone Number ID must be a 9-20 digit number"
       },
@@ -976,17 +974,17 @@
   },
   "notif": {
     "title": "Notifications",
-    "desc": "Configure notification channels and view delivery logs",
+    "desc": "Configure notification rules and view delivery logs",
     "tab": {
-      "configs": "Channels",
+      "configs": "Notifications",
       "logs": "Logs"
     },
-    "table-empty": "No notification channels configured yet.",
+    "table-empty": "No notification rules configured yet.",
     "logs-empty": "No notification logs yet.",
-    "dialog-title-create": "Add Notification Channel",
-    "dialog-title-edit": "Edit Notification Channel",
-    "delete-title": "Delete Channel",
-    "delete-confirm": "Are you sure you want to delete this notification channel? This action cannot be undone.",
+    "dialog-title-create": "Add Notification",
+    "dialog-title-edit": "Edit Notification",
+    "delete-title": "Delete Notification",
+    "delete-confirm": "Are you sure you want to delete this notification rule? This action cannot be undone.",
     "th": {
       "label": "Label",
       "channel": "Channel",
@@ -1008,7 +1006,7 @@
       "failed": "Failed"
     },
     "btn": {
-      "add": "Add Channel",
+      "add": "Add Notification",
       "create": "Create",
       "save": "Save Changes",
       "delete": "Delete"
@@ -1068,12 +1066,12 @@
       "system-announcement": "A system announcement is published."
     },
     "toast": {
-      "created": "Notification channel created",
-      "updated": "Notification channel updated",
-      "deleted": "Notification channel deleted",
-      "create-error": "Failed to create notification channel",
-      "update-error": "Failed to update notification channel",
-      "delete-error": "Failed to delete notification channel",
+      "created": "Notification rule created",
+      "updated": "Notification rule updated",
+      "deleted": "Notification rule deleted",
+      "create-error": "Failed to create notification rule",
+      "update-error": "Failed to update notification rule",
+      "delete-error": "Failed to delete notification rule",
       "test-ok": "Test notification sent successfully",
       "test-fail": "Test notification failed"
     },

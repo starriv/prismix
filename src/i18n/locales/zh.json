@@ -382,7 +382,7 @@
       "users": "用户管理",
       "admins": "管理员",
       "login-strategies": "登录策略",
-      "notifications": "通知渠道",
+      "notifications": "通知",
       "networks": "网络管理",
       "tokens": "代币管理",
       "announcements": "系统公告",
@@ -800,7 +800,7 @@
       "email-title": "邮件",
       "email-desc": "通过 SMTP 或 Resend API 发送通知",
       "telegram-title": "Telegram",
-      "telegram-desc": "通过 Telegram Bot 发送通知",
+      "telegram-desc": "配置 Telegram Bot Token。Chat ID 在每条通知规则里填写。",
       "webhook-title": "Webhook",
       "webhook-desc": "用户自行配置 Webhook 地址",
       "whatsapp-title": "WhatsApp",
@@ -815,7 +815,6 @@
         "from-address": "发件地址",
         "from-name": "发件人名称",
         "bot-token": "Bot Token",
-        "chat-id": "Chat ID",
         "api-token": "API Token",
         "phone-id": "Phone Number ID"
       },
@@ -832,7 +831,6 @@
         "resend-key-invalid": "Resend API Key 必须以 re_ 开头（如 re_xxxx...）",
         "from-address-invalid": "发件地址必须是有效的邮箱格式",
         "telegram-token-invalid": "Bot Token 格式: 123456789:ABCdef...（数字ID + 35位密钥）",
-        "telegram-chat-id-invalid": "Chat ID 必须是数字，群组通常为负数",
         "whatsapp-token-invalid": "WhatsApp API Token 必须以 EAA 开头",
         "whatsapp-phone-id-invalid": "Phone Number ID 必须是 9-20 位数字"
       },
@@ -976,17 +974,17 @@
   },
   "notif": {
     "title": "通知",
-    "desc": "配置通知渠道和查看投递日志",
+    "desc": "配置通知规则和查看投递日志",
     "tab": {
-      "configs": "渠道",
+      "configs": "通知",
       "logs": "日志"
     },
-    "table-empty": "尚未配置通知渠道。",
+    "table-empty": "尚未配置通知规则。",
     "logs-empty": "暂无通知日志。",
-    "dialog-title-create": "添加通知渠道",
-    "dialog-title-edit": "编辑通知渠道",
-    "delete-title": "删除渠道",
-    "delete-confirm": "确定要删除此通知渠道吗？此操作不可撤销。",
+    "dialog-title-create": "添加通知",
+    "dialog-title-edit": "编辑通知",
+    "delete-title": "删除通知",
+    "delete-confirm": "确定要删除此通知规则吗？此操作不可撤销。",
     "th": {
       "label": "标签",
       "channel": "渠道",
@@ -1008,7 +1006,7 @@
       "failed": "失败"
     },
     "btn": {
-      "add": "添加渠道",
+      "add": "添加通知",
       "create": "创建",
       "save": "保存更改",
       "delete": "删除"
@@ -1026,7 +1024,7 @@
       "secret": "签名密钥",
       "secret-ph": "Webhook 签名密钥（可选）",
       "events": "事件",
-      "no-enabled-channels": "尚未启用可用通知渠道，请先在通知渠道页面启用 Webhook、邮件或 Telegram。",
+      "no-enabled-channels": "尚未启用可用通知渠道，请先在通知渠道配置中启用 Webhook、邮件或 Telegram。",
       "events-unavailable": "事件清单暂不可用，请稍后重试。",
       "enabled": "启用"
     },
@@ -1068,12 +1066,12 @@
       "system-announcement": "系统公告已发布。"
     },
     "toast": {
-      "created": "通知渠道已创建",
-      "updated": "通知渠道已更新",
-      "deleted": "通知渠道已删除",
-      "create-error": "创建通知渠道失败",
-      "update-error": "更新通知渠道失败",
-      "delete-error": "删除通知渠道失败",
+      "created": "通知规则已创建",
+      "updated": "通知规则已更新",
+      "deleted": "通知规则已删除",
+      "create-error": "创建通知规则失败",
+      "update-error": "更新通知规则失败",
+      "delete-error": "删除通知规则失败",
       "test-ok": "测试通知已成功发送",
       "test-fail": "测试通知发送失败"
     },

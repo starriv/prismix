@@ -66,12 +66,6 @@ const telegramProviderConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
     botToken: z.string().max(500).optional(),
-    chatId: z
-      .string()
-      .max(100)
-      .regex(/^-?\d+$/, "Telegram Chat ID must be numeric")
-      .optional()
-      .or(z.literal("")),
   })
   .partial();
 

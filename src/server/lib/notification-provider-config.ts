@@ -30,7 +30,6 @@ export interface EmailProviderConfig {
 export interface TelegramProviderConfig {
   enabled: boolean;
   botToken?: string;
-  chatId?: string;
 }
 
 export interface WebhookProviderConfig {
@@ -98,6 +97,12 @@ function decryptSecrets(config: NotificationProvidersConfig): NotificationProvid
   return result;
 }
 
+function normalizeProviderConfig(config: NotificationProvidersConfig): NotificationProvidersConfig {
+  const result = JSON.parse(JSON.stringify(config)) as NotificationProvidersConfig;
+  delete (result.telegram as unknown as Record<string, unknown>).chatId;
+  return result;
+}
+
 // ── Cache ───────────────────────────────────────────────────────────
 
 let cached: NotificationProvidersConfig | null = null;
@@ -120,7 +125,9 @@ export async function initNotificationProviderConfig(): Promise<void> {
   const raw = await settingsRepo.getGlobal(DB_KEY);
   if (raw) {
     try {
-      cached = decryptSecrets(JSON.parse(raw) as NotificationProvidersConfig);
+      cached = normalizeProviderConfig(
+        decryptSecrets(JSON.parse(raw) as NotificationProvidersConfig),
+      );
     } catch {
       log.notification.error("Failed to parse notification_providers from DB");
       cached = { ...DEFAULT_CONFIG };
@@ -136,9 +143,10 @@ export async function initNotificationProviderConfig(): Promise<void> {
 export async function saveNotificationProviderConfig(
   config: NotificationProvidersConfig,
 ): Promise<void> {
-  const encrypted = encryptSecrets(config);
+  const normalized = normalizeProviderConfig(config);
+  const encrypted = encryptSecrets(normalized);
   await settingsRepo.setGlobal(DB_KEY, JSON.stringify(encrypted));
-  cached = config;
+  cached = normalized;
 }
 
 export function invalidateNotificationProviderConfig(): void {

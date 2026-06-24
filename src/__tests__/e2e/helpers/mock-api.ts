@@ -211,7 +211,7 @@ export const MOCK_ADMIN_NOTIFICATION_PROVIDERS = {
     fromAddress: "noreply@example.com",
     fromName: "Prismix",
   },
-  telegram: { enabled: false, botToken: "", chatId: "" },
+  telegram: { enabled: false, botToken: "" },
   webhook: { enabled: true },
   whatsapp: { enabled: false, apiToken: "", phoneNumberId: "" },
 };

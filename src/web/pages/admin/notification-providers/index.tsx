@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Loader2, Save } from "lucide-react";
@@ -19,56 +19,56 @@ import { INITIAL_STATE } from "./types";
 import { WebhookCard } from "./webhook-card";
 import { WhatsAppCard } from "./whatsapp-card";
 
+function toConfigState(
+  serverConfig: Record<string, Record<string, unknown>> | undefined,
+): ConfigState {
+  if (!serverConfig) return INITIAL_STATE;
+
+  const e = serverConfig.email;
+  const tg = serverConfig.telegram;
+  const wh = serverConfig.webhook;
+  const wa = serverConfig.whatsapp;
+
+  return {
+    email: {
+      enabled: (e?.enabled as boolean) ?? false,
+      provider: ((e?.provider as string) === "resend" ? "resend" : "smtp") as "smtp" | "resend",
+      smtpHost: (e?.smtpHost as string) ?? "",
+      smtpPort: String((e?.smtpPort as number) ?? 587),
+      smtpUser: (e?.smtpUser as string) ?? "",
+      smtpPass: (e?.smtpPass as string) ?? "",
+      resendKey: (e?.resendApiKey as string) ?? "",
+      fromAddress: (e?.fromAddress as string) ?? "",
+      fromName: (e?.fromName as string) ?? "",
+    },
+    telegram: {
+      enabled: (tg?.enabled as boolean) ?? false,
+      botToken: (tg?.botToken as string) ?? "",
+    },
+    webhook: { enabled: (wh?.enabled as boolean) ?? false },
+    whatsapp: {
+      enabled: (wa?.enabled as boolean) ?? false,
+      apiToken: (wa?.apiToken as string) ?? "",
+      phoneNumberId: (wa?.phoneNumberId as string) ?? "",
+    },
+  };
+}
+
 export default function AdminNotificationProvidersPage() {
   const { t } = useTranslation();
   const { data: serverConfig, isLoading } = useAdminNotificationProviders();
   const updateConfig = useUpdateAdminNotificationProviders();
 
-  const [config, setConfig] = useState<ConfigState>(INITIAL_STATE);
-  const [dirty, setDirty] = useState(false);
-
-  // Sync from server
-  useEffect(() => {
-    if (!serverConfig) return;
-    const e = serverConfig.email as Record<string, unknown> | undefined;
-    const tg = serverConfig.telegram as Record<string, unknown> | undefined;
-    const wh = serverConfig.webhook as Record<string, unknown> | undefined;
-    const wa = serverConfig.whatsapp as Record<string, unknown> | undefined;
-
-    const next: ConfigState = {
-      email: {
-        enabled: (e?.enabled as boolean) ?? false,
-        provider: ((e?.provider as string) === "resend" ? "resend" : "smtp") as "smtp" | "resend",
-        smtpHost: (e?.smtpHost as string) ?? "",
-        smtpPort: String((e?.smtpPort as number) ?? 587),
-        smtpUser: (e?.smtpUser as string) ?? "",
-        smtpPass: (e?.smtpPass as string) ?? "",
-        resendKey: (e?.resendApiKey as string) ?? "",
-        fromAddress: (e?.fromAddress as string) ?? "",
-        fromName: (e?.fromName as string) ?? "",
-      },
-      telegram: {
-        enabled: (tg?.enabled as boolean) ?? false,
-        botToken: (tg?.botToken as string) ?? "",
-        chatId: (tg?.chatId as string) ?? "",
-      },
-      webhook: { enabled: (wh?.enabled as boolean) ?? false },
-      whatsapp: {
-        enabled: (wa?.enabled as boolean) ?? false,
-        apiToken: (wa?.apiToken as string) ?? "",
-        phoneNumberId: (wa?.phoneNumberId as string) ?? "",
-      },
-    };
-    setConfig(next);
-    setDirty(false);
-  }, [serverConfig]);
+  const serverState = useMemo(() => toConfigState(serverConfig), [serverConfig]);
+  const [draftConfig, setDraftConfig] = useState<ConfigState | null>(null);
+  const config = draftConfig ?? serverState;
+  const dirty = draftConfig !== null;
 
   function updateChannel<K extends keyof ConfigState>(channel: K, patch: Partial<ConfigState[K]>) {
-    setConfig((prev) => ({
-      ...prev,
-      [channel]: { ...prev[channel], ...patch },
+    setDraftConfig((prev) => ({
+      ...(prev ?? serverState),
+      [channel]: { ...(prev ?? serverState)[channel], ...patch },
     }));
-    setDirty(true);
   }
 
   const validationError = validateConfig(config);
@@ -92,13 +92,16 @@ export default function AdminNotificationProvidersPage() {
           fromAddress: config.email.fromAddress,
           fromName: config.email.fromName,
         },
-        telegram: config.telegram,
+        telegram: {
+          enabled: config.telegram.enabled,
+          botToken: config.telegram.botToken,
+        },
         webhook: config.webhook,
         whatsapp: config.whatsapp,
       };
       await updateConfig.mutateAsync(payload as unknown as Record<string, Record<string, unknown>>);
       toast.success(t("admin.notif.toast.saved"));
-      setDirty(false);
+      setDraftConfig(null);
     } catch {
       toast.error(t("admin.notif.toast.save-error"));
     }

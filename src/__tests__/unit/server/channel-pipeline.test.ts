@@ -361,7 +361,7 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
     );
   });
 
-  it("uses provider chatId for supplier health notifications without explicit configs", async () => {
+  it("does not use provider chatId for supplier health notifications without explicit configs", async () => {
     _channelConfig = { botToken: BOT_TOKEN, chatId: "-100333444555" };
     mockFindByEvent.mockResolvedValue([]);
 
@@ -392,31 +392,8 @@ Provider ID: 1
 
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.chat_id).toBe("-100333444555");
-    expect(body.text).toContain("\\[Prismix\\.live\\] 事件关注");
-    expect(body.text).toContain("supplier\\.disabled");
-    expect(body.text).toContain("CST\\(UTC\\+8\\): ");
-    expect(body.text).toContain("详细信息");
-    expect(body.text).toContain("\n类型: 上游");
-    expect(body.text).not.toContain("\n  类型: 上游");
-    expect(body.text).toContain("类型: 上游");
-    expect(body.text).toContain("ID: 10");
-    expect(body.text).toContain("名称: Proxy A");
-    expect(body.text).toContain("Base URL: https://proxy\\-a\\.example\\.com/v1");
-    expect(body.text).toContain("所属供应商: OpenAI");
-    expect(body.text).toContain("Provider ID: 1");
-    expect(body.text).toContain("连续失败: 3");
-    expect(body.text).toContain("最后错误: HTTP 503: upstream\\-timeout");
-
-    expect(mockInsertLog.mock.calls[0][0]).toMatchObject({
-      configId: null,
-      channel: "telegram",
-      event: "supplier.disabled",
-      target: "-100333444555",
-    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockInsertLog).not.toHaveBeenCalled();
   });
 
   it("full pipeline: emit('system.announcement') → Telegram message", async () => {
