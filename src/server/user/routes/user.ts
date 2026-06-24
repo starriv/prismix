@@ -10,6 +10,7 @@ import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth
 import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
+import { findActiveAnnouncementsForSurface } from "@/server/lib/announcement-delivery-service";
 import { createConsumerKeyBody, updateProfileBody } from "@/server/lib/body-schemas";
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
@@ -20,7 +21,6 @@ import { getUserSession } from "@/server/middleware/auth";
 import {
   aiModelRepo,
   aiUsageLogRepo,
-  announcementRepo,
   payAgentRepo,
   relayConsumerKeyRepo,
   settingsRepo,
@@ -400,7 +400,7 @@ user.get("/logs/request/:requestId", async (c) => {
 
 // GET /announcements — recent sent announcements (global broadcast)
 user.get("/announcements", async (c) => {
-  const rows = await announcementRepo.findRecentSent(10);
+  const rows = await findActiveAnnouncementsForSurface("web", 10);
   return ok(c, rows);
 });
 

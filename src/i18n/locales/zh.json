@@ -521,6 +521,8 @@
       },
       "th": {
         "title": "标题",
+        "category": "类别",
+        "surfaces": "出口",
         "status": "状态",
         "created-by": "创建者",
         "created-at": "创建时间",
@@ -531,12 +533,39 @@
         "draft": "草稿",
         "sent": "已发送"
       },
+      "category": {
+        "general": "通用",
+        "model_retirement": "模型下线",
+        "model_pause": "模型暂停",
+        "model_price_change": "价格调整",
+        "outage": "服务故障"
+      },
+      "severity": {
+        "info": "普通",
+        "warning": "警告",
+        "critical": "严重"
+      },
+      "surface": {
+        "web": "Web",
+        "cli": "CLI",
+        "model_error": "模型错误"
+      },
       "table-empty": "暂无公告",
       "compose-title": "编写公告",
       "edit-title": "编辑公告",
       "form": {
+        "category": "类别",
+        "severity": "严重级别",
+        "priority": "优先级",
         "title": "标题",
         "title-ph": "输入公告标题",
+        "surfaces": "展示出口",
+        "surfaces-hint": "至少需要选择一个展示出口。",
+        "starts-at": "开始时间",
+        "expires-at": "过期时间",
+        "related-models": "关联模型",
+        "related-models-ph": "gpt-4.1\nclaude-3-5-*",
+        "related-models-hint": "每行一个模型，也支持逗号分隔。末尾加 * 表示前缀匹配。",
         "body": "内容",
         "body-ph": "输入公告内容...",
         "body-hint": "支持 Markdown 格式：**加粗**、[链接](url)、- 列表",

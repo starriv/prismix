@@ -6,12 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ─────────────────────────────────────────────────────────────
 
-const mockFindRecentSent = vi.fn();
+const mockFindActiveAnnouncementsForSurface = vi.fn();
+
+vi.mock("@/server/lib/announcement-delivery-service", () => ({
+  findActiveAnnouncementsForSurface: (...args: unknown[]) =>
+    mockFindActiveAnnouncementsForSurface(...args),
+}));
 
 vi.mock("@/server/repos", () => ({
-  announcementRepo: {
-    findRecentSent: (...args: unknown[]) => mockFindRecentSent(...args),
-  },
   // Stubs required by other user route imports
   aiModelRepo: { findAllEnabled: vi.fn().mockResolvedValue([]) },
   aiUsageLogRepo: {
@@ -104,11 +106,14 @@ const SENT_ANNOUNCEMENT_2 = {
 
 describe("GET /api/user/announcements", () => {
   beforeEach(() => {
-    mockFindRecentSent.mockReset();
+    mockFindActiveAnnouncementsForSurface.mockReset();
   });
 
   it("returns recent sent announcements", async () => {
-    mockFindRecentSent.mockResolvedValue([SENT_ANNOUNCEMENT_2, SENT_ANNOUNCEMENT_1]);
+    mockFindActiveAnnouncementsForSurface.mockResolvedValue([
+      SENT_ANNOUNCEMENT_2,
+      SENT_ANNOUNCEMENT_1,
+    ]);
 
     const res = await app.request(
       new Request("http://localhost/api/user/announcements", { method: "GET" }),
@@ -117,11 +122,11 @@ describe("GET /api/user/announcements", () => {
 
     const json = (await res.json()) as { data: unknown[] };
     expect(json.data).toHaveLength(2);
-    expect(mockFindRecentSent).toHaveBeenCalledWith(10);
+    expect(mockFindActiveAnnouncementsForSurface).toHaveBeenCalledWith("web", 10);
   });
 
   it("returns empty array when no sent announcements exist", async () => {
-    mockFindRecentSent.mockResolvedValue([]);
+    mockFindActiveAnnouncementsForSurface.mockResolvedValue([]);
 
     const res = await app.request(
       new Request("http://localhost/api/user/announcements", { method: "GET" }),
@@ -132,17 +137,17 @@ describe("GET /api/user/announcements", () => {
     expect(json.data).toHaveLength(0);
   });
 
-  it("calls findRecentSent with limit 10", async () => {
-    mockFindRecentSent.mockResolvedValue([SENT_ANNOUNCEMENT_1]);
+  it("requests active web announcements with limit 10", async () => {
+    mockFindActiveAnnouncementsForSurface.mockResolvedValue([SENT_ANNOUNCEMENT_1]);
 
     await app.request(new Request("http://localhost/api/user/announcements", { method: "GET" }));
 
-    expect(mockFindRecentSent).toHaveBeenCalledTimes(1);
-    expect(mockFindRecentSent).toHaveBeenCalledWith(10);
+    expect(mockFindActiveAnnouncementsForSurface).toHaveBeenCalledTimes(1);
+    expect(mockFindActiveAnnouncementsForSurface).toHaveBeenCalledWith("web", 10);
   });
 
   it("includes all announcement fields in response", async () => {
-    mockFindRecentSent.mockResolvedValue([SENT_ANNOUNCEMENT_1]);
+    mockFindActiveAnnouncementsForSurface.mockResolvedValue([SENT_ANNOUNCEMENT_1]);
 
     const res = await app.request(
       new Request("http://localhost/api/user/announcements", { method: "GET" }),

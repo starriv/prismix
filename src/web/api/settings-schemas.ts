@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  ANNOUNCEMENT_CATEGORIES,
+  ANNOUNCEMENT_SEVERITIES,
+  ANNOUNCEMENT_SURFACES,
+} from "@/shared/announcements";
+
 // ── Auth — logged-in user info returned by /me ──────────────────
 
 export const userInfoSchema = z.object({
@@ -199,11 +205,42 @@ export type UpdateFiatConfigBody = z.infer<typeof updateFiatConfigBody>;
 
 // ── Announcements ────────────────────────────────────────────────
 
+const announcementStringArray = z.preprocess((value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return [];
+  }
+}, z.array(z.string()));
+
+export const announcementCategorySchema = z.enum(ANNOUNCEMENT_CATEGORIES);
+export const announcementSeveritySchema = z.enum(ANNOUNCEMENT_SEVERITIES);
+export const announcementSurfaceSchema = z.enum(ANNOUNCEMENT_SURFACES);
+
+const announcementSurfaceArray = z.preprocess((value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return [];
+  }
+}, z.array(announcementSurfaceSchema));
+
 export const announcementSchema = z.object({
   id: z.string(),
   title: z.string(),
   body: z.string(),
   link: z.string().nullable().optional(),
+  category: announcementCategorySchema.default("general"),
+  severity: announcementSeveritySchema.default("info"),
+  surfaces: announcementSurfaceArray.default(["web"]),
+  relatedModels: announcementStringArray.default([]),
+  startsAt: z.string().or(z.number()).nullable().optional(),
+  expiresAt: z.string().or(z.number()).nullable().optional(),
+  priority: z.number().default(0),
   status: z.string(),
   createdBy: z.string(),
   createdAt: z.string().or(z.number()),
@@ -215,6 +252,13 @@ export const createAnnouncementBody = z.object({
   title: z.string().min(1, "common.valid.required").max(200),
   body: z.string().min(1, "common.valid.required").max(5000),
   link: z.string().url("common.valid.invalid-url").max(500).optional().or(z.literal("")),
+  category: announcementCategorySchema,
+  severity: announcementSeveritySchema,
+  surfaces: z.array(announcementSurfaceSchema).min(1, "common.valid.required"),
+  relatedModels: z.array(z.string().trim().min(1).max(200)),
+  startsAt: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+  priority: z.number().int().min(-1000).max(1000),
 });
 export type CreateAnnouncementBody = z.infer<typeof createAnnouncementBody>;
 
@@ -222,6 +266,13 @@ export const updateAnnouncementBody = z.object({
   title: z.string().min(1, "common.valid.required").max(200).optional(),
   body: z.string().min(1, "common.valid.required").max(5000).optional(),
   link: z.string().url("common.valid.invalid-url").max(500).optional().or(z.literal("")),
+  category: announcementCategorySchema.optional(),
+  severity: announcementSeveritySchema.optional(),
+  surfaces: z.array(announcementSurfaceSchema).min(1, "common.valid.required").optional(),
+  relatedModels: z.array(z.string().trim().min(1).max(200)).optional(),
+  startsAt: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+  priority: z.number().int().min(-1000).max(1000).optional(),
 });
 export type UpdateAnnouncementBody = z.infer<typeof updateAnnouncementBody>;
 

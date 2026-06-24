@@ -521,6 +521,8 @@
       },
       "th": {
         "title": "Title",
+        "category": "Category",
+        "surfaces": "Surfaces",
         "status": "Status",
         "created-by": "Created By",
         "created-at": "Created",
@@ -531,12 +533,39 @@
         "draft": "Draft",
         "sent": "Sent"
       },
+      "category": {
+        "general": "General",
+        "model_retirement": "Model retirement",
+        "model_pause": "Model pause",
+        "model_price_change": "Price change",
+        "outage": "Outage"
+      },
+      "severity": {
+        "info": "Info",
+        "warning": "Warning",
+        "critical": "Critical"
+      },
+      "surface": {
+        "web": "Web",
+        "cli": "CLI",
+        "model_error": "Model error"
+      },
       "table-empty": "No announcements yet",
       "compose-title": "Compose Announcement",
       "edit-title": "Edit Announcement",
       "form": {
+        "category": "Category",
+        "severity": "Severity",
+        "priority": "Priority",
         "title": "Title",
         "title-ph": "Enter announcement title",
+        "surfaces": "Surfaces",
+        "surfaces-hint": "At least one surface is required.",
+        "starts-at": "Starts at",
+        "expires-at": "Expires at",
+        "related-models": "Related models",
+        "related-models-ph": "gpt-4.1\nclaude-3-5-*",
+        "related-models-hint": "One model per line, comma-separated also works. Use * suffix for prefix matching.",
         "body": "Body",
         "body-ph": "Enter announcement content...",
         "body-hint": "Supports Markdown: **bold**, [links](url), - lists",

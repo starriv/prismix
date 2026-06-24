@@ -5,6 +5,11 @@
  */
 import { z } from "zod";
 
+import {
+  ANNOUNCEMENT_CATEGORIES,
+  ANNOUNCEMENT_SEVERITIES,
+  ANNOUNCEMENT_SURFACES,
+} from "@/shared/announcements";
 import { PRICE_RE } from "@/shared/number";
 
 // ── Regex validators ────────────────────────────────────────────────
@@ -141,16 +146,51 @@ export const updateNetworkBody = z.object({
 
 // ── Admin: Announcements ────────────────────────────────────────────
 
+const announcementDateField = z.preprocess(
+  (value) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === "") return null;
+    if (value instanceof Date) return value;
+    if (typeof value === "string" || typeof value === "number") return new Date(value);
+    return value;
+  },
+  z
+    .date()
+    .refine((date) => !Number.isNaN(date.getTime()), "Invalid date")
+    .nullable()
+    .optional(),
+);
+
+const announcementCategory = z.enum(ANNOUNCEMENT_CATEGORIES);
+const announcementSeverity = z.enum(ANNOUNCEMENT_SEVERITIES);
+const announcementSurface = z.enum(ANNOUNCEMENT_SURFACES);
+const announcementModels = z.array(z.string().trim().min(1).max(200)).max(100);
+const announcementSurfaces = z.array(announcementSurface).min(1);
+
 export const createAnnouncementBody = z.object({
   title: z.string().min(1, "Title is required").max(200),
   body: z.string().min(1, "Body is required").max(5000),
   link: z.string().url().max(500).optional().or(z.literal("")),
+  category: announcementCategory.optional().default("general"),
+  severity: announcementSeverity.optional().default("info"),
+  surfaces: announcementSurfaces.optional().default(["web"]),
+  relatedModels: announcementModels.optional().default([]),
+  startsAt: announcementDateField,
+  expiresAt: announcementDateField,
+  priority: z.number().int().min(-1000).max(1000).optional().default(0),
 });
 
 export const updateAnnouncementBody = z.object({
   title: z.string().min(1).max(200).optional(),
   body: z.string().min(1).max(5000).optional(),
   link: z.string().url().max(500).optional().or(z.literal("")),
+  category: announcementCategory.optional(),
+  severity: announcementSeverity.optional(),
+  surfaces: announcementSurfaces.optional(),
+  relatedModels: announcementModels.optional(),
+  startsAt: announcementDateField,
+  expiresAt: announcementDateField,
+  priority: z.number().int().min(-1000).max(1000).optional(),
 });
 
 // ── Admin: User Management ────────────────────────────────────────────

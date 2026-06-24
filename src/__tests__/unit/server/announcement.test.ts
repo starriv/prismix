@@ -72,6 +72,13 @@ const DRAFT_ANNOUNCEMENT = {
   id: "abc123",
   title: "Maintenance window",
   body: "Scheduled maintenance at 2am UTC",
+  category: "general",
+  severity: "info",
+  surfaces: JSON.stringify(["web"]),
+  relatedModels: JSON.stringify([]),
+  startsAt: null,
+  expiresAt: null,
+  priority: 0,
   status: "draft",
   createdBy: "0xadmin",
   createdAt: new Date("2025-01-01"),
@@ -268,8 +275,62 @@ describe("announcement route handlers", () => {
         title: "Maintenance window",
         body: "Scheduled maintenance at 2am UTC",
         link: null,
+        category: "general",
+        severity: "info",
+        surfaces: JSON.stringify(["web"]),
+        relatedModels: JSON.stringify([]),
+        startsAt: null,
+        expiresAt: null,
+        priority: 0,
         createdBy: "0xadmin",
       });
+    });
+
+    it("creates a CLI/model-error announcement with metadata", async () => {
+      mockCreate.mockResolvedValue(DRAFT_ANNOUNCEMENT);
+
+      const res = await app.request(
+        jsonReq("POST", "/api/admin/announcements", {
+          title: "Model retirement",
+          body: "gpt-old will be retired.",
+          category: "model_retirement",
+          severity: "critical",
+          surfaces: ["cli", "model_error"],
+          relatedModels: ["gpt-old", "gpt-legacy-*"],
+          startsAt: "2026-06-24T10:00:00.000Z",
+          expiresAt: "2026-07-01T10:00:00.000Z",
+          priority: 50,
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(mockCreate).toHaveBeenCalledWith({
+        title: "Model retirement",
+        body: "gpt-old will be retired.",
+        link: null,
+        category: "model_retirement",
+        severity: "critical",
+        surfaces: JSON.stringify(["cli", "model_error"]),
+        relatedModels: JSON.stringify(["gpt-old", "gpt-legacy-*"]),
+        startsAt: new Date("2026-06-24T10:00:00.000Z"),
+        expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+        priority: 50,
+        createdBy: "0xadmin",
+      });
+    });
+
+    it("rejects an announcement window where expiresAt is before startsAt", async () => {
+      const res = await app.request(
+        jsonReq("POST", "/api/admin/announcements", {
+          title: "Bad window",
+          body: "Invalid time range",
+          startsAt: "2026-07-01T10:00:00.000Z",
+          expiresAt: "2026-06-24T10:00:00.000Z",
+        }),
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it("rejects invalid body (missing title)", async () => {
@@ -305,6 +366,24 @@ describe("announcement route handlers", () => {
       const json = (await res.json()) as { data: typeof updated };
       expect(json.data.title).toBe("Updated title");
       expect(mockUpdate).toHaveBeenCalledWith("abc123", { title: "Updated title" });
+    });
+
+    it("serializes surface and related model updates", async () => {
+      const updated = { ...DRAFT_ANNOUNCEMENT, surfaces: JSON.stringify(["cli"]) };
+      mockFindById.mockResolvedValue(DRAFT_ANNOUNCEMENT);
+      mockUpdate.mockResolvedValue(updated);
+
+      const res = await app.request(
+        jsonReq("PUT", "/api/admin/announcements/abc123", {
+          surfaces: ["cli"],
+          relatedModels: ["gpt-4.1"],
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith("abc123", {
+        surfaces: JSON.stringify(["cli"]),
+        relatedModels: JSON.stringify(["gpt-4.1"]),
+      });
     });
 
     it("allows updating a sent announcement", async () => {
@@ -400,6 +479,18 @@ describe("announcement route handlers", () => {
         title: SENT_ANNOUNCEMENT.title,
         body: SENT_ANNOUNCEMENT.body,
       });
+    });
+
+    it("does not emit web broadcast for CLI-only announcements", async () => {
+      const cliOnly = { ...DRAFT_ANNOUNCEMENT, surfaces: JSON.stringify(["cli"]) };
+      mockFindById.mockResolvedValue(cliOnly);
+      mockMarkSent.mockResolvedValue({ ...cliOnly, status: "sent" });
+
+      const res = await app.request(jsonReq("POST", "/api/admin/announcements/abc123/send"));
+      expect(res.status).toBe(200);
+
+      expect(mockMarkSent).toHaveBeenCalledWith("abc123");
+      expect(mockEmit).not.toHaveBeenCalled();
     });
 
     it("returns 404 for non-existent announcement", async () => {
