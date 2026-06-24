@@ -116,6 +116,11 @@ export interface StreamOutputTransformer {
   transformDone(): Array<{ event?: string; data: string }>;
 }
 
+export interface StreamInitialEvent {
+  event?: string;
+  data: string;
+}
+
 interface StreamLifecycleState {
   routeType: "chat" | "passthrough";
   chunkCount: number;
@@ -289,6 +294,7 @@ export function forwardStream(
   onComplete?: StreamCompleteCallback,
   timeoutConfig?: Partial<TimeoutConfig>,
   outputTransformer?: StreamOutputTransformer,
+  initialEvents?: StreamInitialEvent[],
 ): Response {
   const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
@@ -372,6 +378,13 @@ export function forwardStream(
     const responseChunks: string[] = [];
 
     try {
+      for (const initialEvent of initialEvents ?? []) {
+        const events = outputTransformer?.transformEvent(initialEvent.data) ?? [initialEvent];
+        for (const event of events) {
+          await stream.writeSSE(event);
+        }
+      }
+
       while (!stream.aborted && !abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -573,6 +586,7 @@ export function forwardPassthroughStream(
   meta: StreamRelayMeta,
   onComplete?: StreamCompleteCallback,
   timeoutConfig?: Partial<TimeoutConfig>,
+  initialEvents?: StreamInitialEvent[],
 ): Response {
   const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
@@ -653,6 +667,10 @@ export function forwardPassthroughStream(
     const responseChunks: string[] = [];
 
     try {
+      for (const initialEvent of initialEvents ?? []) {
+        await stream.writeSSE(initialEvent);
+      }
+
       while (!stream.aborted && !abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) break;

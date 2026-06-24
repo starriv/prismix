@@ -7,6 +7,19 @@
  */
 import { type Context, Hono } from "hono";
 
+import {
+  type AnnouncementNoticePayload,
+  buildAnnouncementErrorPayload,
+  buildCliNoticeStreamEvents,
+  canInjectCliTextNoticeIntoBody,
+  findCliAnnouncementForConsumer,
+  findModelErrorAnnouncement,
+  formatCliAnnouncementText,
+  injectCliNoticeIntoChatResponse,
+  injectCliNoticeIntoClientResponse,
+  markAnnouncementDelivered,
+  type ModelErrorReason,
+} from "@/server/lib/announcement-delivery-service";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
 import {
@@ -108,6 +121,62 @@ function respondWithConsumerError(
     ),
   });
   return c.json(payload, statusCode as 400);
+}
+
+async function respondWithModelAnnouncementError(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+  statusCode: number,
+  payload: Record<string, unknown>,
+  modelId: string,
+  reason: ModelErrorReason,
+  extras?: ConsumerErrorExtras,
+): Promise<Response> {
+  let notice = null;
+  try {
+    notice = await findModelErrorAnnouncement(modelId, reason);
+  } catch (err) {
+    log.gateway.warn(
+      { err, requestId, consumerId: consumer.consumerId, modelId, reason },
+      "Failed to resolve model-error announcement",
+    );
+  }
+  return respondWithConsumerError(
+    c,
+    consumer,
+    requestId,
+    start,
+    statusCode,
+    buildAnnouncementErrorPayload(payload, notice),
+    extras,
+  );
+}
+
+async function findCliAnnouncementNotice(
+  consumer: ConsumerSession,
+  requestId: string,
+  body: Record<string, unknown>,
+): Promise<AnnouncementNoticePayload | null> {
+  if (!canInjectCliTextNoticeIntoBody(body)) return null;
+  try {
+    return await findCliAnnouncementForConsumer(consumer.consumerId);
+  } catch (err) {
+    log.gateway.warn(
+      { err, requestId, consumerId: consumer.consumerId, modelId: body.model },
+      "Failed to resolve CLI announcement",
+    );
+    return null;
+  }
+}
+
+async function markCliAnnouncementDelivered(
+  notice: AnnouncementNoticePayload | null,
+  consumer: ConsumerSession,
+): Promise<void> {
+  if (!notice) return;
+  await markAnnouncementDelivered(notice, consumer.consumerId);
 }
 
 async function listConsumerModels(consumer: ConsumerSession, clientFormat: ClientFormat) {
@@ -339,9 +408,16 @@ async function handleAnthropicCountTokens(
       return body.model === pattern;
     });
     if (!allowed) {
-      return respondWithConsumerError(c, consumer, requestId, start, 403, {
-        error: `Model "${body.model}" is not allowed for this key`,
-      });
+      return respondWithModelAnnouncementError(
+        c,
+        consumer,
+        requestId,
+        start,
+        403,
+        { error: `Model "${body.model}" is not allowed for this key` },
+        body.model,
+        "not_allowed",
+      );
     }
   }
 
@@ -349,9 +425,16 @@ async function handleAnthropicCountTokens(
     await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, "anthropic"),
   );
   if (routes.length === 0) {
-    return respondWithConsumerError(c, consumer, requestId, start, 404, {
-      error: `Model "${body.model}" not found or disabled`,
-    });
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      404,
+      { error: `Model "${body.model}" not found or disabled` },
+      body.model,
+      "not_found_or_disabled",
+    );
   }
 
   const hasCompatibleRoute = routes.some(({ provider }) => {
@@ -359,9 +442,16 @@ async function handleAnthropicCountTokens(
     return Boolean(getAdapter(provider.apiFormat));
   });
   if (!hasCompatibleRoute) {
-    return respondWithConsumerError(c, consumer, requestId, start, 403, {
-      error: "No compatible provider route configured for this model",
-    });
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: "No compatible provider route configured for this model" },
+      body.model,
+      "no_route",
+    );
   }
 
   return c.json({ input_tokens: estimateAnthropicInputTokens(body) });
@@ -400,9 +490,16 @@ async function handleCanonicalChatCompletions(
       return body.model === pattern;
     });
     if (!allowed) {
-      return respondWithConsumerError(c, consumer, requestId, start, 403, {
-        error: `Model "${body.model}" is not allowed for this key`,
-      });
+      return respondWithModelAnnouncementError(
+        c,
+        consumer,
+        requestId,
+        start,
+        403,
+        { error: `Model "${body.model}" is not allowed for this key` },
+        body.model,
+        "not_allowed",
+      );
     }
   }
 
@@ -431,9 +528,16 @@ async function handleCanonicalChatCompletions(
     await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, clientFormat),
   );
   if (routes.length === 0) {
-    return respondWithConsumerError(c, consumer, requestId, start, 404, {
-      error: `Model "${body.model}" not found or disabled`,
-    });
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      404,
+      { error: `Model "${body.model}" not found or disabled` },
+      body.model,
+      "not_found_or_disabled",
+    );
   }
 
   // -- 6. Resolve key across all routes (multi-provider failover) --
@@ -599,13 +703,15 @@ async function handleCanonicalChatCompletions(
       { requestId, modelId: model.modelId, clientFormat, routeDiagnostics },
       "No API key configured for any provider route",
     );
-    return respondWithConsumerError(
+    return respondWithModelAnnouncementError(
       c,
       consumer,
       requestId,
       start,
       403,
       { error: "No API key configured for any provider route" },
+      model.modelId,
+      "no_route",
       { modelId: model.modelId },
     );
   }
@@ -632,6 +738,9 @@ async function handleCanonicalChatCompletions(
       );
     }
   }
+
+  const cliNotice = await findCliAnnouncementNotice(consumer, requestId, body);
+  const cliNoticeText = cliNotice ? formatCliAnnouncementText(cliNotice) : null;
 
   // -- 9. Upstream fetch with fallback retry --
   // Try each resolved upstream in order; on retryable failure, advance to next.
@@ -667,7 +776,16 @@ async function handleCanonicalChatCompletions(
       : null;
     if (cacheKey) {
       const cached = getCachedResponse(cacheKey);
-      if (cached) return c.json(cached);
+      if (cached) {
+        if (cliNoticeText) {
+          const injected = injectCliNoticeIntoClientResponse(cached, cliNoticeText, clientFormat);
+          if (injected) {
+            await markCliAnnouncementDelivered(cliNotice, consumer);
+            return c.json(injected);
+          }
+        }
+        return c.json(cached);
+      }
     }
 
     // -- 9a. Streaming path --
@@ -718,6 +836,10 @@ async function handleCanonicalChatCompletions(
 
         // Post-stream consumer billing callback
         const billSelected = selected; // capture for closure
+        // Mark the CLI notice delivered only after the stream completes — marking
+        // before forwardStream would burn the once-per-consumer delivery if the
+        // write later fails. Follows the same lifecycle as billing.
+        const cliNoticeForStream = cliNotice;
         const onComplete: StreamCompleteCallback = async (usage, latencyMs, rawResponse) => {
           await billConsumer({
             usage,
@@ -736,7 +858,12 @@ async function handleCanonicalChatCompletions(
             requestBody: logEnabled ? billSelected.serializedBody : undefined,
             responseBody: rawResponse,
           });
+          await markCliAnnouncementDelivered(cliNoticeForStream, consumer);
         };
+
+        const initialEvents = cliNoticeText
+          ? (buildCliNoticeStreamEvents(model.modelId, cliNoticeText, clientFormat) ?? undefined)
+          : undefined;
 
         return forwardStream(
           c,
@@ -746,6 +873,7 @@ async function handleCanonicalChatCompletions(
           onComplete,
           timeouts,
           createStreamOutputTransformer?.(model.modelId),
+          initialEvents,
         );
       } catch (err) {
         markKeyFailure(selected.keyId);
@@ -884,6 +1012,17 @@ async function handleCanonicalChatCompletions(
       setCachedResponse(cacheKey, transformed);
     }
 
+    if (cliNoticeText) {
+      const injectedCanonical = injectCliNoticeIntoChatResponse(canonicalResponse, cliNoticeText);
+      if (injectedCanonical) {
+        const injected = responseTransformer
+          ? responseTransformer(injectedCanonical, model.modelId)
+          : injectedCanonical;
+        await markCliAnnouncementDelivered(cliNotice, consumer);
+        return c.json(injected);
+      }
+    }
+
     return c.json(transformed);
   }
 
@@ -988,9 +1127,16 @@ async function handlePassthrough(
       pattern.endsWith("*") ? modelId.startsWith(pattern.slice(0, -1)) : modelId === pattern,
     );
     if (!allowed) {
-      return respondWithConsumerError(c, consumer, requestId, start, 403, {
-        error: `Model "${modelId}" is not allowed for this key`,
-      });
+      return respondWithModelAnnouncementError(
+        c,
+        consumer,
+        requestId,
+        start,
+        403,
+        { error: `Model "${modelId}" is not allowed for this key` },
+        modelId,
+        "not_allowed",
+      );
     }
   }
 
@@ -998,9 +1144,16 @@ async function handlePassthrough(
     await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, clientFormat),
   );
   if (routes.length === 0) {
-    return respondWithConsumerError(c, consumer, requestId, start, 404, {
-      error: `Model "${modelId}" not found or disabled`,
-    });
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      404,
+      { error: `Model "${modelId}" not found or disabled` },
+      modelId,
+      "not_found_or_disabled",
+    );
   }
 
   const model = routes[0].model;
@@ -1075,13 +1228,15 @@ async function handlePassthrough(
     }
   }
   if (resolvedPtUpstreams.length === 0) {
-    return respondWithConsumerError(
+    return respondWithModelAnnouncementError(
       c,
       consumer,
       requestId,
       start,
       403,
       { error: "No compatible provider key configured for this model" },
+      modelId,
+      "no_route",
       { modelId },
     );
   }
@@ -1100,6 +1255,14 @@ async function handlePassthrough(
       );
     }
   }
+
+  // Resolve a CLI announcement for this consumer (best-effort text prelude).
+  // Passthrough forwards native provider SSE verbatim, so streaming injection is
+  // format-gated by buildCliNoticeStreamEvents (OpenAI only — Anthropic native
+  // streams cannot accept an isolated delta without corrupting the SDK state
+  // machine). Non-streaming responses inject via injectCliNoticeIntoClientResponse.
+  const cliNotice = await findCliAnnouncementNotice(consumer, requestId, body);
+  const cliNoticeText = cliNotice ? formatCliAnnouncementText(cliNotice) : null;
 
   // Forward provider-specific headers from the client (e.g. anthropic-version, anthropic-beta)
   // Client headers take precedence over buildProviderAuth defaults
@@ -1155,6 +1318,7 @@ async function handlePassthrough(
       // ── Streaming passthrough — parse SSE frames for usage + billing ──
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
         const billPt = ptSelected; // capture for closure
+        const cliNoticeForStream = cliNotice;
         const onComplete: StreamCompleteCallback = async (usage, latencyMs, rawResponse) => {
           await billConsumer({
             usage,
@@ -1173,9 +1337,14 @@ async function handlePassthrough(
             requestBody: ptLogEnabled ? billPt.serializedBody : undefined,
             responseBody: rawResponse,
           });
+          await markCliAnnouncementDelivered(cliNoticeForStream, consumer);
         };
 
-        return forwardPassthroughStream(c, upstreamRes, meta, onComplete, timeouts);
+        const initialEvents = cliNoticeText
+          ? (buildCliNoticeStreamEvents(modelId, cliNoticeText, clientFormat) ?? undefined)
+          : undefined;
+
+        return forwardPassthroughStream(c, upstreamRes, meta, onComplete, timeouts, initialEvents);
       }
 
       // Retryable error — try next upstream
@@ -1257,7 +1426,26 @@ async function handlePassthrough(
         }
       });
 
-      const responseBody = responseText !== null ? responseText : upstreamRes.body;
+      // Inject CLI notice into non-streaming JSON responses (both formats).
+      // Mark delivered only after a successful inject — mirrors the canonical
+      // non-streaming path. Non-JSON or failed-inject responses pass through.
+      let responseBody: BodyInit | null = responseText !== null ? responseText : upstreamRes.body;
+      if (cliNoticeText && upstreamRes.ok && isJson && responseText !== null) {
+        try {
+          const parsed: unknown = JSON.parse(responseText);
+          const injected = injectCliNoticeIntoClientResponse(parsed, cliNoticeText, clientFormat);
+          if (injected !== null) {
+            responseBody = JSON.stringify(injected);
+            await markCliAnnouncementDelivered(cliNotice, consumer);
+          }
+        } catch (err) {
+          log.gateway.warn(
+            { err, requestId, consumerId: consumer.consumerId, modelId },
+            "Failed to inject CLI notice into passthrough response",
+          );
+        }
+      }
+
       return new Response(responseBody, {
         status: upstreamRes.status,
         headers: resHeaders,
