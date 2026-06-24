@@ -1,5 +1,6 @@
 import crypto from "crypto";
 
+import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
 import type { OpenAIChatBody, OpenAIChatMessage, OpenAIChatResponse } from "../providers/types";
 import type {
   ClientProtocolAdapter,
@@ -51,7 +52,10 @@ interface OpenAIStreamChunk {
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
+    input_tokens?: number;
+    output_tokens?: number;
     total_tokens?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -376,6 +380,11 @@ export const anthropicClientProtocolAdapter: ClientProtocolAdapter = {
       contentBlocks.push({ type: "text", text: "" });
     }
 
+    const extractedUsage = extractTokenUsageFromUsageObject(
+      response.usage as Record<string, unknown> | undefined,
+      { returnZeroWhenEmpty: true },
+    );
+
     return {
       id: normalizeMessageId(response.id),
       type: "message",
@@ -385,8 +394,8 @@ export const anthropicClientProtocolAdapter: ClientProtocolAdapter = {
       stop_reason: mapOpenAIStopReason(choice?.finish_reason),
       stop_sequence: null,
       usage: {
-        input_tokens: response.usage?.prompt_tokens ?? 0,
-        output_tokens: response.usage?.completion_tokens ?? 0,
+        input_tokens: extractedUsage?.inputTokens ?? 0,
+        output_tokens: extractedUsage?.outputTokens ?? 0,
       },
     };
   },
@@ -512,10 +521,15 @@ function createAnthropicStreamTransformer(defaultModel: string): ClientStreamTra
 
       const out: StreamOutputEvent[] = [];
       if (chunk.usage) {
-        state.usage = {
-          input_tokens: chunk.usage.prompt_tokens ?? state.usage.input_tokens,
-          output_tokens: chunk.usage.completion_tokens ?? state.usage.output_tokens,
-        };
+        const extracted = extractTokenUsageFromUsageObject(chunk.usage, {
+          returnZeroWhenEmpty: true,
+        });
+        if (extracted) {
+          state.usage = {
+            input_tokens: extracted.inputTokens || state.usage.input_tokens,
+            output_tokens: extracted.outputTokens || state.usage.output_tokens,
+          };
+        }
       }
 
       for (const choice of chunk.choices ?? []) {
@@ -591,7 +605,14 @@ function createAnthropicStreamTransformer(defaultModel: string): ClientStreamTra
         data: JSON.stringify({
           type: "message_delta",
           delta: { stop_reason: state.stopReason ?? "end_turn", stop_sequence: null },
-          usage: { output_tokens: state.usage.output_tokens },
+          // message_start is emitted before OpenAI's final usage chunk arrives, so
+          // input_tokens is 0 there. message_delta runs in transformDone — by then
+          // state.usage.input_tokens is populated from the final chunk's prompt_tokens.
+          // Include it here so Anthropic-protocol clients see the real input count.
+          usage: {
+            input_tokens: state.usage.input_tokens,
+            output_tokens: state.usage.output_tokens,
+          },
         }),
       });
       out.push({ event: "message_stop", data: JSON.stringify({ type: "message_stop" }) });
