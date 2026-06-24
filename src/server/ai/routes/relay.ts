@@ -31,6 +31,7 @@ import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
+import { notifyResourceDown, type ResourceDownAlertInput } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
 import { buildCacheKey, getCachedResponse, setCachedResponse } from "../lib/semantic-cache";
 import {
@@ -151,6 +152,7 @@ relay.post("/v1/chat/completions", async (c) => {
 
   // -- 3. Try each candidate (fallback loop) --
   let lastError: { status: number; message: string } | null = null;
+  let lastResourceDownAlert: ResourceDownAlertInput | null = null;
   let totalAttempts = 0;
 
   for (const candidate of candidates) {
@@ -251,6 +253,18 @@ relay.post("/v1/chat/completions", async (c) => {
             markKeyFailure(keyMeta.keyId);
             const errBody = await upstreamRes.text().catch(() => "");
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+            lastResourceDownAlert = {
+              route: "admin-chat",
+              requestId,
+              providerId: candidate.provider.providerId,
+              providerName: candidate.provider.name,
+              modelId: candidate.model.modelId,
+              upstreamId: keyMeta.upstreamId,
+              upstreamName: keyMeta.upstreamName,
+              upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              status: lastError.status,
+              detail: lastError.message,
+            };
             continue;
           }
           const errBody = await upstreamRes.text().catch(() => "");
@@ -273,6 +287,18 @@ relay.post("/v1/chat/completions", async (c) => {
         } catch (err) {
           markKeyFailure(keyMeta.keyId);
           lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+          lastResourceDownAlert = {
+            route: "admin-chat",
+            requestId,
+            providerId: candidate.provider.providerId,
+            providerName: candidate.provider.name,
+            modelId: candidate.model.modelId,
+            upstreamId: keyMeta.upstreamId,
+            upstreamName: keyMeta.upstreamName,
+            upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+            status: lastError.status,
+            detail: lastError.message,
+          };
           continue;
         }
       }
@@ -295,6 +321,18 @@ relay.post("/v1/chat/completions", async (c) => {
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
             markKeyFailure(keyMeta.keyId);
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+            lastResourceDownAlert = {
+              route: "admin-chat",
+              requestId,
+              providerId: candidate.provider.providerId,
+              providerName: candidate.provider.name,
+              modelId: candidate.model.modelId,
+              upstreamId: keyMeta.upstreamId,
+              upstreamName: keyMeta.upstreamName,
+              upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+              status: lastError.status,
+              detail: lastError.message,
+            };
             continue;
           }
           return respondWithRelayError(
@@ -392,12 +430,27 @@ relay.post("/v1/chat/completions", async (c) => {
       } catch (err) {
         markKeyFailure(keyMeta.keyId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+        lastResourceDownAlert = {
+          route: "admin-chat",
+          requestId,
+          providerId: candidate.provider.providerId,
+          providerName: candidate.provider.name,
+          modelId: candidate.model.modelId,
+          upstreamId: keyMeta.upstreamId,
+          upstreamName: keyMeta.upstreamName,
+          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+          status: lastError.status,
+          detail: lastError.message,
+        };
         continue;
       }
     }
   }
 
   // All candidates exhausted
+  if (lastError && lastResourceDownAlert) {
+    notifyResourceDown(lastResourceDownAlert);
+  }
   return respondWithRelayError(
     c,
     requestId,
@@ -648,6 +701,21 @@ relay.all("/v1/*", async (c) => {
       markKeyFailure(selected.keyId);
       lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
     }
+  }
+
+  if (lastError) {
+    notifyResourceDown({
+      route: "admin-passthrough",
+      requestId,
+      providerId: provider.providerId,
+      providerName: provider.name,
+      modelId,
+      upstreamId: selected.upstreamId,
+      upstreamName: selected.upstreamName,
+      upstreamBaseUrl: selected.upstreamBaseUrl,
+      status: lastError.status,
+      detail: lastError.message,
+    });
   }
 
   return respondWithRelayError(

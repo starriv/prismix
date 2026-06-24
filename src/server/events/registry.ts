@@ -249,7 +249,16 @@ function registerBuiltInEvents(): void {
     group: DOMAIN_EVENT_GROUPS.ALERT,
     scope: "system",
     version: 1,
-    notification: {},
+    notification: {
+      buildPayload: (event) => {
+        const { title, body, ...metadata } = event.data;
+        return {
+          title: String(title ?? "Resource down"),
+          body: String(body ?? JSON.stringify(event.data)),
+          metadata,
+        };
+      },
+    },
   });
 
   registerDomainEvent({

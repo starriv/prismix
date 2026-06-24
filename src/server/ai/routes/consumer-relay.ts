@@ -51,6 +51,7 @@ import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
+import { notifyResourceDown } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules } from "../lib/safe-json";
 import { buildCacheKey, getCachedResponse, setCachedResponse } from "../lib/semantic-cache";
 import {
@@ -1131,6 +1132,19 @@ async function handleCanonicalChatCompletions(
   }
 
   // All upstreams exhausted — return last error
+  if (lastError) {
+    notifyResourceDown({
+      route: "consumer-chat",
+      requestId,
+      providerId: selected.providerId,
+      modelId: model.modelId,
+      upstreamId: selected.upstreamId,
+      upstreamName: selected.upstreamName,
+      upstreamBaseUrl: selected.upstreamBaseUrl,
+      status: lastError.status,
+      detail: lastError.message,
+    });
+  }
   return respondWithConsumerError(
     c,
     consumer,
@@ -1593,6 +1607,19 @@ async function handlePassthrough(
   }
 
   // All upstreams exhausted
+  if (ptLastError) {
+    notifyResourceDown({
+      route: "consumer-passthrough",
+      requestId,
+      providerId: ptSelected.providerId,
+      modelId,
+      upstreamId: ptSelected.upstreamId,
+      upstreamName: ptSelected.upstreamName,
+      upstreamBaseUrl: ptSelected.upstreamBaseUrl,
+      status: ptLastError.status,
+      detail: ptLastError.message,
+    });
+  }
   return respondWithConsumerError(
     c,
     consumer,
