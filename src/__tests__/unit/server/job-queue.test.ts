@@ -22,8 +22,9 @@ const { mockState } = vi.hoisted(() => {
     queueClose: vi.fn().mockResolvedValue(undefined),
     workerClose: vi.fn().mockResolvedValue(undefined),
     workerOn: vi.fn(),
+    workerConstructed: vi.fn(),
     getProcessor: () => capturedProcessor,
-    setProcessor: (p: (job: { name: string; data: unknown }) => Promise<void>) => {
+    setProcessor: (p: ((job: { name: string; data: unknown }) => Promise<void>) | null) => {
       capturedProcessor = p;
     },
   };
@@ -44,6 +45,7 @@ vi.mock("bullmq", () => ({
       processor?: (job: { name: string; data: unknown }) => Promise<void>,
       _opts?: unknown,
     ) {
+      mockState.workerConstructed();
       if (processor) mockState.setProcessor(processor);
     }
   },
@@ -54,6 +56,9 @@ describe("RedisJobQueue — mocked BullMQ", () => {
     mockState.queueAdd.mockClear().mockResolvedValue({ id: "1" });
     mockState.queueClose.mockClear().mockResolvedValue(undefined);
     mockState.workerClose.mockClear().mockResolvedValue(undefined);
+    mockState.workerOn.mockClear();
+    mockState.workerConstructed.mockClear();
+    mockState.setProcessor(null);
   });
 
   async function createRedisQueue() {
@@ -118,6 +123,26 @@ describe("RedisJobQueue — mocked BullMQ", () => {
     expect(queue.stats().totalProcessed).toBe(1);
 
     await queue.close();
+  });
+
+  it("can initialize producer-only without creating a Worker", async () => {
+    const { RedisJobQueue } = await import("@/server/queue/redis-job-queue");
+    const queue = new RedisJobQueue(
+      "producer-only",
+      () => 1000,
+      { url: "redis://localhost:6379" },
+      { startWorker: false },
+    );
+
+    expect(mockState.workerConstructed).not.toHaveBeenCalled();
+    expect(mockState.getProcessor()).toBeNull();
+
+    queue.enqueue("queued-job", { id: 1 });
+    expect(mockState.queueAdd).toHaveBeenCalledWith("queued-job", { id: 1 });
+
+    await queue.close();
+    expect(mockState.workerClose).not.toHaveBeenCalled();
+    expect(mockState.queueClose).toHaveBeenCalledTimes(1);
   });
 
   it("Worker processor throws for unregistered job name", async () => {

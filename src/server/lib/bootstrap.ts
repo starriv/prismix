@@ -1,5 +1,5 @@
 import { initBlockchainConfig } from "@/blockchain/config";
-import { initAiRelay } from "@/server/ai";
+import { initAiAdapters, initAiWriteHandlers } from "@/server/ai/init";
 import { initDb } from "@/server/db";
 import { initSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
 import { initLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
@@ -7,11 +7,7 @@ import { initLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
 import { initDepositScanQueue } from "@/server/jobs/scan-topup-deposit";
 import { initWebhookRetryJob } from "@/server/messaging/jobs/retry-webhook-deliveries";
 import { initNotificationQueue } from "@/server/messaging/notifications/dispatcher";
-// register all notification channels (email, telegram, webhook)
-import "@/server/messaging/notifications/index";
 
-// register auth strategies (siwe, credentials, google, github)
-import "../auth/index";
 import { initEventBus } from "../events";
 import { initTopupExpiryJob } from "../jobs/expire-topup-orders";
 import { initAuthProviderConfig } from "./auth-provider-config";
@@ -102,12 +98,9 @@ function initWebhookDeliveryHandler(): void {
   });
 }
 
-export async function bootstrap() {
+async function initSharedRuntime() {
   // Initialize database (lazy — creates PG pool + runs first-deploy migrations)
   await initDb();
-
-  // Initialize JWT secret (must be before any auth operation)
-  initJwtSecret();
 
   // Connect to Redis (mandatory — required by cache, queue, rate-limit, events)
   await initRedis();
@@ -120,6 +113,17 @@ export async function bootstrap() {
   const gwConfig = getGatewayConfigCached();
   log.bootstrap.info({ rateLimits: gwConfig.rateLimits.length }, "Gateway config loaded");
 
+  // Load notification provider config (which channels are enabled)
+  await initNotificationProviderConfig();
+}
+
+async function initApiRuntime() {
+  // Initialize JWT secret (must be before any auth operation)
+  initJwtSecret();
+
+  // Register auth strategies (siwe, credentials, google, github).
+  await import("../auth/index");
+
   // Clean up expired refresh tokens from previous runs
   const cleaned = await cleanExpiredRefreshTokens();
   if (cleaned > 0) {
@@ -128,16 +132,60 @@ export async function bootstrap() {
 
   // Load auth provider config (which login methods are enabled)
   await initAuthProviderConfig();
+}
 
-  // Load notification provider config (which channels are enabled)
-  await initNotificationProviderConfig();
+async function initWorkerHandlers() {
+  // Register all notification channels (email, telegram, webhook).
+  await import("@/server/messaging/notifications/index");
 
-  // Initialize job queues (must come after gateway config for maxDepth)
-  await initWriteQueue();
+  // Initialize worker-side write handlers (must come after write queue init).
   initNotificationQueue();
   initApiKeyTouchQueue();
   initWebhookDeliveryHandler();
-  initAiRelay();
+  initAiWriteHandlers();
+}
+
+export async function bootstrapApi() {
+  await initSharedRuntime();
+  await initApiRuntime();
+
+  // API is producer-only. It can enqueue jobs, but must not consume them.
+  await initWriteQueue({ startWorker: false });
+  await initDepositScanQueue({ startWorker: false });
+  initAiAdapters();
+
+  // Initialize event bus + register consumers (SSE, notification, webhook, infra).
+  await initEventBus();
+}
+
+export async function bootstrapWorker() {
+  await initSharedRuntime();
+
+  // Worker consumes background work and runs scheduled jobs.
+  await initWriteQueue();
+  await initWorkerHandlers();
+  initLiteLLMPricingJob();
+
+  // Initialize event bus + register consumers (notification, webhook, infra).
+  // SSE consumer is skipped — the worker has no HTTP routes, so no browser is connected.
+  await initEventBus({ sse: false });
+
+  // Start periodic jobs
+  initTopupExpiryJob();
+  initWebhookRetryJob();
+  await initDepositScanQueue();
+  await initSupplierHealthCheckJob();
+  await initLimitedFreeModelExpiryJob();
+}
+
+export async function bootstrapAll() {
+  await initSharedRuntime();
+  await initApiRuntime();
+
+  // Single-process mode keeps the legacy behavior for local dev and self-hosting.
+  await initWriteQueue();
+  await initWorkerHandlers();
+  initAiAdapters();
   initLiteLLMPricingJob();
 
   // Initialize event bus + register consumers (SSE, notification, webhook)
@@ -150,3 +198,5 @@ export async function bootstrap() {
   await initSupplierHealthCheckJob();
   await initLimitedFreeModelExpiryJob();
 }
+
+export const bootstrap = bootstrapAll;

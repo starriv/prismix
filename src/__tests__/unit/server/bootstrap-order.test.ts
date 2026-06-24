@@ -105,8 +105,9 @@ vi.mock("@/server/lib/write-queue", () => ({
   registerWriteHandler: vi.fn(),
 }));
 
-vi.mock("@/server/ai", () => ({
-  initAiRelay: vi.fn(() => track("initAiRelay")),
+vi.mock("@/server/ai/init", () => ({
+  initAiAdapters: vi.fn(() => track("initAiAdapters")),
+  initAiWriteHandlers: vi.fn(() => track("initAiWriteHandlers")),
 }));
 
 vi.mock("@/server/jobs/refresh-litellm-pricing", () => ({
@@ -149,12 +150,12 @@ describe("bootstrap initialization order", () => {
     expect(configIdx).toBeGreaterThanOrEqual(0);
   });
 
-  it("initAiRelay runs during bootstrap", async () => {
+  it("AI adapters and write handlers run during legacy bootstrap", async () => {
     const { bootstrap } = await import("@/server/lib/bootstrap");
     await bootstrap();
 
-    const aiRelayIdx = callOrder.indexOf("initAiRelay");
-    expect(aiRelayIdx).toBeGreaterThanOrEqual(0);
+    expect(callOrder.indexOf("initAiAdapters")).toBeGreaterThanOrEqual(0);
+    expect(callOrder.indexOf("initAiWriteHandlers")).toBeGreaterThanOrEqual(0);
   });
 
   it("initSupplierHealthCheckJob runs during bootstrap", async () => {
@@ -171,5 +172,47 @@ describe("bootstrap initialization order", () => {
 
     const limitedFreeIdx = callOrder.indexOf("initLimitedFreeModelExpiryJob");
     expect(limitedFreeIdx).toBeGreaterThanOrEqual(0);
+  });
+
+  it("bootstrapApi starts producer-only runtime without worker jobs", async () => {
+    const { bootstrapApi } = await import("@/server/lib/bootstrap");
+    await bootstrapApi();
+
+    expect(callOrder).toContain("initDb");
+    expect(callOrder).toContain("initJwtSecret");
+    expect(callOrder).toContain("initWriteQueue");
+    expect(callOrder).toContain("initDepositScanQueue");
+    expect(callOrder).toContain("initAiAdapters");
+    expect(callOrder).toContain("initEventBus");
+
+    expect(callOrder).not.toContain("initNotificationQueue");
+    expect(callOrder).not.toContain("initAiWriteHandlers");
+    expect(callOrder).not.toContain("initLiteLLMPricingJob");
+    expect(callOrder).not.toContain("initTopupExpiryJob");
+    expect(callOrder).not.toContain("initWebhookRetryJob");
+    expect(callOrder).not.toContain("initSupplierHealthCheckJob");
+    expect(callOrder).not.toContain("initLimitedFreeModelExpiryJob");
+  });
+
+  it("bootstrapWorker starts consumers and jobs without API auth runtime", async () => {
+    const { bootstrapWorker } = await import("@/server/lib/bootstrap");
+    await bootstrapWorker();
+
+    expect(callOrder).toContain("initDb");
+    expect(callOrder).toContain("initWriteQueue");
+    expect(callOrder).toContain("initNotificationQueue");
+    expect(callOrder).toContain("initAiWriteHandlers");
+    expect(callOrder).toContain("initEventBus");
+    expect(callOrder).toContain("initLiteLLMPricingJob");
+    expect(callOrder).toContain("initTopupExpiryJob");
+    expect(callOrder).toContain("initWebhookRetryJob");
+    expect(callOrder).toContain("initDepositScanQueue");
+    expect(callOrder).toContain("initSupplierHealthCheckJob");
+    expect(callOrder).toContain("initLimitedFreeModelExpiryJob");
+
+    expect(callOrder).not.toContain("initJwtSecret");
+    expect(callOrder).not.toContain("cleanExpiredRefreshTokens");
+    expect(callOrder).not.toContain("initAuthProviderConfig");
+    expect(callOrder).not.toContain("initAiAdapters");
   });
 });

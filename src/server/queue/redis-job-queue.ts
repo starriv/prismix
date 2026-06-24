@@ -17,6 +17,11 @@ import { log } from "@/server/lib/logger";
 
 import type { JobData, JobEnqueueOptions, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
 
+export interface RedisJobQueueOptions {
+  startWorker?: boolean;
+  concurrency?: number;
+}
+
 export class RedisJobQueue implements JobQueue {
   private queue: Queue;
   private worker: Worker | null = null;
@@ -28,7 +33,12 @@ export class RedisJobQueue implements JobQueue {
   private totalProcessedCount = 0;
   private totalFailedCount = 0;
 
-  constructor(label: string, maxDepth: () => number, connection: ConnectionOptions) {
+  constructor(
+    label: string,
+    maxDepth: () => number,
+    connection: ConnectionOptions,
+    options?: RedisJobQueueOptions,
+  ) {
     this.label = label;
     this.maxDepth = maxDepth;
 
@@ -42,36 +52,45 @@ export class RedisJobQueue implements JobQueue {
       },
     });
 
-    // Create worker that dispatches to registered handlers
-    this.worker = new Worker(
-      label,
-      async (job) => {
-        const handler = this.handlers.get(job.name);
-        if (!handler) {
-          throw new Error(`No handler registered for job "${job.name}"`);
-        }
-        await handler(job.data as JobData);
-        this.totalProcessedCount++;
-      },
-      {
-        connection,
-        concurrency: 5,
-      },
-    );
-
-    this.worker.on("failed", (job, err) => {
-      this.totalFailedCount++;
-      log.queue.error(
-        { queue: label, job: job?.name, attempt: job?.attemptsMade, error: err.message },
-        "Job failed",
+    if (options?.startWorker !== false) {
+      // Create worker that dispatches to registered handlers
+      this.worker = new Worker(
+        label,
+        async (job) => {
+          const handler = this.handlers.get(job.name);
+          if (!handler) {
+            throw new Error(`No handler registered for job "${job.name}"`);
+          }
+          await handler(job.data as JobData);
+          this.totalProcessedCount++;
+        },
+        {
+          connection,
+          concurrency: options?.concurrency ?? 5,
+        },
       );
-    });
 
-    this.worker.on("error", (err) => {
-      log.queue.error({ err, queue: label }, "Worker error");
-    });
+      this.worker.on("failed", (job, err) => {
+        this.totalFailedCount++;
+        log.queue.error(
+          { queue: label, job: job?.name, attempt: job?.attemptsMade, error: err.message },
+          "Job failed",
+        );
+      });
 
-    log.queue.info({ queue: label }, "Redis job queue initialized (BullMQ)");
+      this.worker.on("error", (err) => {
+        log.queue.error({ err, queue: label }, "Worker error");
+      });
+    }
+
+    log.queue.info(
+      {
+        queue: label,
+        worker: options?.startWorker !== false,
+        concurrency: options?.concurrency ?? 5,
+      },
+      "Redis job queue initialized (BullMQ)",
+    );
   }
 
   register(name: string, handler: JobHandler): void {

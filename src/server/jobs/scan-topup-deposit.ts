@@ -35,6 +35,10 @@ interface ScanJobData {
 let queue: Queue | null = null;
 let worker: Worker | null = null;
 
+export interface InitDepositScanQueueOptions {
+  startWorker?: boolean;
+}
+
 /** Process a single scan iteration for a top-up order. */
 async function processScan(data: ScanJobData): Promise<void> {
   const { orderId, startBlock, lastScannedBlock } = data;
@@ -226,8 +230,8 @@ export function enqueueDepositScan(orderId: number, startBlock?: number): void {
   });
 }
 
-/** Initialize the deposit scan BullMQ queue + worker. Call from bootstrap. */
-export async function initDepositScanQueue(): Promise<void> {
+/** Initialize the deposit scan BullMQ queue + optional worker. Call from bootstrap. */
+export async function initDepositScanQueue(options?: InitDepositScanQueueOptions): Promise<void> {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     log.blockchain.warn("REDIS_URL not set — deposit scan queue disabled");
@@ -245,26 +249,28 @@ export async function initDepositScanQueue(): Promise<void> {
     },
   });
 
-  worker = new Worker(
-    QUEUE_NAME,
-    async (job) => {
-      await processScan(job.data as ScanJobData);
-    },
-    { connection, concurrency: 3 },
-  );
-
-  worker.on("failed", (job, err) => {
-    log.blockchain.error(
-      { queue: QUEUE_NAME, orderId: (job?.data as ScanJobData)?.orderId, err: err.message },
-      "Deposit scan job failed",
+  if (options?.startWorker !== false) {
+    worker = new Worker(
+      QUEUE_NAME,
+      async (job) => {
+        await processScan(job.data as ScanJobData);
+      },
+      { connection, concurrency: 3 },
     );
-  });
 
-  worker.on("error", (err) => {
-    log.blockchain.error({ err, queue: QUEUE_NAME }, "Deposit scan worker error");
-  });
+    worker.on("failed", (job, err) => {
+      log.blockchain.error(
+        { queue: QUEUE_NAME, orderId: (job?.data as ScanJobData)?.orderId, err: err.message },
+        "Deposit scan job failed",
+      );
+    });
 
-  log.blockchain.info("Deposit scan queue initialized");
+    worker.on("error", (err) => {
+      log.blockchain.error({ err, queue: QUEUE_NAME }, "Deposit scan worker error");
+    });
+  }
+
+  log.blockchain.info({ worker: options?.startWorker !== false }, "Deposit scan queue initialized");
 }
 
 /** Graceful shutdown — close queue + worker. */

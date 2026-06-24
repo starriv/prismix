@@ -13,15 +13,24 @@ import type { JobQueue } from "./job-queue";
 
 export type { JobData, JobEnqueueOptions, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
 
+export interface CreateJobQueueOptions {
+  startWorker?: boolean;
+  concurrency?: number;
+}
+
 /**
  * Factory: creates a RedisJobQueue.
  *
  * @param name — queue label (e.g. "write-queue", "log-queue")
  * @param maxDepth — function returning max depth (supports dynamic config)
  */
-export async function createJobQueue(name: string, maxDepth: () => number): Promise<JobQueue> {
+export async function createJobQueue(
+  name: string,
+  maxDepth: () => number,
+  options?: CreateJobQueueOptions,
+): Promise<JobQueue> {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) throw new Error("REDIS_URL is required — Redis is mandatory for job queues");
   const { RedisJobQueue } = await import("./redis-job-queue");
-  return new RedisJobQueue(name, maxDepth, { url: redisUrl });
+  return new RedisJobQueue(name, maxDepth, { url: redisUrl }, options);
 }

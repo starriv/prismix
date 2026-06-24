@@ -7,27 +7,35 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
+import { closeRequestLogStore } from "@/server/ai/log-store";
 import { closeCacheStores } from "@/server/cache";
 import { closeDb } from "@/server/db";
 import { closeEventBus } from "@/server/events";
 import { createRateLimiterMiddleware } from "@/server/middleware/rate-limiter";
 
+// Register auth strategies before API routes can receive traffic.
+import "./auth/index";
 import { env } from "./env";
 import { closeSupplierHealthCheckJob } from "./jobs/check-supplier-health";
 import { closeLimitedFreeModelExpiryJob } from "./jobs/expire-limited-free-models";
 import { stopTopupExpiryJob } from "./jobs/expire-topup-orders";
 import { stopLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
 import { closeDepositScanQueue } from "./jobs/scan-topup-deposit";
-import { bootstrap } from "./lib/bootstrap";
+import { bootstrapAll, bootstrapApi } from "./lib/bootstrap";
 import { AppError } from "./lib/errors";
 import { log, logger } from "./lib/logger";
 import { closeRedis } from "./lib/redis";
-import { flushWriteQueue } from "./lib/write-queue";
+import { closeWriteQueue, flushWriteQueue } from "./lib/write-queue";
 import { stopWebhookRetryJob } from "./messaging/jobs/retry-webhook-deliveries";
 import { httpLogger } from "./middleware/http-logger";
 import { getRequestId } from "./middleware/request-id";
 import { requestId } from "./middleware/request-id";
 import { registerRoutes } from "./routes/index";
+
+const ROLE = env.ROLE ?? "all";
+if (ROLE === "worker") {
+  throw new Error("ROLE=worker must use the worker entry point (pnpm start:worker)");
+}
 
 const app = new Hono();
 
@@ -117,6 +125,9 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PORT = env.PORT;
+if (!PORT) {
+  throw new Error("PORT is required for the API process");
+}
 
 const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, async (info) => {
   // Node.js defaults: keepAliveTimeout=5s, headersTimeout=60s.
@@ -131,8 +142,12 @@ const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, asyn
   printBanner(info.port);
   // Bootstrap AFTER port is bound — health check is reachable while services init
   try {
-    await bootstrap();
-    log.bootstrap.info("All services ready");
+    if (ROLE === "api") {
+      await bootstrapApi();
+    } else {
+      await bootstrapAll();
+    }
+    log.bootstrap.info({ role: ROLE }, "All services ready");
   } catch (err) {
     log.bootstrap.fatal(
       { err },
@@ -151,6 +166,7 @@ function printBanner(p: number) {
     `  API       → ${base}`,
     `  Health    → ${base}/api/health`,
     `  AI Relay  → ${base}/api/gateway/ai/*`,
+    `  Role      → ${ROLE}`,
   ];
   if (!isProd && env.VITE_DEV_PORT) {
     lines.push(`  Web (dev) → http://localhost:${env.VITE_DEV_PORT}`);
@@ -186,13 +202,15 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   log.shutdown.info({ signal }, "Received signal, shutting down gracefully");
 
-  // 1. Stop all periodic timers immediately — they hold the event loop alive
-  stopTopupExpiryJob();
+  // 1. Stop timers/queues started by this process.
+  if (ROLE === "all") {
+    stopTopupExpiryJob();
+    await closeSupplierHealthCheckJob();
+    await closeLimitedFreeModelExpiryJob();
+    stopLiteLLMPricingJob();
+    stopWebhookRetryJob();
+  }
   await closeDepositScanQueue();
-  await closeSupplierHealthCheckJob();
-  await closeLimitedFreeModelExpiryJob();
-  stopLiteLLMPricingJob();
-  stopWebhookRetryJob();
 
   // 2. Stop accepting new connections (2s timeout for in-flight drain)
   await new Promise<void>((resolve) => {
@@ -206,9 +224,11 @@ async function shutdown(signal: string) {
   // 3. Flush pending writes (1s budget — best-effort in dev)
   const flushed = await flushWriteQueue(1000);
   log.shutdown.info({ flushed }, "Flushed pending writes");
+  await closeWriteQueue();
 
   // 4. Close event bus (Redis subscriber), cache, Redis, DB — in parallel
   await Promise.allSettled([closeEventBus(), closeCacheStores()]);
+  await closeRequestLogStore();
   await closeRedis();
   await closeDb();
 

@@ -22,20 +22,20 @@ import type { DomainEventType } from "./registry";
 let _bus: EventBus | null = null;
 
 /** Initialize the event bus and register all consumers. Call once from bootstrap. */
-export async function initEventBus(): Promise<EventBus> {
+export async function initEventBus(options?: { sse?: boolean }): Promise<EventBus> {
   const redis = getRedis();
 
   const { RedisEventBus } = await import("./redis-event-bus");
   _bus = new RedisEventBus(redis);
   log.event.info("EventBus: Redis Pub/Sub (cross-instance)");
 
-  // Register consumers with appropriate scopes
-  registerSseConsumer(_bus); // broadcast — needs to run on all instances
+  if (options?.sse !== false) {
+    registerSseConsumer(_bus); // broadcast — needs to run on all instances with HTTP routes
+  }
   registerNotificationConsumer(_bus); // local — runs only on emitting instance
   registerWebhookConsumer(_bus); // local — webhook delivery on emitting instance only
 
-  // Cross-instance invalidation consumers (broadcast)
-  registerInfraConsumers(_bus);
+  registerInfraConsumers(_bus); // broadcast — cross-instance cache invalidation
 
   return _bus;
 }

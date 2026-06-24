@@ -14,9 +14,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required (PostgreSQL connection string)"),
   REDIS_URL: z.string().min(1, "REDIS_URL is required (Redis connection string)"),
 
-  // Ports — PORT required, VITE_DEV_PORT only needed in development
-  PORT: z.coerce.number().int().positive({ message: "PORT is required (e.g. PORT=3403)" }),
+  // Ports — API requires PORT at its entry point; the worker exposes a health
+  // server on WORKER_HEALTH_PORT (default 3404). VITE_DEV_PORT is dev-only.
+  PORT: z.coerce.number().int().positive().optional(),
+  WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3404),
   VITE_DEV_PORT: z.coerce.number().int().positive().optional(),
+  ROLE: z.enum(["all", "api", "worker"]).optional(),
 
   // Optional — have sensible defaults
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),

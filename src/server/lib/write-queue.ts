@@ -14,40 +14,108 @@
  */
 import { getGatewayConfigCached } from "@/server/lib/gateway-config";
 
-import { createJobQueue, type JobEnqueueOptions, type JobQueue } from "../queue";
+import {
+  createJobQueue,
+  type CreateJobQueueOptions,
+  type JobEnqueueOptions,
+  type JobQueue,
+} from "../queue";
 import { log } from "./logger";
 
 let _queue: JobQueue | null = null;
+let _batchQueue: JobQueue | null = null;
 let _queueWarnedAt = 0;
+
+// Job names that use micro-batching. They route to a dedicated, high-concurrency
+// batch queue instead of the shared single-item queue. Source of truth for
+// producer-side routing (e.g. the API process, which never registers the batch
+// handler itself). registerBatchHandler() keeps this in sync defensively.
+const BATCH_JOB_NAMES = new Set<string>(["ai-usage-log"]);
+
+// Batch-queue worker concurrency. Must comfortably exceed the largest batch
+// maxSize (currently 50) so a full batch can assemble and trigger a size-based
+// flush. The shared single-item queue's low concurrency would otherwise cap the
+// number of in-flight (buffered, awaiting-flush) entries below maxSize, leaving
+// only the periodic timer to flush — throttling throughput to ~concurrency/interval.
+const BATCH_QUEUE_CONCURRENCY = 100;
 
 // ── Micro-batch accumulator ──────────────────────────────────────────
 
 interface BatchConfig {
   handler: (batch: Record<string, unknown>[]) => Promise<void>;
-  buffer: Record<string, unknown>[];
+  buffer: BatchEntry[];
   maxSize: number;
   flushIntervalMs: number;
   timer: ReturnType<typeof setInterval> | null;
 }
 
+interface BatchEntry {
+  data: Record<string, unknown>;
+  resolve?: () => void;
+  reject?: (err: Error) => void;
+}
+
+export type InitWriteQueueOptions = CreateJobQueueOptions;
+
 const batchConfigs = new Map<string, BatchConfig>();
 
-async function flushBatch(name: string, config: BatchConfig): Promise<void> {
-  if (config.buffer.length === 0) return;
-  const batch = config.buffer.splice(0);
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+async function flushBatch(name: string, config: BatchConfig): Promise<number> {
+  if (config.buffer.length === 0) return 0;
+  const entries = config.buffer.splice(0);
+  const batch = entries.map((entry) => entry.data);
   try {
     await config.handler(batch);
+    for (const entry of entries) {
+      entry.resolve?.();
+    }
+    return entries.length;
   } catch (err) {
     log.queue.error({ err, name, batchSize: batch.length }, "Batch flush failed");
+    const error = toError(err);
+    for (const entry of entries) {
+      entry.reject?.(error);
+    }
+    return 0;
+  }
+}
+
+function enqueueBatchEntry(
+  name: string,
+  config: BatchConfig,
+  data: Record<string, unknown>,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    config.buffer.push({ data, resolve, reject });
+    if (config.buffer.length >= config.maxSize) {
+      flushBatch(name, config).catch((err) => {
+        reject(toError(err));
+      });
+    }
+  });
+}
+
+function attachBatchHandlersToQueue(queue: JobQueue): void {
+  for (const [name, config] of batchConfigs.entries()) {
+    queue.register(name, (data) => enqueueBatchEntry(name, config, data));
   }
 }
 
 /** Initialize the write queue. Call from bootstrap. */
-export async function initWriteQueue(): Promise<JobQueue> {
-  _queue = await createJobQueue(
-    "write-queue",
-    () => getGatewayConfigCached().queue.maxWriteQueueDepth,
-  );
+export async function initWriteQueue(options?: InitWriteQueueOptions): Promise<JobQueue> {
+  const maxDepth = () => getGatewayConfigCached().queue.maxWriteQueueDepth;
+  _queue = await createJobQueue("write-queue", maxDepth, options);
+
+  // Dedicated batch queue with high concurrency so a full batch can assemble.
+  _batchQueue = await createJobQueue("write-queue-batch", maxDepth, {
+    ...options,
+    concurrency: BATCH_QUEUE_CONCURRENCY,
+  });
+  attachBatchHandlersToQueue(_batchQueue);
+
   return _queue;
 }
 
@@ -92,6 +160,11 @@ export function registerBatchHandler(
 ): void {
   const maxSize = options?.maxSize ?? 50;
   const flushIntervalMs = options?.flushIntervalMs ?? 1000;
+  BATCH_JOB_NAMES.add(name);
+  const existing = batchConfigs.get(name);
+  if (existing?.timer) {
+    clearInterval(existing.timer);
+  }
 
   const config: BatchConfig = {
     handler,
@@ -109,6 +182,7 @@ export function registerBatchHandler(
   }, flushIntervalMs);
 
   batchConfigs.set(name, config);
+  _batchQueue?.register(name, (data) => enqueueBatchEntry(name, config, data));
 }
 
 /**
@@ -126,10 +200,11 @@ export function enqueueJob(
   data: Record<string, unknown>,
   options?: JobEnqueueOptions,
 ): void {
-  // Check batch mode first
+  // In-process batch mode — buffer locally when the handler runs in this process
+  // (single-process / worker-local). Bypasses Redis entirely.
   const batch = batchConfigs.get(name);
   if (batch) {
-    batch.buffer.push(data);
+    batch.buffer.push({ data });
     if (batch.buffer.length >= batch.maxSize) {
       flushBatch(name, batch).catch((err) => {
         log.queue.error({ err, name }, "Unexpected batch size flush error");
@@ -138,17 +213,32 @@ export function enqueueJob(
     return;
   }
 
+  // Producer-only batch path (e.g. API): route to the dedicated batch queue so
+  // the worker can micro-batch on consume.
+  if (BATCH_JOB_NAMES.has(name)) {
+    if (!_batchQueue) {
+      warnQueueUninitialized(name);
+      return;
+    }
+    _batchQueue.enqueue(name, data, options);
+    return;
+  }
+
   // Standard single-item queue — graceful degradation if not initialized
   if (!_queue) {
-    // Throttle warnings to once per 10s to avoid log flood under high QPS
-    const now = Date.now();
-    if (now - _queueWarnedAt > 10_000) {
-      _queueWarnedAt = now;
-      log.queue.warn({ name }, "Write queue not initialized — jobs are being dropped");
-    }
+    warnQueueUninitialized(name);
     return;
   }
   _queue.enqueue(name, data, options);
+}
+
+/** Throttle "queue not initialized" warnings to once per 10s to avoid log flood. */
+function warnQueueUninitialized(name: string): void {
+  const now = Date.now();
+  if (now - _queueWarnedAt > 10_000) {
+    _queueWarnedAt = now;
+    log.queue.warn({ name }, "Write queue not initialized — jobs are being dropped");
+  }
 }
 
 export function getWriteQueueDepth(): number {
@@ -156,13 +246,20 @@ export function getWriteQueueDepth(): number {
   for (const config of batchConfigs.values()) {
     batchDepth += config.buffer.length;
   }
-  return (_queue?.depth() ?? 0) + batchDepth;
+  return (_queue?.depth() ?? 0) + (_batchQueue?.depth() ?? 0) + batchDepth;
 }
 
 export function getWriteQueueStats() {
-  return (
-    _queue?.stats() ?? { depth: 0, dropped: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0 }
-  );
+  const empty = { depth: 0, dropped: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0 };
+  const main = _queue?.stats() ?? empty;
+  const batch = _batchQueue?.stats() ?? empty;
+  return {
+    depth: main.depth + batch.depth,
+    dropped: main.dropped + batch.dropped,
+    totalEnqueued: main.totalEnqueued + batch.totalEnqueued,
+    totalProcessed: main.totalProcessed + batch.totalProcessed,
+    totalFailed: main.totalFailed + batch.totalFailed,
+  };
 }
 
 /** Flush all batch buffers immediately. Called during graceful shutdown. */
@@ -171,8 +268,7 @@ async function flushAllBatches(): Promise<number> {
   for (const [name, config] of batchConfigs.entries()) {
     const count = config.buffer.length;
     if (count > 0) {
-      await flushBatch(name, config);
-      total += count;
+      total += await flushBatch(name, config);
     }
   }
   return total;
@@ -189,15 +285,19 @@ function stopBatchTimers(): void {
 }
 
 export async function flushWriteQueue(deadlineMs = 5000): Promise<number> {
-  // Flush batch buffers first, then drain the BullMQ queue
+  // Flush in-process batch buffers first, then drain both BullMQ queues
   const batchFlushed = await flushAllBatches();
-  const queueFlushed = await (_queue?.flush(deadlineMs) ?? Promise.resolve(0));
-  return batchFlushed + queueFlushed;
+  const [queueFlushed, batchQueueFlushed] = await Promise.all([
+    _queue?.flush(deadlineMs) ?? Promise.resolve(0),
+    _batchQueue?.flush(deadlineMs) ?? Promise.resolve(0),
+  ]);
+  return batchFlushed + queueFlushed + batchQueueFlushed;
 }
 
 export async function closeWriteQueue(): Promise<void> {
   stopBatchTimers();
   await flushAllBatches();
-  await _queue?.close();
+  await Promise.all([_queue?.close(), _batchQueue?.close()]);
   _queue = null;
+  _batchQueue = null;
 }

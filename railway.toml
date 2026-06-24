@@ -15,8 +15,8 @@ buildCommand = "pnpm build"
 watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
 
 [deploy]
-# Start command — env vars injected by Railway, no .env file needed
-startCommand = "pnpm start"
+# API service entry. Worker service should use deploy/railway/worker.toml.
+startCommand = "ROLE=api pnpm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
