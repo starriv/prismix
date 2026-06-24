@@ -291,6 +291,7 @@ export function createApiClient(config: ApiClientConfig) {
     getToken,
     setRefreshToken,
     getRefreshToken,
+    refreshAccessToken: doRefresh,
     clearTokens,
     ApiError,
   };

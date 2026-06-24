@@ -18,6 +18,7 @@ export {
   AdminApiError as ApiError,
   getAdminRefreshToken as getRefreshToken,
   getAdminToken as getAuthToken,
+  refreshAdminAccessToken as refreshAuthToken,
   setAdminRefreshToken as setRefreshToken,
   setAdminToken as setAuthToken,
 } from "./admin-client";

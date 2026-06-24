@@ -10,6 +10,7 @@ import {
   canInjectCliTextNotice,
   canInjectCliTextNoticeIntoBody,
   findCliAnnouncementForConsumer,
+  findModelErrorAnnouncement,
   formatCliAnnouncementText,
   injectCliNoticeIntoChatResponse,
   injectCliNoticeIntoClientResponse,
@@ -234,5 +235,27 @@ describe("findCliAnnouncementForConsumer (single-query delivery lookup)", () => 
 
     expect(notice).toBeNull();
     expect(mockFindDeliveredAnnouncementIds).not.toHaveBeenCalled();
+  });
+});
+
+describe("findModelErrorAnnouncement", () => {
+  beforeEach(() => {
+    mockFindActiveAnnouncementsForSurface.mockReset();
+    mockFindDeliveredAnnouncementIds.mockReset();
+  });
+
+  it("matches related model patterns case-insensitively", async () => {
+    mockFindActiveAnnouncementsForSurface.mockResolvedValue([
+      {
+        ...makeAnnouncement("model-error"),
+        surfaces: JSON.stringify(["model_error"]),
+        relatedModels: JSON.stringify(["GLM-5.2"]),
+      },
+    ]);
+
+    const notice = await findModelErrorAnnouncement("glm-5.2", "upstream_failed");
+
+    expect(notice).toMatchObject({ id: "model-error", surface: "model_error" });
+    expect(mockFindActiveAnnouncementsForSurface).toHaveBeenCalledWith(20, "model_error");
   });
 });

@@ -24,7 +24,11 @@ export {
   type AnnouncementSurface,
 };
 
-export type ModelErrorReason = "not_allowed" | "not_found_or_disabled" | "no_route";
+export type ModelErrorReason =
+  | "not_allowed"
+  | "not_found_or_disabled"
+  | "no_route"
+  | "upstream_failed";
 
 export interface AnnouncementNoticePayload {
   id: string;
@@ -55,9 +59,13 @@ function hasSurface(announcement: Announcement, surface: AnnouncementSurface): b
 }
 
 function modelMatches(pattern: string, modelId: string): boolean {
-  if (pattern === "*") return true;
-  if (pattern.endsWith("*")) return modelId.startsWith(pattern.slice(0, -1));
-  return pattern === modelId;
+  const normalizedPattern = pattern.trim().toLowerCase();
+  const normalizedModelId = modelId.trim().toLowerCase();
+  if (normalizedPattern === "*") return true;
+  if (normalizedPattern.endsWith("*")) {
+    return normalizedModelId.startsWith(normalizedPattern.slice(0, -1));
+  }
+  return normalizedPattern === normalizedModelId;
 }
 
 function isRelatedToModel(announcement: Announcement, modelId: string): boolean {

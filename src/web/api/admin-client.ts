@@ -21,6 +21,7 @@ export const setAdminToken = client.setToken;
 export const getAdminToken = client.getToken;
 export const setAdminRefreshToken = client.setRefreshToken;
 export const getAdminRefreshToken = client.getRefreshToken;
+export const refreshAdminAccessToken = client.refreshAccessToken;
 
 // Re-export ApiError with the admin name for backward compat
 export { ApiError as AdminApiError };

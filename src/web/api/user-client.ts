@@ -21,6 +21,7 @@ export const setUserToken = client.setToken;
 export const getUserToken = client.getToken;
 export const setUserRefreshToken = client.setRefreshToken;
 export const getUserRefreshToken = client.getRefreshToken;
+export const refreshUserAccessToken = client.refreshAccessToken;
 
 // Re-export ApiError with the user name for backward compat
 export { ApiError as UserApiError };

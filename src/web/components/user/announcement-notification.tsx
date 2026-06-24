@@ -8,7 +8,7 @@ import { ChevronDown, ChevronUp, ExternalLink, Megaphone, X } from "lucide-react
 
 import { queryKeys } from "@/web/api/query-keys";
 import type { Announcement } from "@/web/api/schemas";
-import { getUserToken } from "@/web/api/user-client";
+import { getUserToken, refreshUserAccessToken } from "@/web/api/user-client";
 import { useUserAnnouncements } from "@/web/api/user-hooks";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent } from "@/web/components/ui/card";
@@ -71,7 +71,11 @@ export function UserAnnouncementNotification() {
   const { isAuthenticated } = useUserAuthContext();
   const qc = useQueryClient();
   const { data: announcements = [] } = useUserAnnouncements();
-  const { subscribe } = useSse({ enabled: isAuthenticated, getToken: getUserToken });
+  const { subscribe } = useSse({
+    enabled: isAuthenticated,
+    getToken: getUserToken,
+    refreshToken: refreshUserAccessToken,
+  });
 
   const [dismissedIds, setDismissedIds] = useState<string[]>(getDismissedIds);
   const [expanded, setExpanded] = useState(false);
@@ -280,12 +284,13 @@ function DetailDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const link = announcement?.link;
 
   const handleOpenLink = useCallback(() => {
-    if (announcement?.link) {
-      window.open(announcement.link, "_blank", "noopener,noreferrer");
+    if (link) {
+      window.open(link, "_blank", "noopener,noreferrer");
     }
-  }, [announcement?.link]);
+  }, [link]);
 
   return (
     <Dialog open={!!announcement} onOpenChange={(open) => !open && onClose()}>
@@ -297,7 +302,7 @@ function DetailDialog({
           <div className="max-h-[300px] overflow-y-auto px-4 py-3">
             {announcement && <MarkdownRenderer content={announcement.body} />}
           </div>
-          {announcement?.link && (
+          {link && (
             <div className="border-t px-4 py-2.5">
               <button
                 type="button"

@@ -10,6 +10,7 @@ const mockFetch = vi.fn();
 const mockBillConsumer = vi.fn();
 const mockGatewayError = vi.fn();
 const mockGetConsumerSession = vi.fn();
+const mockFindActiveAnnouncements = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
 
@@ -38,6 +39,9 @@ vi.mock("@/server/middleware/request-id", () => ({
 }));
 
 vi.mock("@/server/repos", () => ({
+  announcementRepo: {
+    findActiveSent: (...args: unknown[]) => mockFindActiveAnnouncements(...args),
+  },
   aiGuardrailConfigRepo: { findAllEnabled: vi.fn().mockResolvedValue([]) },
   aiModelRepo: {
     findAllEnabled: vi.fn().mockResolvedValue([]),
@@ -147,8 +151,10 @@ describe("consumer relay Anthropic client protocol routing", () => {
     mockFetch.mockReset();
     mockBillConsumer.mockReset();
     mockGetConsumerSession.mockReset();
+    mockFindActiveAnnouncements.mockReset();
     mockGetConsumerSession.mockReturnValue(buildConsumerSession());
     mockBillConsumer.mockResolvedValue({ ok: true, upstreamCost: "0", costStr: "0" });
+    mockFindActiveAnnouncements.mockResolvedValue([]);
 
     mockFindEnabledRoutesByModelId.mockResolvedValue([
       {
@@ -598,5 +604,64 @@ describe("consumer relay Anthropic client protocol routing", () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("Agent balance exhausted. Please top up the pay-agent.");
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("injects a model-error announcement when all upstream candidates fail", async () => {
+    mockResolveUpstreamCandidates.mockResolvedValue([
+      {
+        id: 11,
+        upstreamId: "anthropic-a",
+        name: "Anthropic A",
+        baseUrl: "https://anthropic-a.example.com",
+      },
+    ]);
+    mockPickKey.mockResolvedValue({
+      id: 123,
+      providerId: 7,
+      upstreamId: 11,
+      encryptedKey: "encrypted",
+      name: "anthropic-key",
+    });
+    mockFindActiveAnnouncements.mockResolvedValue([
+      {
+        id: "ann-outage",
+        title: "GLM service is temporarily unavailable",
+        body: "Upstream is being repaired. You can pause requests for now.",
+        link: null,
+        category: "outage",
+        severity: "critical",
+        surfaces: JSON.stringify(["model_error"]),
+        relatedModels: JSON.stringify(["CLAUDE-SONNET-4"]),
+        startsAt: null,
+        expiresAt: null,
+        priority: 0,
+        status: "sent",
+        createdBy: "admin",
+        createdAt: new Date("2026-01-01"),
+        updatedAt: null,
+        sentAt: new Date("2026-01-01"),
+      },
+    ]);
+    mockFetch.mockResolvedValue(new Response("service unavailable", { status: 503 }));
+
+    const res = await app.request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4",
+        messages: [{ role: "user", content: "hello" }],
+        max_tokens: 512,
+      }),
+    });
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as {
+      error: string;
+      announcement?: { id: string; surface: string };
+    };
+    expect(body.error).toContain("All upstream candidates failed");
+    expect(body.error).toContain("[Prismix Notice] GLM service is temporarily unavailable");
+    expect(body.announcement).toMatchObject({ id: "ann-outage", surface: "model_error" });
+    expect(mockFindActiveAnnouncements).toHaveBeenCalledWith(20, "model_error");
   });
 });

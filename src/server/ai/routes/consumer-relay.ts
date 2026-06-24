@@ -217,6 +217,31 @@ async function respondWithUpstreamModelAnnouncementError(
   });
 }
 
+async function respondWithUpstreamExhaustedAnnouncementError(
+  c: Context,
+  consumer: ConsumerSession,
+  requestId: string,
+  start: number,
+  lastError: { status: number; message: string } | null,
+  modelId: string,
+  extras?: ConsumerErrorExtras,
+): Promise<Response> {
+  return respondWithModelAnnouncementError(
+    c,
+    consumer,
+    requestId,
+    start,
+    lastError?.status || 502,
+    {
+      error: "All upstream candidates failed",
+      detail: lastError?.message ?? "Unknown error",
+    },
+    modelId,
+    "upstream_failed",
+    extras,
+  );
+}
+
 async function findCliAnnouncementNotice(
   consumer: ConsumerSession,
   requestId: string,
@@ -1145,16 +1170,13 @@ async function handleCanonicalChatCompletions(
       detail: lastError.message,
     });
   }
-  return respondWithConsumerError(
+  return respondWithUpstreamExhaustedAnnouncementError(
     c,
     consumer,
     requestId,
     start,
-    lastError?.status || 502,
-    {
-      error: "All upstream candidates failed",
-      detail: lastError?.message ?? "Unknown error",
-    },
+    lastError,
+    model.modelId,
     {
       keyId: selected.keyId,
       providerId: selected.providerId,
@@ -1620,13 +1642,13 @@ async function handlePassthrough(
       detail: ptLastError.message,
     });
   }
-  return respondWithConsumerError(
+  return respondWithUpstreamExhaustedAnnouncementError(
     c,
     consumer,
     requestId,
     start,
-    ptLastError?.status || 502,
-    { error: "All upstream candidates failed", detail: ptLastError?.message ?? "Unknown error" },
+    ptLastError,
+    modelId,
     {
       keyId: ptSelected.keyId,
       providerId: ptSelected.providerId,

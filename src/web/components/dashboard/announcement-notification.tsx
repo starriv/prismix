@@ -280,12 +280,13 @@ function DetailDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const link = announcement?.link;
 
   const handleOpenLink = useCallback(() => {
-    if (announcement?.link) {
-      window.open(announcement.link, "_blank", "noopener,noreferrer");
+    if (link) {
+      window.open(link, "_blank", "noopener,noreferrer");
     }
-  }, [announcement?.link]);
+  }, [link]);
 
   return (
     <Dialog open={!!announcement} onOpenChange={(open) => !open && onClose()}>
@@ -297,7 +298,7 @@ function DetailDialog({
           <div className="max-h-[300px] overflow-y-auto px-4 py-3">
             {announcement && <MarkdownRenderer content={announcement.body} />}
           </div>
-          {announcement?.link && (
+          {link && (
             <div className="border-t px-4 py-2.5">
               <button
                 type="button"
