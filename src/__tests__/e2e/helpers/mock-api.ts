@@ -670,6 +670,10 @@ export class MockApi {
         if (pathname.match(/\/providers\/\d+\/upstreams/)) {
           return route.fulfill(json(MOCK_AI_UPSTREAM_ASSIGNMENTS));
         }
+        // Provider-scoped keys: /api/admin/ai/providers/:id/keys
+        if (pathname.match(/\/providers\/\d+\/keys/)) {
+          return route.fulfill(json(MOCK_AI_KEYS));
+        }
         return route.fulfill(json(MOCK_AI_PROVIDERS));
       },
     );
