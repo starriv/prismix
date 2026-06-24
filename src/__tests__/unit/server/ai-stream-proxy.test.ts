@@ -228,6 +228,42 @@ describe("extractStreamUsageUniversal", () => {
     });
   });
 
+  it("extracts OpenAI-compatible stream usage with input/output fields", () => {
+    const data = JSON.stringify({
+      choices: [],
+      usage: { input_tokens: 9, output_tokens: 5, total_tokens: 14 },
+    });
+    expect(extractStreamUsageUniversal(data)).toEqual({
+      inputTokens: 9,
+      outputTokens: 5,
+      totalTokens: 14,
+    });
+  });
+
+  it("uses non-zero input_tokens when prompt_tokens is reported as zero", () => {
+    const data = JSON.stringify({
+      choices: [],
+      usage: { prompt_tokens: 0, input_tokens: 9, completion_tokens: 5, total_tokens: 14 },
+    });
+    expect(extractStreamUsageUniversal(data)).toEqual({
+      inputTokens: 9,
+      outputTokens: 5,
+      totalTokens: 14,
+    });
+  });
+
+  it("infers missing input tokens from total_tokens in stream usage", () => {
+    const data = JSON.stringify({
+      choices: [],
+      usage: { completion_tokens: 5, total_tokens: 14 },
+    });
+    expect(extractStreamUsageUniversal(data)).toEqual({
+      inputTokens: 9,
+      outputTokens: 5,
+      totalTokens: 14,
+    });
+  });
+
   it("returns null for OpenAI content chunks without usage", () => {
     const data = JSON.stringify({
       choices: [{ delta: { content: "hi" } }],
@@ -447,6 +483,32 @@ describe("SSE stream processing with OpenAI adapter", () => {
     // Third chunk: [DONE]
     const data3 = extractDataLine(complete[2]!);
     expect(openaiAdapter.isStreamDone(data3!)).toBe(true);
+  });
+
+  it("extracts usage from OpenAI-compatible final chunk with input/output fields", () => {
+    const data = JSON.stringify({
+      id: "chatcmpl-1",
+      choices: [],
+      usage: { input_tokens: 5, output_tokens: 10, total_tokens: 15 },
+    });
+    expect(openaiAdapter.extractStreamUsage(data)).toEqual({
+      inputTokens: 5,
+      outputTokens: 10,
+      totalTokens: 15,
+    });
+  });
+
+  it("infers OpenAI adapter input tokens from total_tokens when prompt tokens are absent", () => {
+    const data = JSON.stringify({
+      id: "chatcmpl-1",
+      choices: [],
+      usage: { completion_tokens: 10, total_tokens: 15 },
+    });
+    expect(openaiAdapter.extractStreamUsage(data)).toEqual({
+      inputTokens: 5,
+      outputTokens: 10,
+      totalTokens: 15,
+    });
   });
 
   it("transforms stream events via passthrough adapter", () => {

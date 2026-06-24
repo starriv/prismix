@@ -31,6 +31,7 @@ import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/
 
 import type { ProviderAdapter, TokenUsage } from "../providers/types";
 import { markKeyFailure, markKeySuccess } from "./key-balancer";
+import { extractTokenUsageFromUsageObject } from "./token-usage";
 
 /**
  * Idle timeout: abort if no data received from upstream for this long.
@@ -822,30 +823,7 @@ export function extractPassthroughUsage(text: string): TokenUsage | null {
 
     if (!usage) return null;
 
-    // OpenAI Chat Completions shape: prompt_tokens / completion_tokens
-    const prompt = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
-    const completion = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
-    // Anthropic / OpenAI Responses API shape: input_tokens / output_tokens
-    const input = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
-    const output = typeof usage.output_tokens === "number" ? usage.output_tokens : 0;
-
-    // Anthropic cache tokens (separate from input_tokens, must be summed)
-    const cacheCreation =
-      typeof usage.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0;
-    const cacheRead =
-      typeof usage.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0;
-
-    const inputTokens = (prompt || input) + cacheCreation + cacheRead;
-    const outputTokens = completion || output;
-
-    if (inputTokens === 0 && outputTokens === 0) return null;
-    return {
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens,
-      cacheCreationInputTokens: cacheCreation || undefined,
-      cacheReadInputTokens: cacheRead || undefined,
-    };
+    return extractTokenUsageFromUsageObject(usage);
   } catch {
     return null;
   }
@@ -913,14 +891,7 @@ export function extractStreamUsageUniversal(dataLine: string): TokenUsage | null
     if (eventType === "response.completed") {
       const response = obj.response as Record<string, unknown> | undefined;
       const usage = response?.usage as Record<string, unknown> | undefined;
-      if (usage) {
-        const input = typeof usage.input_tokens === "number" ? usage.input_tokens : 0;
-        const output = typeof usage.output_tokens === "number" ? usage.output_tokens : 0;
-        if (input > 0 || output > 0) {
-          return { inputTokens: input, outputTokens: output, totalTokens: input + output };
-        }
-      }
-      return null;
+      return extractTokenUsageFromUsageObject(usage);
     }
     // Skip other OpenAI Responses API events without usage
     if (eventType?.startsWith("response.")) return null;
@@ -929,16 +900,7 @@ export function extractStreamUsageUniversal(dataLine: string): TokenUsage | null
     // {"usage":{"prompt_tokens":9,"completion_tokens":5,"total_tokens":14}}
     const topUsage = obj.usage as Record<string, unknown> | undefined;
     if (topUsage) {
-      const prompt = typeof topUsage.prompt_tokens === "number" ? topUsage.prompt_tokens : 0;
-      const completion =
-        typeof topUsage.completion_tokens === "number" ? topUsage.completion_tokens : 0;
-      if (prompt > 0 || completion > 0) {
-        return {
-          inputTokens: prompt,
-          outputTokens: completion,
-          totalTokens: prompt + completion,
-        };
-      }
+      return extractTokenUsageFromUsageObject(topUsage);
     }
 
     // ── Gemini: usageMetadata ──

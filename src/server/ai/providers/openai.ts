@@ -5,6 +5,7 @@
  * These providers accept the OpenAI chat completions format natively, so
  * transformRequest/transformResponse are identity functions.
  */
+import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
 import type {
   BuildUrlOptions,
   OpenAIChatBody,
@@ -16,16 +17,7 @@ import type {
 function extractUsageFromObject(body: unknown): TokenUsage | null {
   const obj = body as Record<string, unknown> | null;
   const usage = obj?.usage as Record<string, unknown> | undefined;
-  if (!usage) return null;
-
-  const inputTokens = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
-  const outputTokens = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
-
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens,
-  };
+  return extractTokenUsageFromUsageObject(usage, { returnZeroWhenEmpty: true });
 }
 
 function usesMaxCompletionTokens(model: string): boolean {
