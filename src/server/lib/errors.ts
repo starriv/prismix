@@ -63,11 +63,28 @@ export class ConflictError extends AppError {
 }
 
 export class RateLimitError extends AppError {
+  public readonly retryAfterMs?: number;
   constructor(retryAfterMs?: number) {
     super("Too many requests", 429, "RATE_LIMITED");
     this.name = "RateLimitError";
-    if (retryAfterMs) {
-      (this as Record<string, unknown>).retryAfterMs = retryAfterMs;
-    }
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/**
+ * Thrown by a notification channel when the target is permanently
+ * unavailable (e.g. Telegram 403 "bot was blocked by the user").
+ *
+ * The dispatcher catches this to deactivate the notification config
+ * so future events skip the dead target instead of retrying forever.
+ */
+export class ChannelDeactivatedError extends AppError {
+  constructor(
+    message: string,
+    public readonly channel: string,
+    public readonly target: string,
+  ) {
+    super(message, 403, "CHANNEL_DEACTIVATED");
+    this.name = "ChannelDeactivatedError";
   }
 }

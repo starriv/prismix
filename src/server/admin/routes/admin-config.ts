@@ -364,6 +364,20 @@ router.put("/notification-configs/:id", async (c) => {
   if (body.enabled !== undefined) updates.enabled = body.enabled;
   if (body.events !== undefined) updates.events = JSON.stringify(body.events);
 
+  const shouldReactivate =
+    existing.status === "disabled" &&
+    (body.enabled === true ||
+      body.target !== undefined ||
+      body.secret !== undefined ||
+      body.events !== undefined);
+  if (shouldReactivate) {
+    updates.status = "active";
+    updates.disabledReason = null;
+    updates.disabledAt = null;
+    updates.failureCount = 0;
+    updates.lastFailureAt = null;
+  }
+
   if (body.target !== undefined) {
     const targetError = validateNotificationTarget(channel, body.target);
     if (targetError) return c.json({ error: targetError }, 400);

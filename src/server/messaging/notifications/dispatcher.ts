@@ -10,6 +10,7 @@
  */
 import crypto from "crypto";
 
+import { AppError, ChannelDeactivatedError, RateLimitError } from "@/server/lib/errors";
 import { log } from "@/server/lib/logger";
 import { getChannelConfig, isChannelEnabled } from "@/server/lib/notification-provider-config";
 import { enqueueJob, registerWriteHandler } from "@/server/lib/write-queue";
@@ -19,20 +20,28 @@ import type { ChannelType, NotificationPayload } from "./channel";
 import { getChannel } from "./registry";
 
 const MAX_ATTEMPTS = 3;
+const MAX_RATE_LIMIT_DELAY_MS = 5 * 60 * 1000;
 const DOMAIN_TAG = "notification-provider-config";
+
+interface NotificationDeliveryJob extends Record<string, unknown> {
+  logId: number;
+  channel: ChannelType;
+  target: string;
+  payload: NotificationPayload;
+  encryptedSecret: string | null;
+  configId?: number | null;
+  attempt?: number;
+}
 
 /** Register the notification delivery job handler. Call from bootstrap. */
 export function initNotificationQueue(): void {
   registerWriteHandler("notification-deliver", async (data) => {
-    const { logId, channel, target, payload, encryptedSecret } = data as {
-      logId: number;
-      channel: ChannelType;
-      target: string;
-      payload: NotificationPayload;
-      encryptedSecret: string | null;
-    };
-    await deliverWithRetry(logId, channel, target, payload, encryptedSecret).catch((err) => {
-      log.notification.error({ err, logId, channel }, "Notification delivery failed completely");
+    const job = data as unknown as NotificationDeliveryJob;
+    await deliverWithRetry(job).catch((err) => {
+      log.notification.error(
+        { err, logId: job.logId, channel: job.channel },
+        "Notification delivery failed completely",
+      );
     });
   });
 }
@@ -91,13 +100,15 @@ export async function emitNotification(
       }
 
       // Enqueue async delivery as a serializable job
-      enqueueJob("notification-deliver", {
+      const job: NotificationDeliveryJob = {
         logId: logEntry.id,
         channel,
         target: config.target,
         payload,
         encryptedSecret: config.secret,
-      });
+        configId: config.id,
+      };
+      enqueueJob("notification-deliver", job);
     }
   } catch (err) {
     log.notification.error({ err, event }, "Failed to emit notification");
@@ -106,13 +117,10 @@ export async function emitNotification(
 
 // ── Internal ────────────────────────────────────────────────────────
 
-async function deliverWithRetry(
-  logId: number,
-  channelType: ChannelType,
-  target: string,
-  payload: NotificationPayload,
-  encryptedSecret: string | null,
-): Promise<void> {
+async function deliverWithRetry(job: NotificationDeliveryJob): Promise<void> {
+  const { logId, channel: channelType, target, payload, encryptedSecret } = job;
+  const configId = job.configId ?? null;
+  const startAttempt = normalizeAttempt(job.attempt);
   const ch = getChannel(channelType);
   if (!ch) {
     await notificationLogRepo.updateStatus(logId, "failed", {
@@ -136,7 +144,7 @@ async function deliverWithRetry(
   }
 
   let lastError = "";
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  for (let attempt = startAttempt; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       await ch.send(target, payload, { secret, providerConfig });
       await notificationLogRepo.updateStatus(logId, "sent", {
@@ -146,12 +154,71 @@ async function deliverWithRetry(
       return;
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
+
+      if (err instanceof RateLimitError) {
+        const retryDelayMs = getRateLimitRetryDelayMs(err.retryAfterMs, attempt);
+        log.notification.warn(
+          {
+            logId,
+            channel: channelType,
+            attempt,
+            retryAfterMs: retryDelayMs,
+          },
+          "Rate limited, scheduling delayed retry",
+        );
+        if (attempt < MAX_ATTEMPTS) {
+          enqueueJob(
+            "notification-deliver",
+            {
+              ...job,
+              configId,
+              attempt: attempt + 1,
+            },
+            { delayMs: retryDelayMs },
+          );
+          await notificationLogRepo.updateStatus(logId, "pending", {
+            lastError: `RATE_LIMITED: ${lastError}`,
+            attempts: attempt,
+          });
+          return;
+        }
+        continue;
+      }
+
+      if (err instanceof ChannelDeactivatedError) {
+        log.notification.warn(
+          { logId, channel: channelType, target: err.target, reason: lastError },
+          "Channel target permanently unavailable — deactivating config",
+        );
+        if (configId !== null) {
+          await notificationConfigRepo.deactivate(configId, lastError).catch((deactErr) => {
+            log.notification.error({ err: deactErr, configId }, "Failed to deactivate config");
+          });
+        }
+        await notificationLogRepo.updateStatus(logId, "failed", {
+          lastError: `DEACTIVATED: ${lastError}`,
+          attempts: attempt,
+        });
+        return;
+      }
+
+      if (err instanceof AppError && err.status === 400) {
+        log.notification.warn(
+          { logId, channel: channelType, attempt, error: lastError },
+          "Permanent bad request — not retrying",
+        );
+        await notificationLogRepo.updateStatus(logId, "failed", {
+          lastError: `PERMANENT: ${lastError}`,
+          attempts: attempt,
+        });
+        return;
+      }
+
       log.notification.warn(
         { logId, channel: channelType, attempt, error: lastError },
         "Notification delivery attempt failed",
       );
 
-      // Exponential backoff: 1s, 2s, 4s
       if (attempt < MAX_ATTEMPTS) {
         await sleep(1000 * 2 ** (attempt - 1));
       }
@@ -167,4 +234,15 @@ async function deliverWithRetry(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeAttempt(attempt: number | undefined): number {
+  if (attempt === undefined || !Number.isInteger(attempt) || attempt < 1) return 1;
+  return Math.min(attempt, MAX_ATTEMPTS);
+}
+
+function getRateLimitRetryDelayMs(retryAfterMs: number | undefined, attempt: number): number {
+  const fallbackMs = 1000 * 2 ** (attempt - 1);
+  const requestedMs = retryAfterMs && retryAfterMs > 0 ? retryAfterMs : fallbackMs;
+  return Math.min(requestedMs, MAX_RATE_LIMIT_DELAY_MS);
 }

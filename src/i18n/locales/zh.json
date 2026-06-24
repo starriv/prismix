@@ -990,6 +990,7 @@
       "channel": "渠道",
       "target": "目标",
       "events": "事件",
+      "status": "状态",
       "enabled": "启用",
       "actions": "操作"
     },
@@ -1004,6 +1005,11 @@
       "pending": "待发送",
       "sent": "已发送",
       "failed": "失败"
+    },
+    "status": {
+      "active": "活跃",
+      "manual-disabled": "手动停用",
+      "auto-disabled": "自动停用"
     },
     "btn": {
       "add": "添加通知",

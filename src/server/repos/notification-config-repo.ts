@@ -1,7 +1,7 @@
 /**
  * Notification config repository — CRUD for the `notification_configs` table.
  */
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import {
   db,
@@ -23,11 +23,12 @@ export const notificationConfigRepo = {
     return queryOne(db.select().from(notificationConfigs).where(eq(notificationConfigs.id, id)));
   },
 
-  /** Find all enabled configs that subscribe to a given event. */
+  /** Find all enabled, active configs that subscribe to a given event. */
   async findByEvent(event: string): Promise<NotificationConfig[]> {
     const all = await this.findAll();
     return all.filter((c) => {
       if (!c.enabled) return false;
+      if (c.status !== "active") return false;
       try {
         const events = JSON.parse(c.events) as string[];
         return events.includes(event);
@@ -55,5 +56,37 @@ export const notificationConfigRepo = {
 
   async delete(id: number): Promise<void> {
     await exec(db.delete(notificationConfigs).where(eq(notificationConfigs.id, id)));
+  },
+
+  async deactivate(id: number, reason: string): Promise<void> {
+    await exec(
+      db
+        .update(notificationConfigs)
+        .set({
+          status: "disabled",
+          failureCount: sql`${notificationConfigs.failureCount} + 1`,
+          lastFailureAt: new Date(),
+          disabledReason: reason,
+          disabledAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(notificationConfigs.id, id)),
+    );
+  },
+
+  async reactivate(id: number): Promise<void> {
+    await exec(
+      db
+        .update(notificationConfigs)
+        .set({
+          status: "active",
+          disabledReason: null,
+          disabledAt: null,
+          failureCount: 0,
+          lastFailureAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(notificationConfigs.id, id)),
+    );
   },
 };

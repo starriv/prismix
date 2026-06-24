@@ -104,10 +104,16 @@ export function ChannelsTab() {
         meta: { headerClassName: "w-[10%]" },
       },
       {
+        accessorKey: "status",
+        cell: ({ row }) => <ConfigStatus config={row.original} t={t} />,
+        header: t("notif.th.status"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
         accessorKey: "enabled",
         cell: ({ row }) => (
           <Switch
-            checked={row.original.enabled}
+            checked={row.original.enabled && row.original.status === "active"}
             onCheckedChange={(checked) => void handleToggleEnabled(row.original, checked)}
           />
         ),
@@ -172,7 +178,7 @@ export function ChannelsTab() {
         getRowId={(row) => String(row.id)}
         loading={isLoading}
         showPagination={false}
-        tableClassName="min-w-[920px]"
+        tableClassName="min-w-[1020px]"
       />
 
       {/* Create dialog */}
@@ -198,4 +204,31 @@ export function ChannelsTab() {
       <DeleteConfigDialog config={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </div>
   );
+}
+
+function ConfigStatus({
+  config,
+  t,
+}: {
+  config: NotificationConfig;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  if (!config.enabled) {
+    return <DataTableBadge variant="secondary">{t("notif.status.manual-disabled")}</DataTableBadge>;
+  }
+
+  if (config.status === "disabled") {
+    return (
+      <div className="space-y-1">
+        <DataTableBadge variant="destructive">{t("notif.status.auto-disabled")}</DataTableBadge>
+        {config.disabledReason && (
+          <DataTableText className="block max-w-[180px]" muted truncate>
+            {config.disabledReason}
+          </DataTableText>
+        )}
+      </div>
+    );
+  }
+
+  return <DataTableBadge variant="outline">{t("notif.status.active")}</DataTableBadge>;
 }

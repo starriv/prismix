@@ -4,7 +4,7 @@
  * Covers: enqueue→process pipeline, handler dispatch, stats tracking,
  * error handling, close, and BullMQ Worker→handler dispatch.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function flush(ms = 30): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,6 +73,19 @@ describe("RedisJobQueue — mocked BullMQ", () => {
       resourceId: 42,
       path: "/api/test",
     });
+    await queue.close();
+  });
+
+  it("enqueue() passes delay options to BullMQ", async () => {
+    const queue = await createRedisQueue();
+
+    queue.enqueue("notification-deliver", { logId: 42 }, { delayMs: 5000 });
+
+    expect(mockState.queueAdd).toHaveBeenCalledWith(
+      "notification-deliver",
+      { logId: 42 },
+      { delay: 5000 },
+    );
     await queue.close();
   });
 

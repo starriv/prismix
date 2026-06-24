@@ -990,6 +990,7 @@
       "channel": "Channel",
       "target": "Target",
       "events": "Events",
+      "status": "Status",
       "enabled": "Enabled",
       "actions": "Actions"
     },
@@ -1004,6 +1005,11 @@
       "pending": "Pending",
       "sent": "Sent",
       "failed": "Failed"
+    },
+    "status": {
+      "active": "Active",
+      "manual-disabled": "Manually disabled",
+      "auto-disabled": "Auto-disabled"
     },
     "btn": {
       "add": "Add Notification",

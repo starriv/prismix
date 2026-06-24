@@ -10,6 +10,11 @@ export const notificationConfigSchema = z.object({
   secret: z.string().nullable(),
   events: z.array(z.string()),
   enabled: z.coerce.boolean(),
+  status: z.string().default("active"),
+  failureCount: z.number().default(0),
+  lastFailureAt: z.string().or(z.number()).nullable().optional(),
+  disabledReason: z.string().nullable().optional(),
+  disabledAt: z.string().or(z.number()).nullable().optional(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });

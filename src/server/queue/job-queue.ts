@@ -13,6 +13,10 @@
 export type JobData = Record<string, unknown>;
 export type JobHandler = (data: JobData) => Promise<void>;
 
+export interface JobEnqueueOptions {
+  delayMs?: number;
+}
+
 export interface JobQueueStats {
   depth: number;
   dropped: number;
@@ -28,7 +32,7 @@ export interface JobQueue {
    * @param data — JSON-serializable payload
    * @returns false if dropped due to backpressure
    */
-  enqueue(name: string, data: JobData): boolean;
+  enqueue(name: string, data: JobData, options?: JobEnqueueOptions): boolean;
 
   /**
    * Register a handler for a job type. Must be called before any jobs arrive.

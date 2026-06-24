@@ -46,10 +46,12 @@ let _channelConfig: Record<string, unknown> = {};
 const mockFindByEvent = vi.fn();
 const mockInsertLog = vi.fn();
 const mockUpdateLogStatus = vi.fn();
+const mockDeactivate = vi.fn();
 
 vi.mock("@/server/repos", () => ({
   notificationConfigRepo: {
     findByEvent: (...args: unknown[]) => mockFindByEvent(...args),
+    deactivate: (...args: unknown[]) => mockDeactivate(...args),
   },
   notificationLogRepo: {
     insert: (...args: unknown[]) => mockInsertLog(...args),
@@ -59,8 +61,17 @@ vi.mock("@/server/repos", () => ({
 
 // Mock write-queue: execute job handlers inline (synchronous for tests)
 const _jobHandlers = new Map<string, (data: Record<string, unknown>) => Promise<void>>();
+const _delayedJobs: Array<{
+  name: string;
+  data: Record<string, unknown>;
+  options: { delayMs?: number };
+}> = [];
 vi.mock("@/server/lib/write-queue", () => ({
-  enqueueJob: (name: string, data: Record<string, unknown>) => {
+  enqueueJob: (name: string, data: Record<string, unknown>, options?: { delayMs?: number }) => {
+    if (options?.delayMs) {
+      _delayedJobs.push({ name, data, options });
+      return;
+    }
     const handler = _jobHandlers.get(name);
     if (handler) handler(data);
   },
@@ -93,8 +104,11 @@ function resetMocks() {
   mockFindByEvent.mockReset();
   mockInsertLog.mockReset();
   mockUpdateLogStatus.mockReset();
+  mockDeactivate.mockReset();
   mockInsertLog.mockResolvedValue({ id: 900 });
   mockUpdateLogStatus.mockResolvedValue(undefined);
+  mockDeactivate.mockResolvedValue(undefined);
+  _delayedJobs.length = 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -456,10 +470,13 @@ Provider ID: 1
     await bus.close();
   });
 
-  it("Telegram API error triggers retry then failure", async () => {
+  it("Telegram 500 error triggers 3 retries then failure", async () => {
     fetchSpy.mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ ok: false, description: "Forbidden" }), { status: 403 }),
+        new Response(
+          JSON.stringify({ ok: false, error_code: 500, description: "Internal Server Error" }),
+          { status: 500 },
+        ),
       ),
     );
 
@@ -479,7 +496,6 @@ Provider ID: 1
       body: "System going down",
     });
 
-    // Wait for 3 retries (1s + 2s + execution)
     await new Promise((r) => setTimeout(r, 8000));
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
@@ -487,11 +503,184 @@ Provider ID: 1
       900,
       "failed",
       expect.objectContaining({
-        lastError: expect.stringContaining("403"),
+        lastError: expect.stringContaining("500"),
         attempts: 3,
       }),
     );
+    expect(mockDeactivate).not.toHaveBeenCalled();
   }, 15_000);
+
+  it("Telegram 429 schedules a delayed retry without blocking inline", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 429,
+          description: "Too Many Requests: retry after 5",
+          parameters: { retry_after: 5, scope: "chat" },
+        }),
+        { status: 429 },
+      ),
+    );
+
+    mockFindByEvent.mockResolvedValue([
+      {
+        id: 507,
+        channel: "telegram",
+        target: "-100777888999",
+        secret: null,
+        events: '["system.announcement"]',
+        enabled: true,
+      },
+    ]);
+
+    await emitNotification("system.announcement", {
+      title: "Maintenance notice",
+      body: "System going down",
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(_delayedJobs).toHaveLength(1);
+    expect(_delayedJobs[0]).toMatchObject({
+      name: "notification-deliver",
+      options: { delayMs: 5000 },
+      data: { logId: 900, configId: 507, attempt: 2 },
+    });
+    expect(mockUpdateLogStatus).toHaveBeenCalledWith(
+      900,
+      "pending",
+      expect.objectContaining({
+        lastError: expect.stringContaining("RATE_LIMITED"),
+        attempts: 1,
+      }),
+    );
+    expect(mockDeactivate).not.toHaveBeenCalled();
+  });
+
+  it("Telegram 403 deactivates config without retry", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 403,
+          description: "Forbidden: bot was blocked by the user",
+        }),
+        { status: 403 },
+      ),
+    );
+
+    mockFindByEvent.mockResolvedValue([
+      {
+        id: 505,
+        channel: "telegram",
+        target: "-100777888999",
+        secret: null,
+        events: '["system.announcement"]',
+        enabled: true,
+      },
+    ]);
+
+    await emitNotification("system.announcement", {
+      title: "Maintenance notice",
+      body: "System going down",
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(mockDeactivate).toHaveBeenCalledWith(505, expect.stringContaining("403"));
+    expect(mockUpdateLogStatus).toHaveBeenCalledWith(
+      900,
+      "failed",
+      expect.objectContaining({
+        lastError: expect.stringContaining("DEACTIVATED"),
+        attempts: 1,
+      }),
+    );
+  });
+
+  it("Telegram 403 with legacy queued payload does not deactivate undefined config", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 403,
+          description: "Forbidden: bot was blocked by the user",
+        }),
+        { status: 403 },
+      ),
+    );
+
+    const handler = _jobHandlers.get("notification-deliver");
+    expect(handler).toBeDefined();
+    await handler!({
+      logId: 901,
+      channel: "telegram",
+      target: "-100777888999",
+      payload: {
+        event: "system.announcement",
+        title: "Maintenance notice",
+        body: "System going down",
+        timestamp: Date.now(),
+      },
+      encryptedSecret: null,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    expect(mockUpdateLogStatus).toHaveBeenCalledWith(
+      901,
+      "failed",
+      expect.objectContaining({
+        lastError: expect.stringContaining("DEACTIVATED"),
+        attempts: 1,
+      }),
+    );
+  });
+
+  it("Telegram 400 chat not found deactivates config without retry", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: chat not found",
+        }),
+        { status: 400 },
+      ),
+    );
+
+    mockFindByEvent.mockResolvedValue([
+      {
+        id: 506,
+        channel: "telegram",
+        target: "-100999999999",
+        secret: null,
+        events: '["system.announcement"]',
+        enabled: true,
+      },
+    ]);
+
+    await emitNotification("system.announcement", {
+      title: "Maintenance notice",
+      body: "System going down",
+    });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(mockDeactivate).toHaveBeenCalledWith(506, expect.stringContaining("400"));
+    expect(mockUpdateLogStatus).toHaveBeenCalledWith(
+      900,
+      "failed",
+      expect.objectContaining({
+        lastError: expect.stringContaining("DEACTIVATED"),
+        attempts: 1,
+      }),
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────

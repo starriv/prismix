@@ -222,6 +222,11 @@ export const notificationConfigs = pgTable("notification_configs", {
   secret: text("secret"), // AES-encrypted webhook secret (optional)
   events: text("events").notNull(), // JSON array
   enabled: boolean("enabled").notNull().default(true),
+  status: text("status").notNull().default("active"), // active | disabled (system-deactivated)
+  failureCount: integer("failure_count").notNull().default(0),
+  lastFailureAt: timestamp("last_failure_at"),
+  disabledReason: text("disabled_reason"),
+  disabledAt: timestamp("disabled_at"),
   updatedAt: timestamp("updated_at")
     .notNull()
     .$defaultFn(() => new Date()),

@@ -57,6 +57,13 @@
       "when": 1782188075104,
       "tag": "0007_dark_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782273374007,
+      "tag": "0008_add_notification_config_deactivation",
+      "breakpoints": true
     }
   ]
 }

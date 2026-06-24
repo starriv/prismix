@@ -14,7 +14,7 @@
  */
 import { getGatewayConfigCached } from "@/server/lib/gateway-config";
 
-import { createJobQueue, type JobQueue } from "../queue";
+import { createJobQueue, type JobEnqueueOptions, type JobQueue } from "../queue";
 import { log } from "./logger";
 
 let _queue: JobQueue | null = null;
@@ -121,7 +121,11 @@ export function registerBatchHandler(
  * the job is silently dropped with a warning log. This prevents unhandled
  * throws from crashing request handlers on the hot path.
  */
-export function enqueueJob(name: string, data: Record<string, unknown>): void {
+export function enqueueJob(
+  name: string,
+  data: Record<string, unknown>,
+  options?: JobEnqueueOptions,
+): void {
   // Check batch mode first
   const batch = batchConfigs.get(name);
   if (batch) {
@@ -144,7 +148,7 @@ export function enqueueJob(name: string, data: Record<string, unknown>): void {
     }
     return;
   }
-  _queue.enqueue(name, data);
+  _queue.enqueue(name, data, options);
 }
 
 export function getWriteQueueDepth(): number {

@@ -87,6 +87,11 @@ describe("admin notification config routes", () => {
       secret: null,
       events: '["system.announcement"]',
       enabled: true,
+      status: "active",
+      failureCount: 0,
+      lastFailureAt: null,
+      disabledReason: null,
+      disabledAt: null,
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       updatedAt: new Date("2026-01-01T00:00:00.000Z"),
       ...data,
@@ -142,6 +147,11 @@ describe("admin notification config routes", () => {
         secret: "encrypted-secret",
         events: '["alert.error-spike","system.announcement"]',
         enabled: true,
+        status: "active",
+        failureCount: 0,
+        lastFailureAt: null,
+        disabledReason: null,
+        disabledAt: null,
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         updatedAt: new Date("2026-01-01T00:00:00.000Z"),
       },
@@ -216,5 +226,43 @@ describe("admin notification config routes", () => {
 
     expect(res.status).toBe(400);
     expect(mockCreateConfig).not.toHaveBeenCalled();
+  });
+
+  it("reactivates a system-disabled config when admin enables it", async () => {
+    mockFindConfigById.mockResolvedValue({
+      id: 7,
+      channel: "telegram",
+      label: "Ops",
+      target: "-100123456",
+      secret: null,
+      events: '["system.announcement"]',
+      enabled: true,
+      status: "disabled",
+      failureCount: 1,
+      lastFailureAt: new Date("2026-01-02T00:00:00.000Z"),
+      disabledReason: "Telegram 400: Bad Request: chat not found",
+      disabledAt: new Date("2026-01-02T00:00:00.000Z"),
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+    });
+
+    const res = await createApp().request("/notification-configs/7", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateConfig).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        enabled: true,
+        status: "active",
+        disabledReason: null,
+        disabledAt: null,
+        failureCount: 0,
+        lastFailureAt: null,
+      }),
+    );
   });
 });

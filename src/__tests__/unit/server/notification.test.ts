@@ -360,7 +360,9 @@ describe("telegram — send() with fetch mock", () => {
 
   it("throws on API error", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ ok: false, description: "Unauthorized" }), { status: 401 }),
+      new Response(JSON.stringify({ ok: false, error_code: 401, description: "Unauthorized" }), {
+        status: 401,
+      }),
     );
     const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
     const ch = new TelegramChannel();
@@ -369,7 +371,110 @@ describe("telegram — send() with fetch mock", () => {
       ch.send("-100123456", SAMPLE_PAYLOAD, {
         providerConfig: { botToken: "invalid-token" },
       }),
-    ).rejects.toThrow("Telegram API error (401)");
+    ).rejects.toThrow("Telegram 401");
+  });
+
+  it("throws RateLimitError with retryAfterMs on 429", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 429,
+          description: "Too Many Requests: retry after 5",
+          parameters: { retry_after: 5, scope: "chat" },
+        }),
+        { status: 429 },
+      ),
+    );
+    const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
+    const { RateLimitError } = await import("@/server/lib/errors");
+    const ch = new TelegramChannel();
+
+    await expect(
+      ch.send("-100123456", SAMPLE_PAYLOAD, {
+        providerConfig: { botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a" },
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof RateLimitError && err.retryAfterMs === 5000,
+    );
+  });
+
+  it("throws ChannelDeactivatedError on 403 bot blocked", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 403,
+          description: "Forbidden: bot was blocked by the user",
+        }),
+        { status: 403 },
+      ),
+    );
+    const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
+    const { ChannelDeactivatedError } = await import("@/server/lib/errors");
+    const ch = new TelegramChannel();
+
+    await expect(
+      ch.send("-100123456", SAMPLE_PAYLOAD, {
+        providerConfig: { botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a" },
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ChannelDeactivatedError &&
+        err.channel === "telegram" &&
+        err.target === "-100123456",
+    );
+  });
+
+  it("throws ChannelDeactivatedError on 400 chat not found", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: chat not found",
+        }),
+        { status: 400 },
+      ),
+    );
+    const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
+    const { ChannelDeactivatedError } = await import("@/server/lib/errors");
+    const ch = new TelegramChannel();
+
+    await expect(
+      ch.send("-100999999", SAMPLE_PAYLOAD, {
+        providerConfig: { botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a" },
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof ChannelDeactivatedError && err.target === "-100999999",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws AppError(400) without deactivation for non-target bad requests", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 400,
+          description: "Bad Request: can't parse entities",
+        }),
+        { status: 400 },
+      ),
+    );
+    const { TelegramChannel } = await import("@/server/messaging/notifications/channels/telegram");
+    const { AppError, ChannelDeactivatedError } = await import("@/server/lib/errors");
+    const ch = new TelegramChannel();
+
+    await expect(
+      ch.send("-100999999", SAMPLE_PAYLOAD, {
+        providerConfig: { botToken: "123456:ABCdefGHI-jklMNOpqrSTUvwxYZ_0123456789a" },
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof AppError && err.status === 400 && !(err instanceof ChannelDeactivatedError),
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
 

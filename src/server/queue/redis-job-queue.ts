@@ -15,7 +15,7 @@ import type { ConnectionOptions } from "bullmq";
 
 import { log } from "@/server/lib/logger";
 
-import type { JobData, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
+import type { JobData, JobEnqueueOptions, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
 
 export class RedisJobQueue implements JobQueue {
   private queue: Queue;
@@ -78,7 +78,7 @@ export class RedisJobQueue implements JobQueue {
     this.handlers.set(name, handler);
   }
 
-  enqueue(name: string, data: JobData): boolean {
+  enqueue(name: string, data: JobData, options?: JobEnqueueOptions): boolean {
     const currentMax = this.maxDepth();
     // BullMQ doesn't have built-in max depth — we check getJobCounts sync-ish
     // For performance, we track our own counter instead of querying Redis every time
@@ -92,9 +92,14 @@ export class RedisJobQueue implements JobQueue {
     }
 
     this.totalEnqueuedCount++;
-    this.queue.add(name, data).catch((err) => {
+    const queueOptions = options?.delayMs === undefined ? undefined : { delay: options.delayMs };
+    const enqueuePromise = queueOptions
+      ? this.queue.add(name, data, queueOptions)
+      : this.queue.add(name, data);
+    enqueuePromise.catch((err) => {
       // Enqueue failed — revert the counter so depth estimate stays accurate
       this.totalEnqueuedCount--;
+      this.totalFailedCount++;
       log.queue.error({ err, queue: this.label, job: name }, "Failed to enqueue job");
     });
     return true;

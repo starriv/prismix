@@ -11,7 +11,7 @@ import type { JobQueue } from "./job-queue";
 
 // ── Public API ──────────────────────────────────────────────────────
 
-export type { JobData, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
+export type { JobData, JobEnqueueOptions, JobHandler, JobQueue, JobQueueStats } from "./job-queue";
 
 /**
  * Factory: creates a RedisJobQueue.
