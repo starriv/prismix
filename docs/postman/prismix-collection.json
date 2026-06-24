@@ -65,6 +65,89 @@
       ]
     },
     {
+      "name": "Admin Announcements",
+      "description": "Announcement management endpoints (admin JWT auth). Compose drafts with category/severity/surface targeting, then send. Web-surface announcements broadcast via SSE; cli/model_error surfaces are injected into consumer relay responses on demand.",
+      "item": [
+        {
+          "name": "List Announcements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/announcements?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "announcements"],
+              "query": [
+                { "key": "limit", "value": "20", "description": "Page size (1-200, default 50)" },
+                { "key": "offset", "value": "0", "description": "Zero-based offset" }
+              ]
+            },
+            "description": "Paginated list of all announcements (drafts + sent). Returns { items, total }."
+          }
+        },
+        {
+          "name": "Create Announcement",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"gpt-4.1 deprecation\",\n  \"body\": \"gpt-4.1 will be retired on July 31. Migrate to gpt-4.2.\",\n  \"link\": \"https://docs.example.com/migration\",\n  \"category\": \"model_retirement\",\n  \"severity\": \"warning\",\n  \"surfaces\": [\"web\", \"cli\", \"model_error\"],\n  \"relatedModels\": [\"gpt-4.1\", \"gpt-4.1-*\"],\n  \"startsAt\": \"2026-06-24T10:00:00.000Z\",\n  \"expiresAt\": \"2026-07-31T23:59:59.000Z\",\n  \"priority\": 50\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "announcements"]
+            },
+            "description": "Create an announcement draft. category: general | model_retirement | model_pause | model_price_change | outage. severity: info | warning | critical. surfaces: one or more of web | cli | model_error (min 1). relatedModels: glob patterns (* suffix = prefix match); empty array = applies to all models. startsAt/expiresAt: optional ISO timestamps; expiresAt must be after startsAt. priority: -1000..1000, higher = shown first."
+          }
+        },
+        {
+          "name": "Update Announcement",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"gpt-4.1 deprecation (updated)\",\n  \"severity\": \"critical\",\n  \"priority\": 75,\n  \"surfaces\": [\"web\", \"cli\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/announcements/{{announcementId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "announcements", "{{announcementId}}"]
+            },
+            "description": "Update an existing announcement (draft or sent). All fields optional. Window validation (expiresAt after startsAt) merges with existing values."
+          }
+        },
+        {
+          "name": "Delete Announcement",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/announcements/{{announcementId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "announcements", "{{announcementId}}"]
+            },
+            "description": "Permanently delete an announcement. Cascades to delivery records."
+          }
+        },
+        {
+          "name": "Send Announcement",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/announcements/{{announcementId}}/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "announcements", "{{announcementId}}", "send"]
+            },
+            "description": "Mark a draft as sent and trigger delivery. Emits a web SSE broadcast only when the announcement includes the 'web' surface; cli/model_error surfaces are injected into consumer relay responses on demand (not broadcast)."
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin AI",
       "description": "AI provider, upstream, model, and key management endpoints. All require admin JWT.",
       "item": [
@@ -1120,6 +1203,29 @@
               ]
             },
             "description": "Delete a consumer key."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Portal",
+      "description": "Merchant portal endpoints (merchant JWT auth via {{merchantToken}}). User-facing surfaces for the logged-in merchant.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{merchantToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "List Active Announcements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["user", "announcements"]
+            },
+            "description": "Active web-surface announcements for the merchant (sent status, within startsAt/expiresAt window), ordered by priority then recency. Up to 10 returned."
           }
         }
       ]
