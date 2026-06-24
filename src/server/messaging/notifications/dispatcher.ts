@@ -1,7 +1,7 @@
 /**
  * Notification dispatcher — event-driven notification delivery.
  *
- * Business code calls emitNotification(). The dispatcher:
+ * Notification consumers call emitNotification(). The dispatcher:
  * 1. Looks up notification_configs matching the event
  * 2. Filters by globally enabled channels
  * 3. Writes notification_logs (pending)

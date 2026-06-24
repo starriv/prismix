@@ -22,13 +22,33 @@ const ALL_EVENTS = [
   "topup.requested",
   "topup.confirmed",
   "topup.rejected",
+  "topup.expired",
+  "tx.large-amount",
+  "tx.daily-summary",
+  "alert.circuit-breaker",
+  "alert.upstream-timeout",
+  "alert.error-spike",
+  "alert.resource-down",
   "supplier.disabled",
   "supplier.reenabled",
   "system.announcement",
 ];
 
 const EVENT_GROUPS = [
-  { key: "topup", events: ["topup.requested", "topup.confirmed", "topup.rejected"] },
+  {
+    key: "topup",
+    events: ["topup.requested", "topup.confirmed", "topup.rejected", "topup.expired"],
+  },
+  { key: "tx", events: ["tx.large-amount", "tx.daily-summary"] },
+  {
+    key: "alert",
+    events: [
+      "alert.circuit-breaker",
+      "alert.upstream-timeout",
+      "alert.error-spike",
+      "alert.resource-down",
+    ],
+  },
   { key: "supplier", events: ["supplier.disabled", "supplier.reenabled"] },
   { key: "system", events: ["system.announcement"] },
 ];
@@ -430,7 +450,7 @@ describe("event system — RFC event consistency", () => {
 
   it("event groups have correct keys", () => {
     const groupKeys = EVENT_GROUPS.map((g) => g.key);
-    expect(groupKeys).toEqual(["topup", "supplier", "system"]);
+    expect(groupKeys).toEqual(["topup", "tx", "alert", "supplier", "system"]);
   });
 
   it("each group contains only events with its prefix", () => {
@@ -442,14 +462,12 @@ describe("event system — RFC event consistency", () => {
   });
 
   it("server notification consumer handles all fixture events", async () => {
-    // Verify the notification consumer source handles the events in our fixture
-    const consumerSource = await import("fs").then((fs) =>
-      fs.readFileSync("src/server/events/consumers/notification.ts", "utf-8"),
-    );
+    const { listNotificationEventTypes, listNotificationSubscriptions } =
+      await import("@/server/messaging/notifications/events");
 
-    // All event patterns should be referenced in the consumer
-    expect(consumerSource).toContain("topup.*");
-    expect(consumerSource).toContain("system.announcement");
+    expect(listNotificationEventTypes().sort()).toEqual([...ALL_EVENTS].sort());
+    expect(listNotificationSubscriptions()).toContain("topup.*");
+    expect(listNotificationSubscriptions()).toContain("system.announcement");
   });
 });
 

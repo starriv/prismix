@@ -196,10 +196,10 @@ describe("consumer registration", () => {
     };
 
     const { registerNotificationConsumer } = await import("@/server/events/consumers/notification");
+    const { listNotificationSubscriptions } =
+      await import("@/server/messaging/notifications/events");
     registerNotificationConsumer(bus);
-    expect(patterns).toHaveLength(2);
-    expect(patterns).toContain("topup.*");
-    expect(patterns).toContain("system.announcement");
+    expect(patterns.sort()).toEqual(listNotificationSubscriptions().sort());
   });
 });
 
