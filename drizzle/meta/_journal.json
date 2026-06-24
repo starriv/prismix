@@ -64,6 +64,20 @@
       "when": 1782273374007,
       "tag": "0008_add_notification_config_deactivation",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782278651151,
+      "tag": "0009_stormy_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782289467147,
+      "tag": "0010_polite_ares",
+      "breakpoints": true
     }
   ]
 }

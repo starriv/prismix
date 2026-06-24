@@ -10,6 +10,7 @@ export type { AssignmentWithUpstream } from "./ai-upstream-assignment-repo";
 export { aiGuardrailConfigRepo } from "./ai-guardrail-config-repo";
 export { aiUsageLogRepo } from "./ai-usage-log-repo";
 export { relayConsumerKeyRepo } from "./relay-consumer-key-repo";
+export { announcementDeliveryRepo } from "./announcement-delivery-repo";
 export { announcementRepo } from "./announcement-repo";
 export { adminRepo } from "./admin-repo";
 export { apiKeyRepo } from "./api-key-repo";

@@ -68,6 +68,7 @@ export const topUpOrders = s.topUpOrders;
 export const fiatConfigs = s.fiatConfigs;
 export const apiKeys = s.apiKeys;
 export const announcements = s.announcements;
+export const announcementDeliveries = s.announcementDeliveries;
 export const webhookEndpoints = s.webhookEndpoints;
 export const webhookDeliveries = s.webhookDeliveries;
 export const withdrawOrders = s.withdrawOrders;
@@ -100,6 +101,7 @@ export type {
   AiUsageLog,
   AllowedToken,
   Announcement,
+  AnnouncementDelivery,
   ApiKey,
   FiatConfig,
   GlobalSetting,
@@ -118,6 +120,7 @@ export type {
   NewAiUsageLog,
   NewAllowedToken,
   NewAnnouncement,
+  NewAnnouncementDelivery,
   NewApiKey,
   NewFiatConfig,
   NewGlobalSetting,

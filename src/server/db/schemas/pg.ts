@@ -391,6 +391,13 @@ export const announcements = pgTable(
     title: text("title").notNull(),
     body: text("body").notNull(),
     link: text("link"),
+    category: text("category").notNull().default("general"),
+    severity: text("severity").notNull().default("info"),
+    surfaces: text("surfaces").notNull().default('["web"]'),
+    relatedModels: text("related_models").notNull().default("[]"),
+    startsAt: timestamp("starts_at"),
+    expiresAt: timestamp("expires_at"),
+    priority: integer("priority").notNull().default(0),
     status: text("status").notNull().default("draft"),
     createdBy: text("created_by").notNull(),
     sentAt: timestamp("sent_at"),
@@ -402,8 +409,35 @@ export const announcements = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    index("idx_announcements_status").on(t.status),
+    // Covers findActiveSent: WHERE status='sent' ORDER BY priority DESC, sentAt DESC.
+    // PostgreSQL scans btree indexes in either direction, so this ASC index also
+    // serves the DESC ordering. Prefix covers status-only lookups.
+    index("idx_announcements_active_sent").on(t.status, t.priority, t.sentAt),
     index("idx_announcements_created_at").on(t.createdAt),
+  ],
+);
+
+export const announcementDeliveries = pgTable(
+  "announcement_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    announcementId: text("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    consumerKeyId: integer("consumer_key_id").notNull(),
+    surface: text("surface").notNull(),
+    deliveredAt: timestamp("delivered_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_announcement_deliveries_announcement_id").on(t.announcementId),
+    index("idx_announcement_deliveries_consumer_key_id").on(t.consumerKeyId),
+    uniqueIndex("uq_announcement_deliveries_announcement_consumer_surface").on(
+      t.announcementId,
+      t.consumerKeyId,
+      t.surface,
+    ),
   ],
 );
 
@@ -848,6 +882,8 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type Announcement = typeof announcements.$inferSelect;
 export type NewAnnouncement = typeof announcements.$inferInsert;
+export type AnnouncementDelivery = typeof announcementDeliveries.$inferSelect;
+export type NewAnnouncementDelivery = typeof announcementDeliveries.$inferInsert;
 export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type NewWebhookEndpoint = typeof webhookEndpoints.$inferInsert;
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
