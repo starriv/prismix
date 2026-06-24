@@ -6,6 +6,7 @@ import { closeCacheStores } from "@/server/cache";
 import { closeDb } from "@/server/db";
 import { closeEventBus } from "@/server/events";
 import { closeSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
+import { closeAiUsageLogCleanupJob } from "@/server/jobs/cleanup-ai-usage-logs";
 import { closeLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
 import { closeTopupExpiryJob } from "@/server/jobs/expire-topup-orders";
 import { closeLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
@@ -18,8 +19,12 @@ import { stopWebhookRetryJob } from "@/server/messaging/jobs/retry-webhook-deliv
 
 import { env } from "./env";
 
-if (env.ROLE && env.ROLE !== "worker") {
-  throw new Error(`ROLE=${env.ROLE} must use the API entry point (pnpm start)`);
+if (env.ROLE !== "worker") {
+  throw new Error(
+    `ROLE=${String(env.ROLE)} must be "worker" for the worker entry point. ` +
+      `Set ROLE=worker (Railway worker service env var) or use pnpm start with ROLE=worker. ` +
+      `This guard prevents the worker process from silently running as API after Railpack bakes the root railway.toml startCommand into the image CMD.`,
+  );
 }
 
 let ready = false;
@@ -71,6 +76,7 @@ async function shutdown(signal: string) {
   await closeDepositScanQueue();
   await closeSupplierHealthCheckJob();
   await closeLimitedFreeModelExpiryJob();
+  await closeAiUsageLogCleanupJob();
 
   const flushed = await flushWriteQueue(1000);
   log.shutdown.info({ flushed }, "Flushed pending writes");

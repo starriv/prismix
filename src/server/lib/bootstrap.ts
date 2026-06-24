@@ -2,6 +2,7 @@ import { initBlockchainConfig } from "@/blockchain/config";
 import { initAiAdapters, initAiWriteHandlers } from "@/server/ai/init";
 import { initDb } from "@/server/db";
 import { initSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
+import { initAiUsageLogCleanupJob } from "@/server/jobs/cleanup-ai-usage-logs";
 import { initLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
 import { initLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
 import { initDepositScanQueue } from "@/server/jobs/scan-topup-deposit";
@@ -176,6 +177,7 @@ export async function bootstrapWorker() {
   await initDepositScanQueue();
   await initSupplierHealthCheckJob();
   await initLimitedFreeModelExpiryJob();
+  await initAiUsageLogCleanupJob();
 }
 
 export async function bootstrapAll() {
@@ -197,6 +199,7 @@ export async function bootstrapAll() {
   await initDepositScanQueue();
   await initSupplierHealthCheckJob();
   await initLimitedFreeModelExpiryJob();
+  await initAiUsageLogCleanupJob();
 }
 
 export const bootstrap = bootstrapAll;

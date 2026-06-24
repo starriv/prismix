@@ -24,6 +24,7 @@ import {
   aiUsageLogs,
   db,
   exec,
+  execWithChanges,
   type NewAiUsageLog,
   queryAll,
   queryOne,
@@ -335,6 +336,11 @@ export const aiUsageLogRepo = {
   async insertMany(rows: NewAiUsageLog[]): Promise<void> {
     if (rows.length === 0) return;
     await exec(db.insert(aiUsageLogs).values(rows));
+  },
+
+  /** Delete usage logs older than the given cutoff. Returns number of rows deleted. */
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    return execWithChanges(db.delete(aiUsageLogs).where(lt(aiUsageLogs.createdAt, cutoff)));
   },
 
   /** List usage logs, newest first. */
