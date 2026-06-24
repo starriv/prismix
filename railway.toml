@@ -15,8 +15,9 @@ buildCommand = "pnpm build"
 watchPatterns = ["src/**", "package.json", "pnpm-lock.yaml"]
 
 [deploy]
-# API service entry. Worker service should use deploy/railway/worker.toml.
-startCommand = "ROLE=api pnpm start"
+# Start command — ROLE env var is set per-service (ROLE=api on API, ROLE=worker on worker).
+# The `pnpm start` script dispatches to index.js (api/all) or worker.js (worker) based on ROLE.
+startCommand = "pnpm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

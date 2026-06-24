@@ -17,7 +17,7 @@
     "build:web": "vite build",
     "build:analyze": "ANALYZE=true vite build",
     "build:server": "tsup",
-    "start": "node dist/server/index.js",
+    "start": "sh -c 'if [ \"$ROLE\" = \"worker\" ]; then exec node dist/server/worker.js; else exec node dist/server/index.js; fi'",
     "start:worker": "ROLE=worker node dist/server/worker.js",
     "preview": "node --env-file=.env.local dist/server/index.js",
     "lint": "eslint src/",
