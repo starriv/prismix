@@ -8,7 +8,7 @@
  */
 
 export interface DomainEvent {
-  /** Event type in <domain>.<action> format, e.g. "tx.settled", "alert.circuit-breaker" */
+  /** Event type in <domain>.<action> format, e.g. "topup.confirmed", "alert.circuit-breaker" */
   type: string;
   /** Event scope — null for system-level / broadcast events */
   scope: string | null;

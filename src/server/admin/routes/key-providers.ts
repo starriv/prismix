@@ -8,6 +8,7 @@ import { uniq } from "lodash-es";
 
 import { invalidateKeyPool } from "@/server/ai";
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
   adjustKeyProviderBalanceBody,
   createKeyProviderBody,
@@ -225,7 +226,7 @@ keyProvidersRouter.put("/:id", async (c) => {
     const providerIds = uniq(affectedKeys.map((k) => k.providerId));
     for (const pid of providerIds) {
       invalidateKeyPool(pid);
-      emit("ai.key-pool-invalidated", null, { providerId: pid });
+      emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: pid });
     }
 
     log.admin.info(
@@ -255,7 +256,7 @@ keyProvidersRouter.delete("/:id", async (c) => {
 
   for (const pid of providerIds) {
     invalidateKeyPool(pid);
-    emit("ai.key-pool-invalidated", null, { providerId: pid });
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: pid });
   }
 
   log.admin.info(

@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { createAiKeyBody, updateAiKeyBody } from "@/server/lib/body-schemas";
 import { decrypt, encrypt, hashApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
@@ -113,7 +114,10 @@ router.post("/keys", async (c) => {
   log.auth.info({ providerId: provider.providerId, keyId: created.id }, "AI key created");
 
   invalidateKeyPool(providerId, upstreamId ?? null);
-  emit("ai.key-pool-invalidated", null, { providerId, upstreamId: upstreamId ?? null });
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, {
+    providerId,
+    upstreamId: upstreamId ?? null,
+  });
 
   return ok(c, { ...redactKeyForResponse(created), providerName: provider.name }, 201);
 });
@@ -151,13 +155,13 @@ router.put("/keys/:id", async (c) => {
   if (!updated) return c.json({ error: "Update failed" }, 500);
 
   invalidateKeyPool(existing.providerId, existing.upstreamId ?? null);
-  emit("ai.key-pool-invalidated", null, {
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, {
     providerId: existing.providerId,
     upstreamId: existing.upstreamId ?? null,
   });
   if ((updated.upstreamId ?? null) !== (existing.upstreamId ?? null)) {
     invalidateKeyPool(updated.providerId, updated.upstreamId ?? null);
-    emit("ai.key-pool-invalidated", null, {
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, {
       providerId: updated.providerId,
       upstreamId: updated.upstreamId ?? null,
     });
@@ -176,7 +180,7 @@ router.delete("/keys/:id", async (c) => {
 
   await aiKeyRepo.delete(id);
   invalidateKeyPool(existing.providerId, existing.upstreamId ?? null);
-  emit("ai.key-pool-invalidated", null, {
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, {
     providerId: existing.providerId,
     upstreamId: existing.upstreamId ?? null,
   });

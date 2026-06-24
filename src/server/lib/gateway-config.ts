@@ -5,6 +5,7 @@
  * with `gw_` key prefix. Provides typed defaults and a cached getter.
  */
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { log } from "@/server/lib/logger";
 import { settingsRepo } from "@/server/repos";
 
@@ -168,7 +169,7 @@ export async function saveGatewayConfigSection<K extends GatewayConfigSection>(
   };
   await settingsRepo.setGlobal(keyMap[section], JSON.stringify(value));
   invalidateGatewayConfig();
-  emit("config.gateway-updated", null);
+  emit(DOMAIN_EVENT_TYPES.CONFIG_GATEWAY_UPDATED, null);
 }
 
 // ── In-memory cache ──────────────────────────────────────────────────

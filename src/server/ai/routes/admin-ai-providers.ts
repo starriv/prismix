@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
   createAiProviderBody,
   createAiUpstreamAssignmentBody,
@@ -194,8 +195,8 @@ router.put("/providers/:id", async (c) => {
   ) {
     invalidateUpstreamCache(id);
     invalidateKeyPool(id);
-    emit("ai.upstream-cache-invalidated", null, { providerId: id });
-    emit("ai.key-pool-invalidated", null, { providerId: id });
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: id });
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: id });
   }
 
   return ok(c, formatProvider(updated!));
@@ -282,8 +283,8 @@ router.post("/providers/:id/upstreams", async (c) => {
 
   invalidateUpstreamCache(id);
   invalidateKeyPool(id);
-  emit("ai.upstream-cache-invalidated", null, { providerId: id });
-  emit("ai.key-pool-invalidated", null, { providerId: id });
+  emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: id });
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: id });
 
   log.auth.info(
     { providerId: provider.providerId, upstreamId: upstream.upstreamId },
@@ -315,8 +316,8 @@ router.put("/providers/:providerId/upstreams/:assignmentId", async (c) => {
 
   invalidateUpstreamCache(providerId);
   invalidateKeyPool(providerId);
-  emit("ai.upstream-cache-invalidated", null, { providerId });
-  emit("ai.key-pool-invalidated", null, { providerId });
+  emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId });
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId });
 
   return ok(c, updated);
 });
@@ -341,8 +342,8 @@ router.delete("/providers/:providerId/upstreams/:assignmentId", async (c) => {
 
   invalidateUpstreamCache(providerId);
   invalidateKeyPool(providerId);
-  emit("ai.upstream-cache-invalidated", null, { providerId });
-  emit("ai.key-pool-invalidated", null, { providerId });
+  emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId });
+  emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId });
 
   return ok(c, { success: true, deletedKeys });
 });

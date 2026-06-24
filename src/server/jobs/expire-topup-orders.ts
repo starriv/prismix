@@ -2,10 +2,11 @@
  * Periodic job: expire stale top-up orders.
  *
  * Runs every 10 minutes, marks pending orders older than 24h as expired,
- * and emits notifications for each expired order.
+ * and emits domain events for each expired order.
  */
+import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { log } from "@/server/lib/logger";
-import { emitNotification } from "@/server/messaging/notifications";
 import { payAgentRepo, topupOrderRepo } from "@/server/repos";
 
 import { TOPUP_SCAN_TTL_MS } from "./scan-topup-deposit";
@@ -25,10 +26,11 @@ async function run() {
 
     for (const order of expired) {
       const agent = await payAgentRepo.findById(order.agentId);
-      emitNotification("topup.expired", {
-        title: `Top-up order expired: ${order.amount} USDC`,
-        body: `Top-up request for pay agent "${agent?.name ?? "Unknown"}" (${order.amount} USDC) has expired after 24 hours.`,
-        metadata: { orderId: order.id, agentName: agent?.name, amount: order.amount },
+      emit(DOMAIN_EVENT_TYPES.TOPUP_EXPIRED, `agent:${order.agentId}`, {
+        orderId: order.id,
+        agentId: order.agentId,
+        agentName: agent?.name,
+        amount: order.amount,
       });
     }
   } catch (err) {

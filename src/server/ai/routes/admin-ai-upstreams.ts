@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
   createAiUpstreamBody,
   createAiUpstreamModelMappingBody,
@@ -200,8 +201,8 @@ router.put("/upstreams/:id", async (c) => {
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(id);
   for (const a of assignments) {
     invalidateKeyPool(a.providerId);
-    emit("ai.upstream-cache-invalidated", null, { providerId: a.providerId });
-    emit("ai.key-pool-invalidated", null, { providerId: a.providerId });
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: a.providerId });
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: a.providerId });
   }
 
   return ok(c, formatUpstream(updated!));
@@ -220,8 +221,8 @@ router.delete("/upstreams/:id", async (c) => {
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(id);
   for (const a of assignments) {
     invalidateKeyPool(a.providerId);
-    emit("ai.upstream-cache-invalidated", null, { providerId: a.providerId });
-    emit("ai.key-pool-invalidated", null, { providerId: a.providerId });
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: a.providerId });
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: a.providerId });
   }
 
   await aiUpstreamModelMappingRepo.deleteByUpstreamId(id);

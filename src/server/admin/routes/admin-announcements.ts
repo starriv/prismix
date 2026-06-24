@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
   broadcastBody,
   createAnnouncementBody,
@@ -76,7 +77,7 @@ router.post("/announcements/:id/send", async (c) => {
   if (!existing) return c.json({ error: "Announcement not found" }, 404);
 
   const updated = await announcementRepo.markSent(id);
-  emit("system.announcement", null, {
+  emit(DOMAIN_EVENT_TYPES.SYSTEM_ANNOUNCEMENT, null, {
     id: existing.id,
     title: existing.title,
     body: existing.body,
@@ -91,7 +92,10 @@ router.post("/broadcast", async (c) => {
   try {
     const parsed = await parseBody(c, broadcastBody);
     if (!parsed.ok) return parsed.response;
-    emit("system.announcement", null, { title: parsed.data.title, body: parsed.data.body });
+    emit(DOMAIN_EVENT_TYPES.SYSTEM_ANNOUNCEMENT, null, {
+      title: parsed.data.title,
+      body: parsed.data.body,
+    });
     return ok(c, { success: true });
   } catch (e) {
     log.admin.error({ err: e }, "Failed to send broadcast");

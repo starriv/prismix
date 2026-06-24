@@ -19,7 +19,6 @@ const mockUpstreamMarkAutoReenabled = vi.fn();
 const mockFindAssignmentsByProviderId = vi.fn();
 const mockPingEndpoint = vi.fn();
 const mockEmit = vi.fn();
-const mockEmitNotification = vi.fn();
 
 vi.mock("@/server/events", () => ({
   emit: (...args: unknown[]) => mockEmit(...args),
@@ -38,10 +37,6 @@ vi.mock("@/server/lib/logger", () => ({
       error: vi.fn(),
     },
   },
-}));
-
-vi.mock("@/server/messaging/notifications", () => ({
-  emitNotification: (...args: unknown[]) => mockEmitNotification(...args),
 }));
 
 vi.mock("@/server/repos", () => ({
@@ -204,7 +199,11 @@ describe("supplier health job", () => {
 
     expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
     expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
-    expect(mockEmitNotification).not.toHaveBeenCalled();
+    expect(mockEmit).not.toHaveBeenCalledWith(
+      "supplier.disabled",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("notifies on the second failed check within the 3 minute window", async () => {
@@ -231,8 +230,9 @@ describe("supplier health job", () => {
     await checkProvider(providerFixture());
 
     expect(mockProviderMarkAutoDisabled).toHaveBeenCalledWith(1, "upstream-timeout");
-    expect(mockEmitNotification).toHaveBeenCalledWith(
+    expect(mockEmit).toHaveBeenCalledWith(
       "supplier.disabled",
+      null,
       expect.objectContaining({
         title: "供应商已自动禁用: OpenAI",
         body: expect.stringContaining("在 3 分钟内累计 2 次连通性检查失败"),
@@ -266,6 +266,10 @@ describe("supplier health job", () => {
     expect(mockProviderUpdateHealth).toHaveBeenCalledWith(1, { consecutiveFailures: 0 });
     expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
     expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
-    expect(mockEmitNotification).not.toHaveBeenCalled();
+    expect(mockEmit).not.toHaveBeenCalledWith(
+      "supplier.disabled",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });

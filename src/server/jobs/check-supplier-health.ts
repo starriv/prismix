@@ -17,11 +17,11 @@
 import { Queue, type RepeatableJob, Worker } from "bullmq";
 
 import { pingEndpoint, type PingResult } from "@/server/ai/lib/supplier-health";
-import type { AiProvider, AiUpstream } from "@/server/db";
+import type { AiProvider } from "@/server/db";
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { decrypt } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
-import { emitNotification } from "@/server/messaging/notifications";
 import { aiKeyRepo, aiModelRepo, aiProviderRepo, aiUpstreamRepo } from "@/server/repos";
 import { aiUpstreamAssignmentRepo } from "@/server/repos/ai-upstream-assignment-repo";
 
@@ -245,13 +245,13 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
         providerId: target.provider.id,
         providerName: target.provider.name,
       };
-      await emitNotification("supplier.reenabled", {
+      emit(DOMAIN_EVENT_TYPES.SUPPLIER_REENABLED, null, {
+        ...meta,
         title: `供应商已自动恢复: ${target.name}`,
         body: buildSupplierBody(
           `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 连通性恢复正常，已自动恢复启用。`,
           meta,
         ),
-        metadata: { ...meta },
       });
     } else {
       await repo.recordSuccess(target.id);
@@ -314,25 +314,25 @@ export async function applyHealthResult(target: CheckTarget, result: PingResult)
       error: errorMsg,
       consecutiveFailures: updated.consecutiveFailures,
     };
-    await emitNotification("supplier.disabled", {
+    emit(DOMAIN_EVENT_TYPES.SUPPLIER_DISABLED, null, {
+      ...meta,
       title: `供应商已自动禁用: ${target.name}`,
       body: buildSupplierBody(
         `${target.kind === "provider" ? "供应商" : "上游"} "${target.name}" 在 ${formatFailureWindow()}内累计 ${FAILURE_THRESHOLD} 次连通性检查失败，已自动禁用。最后错误: ${errorMsg}`,
         meta,
       ),
-      metadata: { ...meta },
     });
   }
 }
 
 function emitHealthInvalidation(target: CheckTarget): void {
   if (target.kind === "provider") {
-    emit("ai.upstream-cache-invalidated", null, { providerId: target.id });
-    emit("ai.key-pool-invalidated", null, { providerId: target.id });
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: target.id });
+    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: target.id });
     return;
   }
 
-  emit("ai.upstream-cache-invalidated", null, { upstreamId: target.id });
+  emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { upstreamId: target.id });
 }
 
 async function removeStaleRepeatableJobs(queue: Queue): Promise<void> {

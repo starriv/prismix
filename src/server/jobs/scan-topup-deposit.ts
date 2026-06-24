@@ -11,8 +11,9 @@ import { Queue, Worker } from "bullmq";
 import { formatUnits, parseAbiItem } from "viem";
 
 import { chunkedGetLogs, getPublicClient, getUsdcAddress } from "@/blockchain/config";
+import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { log } from "@/server/lib/logger";
-import { emitNotification } from "@/server/messaging/notifications";
 import { payAgentRepo, payAgentTransactionRepo, topupOrderRepo } from "@/server/repos";
 import { removeTailingZero, safePlus } from "@/shared/number";
 
@@ -182,17 +183,12 @@ async function processScan(data: ScanJobData): Promise<void> {
       "Deposit confirmed for top-up order",
     );
 
-    // Notify
-    await emitNotification("topup.confirmed", {
-      title: `Top-up confirmed: ${totalAmount} USDC`,
-      body: `Deposit for pay agent "${agent.name}" (${totalAmount} USDC) has been confirmed on-chain.`,
-      metadata: {
-        orderId,
-        agentId: order.agentId,
-        agentName: agent.name,
-        amount: totalAmount,
-        txHash: firstTxKey,
-      },
+    emit(DOMAIN_EVENT_TYPES.TOPUP_CONFIRMED, `agent:${order.agentId}`, {
+      orderId,
+      agentId: order.agentId,
+      agentName: agent.name,
+      amount: totalAmount,
+      txHash: firstTxKey,
     });
 
     return; // done — do not reschedule

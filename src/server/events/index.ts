@@ -15,6 +15,7 @@ import { registerSseConsumer } from "./consumers/sse";
 import { registerWebhookConsumer } from "./consumers/webhook";
 import type { EventBus } from "./event-bus";
 import { createEvent } from "./event-bus";
+import type { DomainEventType } from "./registry";
 
 // ── Singleton ────────────────────────────────────────────────────────
 
@@ -49,10 +50,13 @@ export function getEventBus(): EventBus {
  * Convenience: emit a domain event on the global bus.
  *
  * Usage:
- *   emit("tx.settled", "user:42", { amount, txHash, ... });
- *   emit("gateway.circuit-open", null, { name });
+ *   emit(DOMAIN_EVENT_TYPES.TOPUP_CONFIRMED, "user:42", { amount, txHash, ... });
  */
-export function emit(type: string, scope: string | null, data: Record<string, unknown> = {}): void {
+export function emit(
+  type: DomainEventType,
+  scope: string | null,
+  data: Record<string, unknown> = {},
+): void {
   if (!_bus) return; // Silently skip if bus not yet initialized (startup race)
   _bus.emit(createEvent(type, scope, data));
 }
@@ -66,3 +70,5 @@ export async function closeEventBus(): Promise<void> {
 // Re-exports
 export { createEvent } from "./event-bus";
 export type { ConsumerScope, DomainEvent, EventBus, EventHandler } from "./event-bus";
+export { DOMAIN_EVENT_GROUPS, DOMAIN_EVENT_TYPES } from "./registry";
+export type { DomainEventDefinition, DomainEventGroup, DomainEventType } from "./registry";

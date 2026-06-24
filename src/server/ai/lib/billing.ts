@@ -5,6 +5,7 @@
  * Used by both `/v1/chat/completions` and the generic `/v1/*` passthrough.
  */
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { log } from "@/server/lib/logger";
 import { enqueueJob } from "@/server/lib/write-queue";
 import { payAgentRepo, payAgentTransactionRepo } from "@/server/repos";
@@ -190,7 +191,7 @@ async function suspendAgentForLimit(
     "AI request exceeded consumer spending limit — suspending agent",
   );
   await payAgentRepo.update(consumer.agentId, { status: "suspended" });
-  emit("agent.suspended", null, { agentId: consumer.agentId });
+  emit(DOMAIN_EVENT_TYPES.AGENT_SUSPENDED, null, { agentId: consumer.agentId });
 }
 
 // ── Billing Pipeline ───────────────────────────────────────────────
@@ -261,7 +262,7 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
         "AI debit failed — suspending agent",
       );
       await payAgentRepo.update(p.consumer.agentId, { status: "suspended" });
-      emit("agent.suspended", null, { agentId: p.consumer.agentId });
+      emit(DOMAIN_EVENT_TYPES.AGENT_SUSPENDED, null, { agentId: p.consumer.agentId });
       if (p.rejectOnLimit) {
         return {
           ok: false,

@@ -5,9 +5,10 @@
  */
 import { Hono } from "hono";
 
-import { db, payAgents, relayConsumerKeys, transaction } from "@/server/db";
+import { payAgents, relayConsumerKeys, transaction } from "@/server/db";
 import type { NewPayAgent, NewRelayConsumerKey, PayAgent, RelayConsumerKey } from "@/server/db";
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { createConsumerKeyBody, updateConsumerKeyBody } from "@/server/lib/body-schemas";
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
@@ -27,6 +28,15 @@ const CONSUMER_KEY_TAG = "relay-consumer-key";
 
 const relayKeys = new Hono();
 
+type SafeRelayConsumerKey = Omit<RelayConsumerKey, "apiKeyHash" | "encryptedKey">;
+
+function stripConsumerKeySecrets(key: RelayConsumerKey): SafeRelayConsumerKey {
+  const safe = { ...key } as Record<string, unknown>;
+  delete safe.apiKeyHash;
+  delete safe.encryptedKey;
+  return safe as SafeRelayConsumerKey;
+}
+
 // ── List ──────────────────────────────────────────────────────────────
 
 relayKeys.get("/", async (c) => {
@@ -43,9 +53,9 @@ relayKeys.get("/", async (c) => {
     relayConsumerKeyRepo.countFiltered(filters),
   ]);
   return ok(c, {
-    items: keys.map(({ apiKeyHash: _h, encryptedKey: _e, ...rest }) => ({
-      ...rest,
-      allowedModels: JSON.parse(rest.allowedModels),
+    items: keys.map((key) => ({
+      ...stripConsumerKeySecrets(key),
+      allowedModels: JSON.parse(key.allowedModels),
     })),
     total,
   });
@@ -69,7 +79,7 @@ relayKeys.get("/:id", async (c) => {
   const key = await relayConsumerKeyRepo.findById(id);
   if (!key) return c.json({ error: "Consumer key not found" }, 404);
 
-  const { apiKeyHash: _h, encryptedKey: _e, ...safe } = key;
+  const safe = stripConsumerKeySecrets(key);
   return ok(c, { ...safe, allowedModels: JSON.parse(safe.allowedModels) });
 });
 
@@ -152,13 +162,13 @@ relayKeys.post("/", async (c) => {
       });
     }
 
-    emit("agent.created", null, { agentId: agent.id, name: agent.name });
+    emit(DOMAIN_EVENT_TYPES.AGENT_CREATED, null, { agentId: agent.id, name: agent.name });
     log.gateway.info(
       { keyId: consumerKey.id, agentId: agent.id, initialBalance },
       "Consumer key created with standalone agent",
     );
 
-    const { apiKeyHash: _h, encryptedKey: _e, ...safe } = consumerKey;
+    const safe = stripConsumerKeySecrets(consumerKey);
     return ok(c, { ...safe, apiKey: consumerApiKey.raw, allowedModels: allowedModels ?? [] }, 201);
   }
 
@@ -195,7 +205,7 @@ relayKeys.post("/", async (c) => {
     "Consumer key created for user agent",
   );
 
-  const { apiKeyHash: _h, encryptedKey: _e, ...safe } = consumerKey;
+  const safe = stripConsumerKeySecrets(consumerKey);
   return ok(c, { ...safe, apiKey: consumerApiKey.raw, allowedModels: allowedModels ?? [] }, 201);
 });
 
@@ -227,7 +237,7 @@ relayKeys.put("/:id", async (c) => {
 
   // Admin update uses the key's userId (may be null for admin-created keys)
   const updated = await relayConsumerKeyRepo.update(id, existing.userId ?? 0, updates);
-  const { apiKeyHash: _h, encryptedKey: _e, ...safe } = updated!;
+  const safe = stripConsumerKeySecrets(updated!);
   return ok(c, { ...safe, allowedModels: JSON.parse(safe.allowedModels) });
 });
 
@@ -264,7 +274,7 @@ relayKeys.delete("/:id", async (c) => {
   if (!existing) return c.json({ error: "Consumer key not found" }, 404);
 
   await relayConsumerKeyRepo.blacklistAndDelete(existing);
-  emit("consumer-key.deleted", null, { keyId: id, agentId: existing.agentId });
+  emit(DOMAIN_EVENT_TYPES.CONSUMER_KEY_DELETED, null, { keyId: id, agentId: existing.agentId });
   log.gateway.info({ keyId: id }, "Consumer key deleted");
 
   return ok(c, { success: true });

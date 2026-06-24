@@ -12,6 +12,7 @@ const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 const mockMarkSent = vi.fn();
+const mockCount = vi.fn();
 
 vi.mock("@/server/repos", () => ({
   announcementRepo: {
@@ -21,6 +22,7 @@ vi.mock("@/server/repos", () => ({
     update: (...args: unknown[]) => mockUpdate(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
     markSent: (...args: unknown[]) => mockMarkSent(...args),
+    count: (...args: unknown[]) => mockCount(...args),
   },
 }));
 
@@ -56,6 +58,7 @@ function resetMocks() {
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockMarkSent.mockReset();
+  mockCount.mockReset();
   mockEmit.mockReset();
 }
 
@@ -212,27 +215,32 @@ describe("announcement route handlers", () => {
   describe("GET /api/admin/announcements", () => {
     it("returns all announcements with default pagination", async () => {
       mockFindAll.mockResolvedValue([DRAFT_ANNOUNCEMENT, SENT_ANNOUNCEMENT]);
+      mockCount.mockResolvedValue(2);
 
       const res = await app.request(jsonReq("GET", "/api/admin/announcements"));
       expect(res.status).toBe(200);
 
-      const json = (await res.json()) as { data: unknown[] };
-      expect(json.data).toHaveLength(2);
+      const json = (await res.json()) as { data: { items: unknown[]; total: number } };
+      expect(json.data.items).toHaveLength(2);
+      expect(json.data.total).toBe(2);
       expect(mockFindAll).toHaveBeenCalledWith({ limit: 10, offset: 0 });
     });
 
     it("returns empty array when no announcements exist", async () => {
       mockFindAll.mockResolvedValue([]);
+      mockCount.mockResolvedValue(0);
 
       const res = await app.request(jsonReq("GET", "/api/admin/announcements"));
       expect(res.status).toBe(200);
 
-      const json = (await res.json()) as { data: unknown[] };
-      expect(json.data).toHaveLength(0);
+      const json = (await res.json()) as { data: { items: unknown[]; total: number } };
+      expect(json.data.items).toHaveLength(0);
+      expect(json.data.total).toBe(0);
     });
 
     it("passes explicit limit and offset query params to repo", async () => {
       mockFindAll.mockResolvedValue([DRAFT_ANNOUNCEMENT]);
+      mockCount.mockResolvedValue(1);
 
       const res = await app.request(jsonReq("GET", "/api/admin/announcements?limit=10&offset=20"));
       expect(res.status).toBe(200);

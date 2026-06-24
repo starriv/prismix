@@ -9,6 +9,7 @@ import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth";
 import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
 import { emit } from "@/server/events";
+import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { createConsumerKeyBody, updateProfileBody } from "@/server/lib/body-schemas";
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
@@ -300,7 +301,7 @@ user.delete("/keys/:id", async (c) => {
   if (!key) return c.json({ error: "Key not found" }, 404);
 
   await relayConsumerKeyRepo.blacklistAndDelete(key);
-  emit("consumer-key.deleted", null, { keyId: id, agentId: key.agentId });
+  emit(DOMAIN_EVENT_TYPES.CONSUMER_KEY_DELETED, null, { keyId: id, agentId: key.agentId });
   log.gateway.info({ keyId: id, userId: session.userId }, "User deleted consumer key");
 
   return ok(c, { success: true });
