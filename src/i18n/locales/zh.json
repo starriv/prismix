@@ -1026,6 +1026,8 @@
       "secret": "签名密钥",
       "secret-ph": "Webhook 签名密钥（可选）",
       "events": "事件",
+      "no-enabled-channels": "尚未启用可用通知渠道，请先在通知渠道页面启用 Webhook、邮件或 Telegram。",
+      "events-unavailable": "事件清单暂不可用，请稍后重试。",
       "enabled": "启用"
     },
     "group": {
@@ -1050,10 +1052,26 @@
       "supplier-reenabled": "供应商自动恢复",
       "system-announcement": "系统公告"
     },
+    "event-desc": {
+      "topup-requested": "用户创建新的充值请求。",
+      "topup-confirmed": "充值转账已在链上确认。",
+      "topup-rejected": "充值请求被拒绝。",
+      "topup-expired": "待处理充值请求已过期。",
+      "tx-large-amount": "交易金额超过配置的大额阈值。",
+      "tx-daily-summary": "每日交易汇总已生成。",
+      "alert-circuit-breaker": "熔断保护被触发。",
+      "alert-upstream-timeout": "上游服务请求超时。",
+      "alert-error-spike": "错误量超过预期阈值。",
+      "alert-resource-down": "被监控资源不可用。",
+      "supplier-disabled": "供应商健康检查失败后被自动禁用。",
+      "supplier-reenabled": "供应商恢复后被自动启用。",
+      "system-announcement": "系统公告已发布。"
+    },
     "toast": {
       "created": "通知渠道已创建",
       "updated": "通知渠道已更新",
       "deleted": "通知渠道已删除",
+      "create-error": "创建通知渠道失败",
       "update-error": "更新通知渠道失败",
       "delete-error": "删除通知渠道失败",
       "test-ok": "测试通知已成功发送",

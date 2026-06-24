@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import type { Resolver } from "react-hook-form";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,11 @@ import { Loader2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 import { useCreateWebhook } from "@/web/api/hooks";
-import type { CreateWebhookEndpointBody, WebhookEndpoint } from "@/web/api/schemas";
+import type {
+  CreateWebhookEndpointBody,
+  NotificationEventGroup,
+  WebhookEndpoint,
+} from "@/web/api/schemas";
 import { createWebhookEndpointBody } from "@/web/api/schemas";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -37,7 +41,7 @@ import { EventCheckboxField } from "./webhook-helpers";
 interface CreateWebhookDialogProps {
   open: boolean;
   onClose: () => void;
-  groups: { key: string; events: string[] }[];
+  groups: NotificationEventGroup[];
   onSuccess: (ep: WebhookEndpoint) => void;
 }
 
@@ -61,7 +65,7 @@ export function CreateWebhookDialog({
     }
   }, [open, form]);
 
-  const selectedEvents = form.watch("events");
+  const selectedEvents = useWatch({ control: form.control, name: "events" }) ?? [];
 
   const toggleEvent = useCallback(
     (event: string) => {

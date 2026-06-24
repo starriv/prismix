@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { Resolver } from "react-hook-form";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useCreateNotificationConfig, useUpdateNotificationConfig } from "@/web/api/hooks";
-import type { CreateNotificationConfigBody, NotificationConfig } from "@/web/api/schemas";
+import type {
+  CreateNotificationConfigBody,
+  NotificationConfig,
+  NotificationEventGroup,
+} from "@/web/api/schemas";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -68,7 +72,7 @@ interface ConfigDialogProps {
   onClose: () => void;
   config?: NotificationConfig;
   enabledChannels: string[];
-  groups: { key: string; events: string[] }[];
+  groups: NotificationEventGroup[];
 }
 
 export function ConfigDialog({
@@ -82,11 +86,16 @@ export function ConfigDialog({
   const createConfig = useCreateNotificationConfig();
   const updateConfig = useUpdateNotificationConfig();
   const isEdit = !!config;
+  const configChannel = config?.channel;
+  const selectableChannels = useMemo(() => {
+    if (isEdit && configChannel) return union([configChannel], enabledChannels);
+    return enabledChannels;
+  }, [configChannel, enabledChannels, isEdit]);
 
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configFormSchema) as Resolver<ConfigFormValues>,
     defaultValues: {
-      channel: config?.channel ?? enabledChannels[0] ?? "",
+      channel: config?.channel ?? selectableChannels[0] ?? "",
       label: config?.label ?? "",
       target: config?.target ?? "",
       secret: config?.secret ?? "",
@@ -98,7 +107,7 @@ export function ConfigDialog({
   useEffect(() => {
     if (open) {
       form.reset({
-        channel: config?.channel ?? enabledChannels[0] ?? "",
+        channel: config?.channel ?? selectableChannels[0] ?? "",
         label: config?.label ?? "",
         target: config?.target ?? "",
         secret: config?.secret ?? "",
@@ -106,10 +115,12 @@ export function ConfigDialog({
         enabled: config?.enabled ?? true,
       });
     }
-  }, [open, config, enabledChannels, form]);
+  }, [open, config, selectableChannels, form]);
 
-  const selectedChannel = form.watch("channel");
-  const selectedEvents = form.watch("events");
+  const selectedChannel = useWatch({ control: form.control, name: "channel" });
+  const selectedEvents = useWatch({ control: form.control, name: "events" }) ?? [];
+  const hasSelectableChannels = selectableChannels.length > 0;
+  const hasEventGroups = groups.some((group) => group.events.length > 0);
 
   const targetPlaceholders: Record<string, string> = {
     email: t("notif.form.target-ph-email"),
@@ -119,22 +130,6 @@ export function ConfigDialog({
   };
 
   const channelLabels = useChannelLabels();
-
-  const eventLabels: Record<string, string> = {
-    "topup.requested": t("notif.event.topup-requested"),
-    "topup.confirmed": t("notif.event.topup-confirmed"),
-    "topup.rejected": t("notif.event.topup-rejected"),
-    "topup.expired": t("notif.event.topup-expired"),
-    "tx.large-amount": t("notif.event.tx-large-amount"),
-    "tx.daily-summary": t("notif.event.tx-daily-summary"),
-    "alert.circuit-breaker": t("notif.event.alert-circuit-breaker"),
-    "alert.upstream-timeout": t("notif.event.alert-upstream-timeout"),
-    "alert.error-spike": t("notif.event.alert-error-spike"),
-    "alert.resource-down": t("notif.event.alert-resource-down"),
-    "supplier.disabled": t("notif.event.supplier-disabled"),
-    "supplier.reenabled": t("notif.event.supplier-reenabled"),
-    "system.announcement": t("notif.event.system-announcement"),
-  };
 
   function toggleEvent(event: string) {
     const current = form.getValues("events");
@@ -207,12 +202,16 @@ export function ConfigDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("notif.form.channel")}</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={isEdit}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isEdit || !hasSelectableChannels}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={t("notif.form.channel-ph")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {enabledChannels.map((ch) => (
+                        {selectableChannels.map((ch) => (
                           <SelectItem key={ch} value={ch}>
                             {channelLabels[ch] ?? ch}
                           </SelectItem>
@@ -220,6 +219,11 @@ export function ConfigDialog({
                       </SelectContent>
                     </Select>
                     <FormMessage />
+                    {!hasSelectableChannels && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("notif.form.no-enabled-channels")}
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />
@@ -283,59 +287,82 @@ export function ConfigDialog({
                   <FormItem>
                     <FormLabel>{t("notif.form.events")}</FormLabel>
                     <div className="space-y-1 rounded-md border p-2">
-                      {groups.map((group) => {
-                        const allChecked = group.events.every((e) => selectedEvents.includes(e));
-                        const someChecked = group.events.some((e) => selectedEvents.includes(e));
-                        const checkedCount = group.events.filter((e) =>
-                          selectedEvents.includes(e),
-                        ).length;
-                        return (
-                          <Collapsible key={group.key}>
-                            <div className="flex items-center gap-2 py-1">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-input accent-primary"
-                                checked={allChecked}
-                                ref={(el) => {
-                                  if (el) el.indeterminate = someChecked && !allChecked;
-                                }}
-                                onChange={() => toggleGroupAll(group.events)}
-                              />
-                              <CollapsibleTrigger className="flex flex-1 items-center gap-1.5 cursor-pointer hover:underline">
-                                <span className="text-sm font-medium">
-                                  {t(`notif.group.${group.key}`)}
-                                </span>
-                                {checkedCount > 0 && (
-                                  <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                                    {checkedCount}/{group.events.length}
-                                  </Badge>
-                                )}
-                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto transition-transform [[data-state=open]>&]:rotate-180" />
-                              </CollapsibleTrigger>
-                            </div>
-                            <CollapsibleContent>
-                              <div className="ml-6 pb-1.5 flex flex-wrap gap-x-4 gap-y-1">
-                                {group.events.map((event) => (
-                                  <label
-                                    key={event}
-                                    className="flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="h-3.5 w-3.5 rounded border-input accent-primary"
-                                      checked={selectedEvents.includes(event)}
-                                      onChange={() => toggleEvent(event)}
-                                    />
-                                    <span className="text-xs text-muted-foreground">
-                                      {eventLabels[event] ?? event}
-                                    </span>
-                                  </label>
-                                ))}
+                      {hasEventGroups ? (
+                        groups.map((group) => {
+                          const eventTypes = group.events.map((event) => event.type);
+                          const allChecked = eventTypes.every((event) =>
+                            selectedEvents.includes(event),
+                          );
+                          const someChecked = eventTypes.some((event) =>
+                            selectedEvents.includes(event),
+                          );
+                          const checkedCount = eventTypes.filter((event) =>
+                            selectedEvents.includes(event),
+                          ).length;
+                          return (
+                            <Collapsible key={group.key}>
+                              <div className="flex items-center gap-2 py-1">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-input accent-primary"
+                                  checked={allChecked}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = someChecked && !allChecked;
+                                  }}
+                                  onChange={() => toggleGroupAll(eventTypes)}
+                                />
+                                <CollapsibleTrigger className="flex flex-1 items-center gap-1.5 cursor-pointer hover:underline">
+                                  <span className="text-sm font-medium">
+                                    {t(group.labelKey, { defaultValue: group.key })}
+                                  </span>
+                                  {checkedCount > 0 && (
+                                    <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                                      {checkedCount}/{group.events.length}
+                                    </Badge>
+                                  )}
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto transition-transform [[data-state=open]>&]:rotate-180" />
+                                </CollapsibleTrigger>
                               </div>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        );
-                      })}
+                              <CollapsibleContent>
+                                <div className="ml-6 space-y-1 pb-1.5">
+                                  {group.events.map((event) => {
+                                    const description = event.descriptionKey
+                                      ? t(event.descriptionKey, { defaultValue: "" })
+                                      : "";
+                                    return (
+                                      <label
+                                        key={event.type}
+                                        className="grid cursor-pointer grid-cols-[auto,1fr] gap-2 rounded-sm px-1 py-1 hover:bg-muted/50"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          className="mt-0.5 h-3.5 w-3.5 rounded border-input accent-primary"
+                                          checked={selectedEvents.includes(event.type)}
+                                          onChange={() => toggleEvent(event.type)}
+                                        />
+                                        <span className="min-w-0">
+                                          <span className="block text-xs text-foreground">
+                                            {t(event.labelKey, { defaultValue: event.type })}
+                                          </span>
+                                          {description && (
+                                            <span className="block text-[11px] leading-snug text-muted-foreground">
+                                              {description}
+                                            </span>
+                                          )}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })
+                      ) : (
+                        <p className="px-1 py-2 text-xs text-muted-foreground">
+                          {t("notif.form.events-unavailable")}
+                        </p>
+                      )}
                     </div>
                     <FormMessage />
                   </FormItem>
@@ -358,7 +385,10 @@ export function ConfigDialog({
               <Button variant="outline" type="button" onClick={onClose}>
                 {t("common.btn.cancel")}
               </Button>
-              <Button type="submit" disabled={isPending}>
+              <Button
+                type="submit"
+                disabled={isPending || !hasSelectableChannels || !hasEventGroups}
+              >
                 {isPending && (
                   <span className="animate-spin">
                     <Loader2 className="mr-2 h-4 w-4" />

@@ -89,21 +89,55 @@ export const MOCK_NETWORKS = [
   },
 ];
 
+const mockNotificationEvent = (type: string) => {
+  const key = type.replace(/\./g, "-");
+  return {
+    type,
+    labelKey: `notif.event.${key}`,
+    descriptionKey: `notif.event-desc.${key}`,
+  };
+};
+
 export const MOCK_NOTIFICATION_EVENTS = {
   groups: [
-    { key: "topup", events: ["topup.requested", "topup.confirmed", "topup.rejected"] },
-    { key: "tx", events: ["tx.large-amount", "tx.daily-summary"] },
     {
-      key: "alert",
+      key: "topup",
+      labelKey: "notif.group.topup",
       events: [
-        "alert.circuit-breaker",
-        "alert.upstream-timeout",
-        "alert.error-spike",
-        "alert.resource-down",
+        mockNotificationEvent("topup.requested"),
+        mockNotificationEvent("topup.confirmed"),
+        mockNotificationEvent("topup.rejected"),
+        mockNotificationEvent("topup.expired"),
       ],
     },
-    { key: "supplier", events: ["supplier.disabled", "supplier.reenabled"] },
-    { key: "system", events: ["system.announcement"] },
+    {
+      key: "tx",
+      labelKey: "notif.group.tx",
+      events: [mockNotificationEvent("tx.large-amount"), mockNotificationEvent("tx.daily-summary")],
+    },
+    {
+      key: "alert",
+      labelKey: "notif.group.alert",
+      events: [
+        mockNotificationEvent("alert.circuit-breaker"),
+        mockNotificationEvent("alert.upstream-timeout"),
+        mockNotificationEvent("alert.error-spike"),
+        mockNotificationEvent("alert.resource-down"),
+      ],
+    },
+    {
+      key: "supplier",
+      labelKey: "notif.group.supplier",
+      events: [
+        mockNotificationEvent("supplier.disabled"),
+        mockNotificationEvent("supplier.reenabled"),
+      ],
+    },
+    {
+      key: "system",
+      labelKey: "notif.group.system",
+      events: [mockNotificationEvent("system.announcement")],
+    },
   ],
   enabledChannels: ["webhook", "email"],
 };

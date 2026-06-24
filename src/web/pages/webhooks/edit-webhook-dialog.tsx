@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,7 @@ import { Loader2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 import { useUpdateWebhook } from "@/web/api/hooks";
-import type { WebhookEndpoint } from "@/web/api/schemas";
+import type { NotificationEventGroup, WebhookEndpoint } from "@/web/api/schemas";
 import { updateWebhookEndpointBody } from "@/web/api/schemas";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -39,7 +39,7 @@ interface EditWebhookDialogProps {
   open: boolean;
   onClose: () => void;
   endpoint: WebhookEndpoint;
-  groups: { key: string; events: string[] }[];
+  groups: NotificationEventGroup[];
 }
 
 export function EditWebhookDialog({ open, onClose, endpoint, groups }: EditWebhookDialogProps) {
@@ -67,7 +67,7 @@ export function EditWebhookDialog({ open, onClose, endpoint, groups }: EditWebho
     }
   }, [open, endpoint, form]);
 
-  const selectedEvents = form.watch("events") ?? [];
+  const selectedEvents = useWatch({ control: form.control, name: "events" }) ?? [];
 
   const toggleEvent = useCallback(
     (event: string) => {
@@ -102,7 +102,7 @@ export function EditWebhookDialog({ open, onClose, endpoint, groups }: EditWebho
     [form],
   );
 
-  const watchedStatus = form.watch("status");
+  const watchedStatus = useWatch({ control: form.control, name: "status" });
 
   const handleStatusToggle = useCallback(
     (checked: boolean) => {

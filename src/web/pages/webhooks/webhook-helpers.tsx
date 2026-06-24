@@ -5,7 +5,7 @@ import { AlertTriangle, Check, ChevronDown, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useDeleteWebhook, useRotateWebhookSecret } from "@/web/api/hooks";
-import type { WebhookEndpoint } from "@/web/api/schemas";
+import type { NotificationEventGroup, WebhookEndpoint } from "@/web/api/schemas";
 import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
@@ -34,7 +34,7 @@ type AnyControl = any;
 
 interface EventCheckboxFieldProps {
   control: AnyControl;
-  groups: { key: string; events: string[] }[];
+  groups: NotificationEventGroup[];
   selectedEvents: string[];
   toggleEvent: (event: string) => void;
   toggleGroupAll: (events: string[]) => void;
@@ -58,9 +58,12 @@ export function EventCheckboxField({
           <FormLabel>{t("webhook.form.events")}</FormLabel>
           <div className="space-y-1 rounded-md border p-2">
             {groups.map((group) => {
-              const allChecked = group.events.every((e) => selectedEvents.includes(e));
-              const someChecked = group.events.some((e) => selectedEvents.includes(e));
-              const checkedCount = group.events.filter((e) => selectedEvents.includes(e)).length;
+              const eventTypes = group.events.map((event) => event.type);
+              const allChecked = eventTypes.every((event) => selectedEvents.includes(event));
+              const someChecked = eventTypes.some((event) => selectedEvents.includes(event));
+              const checkedCount = eventTypes.filter((event) =>
+                selectedEvents.includes(event),
+              ).length;
               return (
                 <Collapsible key={group.key}>
                   <div className="flex items-center gap-2 py-1">
@@ -71,10 +74,12 @@ export function EventCheckboxField({
                       ref={(el) => {
                         if (el) el.indeterminate = someChecked && !allChecked;
                       }}
-                      onChange={() => toggleGroupAll(group.events)}
+                      onChange={() => toggleGroupAll(eventTypes)}
                     />
                     <CollapsibleTrigger className="flex flex-1 items-center gap-1.5 cursor-pointer hover:underline">
-                      <span className="text-sm font-medium">{t(`webhook.group.${group.key}`)}</span>
+                      <span className="text-sm font-medium">
+                        {t(group.labelKey, { defaultValue: group.key })}
+                      </span>
                       {checkedCount > 0 && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-1">
                           {checkedCount}/{group.events.length}
@@ -84,20 +89,35 @@ export function EventCheckboxField({
                     </CollapsibleTrigger>
                   </div>
                   <CollapsibleContent>
-                    <div className="ml-6 pb-1.5 flex flex-wrap gap-x-4 gap-y-1">
-                      {group.events.map((event) => (
-                        <label key={event} className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="h-3.5 w-3.5 rounded border-input accent-primary"
-                            checked={selectedEvents.includes(event)}
-                            onChange={() => toggleEvent(event)}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            {t(`webhook.event.${event.replace(/\./g, "-")}`)}
-                          </span>
-                        </label>
-                      ))}
+                    <div className="ml-6 space-y-1 pb-1.5">
+                      {group.events.map((event) => {
+                        const description = event.descriptionKey
+                          ? t(event.descriptionKey, { defaultValue: "" })
+                          : "";
+                        return (
+                          <label
+                            key={event.type}
+                            className="grid cursor-pointer grid-cols-[auto,1fr] gap-2 rounded-sm px-1 py-1 hover:bg-muted/50"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-3.5 w-3.5 rounded border-input accent-primary"
+                              checked={selectedEvents.includes(event.type)}
+                              onChange={() => toggleEvent(event.type)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-xs text-foreground">
+                                {t(event.labelKey, { defaultValue: event.type })}
+                              </span>
+                              {description && (
+                                <span className="block text-[11px] leading-snug text-muted-foreground">
+                                  {description}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

@@ -34,10 +34,43 @@ export const updateWebhookEndpointBody = z.object({
 });
 export type UpdateWebhookEndpointBody = z.infer<typeof updateWebhookEndpointBody>;
 
-export const webhookEventGroupSchema = z.object({
-  key: z.string(),
-  events: z.array(z.string()),
-});
+function webhookEventLabelKey(type: string): string {
+  return `webhook.event.${type.replace(/\./g, "-")}`;
+}
+
+export const webhookEventOptionSchema = z
+  .union([
+    z.string(),
+    z.object({
+      type: z.string(),
+      labelKey: z.string().optional(),
+      descriptionKey: z.string().optional(),
+    }),
+  ])
+  .transform((event) => {
+    if (typeof event === "string") {
+      return {
+        type: event,
+        labelKey: webhookEventLabelKey(event),
+      };
+    }
+    return {
+      ...event,
+      labelKey: event.labelKey ?? webhookEventLabelKey(event.type),
+    };
+  });
+
+export const webhookEventGroupSchema = z
+  .object({
+    key: z.string(),
+    labelKey: z.string().optional(),
+    descriptionKey: z.string().optional(),
+    events: z.array(webhookEventOptionSchema),
+  })
+  .transform((group) => ({
+    ...group,
+    labelKey: group.labelKey ?? `webhook.group.${group.key}`,
+  }));
 
 export const webhookEventsResponseSchema = z.object({
   groups: z.array(webhookEventGroupSchema),

@@ -1026,6 +1026,8 @@
       "secret": "Signing Secret",
       "secret-ph": "Webhook signing secret (optional)",
       "events": "Events",
+      "no-enabled-channels": "No usable notification channel is enabled. Enable Webhook, Email, or Telegram in Providers first.",
+      "events-unavailable": "The event registry is unavailable. Try again later.",
       "enabled": "Enabled"
     },
     "group": {
@@ -1050,10 +1052,26 @@
       "supplier-reenabled": "Supplier auto-reenabled",
       "system-announcement": "System announcement"
     },
+    "event-desc": {
+      "topup-requested": "A user creates a new top-up request.",
+      "topup-confirmed": "A top-up deposit is confirmed on-chain.",
+      "topup-rejected": "A top-up request is rejected.",
+      "topup-expired": "A pending top-up request expires.",
+      "tx-large-amount": "A transaction crosses the configured large-amount threshold.",
+      "tx-daily-summary": "Daily transaction summary is ready.",
+      "alert-circuit-breaker": "Circuit breaker protection is triggered.",
+      "alert-upstream-timeout": "An upstream service times out.",
+      "alert-error-spike": "Error volume spikes above the expected threshold.",
+      "alert-resource-down": "A monitored resource becomes unavailable.",
+      "supplier-disabled": "A supplier is automatically disabled after health checks fail.",
+      "supplier-reenabled": "A supplier is automatically reenabled after recovery.",
+      "system-announcement": "A system announcement is published."
+    },
     "toast": {
       "created": "Notification channel created",
       "updated": "Notification channel updated",
       "deleted": "Notification channel deleted",
+      "create-error": "Failed to create notification channel",
       "update-error": "Failed to update notification channel",
       "delete-error": "Failed to delete notification channel",
       "test-ok": "Test notification sent successfully",

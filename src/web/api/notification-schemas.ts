@@ -34,10 +34,20 @@ export const updateNotificationConfigBody = z.object({
 });
 export type UpdateNotificationConfigBody = z.infer<typeof updateNotificationConfigBody>;
 
+export const notificationEventOptionSchema = z.object({
+  type: z.string(),
+  labelKey: z.string(),
+  descriptionKey: z.string().optional(),
+});
+export type NotificationEventOption = z.infer<typeof notificationEventOptionSchema>;
+
 export const notificationEventGroupSchema = z.object({
   key: z.string(),
-  events: z.array(z.string()),
+  labelKey: z.string(),
+  descriptionKey: z.string().optional(),
+  events: z.array(notificationEventOptionSchema),
 });
+export type NotificationEventGroup = z.infer<typeof notificationEventGroupSchema>;
 
 export const notificationEventsResponseSchema = z.object({
   groups: z.array(notificationEventGroupSchema),
