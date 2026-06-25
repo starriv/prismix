@@ -69,7 +69,7 @@ describe("write queue", () => {
     expect(mockQueueState.createJobQueue).toHaveBeenCalledWith(
       "write-queue",
       expect.any(Function),
-      { startWorker: false },
+      { startWorker: false, concurrency: 20 },
     );
     // Batch queue is dedicated and runs at high concurrency so a full batch can assemble.
     expect(mockQueueState.createJobQueue).toHaveBeenCalledWith(

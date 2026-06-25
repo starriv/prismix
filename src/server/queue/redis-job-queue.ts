@@ -5,7 +5,7 @@
  *   - Persistence — jobs survive process restarts
  *   - Multi-instance — workers on any instance can process jobs
  *   - Retry — failed jobs are retried with exponential backoff
- *   - Backpressure — max queue depth enforcement
+ *   - Backpressure — max queue depth enforcement via sampled Redis depth
  *
  * Adding another backend (RocketMQ, Kafka, SQS):
  *   Implement the JobQueue interface, select in the factory.
@@ -22,6 +22,10 @@ export interface RedisJobQueueOptions {
   concurrency?: number;
 }
 
+// Depth sampling interval. The sampled value is used for backpressure checks
+// in enqueue(), so the hot path stays O(1) — no Redis round-trip per enqueue.
+const DEPTH_SAMPLE_INTERVAL_MS = 1000;
+
 export class RedisJobQueue implements JobQueue {
   private queue: Queue;
   private worker: Worker | null = null;
@@ -32,6 +36,14 @@ export class RedisJobQueue implements JobQueue {
   private totalEnqueuedCount = 0;
   private totalProcessedCount = 0;
   private totalFailedCount = 0;
+
+  // Sampled Redis depth (waiting + active + delayed). Updated every 1s by the
+  // depth sampler. This is the only accurate depth signal in a multi-instance
+  // topology — per-process enqueue/process counters diverge (producer-only:
+  // counter grows unboundedly; worker: counter goes negative because it
+  // processes jobs enqueued by other instances).
+  private redisDepth = 0;
+  private depthSampler: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     label: string,
@@ -53,7 +65,6 @@ export class RedisJobQueue implements JobQueue {
     });
 
     if (options?.startWorker !== false) {
-      // Create worker that dispatches to registered handlers
       this.worker = new Worker(
         label,
         async (job) => {
@@ -83,6 +94,16 @@ export class RedisJobQueue implements JobQueue {
       });
     }
 
+    this.depthSampler = setInterval(async () => {
+      try {
+        const counts = await this.queue.getJobCounts();
+        this.redisDepth = counts.waiting + counts.active + counts.delayed;
+      } catch (err) {
+        log.queue.warn({ err, queue: label }, "Failed to sample Redis depth — using last value");
+      }
+    }, DEPTH_SAMPLE_INTERVAL_MS);
+    this.depthSampler.unref?.();
+
     log.queue.info(
       {
         queue: label,
@@ -99,12 +120,10 @@ export class RedisJobQueue implements JobQueue {
 
   enqueue(name: string, data: JobData, options?: JobEnqueueOptions): boolean {
     const currentMax = this.maxDepth();
-    // BullMQ doesn't have built-in max depth — we check getJobCounts sync-ish
-    // For performance, we track our own counter instead of querying Redis every time
-    if (this.totalEnqueuedCount - this.totalProcessedCount - this.totalFailedCount > currentMax) {
+    if (this.redisDepth > currentMax) {
       this.droppedCount++;
       log.queue.warn(
-        { queue: this.label, job: name, maxDepth: currentMax },
+        { queue: this.label, job: name, maxDepth: currentMax, redisDepth: this.redisDepth },
         "Queue full, dropping job",
       );
       return false;
@@ -116,7 +135,6 @@ export class RedisJobQueue implements JobQueue {
       ? this.queue.add(name, data, queueOptions)
       : this.queue.add(name, data);
     enqueuePromise.catch((err) => {
-      // Enqueue failed — revert the counter so depth estimate stays accurate
       this.totalEnqueuedCount--;
       this.totalFailedCount++;
       log.queue.error({ err, queue: this.label, job: name }, "Failed to enqueue job");
@@ -125,12 +143,12 @@ export class RedisJobQueue implements JobQueue {
   }
 
   depth(): number {
-    return Math.max(0, this.totalEnqueuedCount - this.totalProcessedCount - this.totalFailedCount);
+    return this.redisDepth;
   }
 
   stats(): JobQueueStats {
     return {
-      depth: this.depth(),
+      depth: this.redisDepth,
       dropped: this.droppedCount,
       totalEnqueued: this.totalEnqueuedCount,
       totalProcessed: this.totalProcessedCount,
@@ -139,10 +157,9 @@ export class RedisJobQueue implements JobQueue {
   }
 
   async flush(deadlineMs = 5000): Promise<number> {
-    // Wait for worker to finish current jobs
     const start = Date.now();
     let flushed = 0;
-    while (Date.now() - start < deadlineMs && this.depth() > 0) {
+    while (Date.now() - start < deadlineMs && this.redisDepth > 0) {
       await new Promise((r) => setTimeout(r, 100));
       flushed++;
     }
@@ -150,6 +167,10 @@ export class RedisJobQueue implements JobQueue {
   }
 
   async close(): Promise<void> {
+    if (this.depthSampler) {
+      clearInterval(this.depthSampler);
+      this.depthSampler = null;
+    }
     if (this.worker) {
       await this.worker.close();
       this.worker = null;

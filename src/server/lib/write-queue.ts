@@ -39,6 +39,11 @@ const BATCH_JOB_NAMES = new Set<string>(["ai-usage-log"]);
 // only the periodic timer to flush — throttling throughput to ~concurrency/interval.
 const BATCH_QUEUE_CONCURRENCY = 100;
 
+// Single-item write-queue worker concurrency. Should match DB_POOL_MAX
+// (default 20) so each concurrent handler gets a Postgres connection without
+// pool contention. Raise both DB_POOL_MAX and this value for higher throughput.
+const WRITE_QUEUE_CONCURRENCY = 20;
+
 // ── Micro-batch accumulator ──────────────────────────────────────────
 
 interface BatchConfig {
@@ -107,7 +112,10 @@ function attachBatchHandlersToQueue(queue: JobQueue): void {
 /** Initialize the write queue. Call from bootstrap. */
 export async function initWriteQueue(options?: InitWriteQueueOptions): Promise<JobQueue> {
   const maxDepth = () => getGatewayConfigCached().queue.maxWriteQueueDepth;
-  _queue = await createJobQueue("write-queue", maxDepth, options);
+  _queue = await createJobQueue("write-queue", maxDepth, {
+    ...options,
+    concurrency: WRITE_QUEUE_CONCURRENCY,
+  });
 
   // Dedicated batch queue with high concurrency so a full batch can assemble.
   _batchQueue = await createJobQueue("write-queue-batch", maxDepth, {
