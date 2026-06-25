@@ -42,6 +42,12 @@ import {
   RETRYABLE_STATUS,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
+import {
+  acquireUpstreamSlot,
+  releaseUpstreamSlot,
+  toConcurrencyLastError,
+  type UpstreamConcurrencyLease,
+} from "../lib/upstream-concurrency";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
 import { getAdapter } from "../providers/registry";
@@ -221,7 +227,24 @@ relay.post("/v1/chat/completions", async (c) => {
         }
       }
 
+      let concurrencyLease: UpstreamConcurrencyLease | null;
+      try {
+        concurrencyLease = await acquireUpstreamSlot({
+          upstreamId: keyMeta.upstreamId,
+          concurrencyLimit: keyMeta.concurrencyLimit,
+          queueTimeoutMs: keyMeta.queueTimeoutMs,
+          requestId,
+          providerId: candidate.provider.providerId,
+          modelId: candidate.model.modelId,
+        });
+      } catch (err) {
+        lastError = toConcurrencyLastError(err);
+        lastResourceDownAlert = null;
+        continue;
+      }
+
       if (body.stream) {
+        let releaseInFinally = true;
         try {
           const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
             providerId: candidate.provider.providerId,
@@ -235,6 +258,8 @@ relay.post("/v1/chat/completions", async (c) => {
             { provider: candidate.provider.providerId, route: "chat" },
           );
           if (upstreamRes.ok) {
+            const streamConcurrencyLease = concurrencyLease;
+            releaseInFinally = false;
             return forwardStream(
               c,
               upstreamRes,
@@ -247,6 +272,9 @@ relay.post("/v1/chat/completions", async (c) => {
               },
               undefined,
               timeouts,
+              undefined,
+              undefined,
+              () => releaseUpstreamSlot(streamConcurrencyLease),
             );
           }
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
@@ -300,21 +328,42 @@ relay.post("/v1/chat/completions", async (c) => {
             detail: lastError.message,
           };
           continue;
+        } finally {
+          if (releaseInFinally) await releaseUpstreamSlot(concurrencyLease);
         }
       }
 
       try {
-        const fetchStart = Date.now();
-        const upstreamRes = await fetch(finalUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
-          body: attemptBody,
-          signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
-        });
-        gatewayUpstreamDuration.observe(
-          { provider: candidate.provider.providerId, route: "chat", phase: "response" },
-          (Date.now() - fetchStart) / 1000,
-        );
+        let upstreamRes: Response;
+        try {
+          const fetchStart = Date.now();
+          upstreamRes = await fetch(finalUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
+            body: attemptBody,
+            signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
+          });
+          gatewayUpstreamDuration.observe(
+            { provider: candidate.provider.providerId, route: "chat", phase: "response" },
+            (Date.now() - fetchStart) / 1000,
+          );
+        } catch (err) {
+          markKeyFailure(keyMeta.keyId);
+          lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+          lastResourceDownAlert = {
+            route: "admin-chat",
+            requestId,
+            providerId: candidate.provider.providerId,
+            providerName: candidate.provider.name,
+            modelId: candidate.model.modelId,
+            upstreamId: keyMeta.upstreamId,
+            upstreamName: keyMeta.upstreamName,
+            upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+            status: lastError.status,
+            detail: lastError.message,
+          };
+          continue;
+        }
 
         if (!upstreamRes.ok) {
           const errBody = await upstreamRes.text().catch(() => "");
@@ -443,6 +492,8 @@ relay.post("/v1/chat/completions", async (c) => {
           detail: lastError.message,
         };
         continue;
+      } finally {
+        await releaseUpstreamSlot(concurrencyLease);
       }
     }
   }
@@ -530,6 +581,8 @@ relay.all("/v1/*", async (c) => {
     upstreamName: string;
     upstreamBaseUrl: string;
     serializedBody: string;
+    concurrencyLimit: number | null;
+    queueTimeoutMs: number;
   }
 
   const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
@@ -562,6 +615,8 @@ relay.all("/v1/*", async (c) => {
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
         serializedBody: effectiveBody,
+        concurrencyLimit: upstream.concurrencyLimit,
+        queueTimeoutMs: upstream.queueTimeoutMs,
       });
     } catch {
       continue;
@@ -601,6 +656,22 @@ relay.all("/v1/*", async (c) => {
       requestBody: logEnabled ? selected.serializedBody : undefined,
     };
 
+    let concurrencyLease: UpstreamConcurrencyLease | null;
+    let releaseInFinally = true;
+    try {
+      concurrencyLease = await acquireUpstreamSlot({
+        upstreamId: selected.upstreamId,
+        concurrencyLimit: selected.concurrencyLimit,
+        queueTimeoutMs: selected.queueTimeoutMs,
+        requestId,
+        providerId: provider.providerId,
+        modelId,
+      });
+    } catch (err) {
+      lastError = toConcurrencyLastError(err);
+      continue;
+    }
+
     try {
       const fetchStart = Date.now();
       const upstreamRes = await fetch(selected.finalUrl, {
@@ -626,7 +697,11 @@ relay.all("/v1/*", async (c) => {
       );
 
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
-        return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts);
+        const streamConcurrencyLease = concurrencyLease;
+        releaseInFinally = false;
+        return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts, undefined, () =>
+          releaseUpstreamSlot(streamConcurrencyLease),
+        );
       }
 
       if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
@@ -698,8 +773,13 @@ relay.all("/v1/*", async (c) => {
         headers: resHeaders,
       });
     } catch (err) {
+      if (!releaseInFinally) {
+        await releaseUpstreamSlot(concurrencyLease).catch(() => {});
+      }
       markKeyFailure(selected.keyId);
       lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+    } finally {
+      if (releaseInFinally) await releaseUpstreamSlot(concurrencyLease);
     }
   }
 
@@ -752,6 +832,8 @@ interface KeyMeta {
   upstreamId: number | null;
   upstreamName: string;
   upstreamBaseUrl: string;
+  concurrencyLimit: number | null;
+  queueTimeoutMs: number;
 }
 
 interface ResolvedCandidate {
@@ -870,6 +952,8 @@ async function resolveCandidate(
         upstreamId: upstream.id,
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
+        concurrencyLimit: upstream.concurrencyLimit,
+        queueTimeoutMs: upstream.queueTimeoutMs,
       },
       serializedBody: effectiveBody,
       effectiveModelId: mappedModelId,

@@ -2814,6 +2814,11 @@
       "models-endpoint": "Models Endpoint",
       "models-endpoint-ph": "https://proxy.example.com/v1/models",
       "models-endpoint-desc": "Custom URL for model discovery. Leave empty to auto-detect from provider format.",
+      "concurrency-limit": "Concurrency Limit",
+      "concurrency-limit-ph": "Leave empty for unlimited",
+      "concurrency-limit-desc": "Maximum in-flight requests sent to this upstream at the same time.",
+      "queue-timeout": "Queue Timeout (ms)",
+      "queue-timeout-desc": "How long a request may wait for an upstream slot before trying another upstream.",
       "enabled": "Enabled"
     },
     "toast": {
@@ -2840,6 +2845,8 @@
       "health": "Health",
       "enabled": "Enabled",
       "keys": "Keys",
+      "concurrency-limit": "Concurrency",
+      "queue-timeout": "Queue Timeout",
       "tokens-24h": "24h Tokens",
       "requests-24h": "Requests",
       "error-rate": "Error Rate",

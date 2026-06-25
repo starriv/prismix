@@ -51,6 +51,8 @@ router.post("/upstreams", async (c) => {
     kind: parsed.data.kind ?? "custom",
     modelsEndpoint: parsed.data.modelsEndpoint ?? null,
     enabled: parsed.data.enabled ?? true,
+    concurrencyLimit: parsed.data.concurrencyLimit ?? null,
+    queueTimeoutMs: parsed.data.queueTimeoutMs ?? 30_000,
     metadata: JSON.stringify(parsed.data.metadata ?? {}),
   });
 
@@ -108,6 +110,8 @@ router.get("/upstreams/overview", async (c) => {
       baseUrl: upstream.baseUrl,
       kind: upstream.kind,
       modelsEndpoint: upstream.modelsEndpoint,
+      concurrencyLimit: upstream.concurrencyLimit,
+      queueTimeoutMs: upstream.queueTimeoutMs,
       enabled: upstream.enabled,
       autoDisabled: upstream.autoDisabled,
       assignmentCount: assignmentCounts.get(upstream.id) ?? 0,

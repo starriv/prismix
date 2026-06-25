@@ -78,6 +78,13 @@
       "when": 1782289467147,
       "tag": "0010_polite_ares",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782355200000,
+      "tag": "0011_add_upstream_concurrency",
+      "breakpoints": true
     }
   ]
 }

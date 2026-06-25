@@ -81,6 +81,37 @@ export const aiStreamActive = new Gauge({
   labelNames: ["provider", "route"] as const,
 });
 
+export const aiUpstreamConcurrencyActive = new Gauge({
+  name: "prismix_ai_upstream_concurrency_active",
+  help: "Current active upstream concurrency leases",
+  labelNames: ["upstream_id"] as const,
+});
+
+export const aiUpstreamConcurrencyWaiting = new Gauge({
+  name: "prismix_ai_upstream_concurrency_waiting",
+  help: "Current waiting upstream concurrency leases",
+  labelNames: ["upstream_id"] as const,
+});
+
+export const aiUpstreamConcurrencyAcquireTotal = new Counter({
+  name: "prismix_ai_upstream_concurrency_acquire_total",
+  help: "Total acquired upstream concurrency leases",
+  labelNames: ["upstream_id", "outcome"] as const,
+});
+
+export const aiUpstreamConcurrencyTimeoutTotal = new Counter({
+  name: "prismix_ai_upstream_concurrency_timeout_total",
+  help: "Total upstream concurrency wait timeouts",
+  labelNames: ["upstream_id"] as const,
+});
+
+export const aiUpstreamConcurrencyWaitDuration = new Histogram({
+  name: "prismix_ai_upstream_concurrency_wait_duration_seconds",
+  help: "Time spent waiting for an upstream concurrency lease",
+  labelNames: ["upstream_id"] as const,
+  buckets: [0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60],
+});
+
 // ── Queue metrics ───────────────────────────────────────────────────
 
 export const queueDepth = new Gauge({

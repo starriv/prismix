@@ -10,6 +10,8 @@ export interface UpstreamTarget {
   baseUrl: string;
   kind: string;
   modelsEndpoint: string | null;
+  concurrencyLimit: number | null;
+  queueTimeoutMs: number;
   priority: number;
   weight: number;
   isLegacy: boolean;
@@ -67,6 +69,8 @@ function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): Ups
     baseUrl: assignment.upstream.baseUrl,
     kind: assignment.upstream.kind,
     modelsEndpoint: assignment.upstream.modelsEndpoint ?? null,
+    concurrencyLimit: assignment.upstream.concurrencyLimit ?? null,
+    queueTimeoutMs: assignment.upstream.queueTimeoutMs,
     priority: assignment.priority,
     weight: assignment.weight,
     isLegacy: false,
@@ -81,6 +85,8 @@ function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): Upstream
     baseUrl: provider.baseUrl,
     kind: "official",
     modelsEndpoint: null,
+    concurrencyLimit: null,
+    queueTimeoutMs: 30_000,
     priority: priorityFallback,
     weight: 1,
     isLegacy: true,

@@ -635,7 +635,7 @@ function UpstreamDetail({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 grid-cols-2 xl:grid-cols-4 text-sm">
+          <div className="grid gap-3 grid-cols-2 xl:grid-cols-6 text-sm">
             <div>
               <span className="text-muted-foreground">{t("ai-upstreams.detail.base-url")}</span>
               <p className="font-mono text-xs break-all mt-0.5">{upstream.baseUrl}</p>
@@ -662,6 +662,18 @@ function UpstreamDetail({
               <p className="mt-0.5 font-mono">
                 {upstream.enabledKeys}/{upstream.totalKeys}
               </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">
+                {t("ai-upstreams.detail.concurrency-limit")}
+              </span>
+              <p className="mt-0.5 font-mono">{upstream.concurrencyLimit ?? "-"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">
+                {t("ai-upstreams.detail.queue-timeout")}
+              </span>
+              <p className="mt-0.5 font-mono">{upstream.queueTimeoutMs}ms</p>
             </div>
           </div>
         </CardContent>
@@ -1049,6 +1061,16 @@ const createUpstreamSchema = z.object({
   name: z.string().min(1, "common.valid.required").max(100),
   baseUrl: z.string().url("common.valid.invalid-url").max(500),
   modelsEndpoint: z.string().url("common.valid.invalid-url").max(500).or(z.literal("")).optional(),
+  concurrencyLimit: z
+    .string()
+    .trim()
+    .refine((value) => value === "" || /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+    .refine((value) => value === "" || Number(value) <= 10_000, "common.valid.invalid-amount"),
+  queueTimeoutMs: z
+    .string()
+    .trim()
+    .refine((value) => /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+    .refine((value) => Number(value) <= 30 * 60 * 1000, "common.valid.invalid-amount"),
   enabled: z.boolean(),
 });
 
@@ -1070,7 +1092,14 @@ function UpstreamFormDialog({
 
   const form = useForm<CreateUpstreamForm>({
     resolver: zodResolver(createUpstreamSchema),
-    defaultValues: { name: "", baseUrl: "", modelsEndpoint: "", enabled: true },
+    defaultValues: {
+      name: "",
+      baseUrl: "",
+      modelsEndpoint: "",
+      concurrencyLimit: "",
+      queueTimeoutMs: "30000",
+      enabled: true,
+    },
   });
 
   useEffect(() => {
@@ -1079,22 +1108,36 @@ function UpstreamFormDialog({
         name: editTarget.name,
         baseUrl: editTarget.baseUrl,
         modelsEndpoint: editTarget.modelsEndpoint ?? "",
+        concurrencyLimit: editTarget.concurrencyLimit ? String(editTarget.concurrencyLimit) : "",
+        queueTimeoutMs: String(editTarget.queueTimeoutMs ?? 30_000),
         enabled: editTarget.enabled,
       });
     } else {
-      form.reset({ name: "", baseUrl: "", modelsEndpoint: "", enabled: true });
+      form.reset({
+        name: "",
+        baseUrl: "",
+        modelsEndpoint: "",
+        concurrencyLimit: "",
+        queueTimeoutMs: "30000",
+        enabled: true,
+      });
     }
   }, [editTarget, form]);
 
   const onSubmit = useCallback(
     async (values: CreateUpstreamForm) => {
       try {
+        const concurrencyLimit =
+          values.concurrencyLimit === "" ? null : Number(values.concurrencyLimit);
+        const queueTimeoutMs = Number(values.queueTimeoutMs);
         if (isEdit) {
           await updateUpstream.mutateAsync({
             id: editTarget.id,
             name: values.name,
             baseUrl: values.baseUrl,
             modelsEndpoint: values.modelsEndpoint || null,
+            concurrencyLimit,
+            queueTimeoutMs,
             enabled: values.enabled,
           });
           toast.success(t("ai-upstreams.toast.updated"));
@@ -1102,6 +1145,8 @@ function UpstreamFormDialog({
           await createUpstream.mutateAsync({
             ...values,
             modelsEndpoint: values.modelsEndpoint || null,
+            concurrencyLimit,
+            queueTimeoutMs,
           });
           toast.success(t("ai-upstreams.toast.created"));
         }
@@ -1172,6 +1217,47 @@ function UpstreamFormDialog({
                   </FormItem>
                 )}
               />
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="concurrencyLimit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-upstreams.form.concurrency-limit")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          placeholder={t("ai-upstreams.form.concurrency-limit-ph")}
+                        />
+                      </FormControl>
+                      <p className="text-muted-foreground text-xs">
+                        {t("ai-upstreams.form.concurrency-limit-desc")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="queueTimeoutMs"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-upstreams.form.queue-timeout")}</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} step={1000} {...field} />
+                      </FormControl>
+                      <p className="text-muted-foreground text-xs">
+                        {t("ai-upstreams.form.queue-timeout-desc")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="enabled"

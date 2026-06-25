@@ -75,6 +75,13 @@ export const createAiUpstreamBody = z.object({
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
   modelsEndpoint: safeUrlSchema.nullish(),
   enabled: z.boolean().optional(),
+  concurrencyLimit: z.number().int().positive().nullable().optional(),
+  queueTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(30 * 60 * 1000)
+    .optional(),
   metadata: z
     .record(z.string(), z.unknown())
     .refine((v) => JSON.stringify(v).length <= 4096, "Metadata must be under 4 KB")
@@ -87,6 +94,13 @@ export const updateAiUpstreamBody = z.object({
   kind: z.enum(["official", "reseller", "openrouter", "custom"]).optional(),
   modelsEndpoint: safeUrlSchema.nullish(),
   enabled: z.boolean().optional(),
+  concurrencyLimit: z.number().int().positive().nullable().optional(),
+  queueTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(30 * 60 * 1000)
+    .optional(),
   metadata: z
     .record(z.string(), z.unknown())
     .refine((v) => JSON.stringify(v).length <= 4096, "Metadata must be under 4 KB")

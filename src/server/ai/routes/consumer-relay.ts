@@ -64,6 +64,12 @@ import {
   type StreamOutputTransformer,
   type StreamRelayMeta,
 } from "../lib/stream-proxy";
+import {
+  acquireUpstreamSlot,
+  releaseUpstreamSlot,
+  toConcurrencyLastError,
+  type UpstreamConcurrencyLease,
+} from "../lib/upstream-concurrency";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { type ConsumerSession, getConsumerSession } from "../middleware/consumer-key-auth";
 import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
@@ -655,6 +661,8 @@ async function handleCanonicalChatCompletions(
     providerId: string;
     serializedBody: string;
     adapter: ReturnType<typeof getAdapter>;
+    concurrencyLimit: number | null;
+    queueTimeoutMs: number;
   }
   const resolvedUpstreams: ResolvedUpstream[] = [];
   const routeDiagnostics: Array<{
@@ -778,6 +786,8 @@ async function handleCanonicalChatCompletions(
           providerId: provider.providerId,
           serializedBody: effectiveBody,
           adapter,
+          concurrencyLimit: upstream.concurrencyLimit,
+          queueTimeoutMs: upstream.queueTimeoutMs,
         });
         diagnostics.resolved++;
       } catch {
@@ -876,8 +886,24 @@ async function handleCanonicalChatCompletions(
       }
     }
 
+    let concurrencyLease: UpstreamConcurrencyLease | null;
+    try {
+      concurrencyLease = await acquireUpstreamSlot({
+        upstreamId: selected.upstreamId,
+        concurrencyLimit: selected.concurrencyLimit,
+        queueTimeoutMs: selected.queueTimeoutMs,
+        requestId,
+        providerId: selected.providerId,
+        modelId: model.modelId,
+      });
+    } catch (err) {
+      lastError = toConcurrencyLastError(err);
+      continue;
+    }
+
     // -- 9a. Streaming path --
     if (body.stream) {
+      let releaseInFinally = true;
       try {
         const streamingHeaders = { ...selected.authHeaders, ...passthroughHeaders };
         const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
@@ -974,6 +1000,8 @@ async function handleCanonicalChatCompletions(
           ? (buildCliNoticeStreamEvents(model.modelId, cliNoticeText, clientFormat) ?? undefined)
           : undefined;
 
+        const streamConcurrencyLease = concurrencyLease;
+        releaseInFinally = false;
         return forwardStream(
           c,
           upstreamRes,
@@ -983,57 +1011,82 @@ async function handleCanonicalChatCompletions(
           timeouts,
           createStreamOutputTransformer?.(model.modelId),
           initialEvents,
+          () => releaseUpstreamSlot(streamConcurrencyLease),
+        );
+      } catch (err) {
+        if (!releaseInFinally) {
+          await releaseUpstreamSlot(concurrencyLease).catch(() => {});
+        }
+        markKeyFailure(selected.keyId);
+        lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
+        continue; // try next upstream
+      } finally {
+        if (releaseInFinally) await releaseUpstreamSlot(concurrencyLease);
+      }
+    }
+
+    // -- 9b. Non-streaming path --
+    try {
+      let upstreamRes: Response;
+      try {
+        const fetchStart = Date.now();
+        upstreamRes = await fetch(selected.finalUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...selected.authHeaders,
+            ...passthroughHeaders,
+          },
+          body: selected.serializedBody,
+          signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
+        });
+        gatewayUpstreamDuration.observe(
+          { provider: selected.providerId, route: "chat", phase: "response" },
+          (Date.now() - fetchStart) / 1000,
         );
       } catch (err) {
         markKeyFailure(selected.keyId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
         continue; // try next upstream
       }
-    }
 
-    // -- 9b. Non-streaming path --
-    let upstreamRes: Response;
-    try {
-      const fetchStart = Date.now();
-      upstreamRes = await fetch(selected.finalUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...selected.authHeaders,
-          ...passthroughHeaders,
-        },
-        body: selected.serializedBody,
-        signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
-      });
-      gatewayUpstreamDuration.observe(
-        { provider: selected.providerId, route: "chat", phase: "response" },
-        (Date.now() - fetchStart) / 1000,
-      );
-    } catch (err) {
-      markKeyFailure(selected.keyId);
-      lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
-      continue; // try next upstream
-    }
-
-    if (!upstreamRes.ok) {
-      if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-        markKeyFailure(selected.keyId);
+      if (!upstreamRes.ok) {
+        if (RETRYABLE_STATUS.has(upstreamRes.status)) {
+          markKeyFailure(selected.keyId);
+          const errBody = await upstreamRes.text().catch(() => "");
+          lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
+          continue; // try next upstream
+        }
+        // Non-retryable — return immediately
         const errBody = await upstreamRes.text().catch(() => "");
-        lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
-        continue; // try next upstream
-      }
-      // Non-retryable — return immediately
-      const errBody = await upstreamRes.text().catch(() => "");
-      if (shouldInjectModelErrorNoticeFromUpstream(upstreamRes.status, errBody)) {
-        return respondWithUpstreamModelAnnouncementError(
+        if (shouldInjectModelErrorNoticeFromUpstream(upstreamRes.status, errBody)) {
+          return respondWithUpstreamModelAnnouncementError(
+            c,
+            consumer,
+            requestId,
+            start,
+            upstreamRes.status,
+            errBody,
+            model.modelId,
+            upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
+            {
+              keyId: selected.keyId,
+              providerId: selected.providerId,
+              modelId: model.modelId,
+              upstreamId: selected.upstreamId,
+              upstreamName: selected.upstreamName,
+              upstreamBaseUrl: selected.upstreamBaseUrl,
+              requestBody: logEnabled ? selected.serializedBody : undefined,
+            },
+          );
+        }
+        return respondWithConsumerError(
           c,
           consumer,
           requestId,
           start,
           upstreamRes.status,
-          errBody,
-          model.modelId,
-          upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
+          { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
           {
             keyId: selected.keyId,
             providerId: selected.providerId,
@@ -1045,115 +1098,100 @@ async function handleCanonicalChatCompletions(
           },
         );
       }
-      return respondWithConsumerError(
-        c,
-        consumer,
-        requestId,
-        start,
-        upstreamRes.status,
-        { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
-        {
-          keyId: selected.keyId,
-          providerId: selected.providerId,
-          modelId: model.modelId,
-          upstreamId: selected.upstreamId,
-          upstreamName: selected.upstreamName,
-          upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? selected.serializedBody : undefined,
-        },
-      );
-    }
 
-    // Success — parse, bill, log, return
-    let responseBody: unknown;
-    try {
-      responseBody = await upstreamRes.json();
-    } catch {
-      return respondWithConsumerError(
-        c,
-        consumer,
-        requestId,
-        start,
-        502,
-        { error: "Failed to parse upstream response" },
-        {
-          keyId: selected.keyId,
-          providerId: selected.providerId,
-          modelId: model.modelId,
-          upstreamId: selected.upstreamId,
-          upstreamName: selected.upstreamName,
-          upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? selected.serializedBody : undefined,
-        },
-      );
-    }
-
-    const canonicalResponse = selected.adapter!.transformResponse(responseBody);
-    const transformed = responseTransformer
-      ? responseTransformer(canonicalResponse, model.modelId)
-      : canonicalResponse;
-    const usage = selected.adapter!.extractUsage(responseBody);
-    const latencyMs = Date.now() - start;
-    markKeySuccess(selected.keyId);
-
-    // -- 10. Debit consumer + log usage --
-    const billing = await billConsumer({
-      usage,
-      latencyMs,
-      consumer,
-      keyId: selected.keyId,
-      providerId: selected.providerId,
-      modelId: model.modelId,
-      upstreamId: selected.upstreamId,
-      upstreamName: selected.upstreamName,
-      upstreamBaseUrl: selected.upstreamBaseUrl,
-      inputPrice: model.inputPrice,
-      outputPrice: model.outputPrice,
-      requestId,
-      statusCode: upstreamRes.status,
-      requestBody: logEnabled ? selected.serializedBody : undefined,
-      responseBody: logEnabled ? JSON.stringify(responseBody) : undefined,
-      rejectOnLimit: true,
-    });
-    if (!billing.ok) {
-      return respondWithConsumerError(
-        c,
-        consumer,
-        requestId,
-        start,
-        billing.statusCode,
-        billing.body,
-        {
-          keyId: selected.keyId,
-          providerId: selected.providerId,
-          modelId: model.modelId,
-          upstreamId: selected.upstreamId,
-          upstreamName: selected.upstreamName,
-          upstreamBaseUrl: selected.upstreamBaseUrl,
-          requestBody: logEnabled ? selected.serializedBody : undefined,
-          estimatedCost: billing.costStr,
-          upstreamCost: removeTailingZero(billing.upstreamCost, 6),
-        },
-      );
-    }
-
-    // Cache
-    if (cacheKey) {
-      setCachedResponse(cacheKey, transformed);
-    }
-
-    if (cliNoticeText) {
-      const injectedCanonical = injectCliNoticeIntoChatResponse(canonicalResponse, cliNoticeText);
-      if (injectedCanonical) {
-        const injected = responseTransformer
-          ? responseTransformer(injectedCanonical, model.modelId)
-          : injectedCanonical;
-        await markCliAnnouncementDelivered(cliNotice, consumer);
-        return c.json(injected);
+      // Success — parse, bill, log, return
+      let responseBody: unknown;
+      try {
+        responseBody = await upstreamRes.json();
+      } catch {
+        return respondWithConsumerError(
+          c,
+          consumer,
+          requestId,
+          start,
+          502,
+          { error: "Failed to parse upstream response" },
+          {
+            keyId: selected.keyId,
+            providerId: selected.providerId,
+            modelId: model.modelId,
+            upstreamId: selected.upstreamId,
+            upstreamName: selected.upstreamName,
+            upstreamBaseUrl: selected.upstreamBaseUrl,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
+          },
+        );
       }
-    }
 
-    return c.json(transformed);
+      const canonicalResponse = selected.adapter!.transformResponse(responseBody);
+      const transformed = responseTransformer
+        ? responseTransformer(canonicalResponse, model.modelId)
+        : canonicalResponse;
+      const usage = selected.adapter!.extractUsage(responseBody);
+      const latencyMs = Date.now() - start;
+      markKeySuccess(selected.keyId);
+
+      // -- 10. Debit consumer + log usage --
+      const billing = await billConsumer({
+        usage,
+        latencyMs,
+        consumer,
+        keyId: selected.keyId,
+        providerId: selected.providerId,
+        modelId: model.modelId,
+        upstreamId: selected.upstreamId,
+        upstreamName: selected.upstreamName,
+        upstreamBaseUrl: selected.upstreamBaseUrl,
+        inputPrice: model.inputPrice,
+        outputPrice: model.outputPrice,
+        requestId,
+        statusCode: upstreamRes.status,
+        requestBody: logEnabled ? selected.serializedBody : undefined,
+        responseBody: logEnabled ? JSON.stringify(responseBody) : undefined,
+        rejectOnLimit: true,
+      });
+      if (!billing.ok) {
+        return respondWithConsumerError(
+          c,
+          consumer,
+          requestId,
+          start,
+          billing.statusCode,
+          billing.body,
+          {
+            keyId: selected.keyId,
+            providerId: selected.providerId,
+            modelId: model.modelId,
+            upstreamId: selected.upstreamId,
+            upstreamName: selected.upstreamName,
+            upstreamBaseUrl: selected.upstreamBaseUrl,
+            requestBody: logEnabled ? selected.serializedBody : undefined,
+            estimatedCost: billing.costStr,
+            upstreamCost: removeTailingZero(billing.upstreamCost, 6),
+          },
+        );
+      }
+
+      // Cache
+      if (cacheKey) {
+        setCachedResponse(cacheKey, transformed);
+      }
+
+      if (cliNoticeText) {
+        const injectedCanonical = injectCliNoticeIntoChatResponse(canonicalResponse, cliNoticeText);
+        if (injectedCanonical) {
+          const injected = responseTransformer
+            ? responseTransformer(injectedCanonical, model.modelId)
+            : injectedCanonical;
+          await markCliAnnouncementDelivered(cliNotice, consumer);
+          return c.json(injected);
+        }
+      }
+
+      return c.json(transformed);
+    } finally {
+      await releaseUpstreamSlot(concurrencyLease);
+    }
   }
 
   // All upstreams exhausted — return last error
@@ -1323,6 +1361,8 @@ async function handlePassthrough(
     upstreamBaseUrl: string;
     providerId: string;
     serializedBody: string;
+    concurrencyLimit: number | null;
+    queueTimeoutMs: number;
   }
   const resolvedPtUpstreams: ResolvedPtUpstream[] = [];
 
@@ -1361,6 +1401,8 @@ async function handlePassthrough(
           upstreamBaseUrl: upstream.baseUrl,
           providerId: provider.providerId,
           serializedBody: effectiveBody,
+          concurrencyLimit: upstream.concurrencyLimit,
+          queueTimeoutMs: upstream.queueTimeoutMs,
         });
       } catch {
         continue;
@@ -1431,6 +1473,22 @@ async function handlePassthrough(
       requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
     };
 
+    let concurrencyLease: UpstreamConcurrencyLease | null;
+    let releaseInFinally = true;
+    try {
+      concurrencyLease = await acquireUpstreamSlot({
+        upstreamId: ptSelected.upstreamId,
+        concurrencyLimit: ptSelected.concurrencyLimit,
+        queueTimeoutMs: ptSelected.queueTimeoutMs,
+        requestId,
+        providerId: ptSelected.providerId,
+        modelId,
+      });
+    } catch (err) {
+      ptLastError = toConcurrencyLastError(err);
+      continue;
+    }
+
     try {
       const fetchStart = Date.now();
       const upstreamRes = await fetch(ptSelected.finalUrl, {
@@ -1484,7 +1542,17 @@ async function handlePassthrough(
           ? (buildCliNoticeStreamEvents(modelId, cliNoticeText, clientFormat) ?? undefined)
           : undefined;
 
-        return forwardPassthroughStream(c, upstreamRes, meta, onComplete, timeouts, initialEvents);
+        const streamConcurrencyLease = concurrencyLease;
+        releaseInFinally = false;
+        return forwardPassthroughStream(
+          c,
+          upstreamRes,
+          meta,
+          onComplete,
+          timeouts,
+          initialEvents,
+          () => releaseUpstreamSlot(streamConcurrencyLease),
+        );
       }
 
       // Retryable error — try next upstream
@@ -1622,9 +1690,14 @@ async function handlePassthrough(
         headers: resHeaders,
       });
     } catch (err) {
+      if (!releaseInFinally) {
+        await releaseUpstreamSlot(concurrencyLease).catch(() => {});
+      }
       markKeyFailure(ptSelected.keyId);
       ptLastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
       continue;
+    } finally {
+      if (releaseInFinally) await releaseUpstreamSlot(concurrencyLease);
     }
   }
 

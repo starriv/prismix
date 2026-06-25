@@ -584,6 +584,8 @@ export const aiUpstreams = pgTable("ai_upstreams", {
   kind: text("kind").notNull().default("custom"), // "official" | "reseller" | "openrouter" | "custom"
   modelsEndpoint: text("models_endpoint"),
   enabled: boolean("enabled").notNull().default(true),
+  concurrencyLimit: integer("concurrency_limit"),
+  queueTimeoutMs: integer("queue_timeout_ms").notNull().default(30_000),
   metadata: text("metadata").notNull().default("{}"),
   healthStatus: text("health_status").notNull().default("unknown"), // "unknown" | "healthy" | "degraded" | "down"
   lastCheckedAt: timestamp("last_checked_at"),

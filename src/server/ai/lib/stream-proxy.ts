@@ -122,6 +122,8 @@ export interface StreamInitialEvent {
   data: string;
 }
 
+export type StreamFinalizeCallback = () => Promise<void> | void;
+
 interface StreamLifecycleState {
   routeType: "chat" | "passthrough";
   chunkCount: number;
@@ -296,6 +298,7 @@ export function forwardStream(
   timeoutConfig?: Partial<TimeoutConfig>,
   outputTransformer?: StreamOutputTransformer,
   initialEvents?: StreamInitialEvent[],
+  onFinalize?: StreamFinalizeCallback,
 ): Response {
   const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
@@ -493,6 +496,14 @@ export function forwardStream(
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
 
+      if (onFinalize) {
+        try {
+          await onFinalize();
+        } catch (err) {
+          log.gateway.error({ err, requestId: meta.requestId }, "Stream finalize callback failed");
+        }
+      }
+
       if (onComplete) {
         // Consumer relay handles its own usage logging (with consumerKeyId + markup cost)
       } else {
@@ -588,6 +599,7 @@ export function forwardPassthroughStream(
   onComplete?: StreamCompleteCallback,
   timeoutConfig?: Partial<TimeoutConfig>,
   initialEvents?: StreamInitialEvent[],
+  onFinalize?: StreamFinalizeCallback,
 ): Response {
   const timeouts = resolveTimeoutConfig(timeoutConfig);
   const abortController = new AbortController();
@@ -742,6 +754,14 @@ export function forwardPassthroughStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
+
+      if (onFinalize) {
+        try {
+          await onFinalize();
+        } catch (err) {
+          log.gateway.error({ err, requestId: meta.requestId }, "Stream finalize callback failed");
+        }
+      }
 
       if (onComplete) {
         onComplete(usage, latencyMs, rawResponse).catch((err) => {

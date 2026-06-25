@@ -112,6 +112,8 @@ export function useCreateAiUpstream() {
       baseUrl: string;
       kind?: string;
       modelsEndpoint?: string | null;
+      concurrencyLimit?: number | null;
+      queueTimeoutMs?: number;
       enabled?: boolean;
       metadata?: Record<string, unknown>;
     }) => post(API_AI_UPSTREAMS, body, aiUpstreamSchema),
@@ -134,6 +136,8 @@ export function useUpdateAiUpstream() {
       baseUrl?: string;
       kind?: string;
       modelsEndpoint?: string | null;
+      concurrencyLimit?: number | null;
+      queueTimeoutMs?: number;
       enabled?: boolean;
       metadata?: Record<string, unknown>;
     }) => put(apiAiUpstreamDetail(id), body, aiUpstreamSchema),

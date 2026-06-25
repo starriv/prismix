@@ -2814,6 +2814,11 @@
       "models-endpoint": "模型列表端点",
       "models-endpoint-ph": "https://proxy.example.com/v1/models",
       "models-endpoint-desc": "自定义模型发现 URL，留空则根据模型供应商格式自动检测。",
+      "concurrency-limit": "并发上限",
+      "concurrency-limit-ph": "留空表示不限制",
+      "concurrency-limit-desc": "同一时间最多向该上游发送的请求数。",
+      "queue-timeout": "排队超时 (ms)",
+      "queue-timeout-desc": "请求等待上游并发槽的最长时间，超时后尝试其他上游。",
       "enabled": "启用"
     },
     "toast": {
@@ -2840,6 +2845,8 @@
       "health": "健康状态",
       "enabled": "启用",
       "keys": "密钥",
+      "concurrency-limit": "并发",
+      "queue-timeout": "排队超时",
       "tokens-24h": "24h Token",
       "requests-24h": "请求数",
       "error-rate": "错误率",
