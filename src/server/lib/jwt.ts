@@ -136,14 +136,15 @@ export async function cleanExpiredRefreshTokens(): Promise<number> {
 // ── Stats (for /metrics) ───────────────────────────────────────────
 
 export async function getJwtStats() {
-  const [userCount, adminCount] = await Promise.all([
+  const [userCount, adminCount, pendingNonces] = await Promise.all([
     refreshTokenRepo.countByRole("user"),
     refreshTokenRepo.countByRole("admin"),
+    getNonceCount(),
   ]);
 
   return {
     userRefreshTokens: userCount,
     adminRefreshTokens: adminCount,
-    pendingNonces: getNonceCount(),
+    pendingNonces,
   };
 }

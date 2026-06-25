@@ -32,7 +32,7 @@ export async function verifySiweSignature(
   origin?: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   // 1. Consume the server-side nonce (single-use, scoped)
-  const nonce = consumeNonce(address, scope);
+  const nonce = await consumeNonce(address, scope);
   if (!nonce) return { ok: false, reason: "Invalid or expired nonce" };
 
   // 2. Validate EIP-4361 message structure

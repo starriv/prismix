@@ -6,7 +6,6 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { AuthError, getStrategy, resolveIdentity } from "@/server/auth";
 import type { AuthProviderType } from "@/server/auth";
 import { SamlStrategy } from "@/server/auth/strategies/saml";
-import { lazyCacheStore } from "@/server/cache";
 import { issueTokenPair, rotateRefreshToken } from "@/server/lib/auth-flows";
 import { isProviderEnabled, listEnabledProviders } from "@/server/lib/auth-provider-config";
 import {
@@ -17,6 +16,7 @@ import {
   authRefreshBody,
   authRegisterBody,
 } from "@/server/lib/body-schemas";
+import { consumeEphemeralState, setEphemeralState } from "@/server/lib/ephemeral-state";
 import { deleteRefreshToken } from "@/server/lib/jwt";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
@@ -29,9 +29,7 @@ import { networkRepo, userRepo } from "@/server/repos";
 // Stores token pairs keyed by a random code (30s TTL).
 // Frontend uses POST /exchange to swap the code for tokens.
 const EXCHANGE_TTL = 30 * 1000; // 30 seconds
-const exchangeCache = lazyCacheStore<{ token: string; refreshToken: string; userId: number }>(
-  "oauth-exchange",
-);
+const EXCHANGE_NAMESPACE = "oauth-exchange";
 
 const auth = new Hono();
 
@@ -225,7 +223,7 @@ auth.get("/callback/:provider", async (c) => {
 
     // Store token pair in one-time exchange cache
     const exchangeCode = crypto.randomBytes(16).toString("hex");
-    exchangeCache.set(exchangeCode, { ...tokens, userId }, EXCHANGE_TTL);
+    await setEphemeralState(EXCHANGE_NAMESPACE, exchangeCode, { ...tokens, userId }, EXCHANGE_TTL);
 
     return c.redirect(`${frontendOrigin}/auth/callback?code=${exchangeCode}`);
   } catch (err) {
@@ -240,11 +238,14 @@ auth.post("/exchange", authRateLimit("auth"), async (c) => {
   const parsed = await parseBody(c, authExchangeBody);
   if (!parsed.ok) return parsed.response;
 
-  const cached = exchangeCache.get(parsed.data.code);
+  const cached = await consumeEphemeralState<{
+    token: string;
+    refreshToken: string;
+    userId: number;
+  }>(EXCHANGE_NAMESPACE, parsed.data.code);
   if (!cached) {
     return c.json({ error: "Invalid or expired exchange code" }, 401);
   }
-  exchangeCache.del(parsed.data.code); // single-use
 
   const user = await userRepo.findById(cached.userId);
   if (!user) {
@@ -308,7 +309,7 @@ auth.post("/callback/saml", async (c) => {
     const tokens = await issueTokenPair(userId, user.address ?? undefined, "user");
 
     const exchangeCode = crypto.randomBytes(16).toString("hex");
-    exchangeCache.set(exchangeCode, { ...tokens, userId }, EXCHANGE_TTL);
+    await setEphemeralState(EXCHANGE_NAMESPACE, exchangeCode, { ...tokens, userId }, EXCHANGE_TTL);
 
     return c.redirect(`${frontendOrigin}/auth/callback?code=${exchangeCode}`);
   } catch (err) {

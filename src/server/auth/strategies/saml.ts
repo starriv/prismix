@@ -3,8 +3,12 @@ import crypto from "crypto";
 import { SAML, ValidateInResponseTo } from "@node-saml/node-saml";
 import type { CacheProvider } from "@node-saml/node-saml/lib/types";
 
-import { lazyCacheStore } from "@/server/cache";
 import { getProviderFullConfig } from "@/server/lib/auth-provider-config";
+import {
+  consumeEphemeralState,
+  getEphemeralState,
+  setEphemeralState,
+} from "@/server/lib/ephemeral-state";
 import { log } from "@/server/lib/logger";
 
 import type { AuthIdentity, AuthStrategy, InitializeResult } from "../strategy";
@@ -13,27 +17,24 @@ import { AuthError } from "../strategy";
 // ── State cache (RelayState for CSRF) ──────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = lazyCacheStore<string>("saml-state");
+const STATE_NAMESPACE = "saml-state";
 
 // ── InResponseTo cache (replay protection) ──────────────────────────
 
-const inResponseToCache = lazyCacheStore<boolean>("saml-in-response-to");
+const IN_RESPONSE_TO_NAMESPACE = "saml-in-response-to";
 
 /** node-saml CacheProvider for InResponseTo validation */
 const samlRequestCache: CacheProvider = {
-  saveAsync(key: string, value: string) {
-    inResponseToCache.set(key, true, STATE_TTL);
-    return Promise.resolve({ value, createdAt: Date.now() });
+  async saveAsync(key: string, value: string) {
+    await setEphemeralState(IN_RESPONSE_TO_NAMESPACE, key, value, STATE_TTL);
+    return { value, createdAt: Date.now() };
   },
-  getAsync(key: string) {
-    const found = inResponseToCache.get(key);
-    return Promise.resolve(found ? key : null);
+  async getAsync(key: string) {
+    return (await getEphemeralState<string>(IN_RESPONSE_TO_NAMESPACE, key)) ?? null;
   },
-  removeAsync(key: string | null) {
-    if (!key) return Promise.resolve(null);
-    const found = inResponseToCache.get(key);
-    inResponseToCache.del(key);
-    return Promise.resolve(found ? key : null);
+  async removeAsync(key: string | null) {
+    if (!key) return null;
+    return (await consumeEphemeralState<string>(IN_RESPONSE_TO_NAMESPACE, key)) ?? null;
   },
 };
 
@@ -110,7 +111,7 @@ export class SamlStrategy implements AuthStrategy {
 
     // RelayState carries the scope and acts as CSRF token
     const relayState = crypto.randomBytes(16).toString("hex");
-    stateCache.set(relayState, scope, STATE_TTL);
+    await setEphemeralState(STATE_NAMESPACE, relayState, scope, STATE_TTL);
 
     const loginUrl = await saml.getAuthorizeUrlAsync(relayState, getOrigin(), {});
     return { data: { url: loginUrl } };
@@ -128,11 +129,10 @@ export class SamlStrategy implements AuthStrategy {
     if (!relayState) {
       throw new AuthError("SAML RelayState is required (CSRF protection)", "nonce_expired", 400);
     }
-    const storedScope = stateCache.get(relayState);
+    const storedScope = await consumeEphemeralState<string>(STATE_NAMESPACE, relayState);
     if (!storedScope) {
       throw new AuthError("Invalid or expired SAML state", "nonce_expired");
     }
-    stateCache.del(relayState);
 
     const cfg = this.config;
     const saml = buildSamlInstance(cfg);
@@ -183,9 +183,6 @@ export class SamlStrategy implements AuthStrategy {
 }
 
 /** Consume a SAML RelayState token and return the stored scope */
-export function consumeSamlState(state: string): string | null {
-  const stored = stateCache.get(state);
-  if (!stored) return null;
-  stateCache.del(state);
-  return stored;
+export async function consumeSamlState(state: string): Promise<string | null> {
+  return (await consumeEphemeralState<string>(STATE_NAMESPACE, state)) ?? null;
 }

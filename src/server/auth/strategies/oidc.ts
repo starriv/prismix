@@ -2,8 +2,8 @@ import crypto from "crypto";
 
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-import { lazyCacheStore } from "@/server/cache";
 import { getProviderCredentials, getProviderFullConfig } from "@/server/lib/auth-provider-config";
+import { consumeEphemeralState, setEphemeralState } from "@/server/lib/ephemeral-state";
 import { log } from "@/server/lib/logger";
 
 import type { AuthIdentity, AuthStrategy, InitializeResult } from "../strategy";
@@ -37,7 +37,7 @@ interface OidcIdTokenClaims {
 // ── State cache (CSRF + nonce) ─────────────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = lazyCacheStore<{ scope: string; nonce: string }>("oidc-state");
+const STATE_NAMESPACE = "oidc-state";
 
 // ── Discovery cache ────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ export class OidcStrategy implements AuthStrategy {
 
     const state = crypto.randomBytes(16).toString("hex");
     const nonce = crypto.randomBytes(16).toString("hex");
-    stateCache.set(state, { scope, nonce }, STATE_TTL);
+    await setEphemeralState(STATE_NAMESPACE, state, { scope, nonce }, STATE_TTL);
 
     const scopes = ["openid", "email", "profile", ...(cfg.scopes ?? [])];
     const searchParams = new URLSearchParams({
@@ -128,11 +128,13 @@ export class OidcStrategy implements AuthStrategy {
     const discovery = await discover(cfg.issuer!);
 
     // 1. Validate CSRF state
-    const stored = stateCache.get(state);
+    const stored = await consumeEphemeralState<{ scope: string; nonce: string }>(
+      STATE_NAMESPACE,
+      state,
+    );
     if (!stored) {
       throw new AuthError("Invalid or expired OIDC state", "nonce_expired");
     }
-    stateCache.del(state);
 
     // 2. Exchange code for tokens
     const tokenRes = await fetch(discovery.token_endpoint, {
@@ -225,9 +227,10 @@ export class OidcStrategy implements AuthStrategy {
 }
 
 /** Verify an OIDC state token and return the stored scope */
-export function consumeOidcState(state: string): string | null {
-  const stored = stateCache.get(state);
-  if (!stored) return null;
-  stateCache.del(state);
-  return stored.scope;
+export async function consumeOidcState(state: string): Promise<string | null> {
+  const stored = await consumeEphemeralState<{ scope: string; nonce: string }>(
+    STATE_NAMESPACE,
+    state,
+  );
+  return stored?.scope ?? null;
 }

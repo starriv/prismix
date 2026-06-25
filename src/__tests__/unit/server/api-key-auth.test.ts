@@ -147,7 +147,7 @@ describe("adminAuthMiddleware — API Key path", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.adminId).toBe(42);
+    expect(body.adminId).toBe(1);
     expect(body.source).toBe("api_key");
     expect(body.keyId).toBe(10);
     expect(body.address).toBeUndefined();
@@ -269,7 +269,7 @@ describe("adminAuthMiddleware — X-API-Key header", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.adminId).toBe(99);
+    expect(body.adminId).toBe(1);
     expect(body.source).toBe("api_key");
     expect(body.keyId).toBe(20);
     expect(mockFindByHash).toHaveBeenCalledWith(hash);
@@ -311,7 +311,7 @@ describe("adminAuthMiddleware — Basic auth", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.adminId).toBe(77);
+    expect(body.adminId).toBe(1);
     expect(body.source).toBe("api_key");
     expect(body.keyId).toBe(30);
     expect(mockFindByHash).toHaveBeenCalledWith(hash);

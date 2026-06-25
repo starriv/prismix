@@ -13,7 +13,7 @@ export class SiweStrategy implements AuthStrategy {
     const origin = params.origin as string | undefined;
     if (!address) throw new AuthError("address is required", "invalid_credentials", 400);
 
-    const nonce = createNonce(address, scope as "user" | "admin");
+    const nonce = await createNonce(address, scope as "user" | "admin");
     const message = buildSiweMessage(address, nonce, origin);
     return { data: { message, nonce } };
   }

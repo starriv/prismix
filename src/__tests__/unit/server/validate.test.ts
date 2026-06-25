@@ -43,24 +43,24 @@ describe("parseIntParam", () => {
 });
 
 describe("parsePaginationLimit", () => {
-  it("returns default (50) for undefined", () => {
-    expect(parsePaginationLimit(undefined)).toBe(50);
+  it("returns default (10) for undefined", () => {
+    expect(parsePaginationLimit(undefined)).toBe(10);
   });
 
   it("returns default for invalid input", () => {
-    expect(parsePaginationLimit("abc")).toBe(50);
-    expect(parsePaginationLimit("-1")).toBe(50);
+    expect(parsePaginationLimit("abc")).toBe(10);
+    expect(parsePaginationLimit("-1")).toBe(10);
   });
 
-  it("caps at max (200) for large values", () => {
-    expect(parsePaginationLimit("999")).toBe(200);
-    expect(parsePaginationLimit("999999")).toBe(200);
+  it("caps at max (100) for large values", () => {
+    expect(parsePaginationLimit("999")).toBe(100);
+    expect(parsePaginationLimit("999999")).toBe(100);
   });
 
   it("returns exact value within range", () => {
     expect(parsePaginationLimit("10")).toBe(10);
+    expect(parsePaginationLimit("50")).toBe(50);
     expect(parsePaginationLimit("100")).toBe(100);
-    expect(parsePaginationLimit("200")).toBe(200);
   });
 
   it("supports custom default and max", () => {

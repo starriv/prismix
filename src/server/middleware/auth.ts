@@ -4,7 +4,11 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { match } from "ts-pattern";
 
-import { lazyCacheStore } from "../cache";
+import {
+  consumeEphemeralState,
+  countEphemeralState,
+  setEphemeralState,
+} from "../lib/ephemeral-state";
 import { verifyAccessToken } from "../lib/jwt";
 import { ApiKeyAuthStrategy } from "./auth-strategies/api-key";
 import { JwtAuthStrategy } from "./auth-strategies/jwt";
@@ -13,26 +17,29 @@ import type { AuthMiddlewareStrategy, AuthResult } from "./auth-strategies/strat
 // ── Nonce store ────────────────────────────────────────────────────
 
 const NONCE_TTL = 5 * 60 * 1000; // 5min
-const nonceStore = lazyCacheStore<string>("nonce");
+const NONCE_NAMESPACE = "nonce";
 
 /**
  * Create a nonce for an address. The `scope` parameter isolates user
  * and admin nonces so that a nonce requested for one cannot be consumed
  * by the other (prevents cross-scope nonce hijacking).
  */
-export function createNonce(address: string, scope: "user" | "admin" = "user"): string {
+export async function createNonce(
+  address: string,
+  scope: "user" | "admin" = "user",
+): Promise<string> {
   const nonce = crypto.randomBytes(16).toString("hex");
   const key = `${scope}:${address.toLowerCase()}`;
-  nonceStore.set(key, nonce, NONCE_TTL);
+  await setEphemeralState(NONCE_NAMESPACE, key, nonce, NONCE_TTL);
   return nonce;
 }
 
-export function consumeNonce(address: string, scope: "user" | "admin" = "user"): string | null {
+export async function consumeNonce(
+  address: string,
+  scope: "user" | "admin" = "user",
+): Promise<string | null> {
   const key = `${scope}:${address.toLowerCase()}`;
-  const nonce = nonceStore.get(key);
-  if (nonce === undefined) return null;
-  nonceStore.del(key); // single-use
-  return nonce;
+  return (await consumeEphemeralState<string>(NONCE_NAMESPACE, key)) ?? null;
 }
 
 /**
@@ -84,8 +91,8 @@ export function buildSiweMessage(address: string, nonce: string, origin?: string
   ].join("\n");
 }
 
-export function getNonceCount(): number {
-  return nonceStore.size();
+export async function getNonceCount(): Promise<number> {
+  return countEphemeralState(NONCE_NAMESPACE);
 }
 
 // ── Credential extraction (multi-source) ────────────────────────────

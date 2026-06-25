@@ -44,7 +44,7 @@ function AiGatewayDashboard() {
   const topModels = useMemo(() => {
     if (!summary?.byModel?.length) return [];
     return orderBy(summary.byModel, "totalTokens", "desc").slice(0, 3);
-  }, [summary?.byModel]);
+  }, [summary]);
 
   const maxTokens = topModels[0]?.totalTokens || 1;
 

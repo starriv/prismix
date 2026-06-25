@@ -42,17 +42,20 @@ function useStreamingText(text: string, active: boolean, charMs: number) {
   const [displayed, setDisplayed] = useState("");
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!active) {
-      setDisplayed("");
-      setDone(false);
-      return;
-    }
-
-    let i = 0;
+  // Reset streaming state when inputs change (render-time setState — React pattern
+  // for adjusting state when a prop changes, avoids synchronous setState in effect).
+  const [prevKey, setPrevKey] = useState("");
+  const key = `${active}:${text}`;
+  if (prevKey !== key) {
+    setPrevKey(key);
     setDisplayed("");
     setDone(false);
+  }
 
+  useEffect(() => {
+    if (!active) return;
+
+    let i = 0;
     const id = setInterval(() => {
       i += 1;
       if (i >= text.length) {

@@ -209,7 +209,7 @@ export function ApiKeysTab() {
         meta: { headerClassName: "w-[16%]", ...dataTableMeta.right },
       },
     ],
-    [handleCopyClientId, t],
+    [handleCopyClientId, t, i18n],
   );
 
   return (

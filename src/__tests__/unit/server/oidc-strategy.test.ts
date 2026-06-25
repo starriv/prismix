@@ -4,6 +4,51 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OidcStrategy, resetDiscoveryCache } from "@/server/auth/strategies/oidc";
 import { getProviderCredentials, getProviderFullConfig } from "@/server/lib/auth-provider-config";
 
+const redisMock = vi.hoisted(() => {
+  const store = new Map<string, { value: string; expiresAt: number }>();
+
+  function getLiveValue(key: string): string | null {
+    const entry = store.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  return {
+    store,
+    redis: {
+      async set(key: string, value: string, _mode: "PX", ttlMs: number) {
+        store.set(key, { value, expiresAt: Date.now() + ttlMs });
+        return "OK";
+      },
+      async get(key: string) {
+        return getLiveValue(key);
+      },
+      async eval(_script: string, _keyCount: number, key: string) {
+        const value = getLiveValue(key);
+        store.delete(key);
+        return value;
+      },
+      async del(key: string) {
+        const existed = store.delete(key);
+        return existed ? 1 : 0;
+      },
+      async scan(_cursor: string, _match: "MATCH", pattern: string) {
+        const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
+        const keys = [...store.keys()].filter((key) => key.startsWith(prefix) && getLiveValue(key));
+        return ["0", keys] as [string, string[]];
+      },
+    },
+  };
+});
+
+vi.mock("@/server/lib/redis", () => ({
+  getRedis: () => redisMock.redis,
+}));
+
 // Mock dependencies before importing the strategy
 vi.mock("@/server/cache", () => ({
   createCacheStore: () => {
@@ -108,6 +153,7 @@ describe("OidcStrategy", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    redisMock.store.clear();
     process.env.CORS_ORIGIN = "https://app.example.com";
     resetDiscoveryCache();
     strategy = new OidcStrategy();

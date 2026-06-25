@@ -24,6 +24,11 @@ const mockRedis = () =>
     get: vi.fn().mockResolvedValue(null),
   }) as never;
 
+// lru-cache tracks TTL via `performance.now()` (captured at import), which
+// vitest's fake timers do NOT control. TTL-expiry assertions therefore use
+// real timers with short TTLs + real waits so the monotonic clock advances.
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 describe("WriteThroughCacheStore", () => {
   let cache: WriteThroughCacheStore<string>;
 
@@ -78,17 +83,19 @@ describe("WriteThroughCacheStore", () => {
 
   // ── TTL expiry ────────────────────────────────────────────────────
 
-  it("expires entries after TTL", () => {
-    cache.set("k1", "v1", 5_000);
+  it("expires entries after TTL", async () => {
+    vi.useRealTimers();
+    cache.set("k1", "v1", 50);
     expect(cache.get("k1")).toBe("v1");
 
-    vi.advanceTimersByTime(5_000);
+    await sleep(100);
     expect(cache.get("k1")).toBeUndefined();
   });
 
-  it("has() returns false for expired entry", () => {
-    cache.set("k1", "v1", 5_000);
-    vi.advanceTimersByTime(5_000);
+  it("has() returns false for expired entry", async () => {
+    vi.useRealTimers();
+    cache.set("k1", "v1", 50);
+    await sleep(100);
     expect(cache.has("k1")).toBe(false);
   });
 
@@ -163,15 +170,16 @@ describe("WriteThroughCacheStore", () => {
 
   // ── Overwrite ─────────────────────────────────────────────────────
 
-  it("overwrites existing key with new value and TTL", () => {
-    cache.set("k1", "v1", 5_000);
-    cache.set("k1", "v2", 10_000);
+  it("overwrites existing key with new value and TTL", async () => {
+    vi.useRealTimers();
+    cache.set("k1", "v1", 50);
+    cache.set("k1", "v2", 100);
     expect(cache.get("k1")).toBe("v2");
 
-    vi.advanceTimersByTime(5_000);
+    await sleep(60);
     expect(cache.get("k1")).toBe("v2"); // still alive with new TTL
 
-    vi.advanceTimersByTime(5_000);
+    await sleep(60);
     expect(cache.get("k1")).toBeUndefined(); // now expired
   });
 });

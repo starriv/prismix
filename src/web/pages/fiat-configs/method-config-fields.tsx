@@ -38,7 +38,7 @@ export function MethodConfigFields({ method, config, onChange, t }: MethodConfig
         return;
       }
 
-      set("qrCodeUrl", dataUrl);
+      onChange({ ...config, qrCodeUrl: dataUrl });
     },
     [config, onChange, t],
   );

@@ -153,6 +153,7 @@ export function FiatOrderDialog({
   const activeConfig =
     enabledConfigs.find((cfg) => String(cfg.id) === activeConfigId) ?? enabledConfigs[0] ?? null;
 
+  /* eslint-disable react-hooks/set-state-in-effect -- reset form on close + auto-select first config on open */
   useEffect(() => {
     if (!open) {
       setAmount("");
@@ -166,6 +167,7 @@ export function FiatOrderDialog({
       setActiveConfigId(String(enabledConfigs[0].id));
     }
   }, [open, enabledConfigs, activeConfigId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleMaxAmount = useCallback(() => {
     setAmount(removeTailingZero(maxBalance));
@@ -438,6 +440,7 @@ export function FiatPendingTopupDialog({
     [activeConfig],
   );
 
+  /* eslint-disable react-hooks/set-state-in-effect -- sync proof field from order data / reset on close */
   useEffect(() => {
     if (!open) {
       setPaymentProof("");
@@ -445,6 +448,7 @@ export function FiatPendingTopupDialog({
     }
     setPaymentProof(order?.paymentProof ?? "");
   }, [open, order?.paymentProof]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSubmit = useCallback(async () => {
     if (!orderId || !paymentProof.trim()) return;

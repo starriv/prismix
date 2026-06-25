@@ -390,26 +390,28 @@ function SpectrumBeams() {
 
 // ── Floating particles (ambient tech feel) ──────────
 
+const PARTICLE_DATA = (() => {
+  const count = 60;
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const palette = [new Color("#6080ff"), new Color("#80a0ff"), new Color("#a0b8ff")];
+
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * 8;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 5;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * 4;
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    col[i * 3] = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  return { positions: pos, colors: col };
+})();
+
 function Particles() {
   const ref = useRef<THREE.Points>(null);
 
-  const { positions, colors } = useMemo(() => {
-    const count = 60;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const palette = [new Color("#6080ff"), new Color("#80a0ff"), new Color("#a0b8ff")];
-
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 8;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 5;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 4;
-      const c = palette[Math.floor(Math.random() * palette.length)];
-      col[i * 3] = c.r;
-      col[i * 3 + 1] = c.g;
-      col[i * 3 + 2] = c.b;
-    }
-    return { positions: pos, colors: col };
-  }, []);
+  const { positions, colors } = PARTICLE_DATA;
 
   useFrame((_, delta) => {
     if (ref.current) {

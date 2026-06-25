@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildSiweMessage,
@@ -7,74 +7,124 @@ import {
   getNonceCount,
 } from "@/server/middleware/auth";
 
+const redisMock = vi.hoisted(() => {
+  const store = new Map<string, { value: string; expiresAt: number }>();
+
+  function getLiveValue(key: string): string | null {
+    const entry = store.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  return {
+    store,
+    redis: {
+      async set(key: string, value: string, _mode: "PX", ttlMs: number) {
+        store.set(key, { value, expiresAt: Date.now() + ttlMs });
+        return "OK";
+      },
+      async get(key: string) {
+        return getLiveValue(key);
+      },
+      async eval(_script: string, _keyCount: number, key: string) {
+        const value = getLiveValue(key);
+        store.delete(key);
+        return value;
+      },
+      async del(key: string) {
+        const existed = store.delete(key);
+        return existed ? 1 : 0;
+      },
+      async scan(_cursor: string, _match: "MATCH", pattern: string) {
+        const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
+        const keys = [...store.keys()].filter((key) => key.startsWith(prefix) && getLiveValue(key));
+        return ["0", keys] as [string, string[]];
+      },
+    },
+  };
+});
+
+vi.mock("@/server/lib/redis", () => ({
+  getRedis: () => redisMock.redis,
+}));
+
 describe("nonce system", () => {
   const ADDR = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12";
 
-  it("creates and consumes a nonce", () => {
-    const nonce = createNonce(ADDR);
+  beforeEach(() => {
+    redisMock.store.clear();
+    vi.useRealTimers();
+  });
+
+  it("creates and consumes a nonce", async () => {
+    const nonce = await createNonce(ADDR);
     expect(typeof nonce).toBe("string");
     expect(nonce.length).toBe(32); // 16 bytes hex
 
-    const consumed = consumeNonce(ADDR);
+    const consumed = await consumeNonce(ADDR);
     expect(consumed).toBe(nonce);
   });
 
-  it("nonce is single-use (second consume returns null)", () => {
-    createNonce(ADDR);
-    consumeNonce(ADDR);
-    expect(consumeNonce(ADDR)).toBeNull();
+  it("nonce is single-use (second consume returns null)", async () => {
+    await createNonce(ADDR);
+    await consumeNonce(ADDR);
+    expect(await consumeNonce(ADDR)).toBeNull();
   });
 
-  it("returns null for unknown address", () => {
-    expect(consumeNonce("0x0000000000000000000000000000000000000000")).toBeNull();
+  it("returns null for unknown address", async () => {
+    expect(await consumeNonce("0x0000000000000000000000000000000000000000")).toBeNull();
   });
 
-  it("is case-insensitive on address", () => {
-    const nonce = createNonce(ADDR.toLowerCase());
-    expect(consumeNonce(ADDR.toUpperCase())).toBe(nonce);
+  it("is case-insensitive on address", async () => {
+    const nonce = await createNonce(ADDR.toLowerCase());
+    expect(await consumeNonce(ADDR.toUpperCase())).toBe(nonce);
   });
 
-  it("isolates user and admin scopes", () => {
-    const userNonce = createNonce(ADDR, "user");
-    const adminNonce = createNonce(ADDR, "admin");
+  it("isolates user and admin scopes", async () => {
+    const userNonce = await createNonce(ADDR, "user");
+    const adminNonce = await createNonce(ADDR, "admin");
 
     // Cannot consume user nonce with admin scope
-    expect(consumeNonce(ADDR, "admin")).toBe(adminNonce);
-    expect(consumeNonce(ADDR, "user")).toBe(userNonce);
+    expect(await consumeNonce(ADDR, "admin")).toBe(adminNonce);
+    expect(await consumeNonce(ADDR, "user")).toBe(userNonce);
   });
 
-  it("overwrites nonce on re-creation for same address+scope", () => {
-    const nonce1 = createNonce(ADDR);
-    const nonce2 = createNonce(ADDR);
+  it("overwrites nonce on re-creation for same address+scope", async () => {
+    const nonce1 = await createNonce(ADDR);
+    const nonce2 = await createNonce(ADDR);
     expect(nonce1).not.toBe(nonce2);
     // Only the second nonce is valid
-    expect(consumeNonce(ADDR)).toBe(nonce2);
+    expect(await consumeNonce(ADDR)).toBe(nonce2);
     // First nonce is gone
-    expect(consumeNonce(ADDR)).toBeNull();
+    expect(await consumeNonce(ADDR)).toBeNull();
   });
 
-  it("expires after TTL", () => {
+  it("expires after TTL", async () => {
     vi.useFakeTimers();
-    createNonce(ADDR);
+    await createNonce(ADDR);
     vi.advanceTimersByTime(6 * 60 * 1000); // 6 minutes > 5 min TTL
-    expect(consumeNonce(ADDR)).toBeNull();
+    expect(await consumeNonce(ADDR)).toBeNull();
     vi.useRealTimers();
   });
 
-  it("is valid just before TTL", () => {
+  it("is valid just before TTL", async () => {
     vi.useFakeTimers();
-    const nonce = createNonce(ADDR);
+    const nonce = await createNonce(ADDR);
     vi.advanceTimersByTime(4 * 60 * 1000); // 4 minutes < 5 min TTL
-    expect(consumeNonce(ADDR)).toBe(nonce);
+    expect(await consumeNonce(ADDR)).toBe(nonce);
     vi.useRealTimers();
   });
 
-  it("getNonceCount tracks active nonces", () => {
-    const before = getNonceCount();
-    createNonce("0x1111111111111111111111111111111111111111");
-    expect(getNonceCount()).toBe(before + 1);
-    consumeNonce("0x1111111111111111111111111111111111111111");
-    expect(getNonceCount()).toBe(before);
+  it("getNonceCount tracks active nonces", async () => {
+    const before = await getNonceCount();
+    await createNonce("0x1111111111111111111111111111111111111111");
+    expect(await getNonceCount()).toBe(before + 1);
+    await consumeNonce("0x1111111111111111111111111111111111111111");
+    expect(await getNonceCount()).toBe(before);
   });
 });
 

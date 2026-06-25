@@ -62,7 +62,10 @@ export default function AdminTokensPage() {
   const [addOpen, setAddOpen] = useState(false);
   const { byNetworkId, getChainDisplayByNetworkId } = useChainRegistry();
 
-  const enabledNetworkIds = new Set(networks.filter((n) => n.enabled).map((n) => n.networkId));
+  const enabledNetworkIds = useMemo(
+    () => new Set(networks.filter((n) => n.enabled).map((n) => n.networkId)),
+    [networks],
+  );
 
   const networkDisplayName = useCallback(
     (networkId: string): string => {

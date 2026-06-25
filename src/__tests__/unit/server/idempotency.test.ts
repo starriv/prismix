@@ -14,6 +14,56 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateDeterministicEventId, generateEventId } from "@/server/messaging/webhooks/deliver";
 
+// The idempotency middleware caches responses via `lazyCacheStore` from
+// `@/server/cache`, which is Redis-backed in production. Mock it with a
+// simple in-memory store so the middleware's cache-hit/miss logic is
+// exercised without a live REDIS_URL.
+vi.mock("@/server/cache", () => {
+  const stores = new Map<string, Map<string, unknown>>();
+  function lazyCacheStore<T>(prefix: string) {
+    let store = stores.get(prefix);
+    if (!store) {
+      store = new Map();
+      stores.set(prefix, store);
+    }
+    return {
+      get: (key: string) => store!.get(key) as T | undefined,
+      set: (key: string, value: T) => {
+        store!.set(key, value);
+      },
+      del: (key: string) => {
+        store!.delete(key);
+      },
+      has: (key: string) => store!.has(key),
+      clear: () => {
+        store!.clear();
+      },
+      size: () => store!.size,
+      delByPrefix: (prefix: string) => {
+        let n = 0;
+        for (const k of [...store!.keys()]) {
+          if (k.startsWith(prefix)) {
+            store!.delete(k);
+            n++;
+          }
+        }
+        return n;
+      },
+      delBySuffix: (suffix: string) => {
+        let n = 0;
+        for (const k of [...store!.keys()]) {
+          if (k.endsWith(suffix)) {
+            store!.delete(k);
+            n++;
+          }
+        }
+        return n;
+      },
+    };
+  }
+  return { lazyCacheStore, createCacheStore: lazyCacheStore };
+});
+
 // ═════════════════════════════════════════════════════════════════════
 // P0: Transaction txHash dedup in facilitator
 // ═════════════════════════════════════════════════════════════════════

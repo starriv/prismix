@@ -120,6 +120,11 @@ vi.mock("@/server/jobs/check-supplier-health", () => ({
   initSupplierHealthCheckJob: vi.fn(async () => track("initSupplierHealthCheckJob")),
 }));
 
+vi.mock("@/server/jobs/cleanup-ai-usage-logs", () => ({
+  initAiUsageLogCleanupJob: vi.fn(async () => track("initAiUsageLogCleanupJob")),
+  closeAiUsageLogCleanupJob: vi.fn(async () => {}),
+}));
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("bootstrap initialization order", () => {

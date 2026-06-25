@@ -13,16 +13,19 @@ export function useMobileSidebar() {
     const mql = window.matchMedia(MD_BREAKPOINT);
     const handler = (e: MediaQueryListEvent) => {
       setIsMobile(!e.matches);
-      if (e.matches) setIsOpen(false); // close sheet when switching to desktop
+      if (e.matches) setIsOpen(false);
     };
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, []);
 
-  // Auto-close on navigation
-  useEffect(() => {
+  // Auto-close on navigation (render-time setState — React pattern for adjusting
+  // state when a prop changes, avoids synchronous setState in effect).
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
     setIsOpen(false);
-  }, [pathname]);
+  }
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);

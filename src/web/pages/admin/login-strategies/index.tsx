@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Github, Loader2, Save } from "lucide-react";
@@ -42,47 +42,52 @@ export default function LoginStrategiesPage() {
   });
   const [dirty, setDirty] = useState(false);
 
-  useEffect(() => {
-    if (!serverConfig) return;
-    const oidcServer = serverConfig.oidc as ProviderState | undefined;
-    const next: ConfigState = {
-      credentials: {
-        enabled: (serverConfig.credentials as ProviderState)?.enabled ?? false,
-        clientId: "",
-        clientSecret: "",
-      },
-      google: {
-        enabled: (serverConfig.google as ProviderState)?.enabled ?? false,
-        clientId: (serverConfig.google as ProviderState)?.clientId ?? "",
-        clientSecret: (serverConfig.google as ProviderState)?.clientSecret ?? "",
-      },
-      github: {
-        enabled: (serverConfig.github as ProviderState)?.enabled ?? false,
-        clientId: (serverConfig.github as ProviderState)?.clientId ?? "",
-        clientSecret: (serverConfig.github as ProviderState)?.clientSecret ?? "",
-      },
-      oidc: {
-        enabled: oidcServer?.enabled ?? false,
-        clientId: oidcServer?.clientId ?? "",
-        clientSecret: oidcServer?.clientSecret ?? "",
-        issuer: oidcServer?.issuer ?? "",
-        displayName: oidcServer?.displayName ?? "",
-        scopes: oidcServer?.scopes,
-      },
-      saml: {
-        enabled: (serverConfig.saml as ProviderState)?.enabled ?? false,
-        clientId: "",
-        clientSecret: "",
-        entityId: (serverConfig.saml as ProviderState)?.entityId ?? "",
-        ssoUrl: (serverConfig.saml as ProviderState)?.ssoUrl ?? "",
-        certificate: (serverConfig.saml as ProviderState)?.certificate ?? "",
-        displayName: (serverConfig.saml as ProviderState)?.displayName ?? "",
-        metadataUrl: (serverConfig.saml as ProviderState)?.metadataUrl ?? "",
-      },
-    };
-    setConfig(next);
-    setDirty(false);
-  }, [serverConfig]);
+  // Sync local config from server data (render-time setState — React pattern for
+  // adjusting state when a prop changes, avoids synchronous setState in effect).
+  const [prevServerConfig, setPrevServerConfig] = useState(serverConfig);
+  if (prevServerConfig !== serverConfig) {
+    setPrevServerConfig(serverConfig);
+    if (serverConfig) {
+      const oidcServer = serverConfig.oidc as ProviderState | undefined;
+      const next: ConfigState = {
+        credentials: {
+          enabled: (serverConfig.credentials as ProviderState)?.enabled ?? false,
+          clientId: "",
+          clientSecret: "",
+        },
+        google: {
+          enabled: (serverConfig.google as ProviderState)?.enabled ?? false,
+          clientId: (serverConfig.google as ProviderState)?.clientId ?? "",
+          clientSecret: (serverConfig.google as ProviderState)?.clientSecret ?? "",
+        },
+        github: {
+          enabled: (serverConfig.github as ProviderState)?.enabled ?? false,
+          clientId: (serverConfig.github as ProviderState)?.clientId ?? "",
+          clientSecret: (serverConfig.github as ProviderState)?.clientSecret ?? "",
+        },
+        oidc: {
+          enabled: oidcServer?.enabled ?? false,
+          clientId: oidcServer?.clientId ?? "",
+          clientSecret: oidcServer?.clientSecret ?? "",
+          issuer: oidcServer?.issuer ?? "",
+          displayName: oidcServer?.displayName ?? "",
+          scopes: oidcServer?.scopes,
+        },
+        saml: {
+          enabled: (serverConfig.saml as ProviderState)?.enabled ?? false,
+          clientId: "",
+          clientSecret: "",
+          entityId: (serverConfig.saml as ProviderState)?.entityId ?? "",
+          ssoUrl: (serverConfig.saml as ProviderState)?.ssoUrl ?? "",
+          certificate: (serverConfig.saml as ProviderState)?.certificate ?? "",
+          displayName: (serverConfig.saml as ProviderState)?.displayName ?? "",
+          metadataUrl: (serverConfig.saml as ProviderState)?.metadataUrl ?? "",
+        },
+      };
+      setConfig(next);
+      setDirty(false);
+    }
+  }
 
   const update = (provider: string, patch: Partial<ProviderState>) => {
     setConfig((prev) => ({

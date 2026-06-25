@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
@@ -14,11 +14,12 @@ export default function AuthCallbackPage() {
   const navigate = useLocaleNavigate();
   const [searchParams] = useSearchParams();
   const { admin, isAuthenticated, exchange } = useAdminAuthContext();
-  const [error, setError] = useState<string | null>(null);
-  const [exchanging, setExchanging] = useState(false);
+  const [exchangeError, setExchangeError] = useState<string | null>(null);
+  const exchangingRef = useRef(false);
 
   const code = searchParams.get("code");
   const urlError = searchParams.get("error");
+  const error = urlError ?? exchangeError;
 
   useEffect(() => {
     if (isAuthenticated && admin) {
@@ -27,17 +28,16 @@ export default function AuthCallbackPage() {
     }
 
     if (urlError) {
-      setError(urlError);
       return;
     }
 
-    if (code && !exchanging) {
-      setExchanging(true);
+    if (code && !exchangingRef.current) {
+      exchangingRef.current = true;
       exchange(code).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "exchange-failed");
+        setExchangeError(err instanceof Error ? err.message : "exchange-failed");
       });
     }
-  }, [code, urlError, isAuthenticated, navigate, exchange, exchanging]);
+  }, [code, urlError, isAuthenticated, navigate, exchange]);
 
   if (error) {
     return (

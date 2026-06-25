@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
-import { lazyCacheStore } from "@/server/cache";
 import { getProviderCredentials } from "@/server/lib/auth-provider-config";
+import { consumeEphemeralState, setEphemeralState } from "@/server/lib/ephemeral-state";
 
 import type { AuthIdentity, AuthStrategy, InitializeResult } from "../strategy";
 import { AuthError } from "../strategy";
@@ -9,7 +9,7 @@ import { AuthError } from "../strategy";
 // ── OAuth state cache (CSRF protection) ─────────────────────────────
 
 const STATE_TTL = 5 * 60 * 1000; // 5min
-const stateCache = lazyCacheStore<string>("github-oauth-state");
+const STATE_NAMESPACE = "github-oauth-state";
 
 export class GithubAuthStrategy implements AuthStrategy {
   readonly name = "github" as const;
@@ -33,7 +33,7 @@ export class GithubAuthStrategy implements AuthStrategy {
   async initialize(params: Record<string, unknown>): Promise<InitializeResult> {
     const scope = (params.scope as string) || "user";
     const state = crypto.randomBytes(16).toString("hex");
-    stateCache.set(state, scope, STATE_TTL);
+    await setEphemeralState(STATE_NAMESPACE, state, scope, STATE_TTL);
 
     const searchParams = new URLSearchParams({
       client_id: this.credentials.clientId,
@@ -55,11 +55,10 @@ export class GithubAuthStrategy implements AuthStrategy {
     }
 
     // Validate CSRF state
-    const storedScope = stateCache.get(state);
+    const storedScope = await consumeEphemeralState<string>(STATE_NAMESPACE, state);
     if (!storedScope) {
       throw new AuthError("Invalid or expired OAuth state", "nonce_expired");
     }
-    stateCache.del(state);
 
     // Exchange code for access token
     const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {

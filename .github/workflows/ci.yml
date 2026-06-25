@@ -12,6 +12,7 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
+  HUSKY: "0"
 
 jobs:
   lint-typecheck:
