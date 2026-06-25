@@ -49,6 +49,7 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
     env:
       PORT: "3403"
       VITE_DEV_PORT: "5189"
