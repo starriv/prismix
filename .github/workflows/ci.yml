@@ -49,6 +49,9 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      PORT: "3403"
+      VITE_DEV_PORT: "5189"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
