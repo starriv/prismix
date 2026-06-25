@@ -80,10 +80,15 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
       email: user.email ?? "",
       agentId: user.agentId ? String(user.agentId) : "none",
     });
-    /* eslint-disable react-hooks/set-state-in-effect -- reset confirm-delete flag when user changes */
-    setConfirmDelete(false);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [user, form]);
+
+  // Reset confirm-delete flag when user changes (render-time setState — React
+  // pattern for adjusting state when a prop changes, avoids synchronous setState in effect).
+  const [prevUser, setPrevUser] = useState(user);
+  if (prevUser !== user) {
+    setPrevUser(user);
+    setConfirmDelete(false);
+  }
 
   const handleSave = form.handleSubmit(async (data) => {
     try {

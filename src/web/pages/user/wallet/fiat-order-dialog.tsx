@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Loader2 } from "lucide-react";
@@ -153,21 +153,23 @@ export function FiatOrderDialog({
   const activeConfig =
     enabledConfigs.find((cfg) => String(cfg.id) === activeConfigId) ?? enabledConfigs[0] ?? null;
 
-  /* eslint-disable react-hooks/set-state-in-effect -- reset form on close + auto-select first config on open */
-  useEffect(() => {
+  // Reset form state on close + auto-select first config on open (render-time
+  // setState — React pattern for adjusting state when a prop changes, avoids
+  // synchronous setState in effect).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) {
       setAmount("");
       setActiveConfigId("");
       setWithdrawMethod("");
       setPayoutInfo("");
       setWithdrawNote("");
-      return;
     }
-    if (!activeConfigId && enabledConfigs[0]) {
-      setActiveConfigId(String(enabledConfigs[0].id));
-    }
-  }, [open, enabledConfigs, activeConfigId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }
+  if (open && !activeConfigId && enabledConfigs[0]) {
+    setActiveConfigId(String(enabledConfigs[0].id));
+  }
 
   const handleMaxAmount = useCallback(() => {
     setAmount(removeTailingZero(maxBalance));
@@ -440,15 +442,15 @@ export function FiatPendingTopupDialog({
     [activeConfig],
   );
 
-  /* eslint-disable react-hooks/set-state-in-effect -- sync proof field from order data / reset on close */
-  useEffect(() => {
-    if (!open) {
-      setPaymentProof("");
-      return;
-    }
-    setPaymentProof(order?.paymentProof ?? "");
-  }, [open, order?.paymentProof]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  // Sync proof field from order data / reset on close (render-time setState —
+  // React pattern for adjusting state when a prop changes, avoids synchronous
+  // setState in effect).
+  const proofKey = `${open}:${order?.paymentProof ?? ""}`;
+  const [prevProofKey, setPrevProofKey] = useState(proofKey);
+  if (prevProofKey !== proofKey) {
+    setPrevProofKey(proofKey);
+    setPaymentProof(open ? (order?.paymentProof ?? "") : "");
+  }
 
   const handleSubmit = useCallback(async () => {
     if (!orderId || !paymentProof.trim()) return;
