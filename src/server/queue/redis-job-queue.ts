@@ -59,8 +59,8 @@ export class RedisJobQueue implements JobQueue {
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 1000 },
-        removeOnComplete: { count: 1000 }, // keep last 1000 completed
-        removeOnFail: { count: 5000 }, // keep last 5000 failed for debugging
+        removeOnComplete: true, // remove immediately — job payloads can be large (full request/response bodies)
+        removeOnFail: { count: 100 }, // keep a small tail for debugging only
       },
     });
 

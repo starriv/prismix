@@ -137,7 +137,14 @@ export function initAiWriteHandlers(): void {
     await relayConsumerKeyRepo.updateLastUsed(data.consumerId as number);
   });
 
-  registerWriteHandler("ai-request-log", async (data) => {
-    await saveRequestLog(data as unknown as RequestLogEntry);
-  });
+  // Batch handler: buffers in-process, bypasses BullMQ entirely in monolith mode.
+  // Prevents full request/response bodies from accumulating as BullMQ job payloads in Redis
+  // (the final write destination is RedisRequestLogStore, not BullMQ).
+  registerBatchHandler(
+    "ai-request-log",
+    async (batch) => {
+      await Promise.all(batch.map((data) => saveRequestLog(data as unknown as RequestLogEntry)));
+    },
+    { maxSize: 20, flushIntervalMs: 2_000 },
+  );
 }
