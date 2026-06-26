@@ -30,7 +30,7 @@ let _queueWarnedAt = 0;
 // batch queue instead of the shared single-item queue. Source of truth for
 // producer-side routing (e.g. the API process, which never registers the batch
 // handler itself). registerBatchHandler() keeps this in sync defensively.
-const BATCH_JOB_NAMES = new Set<string>(["ai-usage-log"]);
+const BATCH_JOB_NAMES = new Set<string>(["ai-usage-log", "ai-request-log"]);
 
 // Batch-queue worker concurrency. Must comfortably exceed the largest batch
 // maxSize (currently 50) so a full batch can assemble and trigger a size-based

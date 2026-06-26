@@ -143,7 +143,9 @@ export function initAiWriteHandlers(): void {
   registerBatchHandler(
     "ai-request-log",
     async (batch) => {
-      await Promise.all(batch.map((data) => saveRequestLog(data as unknown as RequestLogEntry)));
+      await Promise.allSettled(
+        batch.map((data) => saveRequestLog(data as unknown as RequestLogEntry)),
+      );
     },
     { maxSize: 20, flushIntervalMs: 2_000 },
   );
