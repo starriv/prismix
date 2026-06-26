@@ -191,7 +191,9 @@ router.put("/providers/:id", async (c) => {
     parsed.data.enabled !== undefined ||
     parsed.data.baseUrl !== undefined ||
     parsed.data.upstreamRoutingStrategy !== undefined ||
-    parsed.data.loadBalanceStrategy !== undefined
+    parsed.data.loadBalanceStrategy !== undefined ||
+    parsed.data.officialConcurrencyLimit !== undefined ||
+    parsed.data.officialQueueTimeoutMs !== undefined
   ) {
     invalidateUpstreamCache(id);
     invalidateKeyPool(id);

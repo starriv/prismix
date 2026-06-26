@@ -6,6 +6,7 @@ import { aiUpstreamAssignmentRepo, type AssignmentWithUpstream } from "@/server/
 export interface UpstreamTarget {
   id: number | null;
   upstreamId: string;
+  concurrencyScopeKey: string;
   name: string;
   baseUrl: string;
   kind: string;
@@ -65,6 +66,7 @@ function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): Ups
   return {
     id: assignment.upstream.id,
     upstreamId: assignment.upstream.upstreamId,
+    concurrencyScopeKey: String(assignment.upstream.id),
     name: assignment.upstream.name,
     baseUrl: assignment.upstream.baseUrl,
     kind: assignment.upstream.kind,
@@ -81,12 +83,13 @@ function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): Upstream
   return {
     id: null,
     upstreamId: "legacy",
+    concurrencyScopeKey: `provider:${provider.id}:official`,
     name: `${provider.name} Default`,
     baseUrl: provider.baseUrl,
     kind: "official",
     modelsEndpoint: null,
-    concurrencyLimit: null,
-    queueTimeoutMs: 30_000,
+    concurrencyLimit: provider.officialConcurrencyLimit ?? null,
+    queueTimeoutMs: provider.officialQueueTimeoutMs,
     priority: priorityFallback,
     weight: 1,
     isLegacy: true,

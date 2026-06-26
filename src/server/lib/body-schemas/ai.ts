@@ -52,6 +52,13 @@ export const createAiProviderBody = z.object({
   authConfig: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
   upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
+  officialConcurrencyLimit: z.number().int().positive().nullable().optional(),
+  officialQueueTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(30 * 60 * 1000)
+    .optional(),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 
@@ -64,6 +71,13 @@ export const updateAiProviderBody = z.object({
   enabled: z.boolean().optional(),
   loadBalanceStrategy: z.enum(["round-robin", "random"]).optional(),
   upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
+  officialConcurrencyLimit: z.number().int().positive().nullable().optional(),
+  officialQueueTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(30 * 60 * 1000)
+    .optional(),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 

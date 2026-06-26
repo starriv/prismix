@@ -553,6 +553,8 @@ export const aiProviders = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     loadBalanceStrategy: text("load_balance_strategy").notNull().default("round-robin"), // "round-robin" | "random"
     upstreamRoutingStrategy: text("upstream_routing_strategy").notNull().default("priority"), // "priority" | "weighted-random"
+    officialConcurrencyLimit: integer("official_concurrency_limit"),
+    officialQueueTimeoutMs: integer("official_queue_timeout_ms").notNull().default(30_000),
     iconUrl: text("icon_url"),
     // `enabled` = admin intent; `autoDisabled` = system status.
     // Effective active = enabled && !autoDisabled.

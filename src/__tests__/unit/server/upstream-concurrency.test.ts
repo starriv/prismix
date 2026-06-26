@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/lib/metrics", () => ({
+  aiUpstreamConcurrencyActive: { set: vi.fn() },
+  aiUpstreamConcurrencyWaiting: { set: vi.fn() },
+  aiUpstreamConcurrencyAcquireTotal: { inc: vi.fn() },
+  aiUpstreamConcurrencyTimeoutTotal: { inc: vi.fn() },
+  aiUpstreamConcurrencyWaitDuration: { observe: vi.fn() },
+}));
+
 const { redisState, redisEval } = vi.hoisted(() => {
   const redisState = {
     active: new Map<string, Map<string, number>>(),
@@ -108,6 +116,31 @@ describe("upstream concurrency", () => {
     expect(redisState.active.get("ai:upstream-concurrency:1:active")?.size).toBe(0);
   });
 
+  it("supports provider official upstream scope keys", async () => {
+    const { acquireUpstreamSlot, releaseUpstreamSlot } =
+      await import("@/server/ai/lib/upstream-concurrency");
+
+    const lease = await acquireUpstreamSlot({
+      upstreamId: null,
+      concurrencyScopeKey: "provider:7:official",
+      concurrencyLimit: 1,
+    });
+
+    expect(lease).toMatchObject({
+      upstreamId: null,
+      scopeKey: "provider:7:official",
+      limit: 1,
+    });
+    expect(redisState.active.get("ai:upstream-concurrency:provider:7:official:active")?.size).toBe(
+      1,
+    );
+
+    await releaseUpstreamSlot(lease);
+    expect(redisState.active.get("ai:upstream-concurrency:provider:7:official:active")?.size).toBe(
+      0,
+    );
+  });
+
   it("waits until an existing slot is released", async () => {
     const { acquireUpstreamSlot, releaseUpstreamSlot } =
       await import("@/server/ai/lib/upstream-concurrency");
@@ -140,5 +173,61 @@ describe("upstream concurrency", () => {
 
     expect(redisState.waiting.get("ai:upstream-concurrency:3:waiting")?.size ?? 0).toBe(0);
     await releaseUpstreamSlot(first);
+  });
+
+  it("serves waiting tokens in FIFO order", async () => {
+    const { acquireUpstreamSlot, releaseUpstreamSlot } =
+      await import("@/server/ai/lib/upstream-concurrency");
+
+    const first = await acquireUpstreamSlot({ upstreamId: 4, concurrencyLimit: 1 });
+    const order: number[] = [];
+
+    const secondPromise = acquireUpstreamSlot({
+      upstreamId: 4,
+      concurrencyLimit: 1,
+      queueTimeoutMs: 500,
+    }).then((l) => {
+      order.push(2);
+      return l;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const thirdPromise = acquireUpstreamSlot({
+      upstreamId: 4,
+      concurrencyLimit: 1,
+      queueTimeoutMs: 500,
+    }).then((l) => {
+      order.push(3);
+      return l;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await releaseUpstreamSlot(first);
+
+    const second = await secondPromise;
+    await releaseUpstreamSlot(second);
+
+    const third = await thirdPromise;
+    await releaseUpstreamSlot(third);
+
+    expect(order).toEqual([2, 3]);
+  });
+});
+
+describe("toConcurrencyLastError", () => {
+  it("maps UpstreamConcurrencyTimeoutError to 429", async () => {
+    const { toConcurrencyLastError, UpstreamConcurrencyTimeoutError } =
+      await import("@/server/ai/lib/upstream-concurrency");
+
+    const err = new UpstreamConcurrencyTimeoutError("provider:1:official", null, 30_000);
+    expect(toConcurrencyLastError(err)).toMatchObject({ status: 429 });
+  });
+
+  it("maps unexpected errors to 503", async () => {
+    const { toConcurrencyLastError } = await import("@/server/ai/lib/upstream-concurrency");
+
+    expect(toConcurrencyLastError(new Error("Redis down"))).toMatchObject({ status: 503 });
+    expect(toConcurrencyLastError("unknown")).toMatchObject({ status: 503 });
   });
 });

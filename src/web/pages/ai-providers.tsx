@@ -126,6 +126,16 @@ const providerFormSchema = z
     apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
     authType: z.enum(["bearer", "api-key", "sigv4", "cloudflare"]),
     upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]),
+    officialConcurrencyLimit: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+      .refine((value) => value === "" || Number(value) <= 10_000, "common.valid.invalid-amount"),
+    officialQueueTimeoutMs: z
+      .string()
+      .trim()
+      .refine((value) => /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+      .refine((value) => Number(value) <= 30 * 60 * 1000, "common.valid.invalid-amount"),
     enabled: z.boolean(),
     sigv4Region: z.string().optional(),
     sigv4AccessKeyId: z.string().optional(),
@@ -846,7 +856,7 @@ function OfficialUpstreamRouteCard({
         </Badge>
       </div>
 
-      <div className="mt-4 grid gap-3 text-sm md:grid-cols-[minmax(0,1fr)_160px_120px]">
+      <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_140px_120px_120px_120px]">
         <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
             {t("ai-providers.upstreams.th.base-url")}
@@ -873,6 +883,20 @@ function OfficialUpstreamRouteCard({
             {t("ai-providers.upstreams.th.upstream-id")}
           </div>
           <div className="font-mono text-xs">{t("ai-providers.upstreams.official-id")}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("ai-providers.upstreams.th.concurrency-limit")}
+          </div>
+          <div className="font-mono text-xs">
+            {provider.officialConcurrencyLimit ?? t("ai-providers.upstreams.unlimited")}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("ai-providers.upstreams.th.queue-timeout")}
+          </div>
+          <div className="font-mono text-xs">{provider.officialQueueTimeoutMs ?? 30_000}ms</div>
         </div>
       </div>
     </div>
@@ -904,6 +928,8 @@ function ProviderFormDialog({
       apiFormat: "openai",
       authType: "bearer",
       upstreamRoutingStrategy: "priority",
+      officialConcurrencyLimit: "",
+      officialQueueTimeoutMs: "30000",
       enabled: true,
       sigv4Region: "",
       sigv4AccessKeyId: "",
@@ -922,6 +948,10 @@ function ProviderFormDialog({
         authType: provider.authType as ProviderFormValues["authType"],
         upstreamRoutingStrategy:
           provider.upstreamRoutingStrategy === "weighted-random" ? "weighted-random" : "priority",
+        officialConcurrencyLimit: provider.officialConcurrencyLimit
+          ? String(provider.officialConcurrencyLimit)
+          : "",
+        officialQueueTimeoutMs: String(provider.officialQueueTimeoutMs ?? 30_000),
         enabled: provider.enabled,
         sigv4Region: (ac.region as string) ?? "",
         sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
@@ -935,6 +965,8 @@ function ProviderFormDialog({
         apiFormat: "openai",
         authType: "bearer",
         upstreamRoutingStrategy: "priority",
+        officialConcurrencyLimit: "",
+        officialQueueTimeoutMs: "30000",
         enabled: true,
         sigv4Region: "",
         sigv4AccessKeyId: "",
@@ -961,7 +993,17 @@ function ProviderFormDialog({
   }, [watchedApiFormat, watchedRegion, form]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { sigv4Region, sigv4AccessKeyId, cloudflareClientId, ...rest } = data;
+    const {
+      sigv4Region,
+      sigv4AccessKeyId,
+      cloudflareClientId,
+      officialConcurrencyLimit: officialConcurrencyLimitInput,
+      officialQueueTimeoutMs: officialQueueTimeoutMsInput,
+      ...rest
+    } = data;
+    const officialConcurrencyLimit =
+      officialConcurrencyLimitInput === "" ? null : Number(officialConcurrencyLimitInput);
+    const officialQueueTimeoutMs = Number(officialQueueTimeoutMsInput);
 
     let authConfig: Record<string, unknown> | undefined;
     if (data.authType === "cloudflare") {
@@ -978,10 +1020,21 @@ function ProviderFormDialog({
 
     try {
       if (isEdit) {
-        await updateProvider.mutateAsync({ id: provider.id, ...rest, authConfig });
+        await updateProvider.mutateAsync({
+          id: provider.id,
+          ...rest,
+          officialConcurrencyLimit,
+          officialQueueTimeoutMs,
+          authConfig,
+        });
         toast.success(t("ai-providers.toast.updated"));
       } else {
-        await createProvider.mutateAsync({ ...rest, authConfig });
+        await createProvider.mutateAsync({
+          ...rest,
+          officialConcurrencyLimit,
+          officialQueueTimeoutMs,
+          authConfig,
+        });
         toast.success(t("ai-providers.toast.created"));
       }
       onOpenChange(false);
@@ -1070,6 +1123,47 @@ function ProviderFormDialog({
                   </FormItem>
                 )}
               />
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="officialConcurrencyLimit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.form.official-concurrency-limit")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          placeholder={t("ai-providers.form.official-concurrency-limit-ph")}
+                        />
+                      </FormControl>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.form.official-concurrency-limit-desc")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="officialQueueTimeoutMs"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-providers.form.official-queue-timeout")}</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} step={1000} {...field} />
+                      </FormControl>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("ai-providers.form.official-queue-timeout-desc")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="apiFormat"

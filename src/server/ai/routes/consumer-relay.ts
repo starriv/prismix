@@ -656,6 +656,7 @@ async function handleCanonicalChatCompletions(
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
+    concurrencyScopeKey: string;
     upstreamName: string;
     upstreamBaseUrl: string;
     providerId: string;
@@ -781,6 +782,7 @@ async function handleCanonicalChatCompletions(
           authHeaders,
           finalUrl,
           upstreamId: upstream.id,
+          concurrencyScopeKey: upstream.concurrencyScopeKey,
           upstreamName: upstream.name,
           upstreamBaseUrl: upstream.baseUrl,
           providerId: provider.providerId,
@@ -890,6 +892,7 @@ async function handleCanonicalChatCompletions(
     try {
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: selected.upstreamId,
+        concurrencyScopeKey: selected.concurrencyScopeKey,
         concurrencyLimit: selected.concurrencyLimit,
         queueTimeoutMs: selected.queueTimeoutMs,
         requestId,
@@ -1357,6 +1360,7 @@ async function handlePassthrough(
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
+    concurrencyScopeKey: string;
     upstreamName: string;
     upstreamBaseUrl: string;
     providerId: string;
@@ -1397,6 +1401,7 @@ async function handlePassthrough(
           authHeaders,
           finalUrl,
           upstreamId: upstream.id,
+          concurrencyScopeKey: upstream.concurrencyScopeKey,
           upstreamName: upstream.name,
           upstreamBaseUrl: upstream.baseUrl,
           providerId: provider.providerId,
@@ -1478,6 +1483,7 @@ async function handlePassthrough(
     try {
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: ptSelected.upstreamId,
+        concurrencyScopeKey: ptSelected.concurrencyScopeKey,
         concurrencyLimit: ptSelected.concurrencyLimit,
         queueTimeoutMs: ptSelected.queueTimeoutMs,
         requestId,

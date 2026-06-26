@@ -85,6 +85,13 @@
       "when": 1782355200000,
       "tag": "0011_add_upstream_concurrency",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782441600000,
+      "tag": "0012_add_provider_official_concurrency",
+      "breakpoints": true
     }
   ]
 }

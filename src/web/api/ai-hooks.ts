@@ -300,6 +300,8 @@ interface CreateAiProviderBody {
   enabled?: boolean;
   loadBalanceStrategy?: string;
   upstreamRoutingStrategy?: string;
+  officialConcurrencyLimit?: number | null;
+  officialQueueTimeoutMs?: number;
   authConfig?: Record<string, unknown>;
 }
 

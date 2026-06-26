@@ -1,8 +1,8 @@
 /**
  * Upstream concurrency control — Redis-backed distributed admission queue.
  *
- * Scope is the numeric ai_upstreams.id. Legacy provider base URLs (upstreamId=null)
- * are intentionally unlimited until they are normalized into real upstream rows.
+ * Scope is a stable upstream target key. Global upstreams use numeric ai_upstreams.id;
+ * provider official upstreams use provider:{providerId}:official.
  */
 import { randomUUID } from "node:crypto";
 
@@ -71,6 +71,7 @@ const RELEASE_SCRIPT = `
 
 export interface AcquireUpstreamSlotOptions {
   upstreamId: number | null;
+  concurrencyScopeKey?: string | null;
   concurrencyLimit?: number | null;
   queueTimeoutMs?: number | null;
   requestId?: string;
@@ -79,7 +80,8 @@ export interface AcquireUpstreamSlotOptions {
 }
 
 export interface UpstreamConcurrencyLease {
-  upstreamId: number;
+  upstreamId: number | null;
+  scopeKey: string;
   token: string;
   activeKey: string;
   waitingKey: string;
@@ -90,13 +92,15 @@ export interface UpstreamConcurrencyLease {
 
 export class UpstreamConcurrencyTimeoutError extends Error {
   readonly statusCode = 429;
-  readonly upstreamId: number;
+  readonly upstreamId: number | null;
+  readonly scopeKey: string;
   readonly timeoutMs: number;
 
-  constructor(upstreamId: number, timeoutMs: number) {
-    super(`Timed out waiting for upstream ${upstreamId} concurrency slot after ${timeoutMs}ms`);
+  constructor(scopeKey: string, upstreamId: number | null, timeoutMs: number) {
+    super(`Timed out waiting for upstream ${scopeKey} concurrency slot after ${timeoutMs}ms`);
     this.name = "UpstreamConcurrencyTimeoutError";
     this.upstreamId = upstreamId;
+    this.scopeKey = scopeKey;
     this.timeoutMs = timeoutMs;
   }
 }
@@ -127,8 +131,15 @@ function isPositiveInt(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
-function keyPrefix(upstreamId: number): string {
-  return `ai:upstream-concurrency:${upstreamId}`;
+function resolveConcurrencyScopeKey(options: AcquireUpstreamSlotOptions): string | null {
+  const scopeKey = options.concurrencyScopeKey?.trim();
+  if (scopeKey) return scopeKey;
+  if (isPositiveInt(options.upstreamId)) return String(options.upstreamId);
+  return null;
+}
+
+function keyPrefix(scopeKey: string): string {
+  return `ai:upstream-concurrency:${scopeKey}`;
 }
 
 function resolveActiveTtlMs(): number {
@@ -161,35 +172,37 @@ function parseCounts(raw: unknown): { active: number; waiting: number } {
   };
 }
 
-function observeCounts(upstreamId: number, counts: { active: number; waiting: number }): void {
-  const label = String(upstreamId);
-  aiUpstreamConcurrencyActive.set({ upstream_id: label }, counts.active);
-  aiUpstreamConcurrencyWaiting.set({ upstream_id: label }, counts.waiting);
+function observeCounts(scopeKey: string, counts: { active: number; waiting: number }): void {
+  aiUpstreamConcurrencyActive.set({ upstream_id: scopeKey }, counts.active);
+  aiUpstreamConcurrencyWaiting.set({ upstream_id: scopeKey }, counts.waiting);
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function releaseToken(activeKey: string, waitingKey: string, token: string): Promise<void> {
+async function releaseToken(
+  activeKey: string,
+  waitingKey: string,
+  token: string,
+  scopeKey: string,
+): Promise<void> {
   const raw = await getRedis().eval(RELEASE_SCRIPT, 2, activeKey, waitingKey, token);
-  const upstreamId = Number(activeKey.split(":").pop());
-  if (Number.isInteger(upstreamId)) {
-    observeCounts(upstreamId, parseCounts(raw));
-  }
+  observeCounts(scopeKey, parseCounts(raw));
 }
 
 export async function acquireUpstreamSlot(
   options: AcquireUpstreamSlotOptions,
 ): Promise<UpstreamConcurrencyLease | null> {
-  if (!isPositiveInt(options.upstreamId) || !isPositiveInt(options.concurrencyLimit)) {
+  const scopeKey = resolveConcurrencyScopeKey(options);
+  if (!scopeKey || !isPositiveInt(options.concurrencyLimit)) {
     return null;
   }
 
-  const upstreamId = options.upstreamId;
+  const upstreamId = isPositiveInt(options.upstreamId) ? options.upstreamId : null;
   const limit = options.concurrencyLimit;
   const queueTimeoutMs = normalizeQueueTimeoutMs(options.queueTimeoutMs);
-  const prefix = keyPrefix(upstreamId);
+  const prefix = keyPrefix(scopeKey);
   const activeKey = `${prefix}:active`;
   const waitingKey = `${prefix}:waiting`;
   const token = `${process.pid}:${Date.now()}:${randomUUID()}`;
@@ -216,18 +229,15 @@ export async function acquireUpstreamSlot(
     shouldEnqueue = false;
 
     const result = parseAcquireResult(raw);
-    observeCounts(upstreamId, result);
+    observeCounts(scopeKey, result);
 
     if (result.acquired) {
       const waitedMs = Date.now() - startedAt;
       aiUpstreamConcurrencyAcquireTotal.inc({
-        upstream_id: String(upstreamId),
+        upstream_id: scopeKey,
         outcome: waitedMs > POLL_INTERVAL_MS ? "waited" : "immediate",
       });
-      aiUpstreamConcurrencyWaitDuration.observe(
-        { upstream_id: String(upstreamId) },
-        waitedMs / 1000,
-      );
+      aiUpstreamConcurrencyWaitDuration.observe({ upstream_id: scopeKey }, waitedMs / 1000);
       if (waitedMs > POLL_INTERVAL_MS) {
         log.gateway.info(
           {
@@ -235,6 +245,7 @@ export async function acquireUpstreamSlot(
             providerId: options.providerId,
             modelId: options.modelId,
             upstreamId,
+            concurrencyScopeKey: scopeKey,
             waitedMs,
             limit,
           },
@@ -243,6 +254,7 @@ export async function acquireUpstreamSlot(
       }
       return {
         upstreamId,
+        scopeKey,
         token,
         activeKey,
         waitingKey,
@@ -258,33 +270,36 @@ export async function acquireUpstreamSlot(
     await sleep(Math.min(POLL_INTERVAL_MS + jitter, remainingMs));
   }
 
-  await releaseToken(activeKey, waitingKey, token).catch((err) => {
+  await releaseToken(activeKey, waitingKey, token, scopeKey).catch((err) => {
     log.gateway.warn(
-      { err, upstreamId, requestId: options.requestId },
+      { err, upstreamId, concurrencyScopeKey: scopeKey, requestId: options.requestId },
       "Failed to leave upstream concurrency wait queue",
     );
   });
-  aiUpstreamConcurrencyTimeoutTotal.inc({ upstream_id: String(upstreamId) });
+  aiUpstreamConcurrencyTimeoutTotal.inc({ upstream_id: scopeKey });
   log.gateway.warn(
     {
       requestId: options.requestId,
       providerId: options.providerId,
       modelId: options.modelId,
       upstreamId,
+      concurrencyScopeKey: scopeKey,
       queueTimeoutMs,
       limit,
     },
     "Timed out waiting for upstream concurrency slot",
   );
-  throw new UpstreamConcurrencyTimeoutError(upstreamId, queueTimeoutMs);
+  throw new UpstreamConcurrencyTimeoutError(scopeKey, upstreamId, queueTimeoutMs);
 }
 
 export async function releaseUpstreamSlot(lease: UpstreamConcurrencyLease | null): Promise<void> {
   if (!lease) return;
-  await releaseToken(lease.activeKey, lease.waitingKey, lease.token).catch((err) => {
-    log.gateway.error(
-      { err, upstreamId: lease.upstreamId },
-      "Failed to release upstream concurrency slot",
-    );
-  });
+  await releaseToken(lease.activeKey, lease.waitingKey, lease.token, lease.scopeKey).catch(
+    (err) => {
+      log.gateway.error(
+        { err, upstreamId: lease.upstreamId, concurrencyScopeKey: lease.scopeKey },
+        "Failed to release upstream concurrency slot",
+      );
+    },
+  );
 }

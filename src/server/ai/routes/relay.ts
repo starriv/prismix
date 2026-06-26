@@ -231,6 +231,7 @@ relay.post("/v1/chat/completions", async (c) => {
       try {
         concurrencyLease = await acquireUpstreamSlot({
           upstreamId: keyMeta.upstreamId,
+          concurrencyScopeKey: keyMeta.concurrencyScopeKey,
           concurrencyLimit: keyMeta.concurrencyLimit,
           queueTimeoutMs: keyMeta.queueTimeoutMs,
           requestId,
@@ -506,7 +507,7 @@ relay.post("/v1/chat/completions", async (c) => {
     c,
     requestId,
     start,
-    502,
+    lastError?.status || 502,
     { error: "All models failed", detail: lastError?.message ?? "No suitable key found" },
     {
       providerId: candidates[0]?.provider.providerId ?? null,
@@ -578,6 +579,7 @@ relay.all("/v1/*", async (c) => {
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
+    concurrencyScopeKey: string;
     upstreamName: string;
     upstreamBaseUrl: string;
     serializedBody: string;
@@ -612,6 +614,7 @@ relay.all("/v1/*", async (c) => {
         authHeaders,
         finalUrl,
         upstreamId: upstream.id,
+        concurrencyScopeKey: upstream.concurrencyScopeKey,
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
         serializedBody: effectiveBody,
@@ -661,6 +664,7 @@ relay.all("/v1/*", async (c) => {
     try {
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: selected.upstreamId,
+        concurrencyScopeKey: selected.concurrencyScopeKey,
         concurrencyLimit: selected.concurrencyLimit,
         queueTimeoutMs: selected.queueTimeoutMs,
         requestId,
@@ -830,6 +834,7 @@ interface Candidate {
 interface KeyMeta {
   keyId: number;
   upstreamId: number | null;
+  concurrencyScopeKey: string;
   upstreamName: string;
   upstreamBaseUrl: string;
   concurrencyLimit: number | null;
@@ -950,6 +955,7 @@ async function resolveCandidate(
       keyMeta: {
         keyId: key.id,
         upstreamId: upstream.id,
+        concurrencyScopeKey: upstream.concurrencyScopeKey,
         upstreamName: upstream.name,
         upstreamBaseUrl: upstream.baseUrl,
         concurrencyLimit: upstream.concurrencyLimit,
