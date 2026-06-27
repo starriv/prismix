@@ -11,6 +11,9 @@ const mockFindAllModels = vi.fn();
 const mockFindModelById = vi.fn();
 const mockUpdateModel = vi.fn();
 const mockBatchCreateModels = vi.fn();
+const mockFindGrayUsersByModelId = vi.fn();
+const mockFindGrayUsersByModelIds = vi.fn();
+const mockReplaceGrayUsersForModel = vi.fn();
 const mockCreateRoute = vi.fn();
 const mockBatchCreateRoutes = vi.fn();
 const mockFindRouteByModelAndProvider = vi.fn();
@@ -41,8 +44,13 @@ vi.mock("@/server/repos", () => ({
     create: vi.fn(),
     update: (...args: unknown[]) => mockUpdateModel(...args),
     batchCreate: (...args: unknown[]) => mockBatchCreateModels(...args),
-    deleteByIds: vi.fn(),
-    updatePricesBatch: vi.fn(),
+    batchDelete: vi.fn(),
+    batchUpdatePrices: vi.fn(),
+  },
+  aiModelGrayUserRepo: {
+    findUsersByModelId: (...args: unknown[]) => mockFindGrayUsersByModelId(...args),
+    findUsersByModelIds: (...args: unknown[]) => mockFindGrayUsersByModelIds(...args),
+    replaceForModel: (...args: unknown[]) => mockReplaceGrayUsersForModel(...args),
   },
   aiModelRouteRepo: {
     create: (...args: unknown[]) => mockCreateRoute(...args),
@@ -95,6 +103,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockFindModelById.mockReset();
     mockUpdateModel.mockReset();
     mockBatchCreateModels.mockReset();
+    mockFindGrayUsersByModelId.mockReset();
+    mockFindGrayUsersByModelIds.mockReset();
+    mockReplaceGrayUsersForModel.mockReset();
     mockCreateRoute.mockReset();
     mockBatchCreateRoutes.mockReset();
     mockFindRouteByModelAndProvider.mockReset();
@@ -137,6 +148,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       }),
     );
     mockBatchCreateModels.mockResolvedValue([]);
+    mockFindGrayUsersByModelId.mockResolvedValue([]);
+    mockFindGrayUsersByModelIds.mockResolvedValue(new Map());
+    mockReplaceGrayUsersForModel.mockResolvedValue(undefined);
     mockCreateRoute.mockResolvedValue({ id: 10, modelId: 42, providerId: 7 });
     mockBatchCreateRoutes.mockResolvedValue([]);
     mockFindRouteByModelAndProvider.mockResolvedValue(undefined);

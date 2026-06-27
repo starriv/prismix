@@ -47,6 +47,11 @@ import {
 } from "../lib/client-format";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
+import {
+  canConsumerAccessModel,
+  filterModelsForConsumer,
+  isModelAllowedByConsumerKey,
+} from "../lib/model-access";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
 import { buildProviderAuth } from "../lib/provider-auth";
@@ -275,15 +280,7 @@ async function markCliAnnouncementDelivered(
 
 async function listConsumerModels(consumer: ConsumerSession, clientFormat: ClientFormat) {
   const rows = await aiModelRepo.findAllEnabled(clientFormat);
-  if (consumer.allowedModels.length === 0) return rows;
-
-  return rows.filter((r) =>
-    consumer.allowedModels.some((pattern) =>
-      pattern.endsWith("*")
-        ? r.model.modelId.startsWith(pattern.slice(0, -1))
-        : r.model.modelId === pattern,
-    ),
-  );
+  return filterModelsForConsumer(rows, consumer);
 }
 
 // ── GET /v1/models — OpenAI-compatible model catalog ────────────────
@@ -496,23 +493,17 @@ async function handleAnthropicCountTokens(
   }
 
   const { body } = converted;
-  if (consumer.allowedModels.length > 0) {
-    const allowed = consumer.allowedModels.some((pattern) => {
-      if (pattern.endsWith("*")) return body.model.startsWith(pattern.slice(0, -1));
-      return body.model === pattern;
-    });
-    if (!allowed) {
-      return respondWithModelAnnouncementError(
-        c,
-        consumer,
-        requestId,
-        start,
-        403,
-        { error: `Model "${body.model}" is not allowed for this key` },
-        body.model,
-        "not_allowed",
-      );
-    }
+  if (!isModelAllowedByConsumerKey(body.model, consumer.allowedModels)) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${body.model}" is not allowed for this key` },
+      body.model,
+      "not_allowed",
+    );
   }
 
   const routes = orderRoutesByPriorityAndWeight(
@@ -548,6 +539,20 @@ async function handleAnthropicCountTokens(
     );
   }
 
+  const modelAccess = await canConsumerAccessModel(consumer, routes[0].model);
+  if (!modelAccess.allowed) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${body.model}" is not available for this user` },
+      body.model,
+      "not_allowed",
+    );
+  }
+
   return c.json({ input_tokens: estimateAnthropicInputTokens(body) });
 }
 
@@ -578,23 +583,17 @@ async function handleCanonicalChatCompletions(
   } = options;
 
   // -- 2. Model ACL check --
-  if (consumer.allowedModels.length > 0) {
-    const allowed = consumer.allowedModels.some((pattern) => {
-      if (pattern.endsWith("*")) return body.model.startsWith(pattern.slice(0, -1));
-      return body.model === pattern;
-    });
-    if (!allowed) {
-      return respondWithModelAnnouncementError(
-        c,
-        consumer,
-        requestId,
-        start,
-        403,
-        { error: `Model "${body.model}" is not allowed for this key` },
-        body.model,
-        "not_allowed",
-      );
-    }
+  if (!isModelAllowedByConsumerKey(body.model, consumer.allowedModels)) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${body.model}" is not allowed for this key` },
+      body.model,
+      "not_allowed",
+    );
   }
 
   // -- 3. Input guardrails --
@@ -631,6 +630,20 @@ async function handleCanonicalChatCompletions(
       { error: `Model "${body.model}" not found or disabled` },
       body.model,
       "not_found_or_disabled",
+    );
+  }
+
+  const modelAccess = await canConsumerAccessModel(consumer, routes[0].model);
+  if (!modelAccess.allowed) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${body.model}" is not available for this user` },
+      body.model,
+      "not_allowed",
     );
   }
 
@@ -1303,22 +1316,17 @@ async function handlePassthrough(
   }
 
   // Model ACL
-  if (consumer.allowedModels.length > 0) {
-    const allowed = consumer.allowedModels.some((pattern) =>
-      pattern.endsWith("*") ? modelId.startsWith(pattern.slice(0, -1)) : modelId === pattern,
+  if (!isModelAllowedByConsumerKey(modelId, consumer.allowedModels)) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${modelId}" is not allowed for this key` },
+      modelId,
+      "not_allowed",
     );
-    if (!allowed) {
-      return respondWithModelAnnouncementError(
-        c,
-        consumer,
-        requestId,
-        start,
-        403,
-        { error: `Model "${modelId}" is not allowed for this key` },
-        modelId,
-        "not_allowed",
-      );
-    }
   }
 
   const routes = orderRoutesByPriorityAndWeight(
@@ -1334,6 +1342,20 @@ async function handlePassthrough(
       { error: `Model "${modelId}" not found or disabled` },
       modelId,
       "not_found_or_disabled",
+    );
+  }
+
+  const modelAccess = await canConsumerAccessModel(consumer, routes[0].model);
+  if (!modelAccess.allowed) {
+    return respondWithModelAnnouncementError(
+      c,
+      consumer,
+      requestId,
+      start,
+      403,
+      { error: `Model "${modelId}" is not available for this user` },
+      modelId,
+      "not_allowed",
     );
   }
 

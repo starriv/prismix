@@ -1,4 +1,6 @@
 export { aiKeyRepo } from "./ai-key-repo";
+export { aiModelGrayUserRepo } from "./ai-model-gray-user-repo";
+export type { AiModelGrayUserSummary } from "./ai-model-gray-user-repo";
 export { aiModelRepo } from "./ai-model-repo";
 export { aiModelRouteRepo } from "./ai-model-route-repo";
 export type { EnabledRouteResult, RouteWithProvider } from "./ai-model-route-repo";

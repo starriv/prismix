@@ -251,6 +251,14 @@ export function ModelList({
                 {t("ai-models.tag.limited-free")}
               </Badge>
             )}
+            {row.original.grayReleaseEnabled && (
+              <Badge
+                variant="outline"
+                className="border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+              >
+                {t("ai-models.tag.gray-release")}
+              </Badge>
+            )}
           </div>
         ),
         header: t("ai-models.th.model-id"),

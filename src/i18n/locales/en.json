@@ -2502,7 +2502,8 @@
     },
     "tag": {
       "limited-free": "Limited free",
-      "limited-free-until": "Limited free until {{time}}"
+      "limited-free-until": "Limited free until {{time}}",
+      "gray-release": "Gray"
     },
     "form": {
       "client-format": "Client format",
@@ -2521,6 +2522,10 @@
       "limited-free-ph": "Pick date and time",
       "limited-free-hint": "Model is automatically disabled when the expiry passes. Re-enable manually after setting prices.",
       "limited-free-disabled-hint": "Limited-free tags require both input and output prices to be zero.",
+      "gray-release": "Gray release",
+      "gray-users": "Gray users",
+      "gray-users-ph": "Select users with access",
+      "gray-users-search-ph": "Search users by name or email",
       "enabled": "Enabled"
     },
     "discover": {

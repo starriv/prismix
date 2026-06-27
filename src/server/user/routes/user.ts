@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { groupBy, pick, uniq } from "lodash-es";
 
 import { isLimitedFreeActive, serializeLimitedFreeUntil } from "@/server/ai/lib/limited-free";
+import { filterModelsForConsumer } from "@/server/ai/lib/model-access";
 import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth";
 import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
@@ -111,16 +112,11 @@ user.get("/models", async (c) => {
   // 4. Fetch all enabled models
   const rows = await aiModelRepo.findAllEnabled();
 
-  // 5. Filter by unified ACL
-  const filtered = hasOpenAccess
-    ? rows
-    : rows.filter((r) =>
-        uniquePatterns.some((pattern) =>
-          pattern.endsWith("*")
-            ? r.model.modelId.startsWith(pattern.slice(0, -1))
-            : r.model.modelId === pattern,
-        ),
-      );
+  // 5. Filter by unified key ACL + model gray-release ACL
+  const filtered = await filterModelsForConsumer(rows, {
+    allowedModels: hasOpenAccess ? [] : uniquePatterns,
+    userId: session.userId,
+  });
 
   // 6. Compute consumer prices + group by provider
   const markupMultiplier = 1 + effectiveMarkup / 100;

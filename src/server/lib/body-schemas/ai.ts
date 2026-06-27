@@ -175,6 +175,8 @@ export const batchCreateAiModelsBody = z.object({
         outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         capabilities: z.array(z.string()).optional(),
         limitedFreeUntil: limitedFreeUntilSchema.optional(),
+        grayReleaseEnabled: z.boolean().optional(),
+        grayUserIds: z.array(z.number().int().positive()).max(1000).optional(),
         enabled: z.boolean().optional(),
       }),
     )
@@ -196,6 +198,8 @@ export const createAiModelBody = z.object({
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).optional(),
   limitedFreeUntil: limitedFreeUntilSchema.optional(),
+  grayReleaseEnabled: z.boolean().optional(),
+  grayUserIds: z.array(z.number().int().positive()).max(1000).optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });
@@ -209,6 +213,8 @@ export const updateAiModelBody = z.object({
   capabilities: z.array(z.string()).optional(),
   fallbackModelIds: z.array(z.string()).nullable().optional(),
   limitedFreeUntil: limitedFreeUntilSchema.optional(),
+  grayReleaseEnabled: z.boolean().optional(),
+  grayUserIds: z.array(z.number().int().positive()).max(1000).optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });

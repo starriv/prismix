@@ -2502,7 +2502,8 @@
     },
     "tag": {
       "limited-free": "限时免费",
-      "limited-free-until": "限时免费至 {{time}}"
+      "limited-free-until": "限时免费至 {{time}}",
+      "gray-release": "灰度"
     },
     "form": {
       "client-format": "客户端格式",
@@ -2521,6 +2522,10 @@
       "limited-free-ph": "选择日期和时间",
       "limited-free-hint": "到期后模型将被自动禁用，需重新定价后手动启用。",
       "limited-free-disabled-hint": "限时免费仅适用于输入和输出价格均为 0 的模型。",
+      "gray-release": "灰度发布",
+      "gray-users": "灰度用户",
+      "gray-users-ph": "选择可访问用户",
+      "gray-users-search-ph": "按名称或邮箱搜索用户",
       "enabled": "启用"
     },
     "discover": {

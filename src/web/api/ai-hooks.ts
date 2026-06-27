@@ -513,6 +513,8 @@ interface CreateAiModelBody {
   outputPrice: string;
   capabilities: string[];
   limitedFreeUntil?: string | null;
+  grayReleaseEnabled?: boolean;
+  grayUserIds?: number[];
   enabled?: boolean;
 }
 
@@ -544,6 +546,7 @@ export function useBatchCreateAiModels() {
         outputPrice?: string;
         capabilities?: string[];
         limitedFreeUntil?: string | null;
+        grayReleaseEnabled?: boolean;
         enabled?: boolean;
       }>;
     }) =>

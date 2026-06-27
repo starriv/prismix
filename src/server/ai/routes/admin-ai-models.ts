@@ -17,7 +17,13 @@ import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiModelRepo, aiModelRouteRepo, aiProviderRepo } from "@/server/repos";
+import {
+  aiKeyRepo,
+  aiModelGrayUserRepo,
+  aiModelRepo,
+  aiModelRouteRepo,
+  aiProviderRepo,
+} from "@/server/repos";
 import { lte } from "@/shared/number";
 
 import {
@@ -35,6 +41,15 @@ import { formatModel } from "./admin-ai-helpers";
 const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
 
 const router = new Hono();
+
+async function formatModelWithGrayUsers(model: Parameters<typeof formatModel>[0]) {
+  const grayUsers = await aiModelGrayUserRepo.findUsersByModelId(Number(model.id));
+  return {
+    ...formatModel(model),
+    grayUsers,
+    grayUserIds: grayUsers.map((user) => user.id),
+  };
+}
 
 function validateLimitedFreeConfig(
   inputPrice: string,
@@ -63,7 +78,14 @@ router.get("/providers/:id/models", async (c) => {
   if (!provider) return c.json({ error: "Provider not found" }, 404);
 
   const models = await aiModelRepo.findByProviderId(id);
-  return ok(c, models.map(formatModel));
+  const grayUsersByModelId = await aiModelGrayUserRepo.findUsersByModelIds(models.map((m) => m.id));
+  return ok(
+    c,
+    models.map((model) => {
+      const grayUsers = grayUsersByModelId.get(model.id) ?? [];
+      return { ...formatModel(model), grayUsers, grayUserIds: grayUsers.map((u) => u.id) };
+    }),
+  );
 });
 
 router.get("/providers/:id/discover-models", async (c) => {
@@ -216,6 +238,7 @@ router.post("/providers/:id/models", async (c) => {
     capabilities,
     fallbackModelIds,
     clientFormat: requestedClientFormat,
+    grayUserIds,
     ...rest
   } = parsed.data;
   const clientFormat = requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
@@ -239,8 +262,22 @@ router.post("/providers/:id/models", async (c) => {
     const route = await aiModelRouteRepo.findByModelAndProvider(existing.id, providerId);
     if (route) return c.json({ error: "Model already has a route to this provider" }, 409);
     await aiModelRouteRepo.create({ modelId: existing.id, providerId });
+    if (grayUserIds !== undefined) {
+      try {
+        await aiModelGrayUserRepo.replaceForModel(existing.id, grayUserIds);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/23503|foreign key/.test(msg)) {
+          return c.json(
+            { error: "One or more grayUserIds reference users that do not exist" },
+            400,
+          );
+        }
+        throw err;
+      }
+    }
     log.auth.info({ modelId: existing.modelId, providerId }, "AI model route added");
-    return ok(c, formatModel(existing), 201);
+    return ok(c, await formatModelWithGrayUsers(existing), 201);
   }
 
   const created = await aiModelRepo.create({
@@ -253,9 +290,20 @@ router.post("/providers/:id/models", async (c) => {
 
   // Auto-create route to this provider
   await aiModelRouteRepo.create({ modelId: created.id, providerId });
+  if (grayUserIds !== undefined) {
+    try {
+      await aiModelGrayUserRepo.replaceForModel(created.id, grayUserIds);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/23503|foreign key/.test(msg)) {
+        return c.json({ error: "One or more grayUserIds reference users that do not exist" }, 400);
+      }
+      throw err;
+    }
+  }
 
   log.auth.info({ modelId: created.modelId, providerId }, "AI model created with route");
-  return ok(c, formatModel(created), 201);
+  return ok(c, await formatModelWithGrayUsers(created), 201);
 });
 
 // POST /providers/:id/models/batch — batch create models (for discover-and-add)
@@ -282,6 +330,7 @@ router.post("/providers/:id/models/batch", async (c) => {
     capabilities: JSON.stringify(m.capabilities ?? []),
     fallbackModelIds: null,
     limitedFreeUntil: m.limitedFreeUntil ?? null,
+    grayReleaseEnabled: m.grayReleaseEnabled ?? false,
     enabled: m.enabled ?? true,
   }));
   const incompatible = rows.find(
@@ -345,6 +394,26 @@ router.post("/providers/:id/models/batch", async (c) => {
     routeTargets.map((model) => ({ modelId: model.id, providerId })),
   );
 
+  // Wire gray users for newly created models
+  const grayUserRequests = parsed.data.models.flatMap((m) => {
+    if (!m.grayUserIds?.length) return [];
+    const clientFormat = m.clientFormat ?? defaultClientFormat;
+    const model = targetModelsByModelKey.get(modelKey(clientFormat, m.modelId));
+    if (!model || !created.some((c) => c.id === model.id)) return [];
+    return [{ modelId: model.id, userIds: m.grayUserIds! }];
+  });
+  if (grayUserRequests.length > 0) {
+    await Promise.all(
+      grayUserRequests.map(({ modelId, userIds }) =>
+        aiModelGrayUserRepo.replaceForModel(modelId, userIds),
+      ),
+    );
+  }
+
+  const grayUsersByModelId = await aiModelGrayUserRepo.findUsersByModelIds(
+    routeTargets.map((m) => m.id),
+  );
+
   log.auth.info(
     { providerId, requested: rows.length, created: created.length, linked: linked.length },
     "AI models batch created with routes",
@@ -354,7 +423,10 @@ router.post("/providers/:id/models/batch", async (c) => {
     {
       created: created.length,
       linked: linked.length,
-      models: routeTargets.map(formatModel),
+      models: routeTargets.map((model) => {
+        const grayUsers = grayUsersByModelId.get(model.id) ?? [];
+        return { ...formatModel(model), grayUsers, grayUserIds: grayUsers.map((u) => u.id) };
+      }),
     },
     201,
   );
@@ -465,7 +537,7 @@ router.put("/models/:id", async (c) => {
 
   const parsed = await parseBody(c, updateAiModelBody);
   if (!parsed.ok) return parsed.response;
-  const { capabilities, fallbackModelIds, ...rest } = parsed.data;
+  const { capabilities, fallbackModelIds, grayUserIds, ...rest } = parsed.data;
   const limitedFreeError = validateLimitedFreeConfig(
     rest.inputPrice ?? existing.inputPrice,
     rest.outputPrice ?? existing.outputPrice,
@@ -503,7 +575,19 @@ router.put("/models/:id", async (c) => {
     updates.fallbackModelIds = fallbackModelIds ? JSON.stringify(fallbackModelIds) : null;
 
   const updated = await aiModelRepo.update(id, updates);
-  return ok(c, formatModel(updated!));
+  if (!updated) return c.json({ error: "Model not found" }, 404);
+  if (grayUserIds !== undefined) {
+    try {
+      await aiModelGrayUserRepo.replaceForModel(id, grayUserIds);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/23503|foreign key/.test(msg)) {
+        return c.json({ error: "One or more grayUserIds reference users that do not exist" }, 400);
+      }
+      throw err;
+    }
+  }
+  return ok(c, await formatModelWithGrayUsers(updated));
 });
 
 // POST /models/batch-delete — batch delete models by IDs
@@ -540,13 +624,18 @@ router.delete("/models/:id", async (c) => {
 router.get("/models", async (c) => {
   getAdminSession(c);
   const allModels = await aiModelRepo.findAll();
+  const grayUsersByModelId = await aiModelGrayUserRepo.findUsersByModelIds(
+    allModels.map((m) => m.id),
+  );
 
-  // For each model, fetch its routes
   const results = await Promise.all(
     allModels.map(async (model) => {
       const routes = await aiModelRouteRepo.findByModelPk(model.id);
+      const grayUsers = grayUsersByModelId.get(model.id) ?? [];
       return {
         ...formatModel(model),
+        grayUsers,
+        grayUserIds: grayUsers.map((u) => u.id),
         routes: routes.map(({ route, provider }) => ({
           id: route.id,
           providerId: route.providerId,

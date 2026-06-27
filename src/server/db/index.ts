@@ -80,6 +80,7 @@ export const aiUpstreamAssignments = s.aiUpstreamAssignments;
 export const aiUpstreamModelMappings = s.aiUpstreamModelMappings;
 export const aiModels = s.aiModels;
 export const aiModelRoutes = s.aiModelRoutes;
+export const aiModelGrayUsers = s.aiModelGrayUsers;
 export const aiKeys = s.aiKeys;
 export const aiGuardrailConfigs = s.aiGuardrailConfigs;
 export const aiUsageLogs = s.aiUsageLogs;
@@ -93,6 +94,7 @@ export type {
   AiGuardrailConfig,
   AiKey,
   AiModel,
+  AiModelGrayUser,
   AiModelRoute,
   AiProvider,
   AiUpstream,
@@ -112,6 +114,7 @@ export type {
   NewAiGuardrailConfig,
   NewAiKey,
   NewAiModel,
+  NewAiModelGrayUser,
   NewAiModelRoute,
   NewAiProvider,
   NewAiUpstream,

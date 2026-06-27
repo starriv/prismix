@@ -3,10 +3,12 @@ import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { uniq } from "lodash-es";
 import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { useAdminUsers } from "@/web/api/admin-hooks";
 import {
   useAiKeys,
   useAiProviders,
@@ -38,6 +40,7 @@ import {
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
+import { MultiSelect } from "@/web/components/ui/multi-select";
 import {
   Select,
   SelectContent,
@@ -58,6 +61,8 @@ const modelFormSchema = z.object({
   outputPrice: z.string().min(1, "common.valid.required"),
   capabilities: z.string(),
   limitedFreeUntil: z.string(),
+  grayReleaseEnabled: z.boolean(),
+  grayUserIds: z.array(z.string()),
   enabled: z.boolean(),
 });
 type ModelFormValues = z.infer<typeof modelFormSchema>;
@@ -138,12 +143,15 @@ export function ModelFormDialog({
       outputPrice: "0",
       capabilities: "",
       limitedFreeUntil: "",
+      grayReleaseEnabled: false,
+      grayUserIds: [],
       enabled: true,
     },
   });
   const clientFormat = useWatch({ control: form.control, name: "clientFormat" });
   const inputPrice = useWatch({ control: form.control, name: "inputPrice" });
   const outputPrice = useWatch({ control: form.control, name: "outputPrice" });
+  const grayReleaseEnabled = useWatch({ control: form.control, name: "grayReleaseEnabled" });
   const limitedFreeEnabled = isZeroPriceValue(inputPrice) && isZeroPriceValue(outputPrice);
 
   // Discovery
@@ -151,6 +159,7 @@ export function ModelFormDialog({
   const [discoverSource, setDiscoverSource] = useState<"official" | "upstream">("official");
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
   const [batchCreating, setBatchCreating] = useState(false);
+  const [grayUserSearch, setGrayUserSearch] = useState("");
   const {
     data: discovered,
     error: discoverError,
@@ -162,6 +171,25 @@ export function ModelFormDialog({
     () => discovered?.filter((m) => !m.registered) ?? [],
     [discovered],
   );
+  const grayUserQuery = grayUserSearch.trim();
+  const { data: grayUsersData, isFetching: grayUsersLoading } = useAdminUsers({
+    page: 0,
+    name: grayUserQuery && !grayUserQuery.includes("@") ? grayUserQuery : undefined,
+    email: grayUserQuery.includes("@") ? grayUserQuery : undefined,
+  });
+  const grayUserOptions = useMemo(() => {
+    const byId = new Map<
+      number,
+      { id: number; name: string; email?: string | null; uuid?: string | null }
+    >();
+    for (const user of model?.grayUsers ?? []) byId.set(user.id, user);
+    for (const user of grayUsersData?.items ?? []) byId.set(user.id, user);
+
+    return [...byId.values()].map((user) => ({
+      value: String(user.id),
+      label: `#${user.id} ${user.name}${user.email ? ` · ${user.email}` : user.uuid ? ` · ${user.uuid}` : ""}`,
+    }));
+  }, [grayUsersData?.items, model?.grayUsers]);
 
   // Track previous discovered ref to auto-select only on fresh discovery
   const prevDiscoveredRef = useRef(discovered);
@@ -196,6 +224,8 @@ export function ModelFormDialog({
         outputPrice: model.outputPrice,
         capabilities: model.capabilities.join(", "),
         limitedFreeUntil: toDatetimeLocalValue(model.limitedFreeUntil),
+        grayReleaseEnabled: model.grayReleaseEnabled,
+        grayUserIds: (model.grayUserIds ?? model.grayUsers.map((user) => user.id)).map(String),
         enabled: model.enabled,
       });
     } else if (open) {
@@ -208,12 +238,15 @@ export function ModelFormDialog({
         outputPrice: "0",
         capabilities: "",
         limitedFreeUntil: "",
+        grayReleaseEnabled: false,
+        grayUserIds: [],
         enabled: true,
       });
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
       setDiscoverSource("official");
       setSelectedProviderId(initialProviderId ?? null);
+      setGrayUserSearch("");
     }
   }, [open, model, form, initialProviderId, initialProvider?.apiFormat]);
 
@@ -331,11 +364,17 @@ export function ModelFormDialog({
 
   // Single create/edit
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { capabilities: capsRaw, limitedFreeUntil: limitedFreeRaw, ...rest } = data;
+    const {
+      capabilities: capsRaw,
+      grayUserIds: grayUserIdsRaw,
+      limitedFreeUntil: limitedFreeRaw,
+      ...rest
+    } = data;
     const capabilities = capsRaw
       .split(",")
       .map((s: string) => s.trim())
       .filter(Boolean);
+    const grayUserIds = uniq(grayUserIdsRaw.map(Number).filter(Number.isInteger));
     const limitedFreeUntil = toLimitedFreeIso(limitedFreeRaw);
     try {
       if (isEdit) {
@@ -343,12 +382,19 @@ export function ModelFormDialog({
           id: model.id,
           ...rest,
           capabilities,
+          grayUserIds,
           limitedFreeUntil,
         });
         toast.success(t("ai-models.toast.updated"));
       } else {
         if (!providerId) return;
-        await createModel.mutateAsync({ providerId, ...rest, capabilities, limitedFreeUntil });
+        await createModel.mutateAsync({
+          providerId,
+          ...rest,
+          capabilities,
+          grayUserIds,
+          limitedFreeUntil,
+        });
         toast.success(t("ai-models.toast.created"));
       }
       onOpenChange(false);
@@ -615,18 +661,62 @@ export function ModelFormDialog({
                   />
 
                   {!isBatchMode && (
-                    <FormField
-                      control={form.control}
-                      name="enabled"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                          <FormLabel>{t("ai-models.form.enabled")}</FormLabel>
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                        </FormItem>
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="enabled"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                            <FormLabel>{t("ai-models.form.enabled")}</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="grayReleaseEnabled"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                            <FormLabel>{t("ai-models.form.gray-release")}</FormLabel>
+                            <FormControl>
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      {grayReleaseEnabled && (
+                        <FormField
+                          control={form.control}
+                          name="grayUserIds"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("ai-models.form.gray-users")}</FormLabel>
+                              <Input
+                                value={grayUserSearch}
+                                onChange={(e) => setGrayUserSearch(e.target.value)}
+                                placeholder={t("ai-models.form.gray-users-search-ph")}
+                                className="mb-2"
+                              />
+                              <FormControl>
+                                <MultiSelect
+                                  options={grayUserOptions}
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  placeholder={t("ai-models.form.gray-users-ph")}
+                                  loading={grayUsersLoading}
+                                  maxDisplay={4}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       )}
-                    />
+                    </>
                   )}
                 </>
               )}

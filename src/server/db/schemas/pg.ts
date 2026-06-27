@@ -668,6 +668,7 @@ export const aiModels = pgTable(
     capabilities: text("capabilities").notNull().default("[]"), // JSON array: ["chat","vision","tools","streaming"]
     fallbackModelIds: text("fallback_model_ids"), // JSON array of model_id slugs for fallback chain, nullable
     limitedFreeUntil: timestamp("limited_free_until"), // nullable — active limited-free tag until this timestamp
+    grayReleaseEnabled: boolean("gray_release_enabled").notNull().default(false),
     weight: integer("weight").notNull().default(1), // load balancing weight for fallback shuffling
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at")
@@ -710,6 +711,27 @@ export const aiModelRoutes = pgTable(
     unique().on(t.modelId, t.providerId),
     index("idx_ai_model_routes_model_id").on(t.modelId),
     index("idx_ai_model_routes_provider_id").on(t.providerId),
+  ],
+);
+
+export const aiModelGrayUsers = pgTable(
+  "ai_model_gray_users",
+  {
+    id: serial("id").primaryKey(),
+    modelId: integer("model_id")
+      .notNull()
+      .references(() => aiModels.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    unique().on(t.modelId, t.userId),
+    index("idx_ai_model_gray_users_model_id").on(t.modelId),
+    index("idx_ai_model_gray_users_user_id").on(t.userId),
   ],
 );
 
@@ -904,6 +926,8 @@ export type AiModel = typeof aiModels.$inferSelect;
 export type NewAiModel = typeof aiModels.$inferInsert;
 export type AiModelRoute = typeof aiModelRoutes.$inferSelect;
 export type NewAiModelRoute = typeof aiModelRoutes.$inferInsert;
+export type AiModelGrayUser = typeof aiModelGrayUsers.$inferSelect;
+export type NewAiModelGrayUser = typeof aiModelGrayUsers.$inferInsert;
 export type AiKey = typeof aiKeys.$inferSelect;
 export type NewAiKey = typeof aiKeys.$inferInsert;
 export type AiGuardrailConfig = typeof aiGuardrailConfigs.$inferSelect;

@@ -210,6 +210,16 @@ export const aiModelRouteSchema = z.object({
 });
 export type AiModelRoute = z.infer<typeof aiModelRouteSchema>;
 
+export const aiModelGrayUserSchema = z.object({
+  id: z.number(),
+  uuid: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  address: z.string().nullable(),
+  status: z.number(),
+});
+export type AiModelGrayUser = z.infer<typeof aiModelGrayUserSchema>;
+
 export const aiModelSchema = z.object({
   id: z.number(),
   providerId: z.number().nullable().optional(), // legacy — nullable
@@ -222,6 +232,9 @@ export const aiModelSchema = z.object({
   capabilities: z.array(z.string()),
   limitedFreeUntil: z.string().nullable().optional(),
   isLimitedFree: z.coerce.boolean().optional(),
+  grayReleaseEnabled: z.coerce.boolean().default(false),
+  grayUserIds: z.array(z.number()).optional().default([]),
+  grayUsers: z.array(aiModelGrayUserSchema).optional().default([]),
   enabled: z.coerce.boolean(),
   routes: z.array(aiModelRouteSchema).optional(),
   createdAt: z.string().or(z.number()),
