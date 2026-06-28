@@ -38,6 +38,10 @@ describe("upstream routing", () => {
       endpointId: "glm",
       name: "GLM",
       baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      authMode: "override",
+      authType: "bearer",
+      authConfig: "{}",
+      concurrencyMode: "override",
       officialConcurrencyLimit: 2,
       officialQueueTimeoutMs: 45_000,
       upstreamRoutingStrategy: "priority",
@@ -55,6 +59,38 @@ describe("upstream routing", () => {
       queueTimeoutMs: 45_000,
       kind: "official",
       isLegacy: true,
+    });
+  });
+
+  it("uses supplier official concurrency when endpoint concurrencyMode is inherit", async () => {
+    mockFindEnabledByEndpointId.mockResolvedValue([]);
+
+    const endpoint = {
+      id: 8,
+      endpointId: "aliyun-beijing",
+      name: "Aliyun Beijing",
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      authMode: "inherit",
+      authType: "bearer",
+      authConfig: "{}",
+      concurrencyMode: "inherit",
+      officialConcurrencyLimit: 2,
+      officialQueueTimeoutMs: 10_000,
+      upstreamRoutingStrategy: "priority",
+      supplier: {
+        authType: "api-key",
+        authConfig: JSON.stringify({ headerName: "Authorization" }),
+        officialConcurrencyLimit: 12,
+        officialQueueTimeoutMs: 60_000,
+      },
+    } as unknown as AiEndpoint;
+
+    const targets = await resolveUpstreamCandidates(endpoint);
+
+    expect(targets[0]).toMatchObject({
+      upstreamId: "official",
+      concurrencyLimit: 12,
+      queueTimeoutMs: 60_000,
     });
   });
 });

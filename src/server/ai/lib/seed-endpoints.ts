@@ -52,6 +52,9 @@ export async function seedDefaultEndpoints(): Promise<void> {
         supplierId: entry.supplierId,
         name: entry.supplierName,
         iconUrl: entry.iconUrl ?? null,
+        authType: entry.authType,
+        authConfig: entry.authConfig ? JSON.stringify(entry.authConfig) : "{}",
+        officialQueueTimeoutMs: 30_000,
         enabled: true,
       });
       suppliersCreated++;
@@ -66,8 +69,12 @@ export async function seedDefaultEndpoints(): Promise<void> {
       name: entry.name,
       baseUrl: entry.baseUrl,
       apiFormat: entry.apiFormat,
-      authType: entry.authType,
-      authConfig: entry.authConfig ? JSON.stringify(entry.authConfig) : "{}",
+      authMode: "inherit",
+      authType: supplier.authType,
+      authConfig: supplier.authConfig,
+      concurrencyMode: "inherit",
+      officialConcurrencyLimit: supplier.officialConcurrencyLimit,
+      officialQueueTimeoutMs: supplier.officialQueueTimeoutMs,
       iconUrl: null,
       enabled: true,
     });

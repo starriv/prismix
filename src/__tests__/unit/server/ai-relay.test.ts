@@ -229,6 +229,25 @@ describe("buildEndpointAuth", () => {
     expect(result.headers["X-Custom-Key"]).toBe(plainKey);
   });
 
+  it("inherits supplier auth config when authMode is inherit", () => {
+    const endpoint = {
+      authMode: "inherit",
+      authType: "bearer",
+      authConfig: "{}",
+      apiFormat: "openai",
+      supplier: {
+        authType: "api-key",
+        authConfig: JSON.stringify({ headerName: "X-Supplier-Key" }),
+        officialConcurrencyLimit: null,
+        officialQueueTimeoutMs: 30_000,
+      },
+    };
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
+
+    expect(result.headers["X-Supplier-Key"]).toBe(plainKey);
+    expect(result.headers.Authorization).toBeUndefined();
+  });
+
   it("builds Cloudflare Access service-token headers", () => {
     const endpoint = {
       authType: "cloudflare",

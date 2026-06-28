@@ -3,6 +3,11 @@ import { log } from "@/server/lib/logger";
 import { weightedShuffle } from "@/server/lib/weighted-shuffle";
 import { aiUpstreamAssignmentRepo, type AssignmentWithUpstream } from "@/server/repos";
 
+import {
+  resolveConnectorRuntimeConfig,
+  type SupplierRuntimeDefaults,
+} from "./connector-runtime-config";
+
 export interface UpstreamTarget {
   id: number | null;
   upstreamId: string;
@@ -17,6 +22,10 @@ export interface UpstreamTarget {
   weight: number;
   isLegacy: boolean;
 }
+
+type RoutableEndpoint = AiEndpoint & {
+  supplier?: SupplierRuntimeDefaults | null;
+};
 
 // ── Upstream candidate cache ────────────────────────────────────────
 
@@ -79,7 +88,9 @@ function toTarget(assignment: AssignmentWithUpstream): UpstreamTarget {
   };
 }
 
-function toOfficialTarget(endpoint: AiEndpoint, priorityFallback = 1000): UpstreamTarget {
+function toOfficialTarget(endpoint: RoutableEndpoint, priorityFallback = 1000): UpstreamTarget {
+  const runtime = resolveConnectorRuntimeConfig(endpoint);
+
   return {
     id: null,
     upstreamId: "official",
@@ -88,8 +99,8 @@ function toOfficialTarget(endpoint: AiEndpoint, priorityFallback = 1000): Upstre
     baseUrl: endpoint.baseUrl,
     kind: "official",
     modelsEndpoint: null,
-    concurrencyLimit: endpoint.officialConcurrencyLimit ?? null,
-    queueTimeoutMs: endpoint.officialQueueTimeoutMs,
+    concurrencyLimit: runtime.officialConcurrencyLimit ?? null,
+    queueTimeoutMs: runtime.officialQueueTimeoutMs,
     priority: priorityFallback,
     weight: 1,
     isLegacy: true,
@@ -98,7 +109,9 @@ function toOfficialTarget(endpoint: AiEndpoint, priorityFallback = 1000): Upstre
 
 // ── Public API ──────────────────────────────────────────────────────
 
-export async function resolveUpstreamCandidates(endpoint: AiEndpoint): Promise<UpstreamTarget[]> {
+export async function resolveUpstreamCandidates(
+  endpoint: RoutableEndpoint,
+): Promise<UpstreamTarget[]> {
   const now = Date.now();
   const cached = upstreamCache.get(endpoint.id);
 

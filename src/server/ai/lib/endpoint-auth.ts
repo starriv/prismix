@@ -17,6 +17,8 @@ import { match } from "ts-pattern";
 import type { AiEndpoint } from "@/server/db";
 import { log } from "@/server/lib/logger";
 
+import { type ConnectorAuthFields, resolveConnectorAuthConfig } from "./connector-runtime-config";
+
 export interface EndpointAuthResult {
   headers: Record<string, string>;
   url: string;
@@ -41,22 +43,23 @@ export interface CloudflareAccessConfig {
  * @param body     - Request body (needed for SigV4 payload signing)
  */
 export function buildEndpointAuth(
-  endpoint: Pick<AiEndpoint, "authType" | "authConfig" | "apiFormat">,
+  endpoint: ConnectorAuthFields & Pick<AiEndpoint, "apiFormat">,
   plainKey: string,
   url: string,
   body?: string,
 ): EndpointAuthResult {
   const headers: Record<string, string> = {};
   let finalUrl = url;
+  const auth = resolveConnectorAuthConfig(endpoint);
 
   // -- Auth type dispatch --
-  match(endpoint.authType)
+  match(auth.authType)
     .with("bearer", () => {
       headers.Authorization = `Bearer ${plainKey}`;
     })
     .with("api-key", () => {
       try {
-        const authConfig = JSON.parse(endpoint.authConfig) as { headerName?: string };
+        const authConfig = JSON.parse(auth.authConfig) as { headerName?: string };
         headers[authConfig.headerName || "x-api-key"] = plainKey;
       } catch {
         headers["x-api-key"] = plainKey;
@@ -65,7 +68,7 @@ export function buildEndpointAuth(
     .with("cloudflare", () => {
       let config: CloudflareAccessConfig;
       try {
-        config = JSON.parse(endpoint.authConfig) as CloudflareAccessConfig;
+        config = JSON.parse(auth.authConfig) as CloudflareAccessConfig;
       } catch {
         log.gateway.warn(
           { authType: "cloudflare" },
@@ -87,7 +90,7 @@ export function buildEndpointAuth(
     .with("sigv4", () => {
       let config: SigV4Config;
       try {
-        config = JSON.parse(endpoint.authConfig) as SigV4Config;
+        config = JSON.parse(auth.authConfig) as SigV4Config;
       } catch {
         log.gateway.warn({ authType: "sigv4" }, "Invalid SigV4 authConfig — skipping signature");
         return;
@@ -113,7 +116,7 @@ export function buildEndpointAuth(
   }
 
   // -- Gemini uses query param instead of header --
-  if (endpoint.apiFormat === "gemini" && endpoint.authType !== "cloudflare") {
+  if (endpoint.apiFormat === "gemini" && auth.authType !== "cloudflare") {
     delete headers.Authorization;
     const sep = finalUrl.includes("?") ? "&" : "?";
     finalUrl = `${finalUrl}${sep}key=${plainKey}`;
