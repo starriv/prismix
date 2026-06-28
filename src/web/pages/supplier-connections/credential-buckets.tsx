@@ -51,7 +51,6 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/web/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 import { cn } from "@/web/shared/utils";
 
@@ -599,19 +598,31 @@ function AddCredentialToBucketDialog({
       ownerId: null,
     },
   });
-  const mode = useWatch({ control: form.control, name: "mode" });
+  const mode = useWatch({ control: form.control, name: "mode" }) ?? "new";
 
   useEffect(() => {
     if (!open) return;
-    const mode = availableCredentials.length > 0 ? "existing" : "new";
+    const nextMode = availableCredentials.length > 0 ? "existing" : "new";
     form.reset({
-      mode,
+      mode: nextMode,
       credentialId: availableCredentials[0]?.id ?? null,
       name: "",
       apiKey: "",
       ownerId: null,
     });
   }, [availableCredentials, open, form]);
+
+  const handleModeChange = useCallback(
+    (nextMode: AddCredentialToBucketValues["mode"]) => {
+      form.setValue("mode", nextMode, { shouldValidate: true });
+      if (nextMode === "existing") {
+        form.setValue("credentialId", availableCredentials[0]?.id ?? null, {
+          shouldValidate: true,
+        });
+      }
+    },
+    [availableCredentials, form],
+  );
 
   const handleSubmit = form.handleSubmit(async (data) => {
     if (!bucket || !bucket.enabled) {
@@ -670,168 +681,179 @@ function AddCredentialToBucketDialog({
         <Form {...form}>
           <form onSubmit={handleSubmit}>
             <DialogBody className="space-y-4">
-              <Tabs
-                value={mode}
-                onValueChange={(value) => {
-                  const mode = value as AddCredentialToBucketValues["mode"];
-                  form.setValue("mode", mode, { shouldValidate: true });
-                  if (mode === "existing") {
-                    form.setValue("credentialId", availableCredentials[0]?.id ?? null, {
-                      shouldValidate: true,
-                    });
-                  }
-                }}
-              >
-                <TabsList>
-                  <TabsTrigger value="existing">
+              <div className="space-y-4">
+                <div className="inline-flex h-8 rounded-lg bg-muted p-[3px] text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant={mode === "existing" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-[26px] gap-1.5 px-2"
+                    onClick={() => handleModeChange("existing")}
+                  >
                     <Key className="h-3.5 w-3.5" />
                     {t("supplier-connections.credentials.form.use-existing")}
-                  </TabsTrigger>
-                  <TabsTrigger value="new">
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={mode === "new" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-[26px] gap-1.5 px-2"
+                    onClick={() => handleModeChange("new")}
+                  >
                     <Plus className="h-3.5 w-3.5" />
                     {t("supplier-connections.credentials.form.create-new")}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="existing" className="space-y-4 pt-2">
-                  <FormField
-                    control={form.control}
-                    name="credentialId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {t("supplier-connections.credentials.form.existing-credential")}
-                        </FormLabel>
-                        <Select
-                          value={field.value ? String(field.value) : ""}
-                          onValueChange={(value) => field.onChange(Number(value))}
-                          disabled={availableCredentials.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue
-                              placeholder={t(
-                                "supplier-connections.credentials.form.existing-credential-ph",
-                              )}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableCredentials.map((credential) => (
-                              <SelectItem key={credential.id} value={String(credential.id)}>
-                                {credential.name} - {credential.keyPrefix}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {availableCredentials.length === 0 && (
-                          <p className="text-[11px] text-muted-foreground">
-                            {t("supplier-connections.credentials.form.existing-empty")}
-                          </p>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </TabsContent>
-                <TabsContent value="new" className="space-y-4 pt-2">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("supplier-connections.credentials.form.name")}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t("supplier-connections.credentials.form.name-ph")}
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="apiKey"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {isCloudflare
-                            ? t("supplier-connections.credentials.form.cloudflare-client-secret")
-                            : isSigV4
-                              ? t("supplier-connections.credentials.form.secret-access-key")
-                              : t("supplier-connections.credentials.form.api-key")}
-                        </FormLabel>
-                        <FormControl>
-                          <SecretInput
-                            placeholder={
-                              isCloudflare
-                                ? t(
-                                    "supplier-connections.credentials.form.cloudflare-client-secret-ph",
-                                  )
-                                : isSigV4
-                                  ? t("supplier-connections.credentials.form.secret-access-key-ph")
-                                  : t("supplier-connections.credentials.form.api-key-ph")
-                            }
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                          />
-                        </FormControl>
-                        <p className="text-[11px] text-muted-foreground">
-                          {isCloudflare
-                            ? t(
-                                "supplier-connections.credentials.form.cloudflare-client-secret-hint",
-                              )
-                            : isSigV4
-                              ? t("supplier-connections.credentials.form.secret-access-key-hint")
-                              : t("supplier-connections.credentials.form.api-key-hint")}
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {activeKeyProviders.length > 0 && (
+                  </Button>
+                </div>
+
+                {mode === "existing" && (
+                  <div className="space-y-4">
                     <FormField
                       control={form.control}
-                      name="ownerId"
+                      name="credentialId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t("supplier-connections.credentials.form.owner")}</FormLabel>
+                          <FormLabel>
+                            {t("supplier-connections.credentials.form.existing-credential")}
+                          </FormLabel>
                           <Select
-                            value={field.value ? String(field.value) : "none"}
-                            onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
+                            value={field.value ? String(field.value) : ""}
+                            onValueChange={(value) => field.onChange(Number(value))}
+                            disabled={availableCredentials.length === 0}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue
-                                placeholder={t("supplier-connections.credentials.form.owner-ph")}
+                                placeholder={t(
+                                  "supplier-connections.credentials.form.existing-credential-ph",
+                                )}
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">
-                                {t("supplier-connections.credentials.form.owner-none")}
-                              </SelectItem>
-                              {activeKeyProviders.map((keyProvider) => (
-                                <SelectItem key={keyProvider.id} value={String(keyProvider.id)}>
-                                  {keyProvider.name}
+                              {availableCredentials.map((credential) => (
+                                <SelectItem key={credential.id} value={String(credential.id)}>
+                                  {credential.name} - {credential.keyPrefix}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          {availableCredentials.length === 0 && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {t("supplier-connections.credentials.form.existing-empty")}
+                            </p>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {mode === "new" && (
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("supplier-connections.credentials.form.name")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("supplier-connections.credentials.form.name-ph")}
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="apiKey"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {isCloudflare
+                              ? t("supplier-connections.credentials.form.cloudflare-client-secret")
+                              : isSigV4
+                                ? t("supplier-connections.credentials.form.secret-access-key")
+                                : t("supplier-connections.credentials.form.api-key")}
+                          </FormLabel>
+                          <FormControl>
+                            <SecretInput
+                              placeholder={
+                                isCloudflare
+                                  ? t(
+                                      "supplier-connections.credentials.form.cloudflare-client-secret-ph",
+                                    )
+                                  : isSigV4
+                                    ? t(
+                                        "supplier-connections.credentials.form.secret-access-key-ph",
+                                      )
+                                    : t("supplier-connections.credentials.form.api-key-ph")
+                              }
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
+                            />
+                          </FormControl>
                           <p className="text-[11px] text-muted-foreground">
-                            {t("supplier-connections.credentials.form.owner-hint")}
+                            {isCloudflare
+                              ? t(
+                                  "supplier-connections.credentials.form.cloudflare-client-secret-hint",
+                                )
+                              : isSigV4
+                                ? t("supplier-connections.credentials.form.secret-access-key-hint")
+                                : t("supplier-connections.credentials.form.api-key-hint")}
                           </p>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
-                </TabsContent>
-              </Tabs>
+                    {activeKeyProviders.length > 0 && (
+                      <FormField
+                        control={form.control}
+                        name="ownerId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t("supplier-connections.credentials.form.owner")}
+                            </FormLabel>
+                            <Select
+                              value={field.value ? String(field.value) : "none"}
+                              onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={t("supplier-connections.credentials.form.owner-ph")}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  {t("supplier-connections.credentials.form.owner-none")}
+                                </SelectItem>
+                                {activeKeyProviders.map((keyProvider) => (
+                                  <SelectItem key={keyProvider.id} value={String(keyProvider.id)}>
+                                    {keyProvider.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-muted-foreground">
+                              {t("supplier-connections.credentials.form.owner-hint")}
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

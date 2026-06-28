@@ -282,7 +282,7 @@ export type AiModel = z.infer<typeof aiModelSchema>;
 
 export const aiCredentialSchema = z.object({
   id: z.number(),
-  supplierId: z.number(),
+  supplierId: z.number().nullable(),
   ownerId: z.number().nullable().optional(),
   name: z.string(),
   keyPrefix: z.string(),

@@ -12,8 +12,10 @@ function getOpenAiEndpointButton(page: Page) {
 test.describe("Supplier Connections page — Credential Pools", () => {
   test.beforeEach(async ({ adminPage: { page, mockApi } }) => {
     await mockApi.mockAiEndpoints();
+    await mockApi.mockAiSuppliers();
     await mockApi.mockAiUpstreams();
     await mockApi.mockAiEndpointCredentials();
+    await mockApi.mockAiCredentials();
     await mockApi.mockKeyProviders();
     await page.goto("/en/admin/supplier-connections");
   });
@@ -29,7 +31,9 @@ test.describe("Supplier Connections page — Credential Pools", () => {
     adminPage: { page },
   }) => {
     await getOpenAiEndpointButton(page).click();
-    await expect(page.getByText(t("supplier-connections.credentials.section-title"))).toBeVisible();
+    await expect(
+      page.getByText(t("supplier-connections.credentials.section-title"), { exact: true }),
+    ).toBeVisible();
   });
 
   test("shows official upstream route", async ({ adminPage: { page } }) => {
@@ -66,6 +70,30 @@ test.describe("Supplier Connections page — Credential Pools", () => {
     await expect(addButtons.first()).toBeVisible();
     // Should have at least 2 add buttons (official + openrouter)
     expect(await addButtons.count()).toBeGreaterThanOrEqual(2);
+  });
+
+  test("opens add credential dialog with reusable credentials", async ({ adminPage: { page } }) => {
+    await getOpenAiEndpointButton(page).click();
+    await page
+      .getByRole("button", {
+        name: t("supplier-connections.credentials.add"),
+      })
+      .first()
+      .click();
+
+    const dialog = page.getByRole("dialog", {
+      name: t("supplier-connections.credentials.dialog.add-title", {
+        upstream: t("supplier-connections.credentials.official-bucket"),
+      }),
+    });
+    await expect(
+      dialog.getByRole("heading", {
+        name: t("supplier-connections.credentials.dialog.add-title", {
+          upstream: t("supplier-connections.credentials.official-bucket"),
+        }),
+      }),
+    ).toBeVisible();
+    await expect(dialog).toContainText("Reusable OpenAI Credential - sk-reuse");
   });
 
   test("shows credential count badge", async ({ adminPage: { page } }) => {

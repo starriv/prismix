@@ -319,6 +319,22 @@ export const MOCK_AI_ENDPOINTS = [
   },
 ];
 
+export const MOCK_AI_SUPPLIERS = [
+  {
+    id: 1,
+    supplierId: "openai",
+    name: "OpenAI",
+    iconUrl: null,
+    authType: "bearer",
+    authConfig: {},
+    officialConcurrencyLimit: null,
+    officialQueueTimeoutMs: 30_000,
+    enabled: true,
+    createdAt: "2026-03-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  },
+];
+
 export const MOCK_AI_UPSTREAMS = [
   {
     id: 10,
@@ -382,6 +398,22 @@ export const MOCK_AI_ENDPOINT_CREDENTIALS = [
     lastUsedAt: null,
     createdAt: "2026-03-02T00:00:00.000Z",
     updatedAt: "2026-03-02T00:00:00.000Z",
+  },
+];
+
+export const MOCK_AI_CREDENTIALS = [
+  {
+    id: 3,
+    supplierId: 1,
+    ownerId: null,
+    name: "Reusable OpenAI Credential",
+    keyPrefix: "sk-reuse",
+    enabled: true,
+    supplierName: "OpenAI",
+    ownerName: null,
+    lastUsedAt: null,
+    createdAt: "2026-03-03T00:00:00.000Z",
+    updatedAt: "2026-03-03T00:00:00.000Z",
   },
 ];
 
@@ -712,6 +744,19 @@ export class MockApi {
     );
   }
 
+  async mockAiSuppliers() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/ai/suppliers"),
+      (route) => {
+        const method = route.request().method();
+        if (method === "POST") return route.fulfill(json({ ...MOCK_AI_SUPPLIERS[0], id: 99 }));
+        if (method === "PUT") return route.fulfill(json(MOCK_AI_SUPPLIERS[0]));
+        if (method === "DELETE") return route.fulfill(json({ success: true }));
+        return route.fulfill(json(MOCK_AI_SUPPLIERS));
+      },
+    );
+  }
+
   async mockAiUpstreams() {
     await this.page.route(
       (url) => isApiPath(url, "/api/admin/ai/upstreams"),
@@ -729,6 +774,30 @@ export class MockApi {
         }
         if (method === "DELETE") return route.fulfill(json({ success: true }));
         return route.fulfill(json(MOCK_AI_ENDPOINT_CREDENTIALS));
+      },
+    );
+  }
+
+  async mockAiCredentials() {
+    await this.page.route(
+      (url) => isApiPath(url, "/api/admin/ai/credentials"),
+      (route) => {
+        const method = route.request().method();
+        if (method === "POST") {
+          return route.fulfill(
+            json(
+              {
+                ...MOCK_AI_CREDENTIALS[0],
+                id: 99,
+                name: "Created Credential",
+                keyPrefix: "sk-creat",
+              },
+              201,
+            ),
+          );
+        }
+        if (method === "DELETE") return route.fulfill(json({ success: true }));
+        return route.fulfill(json(MOCK_AI_CREDENTIALS));
       },
     );
   }
