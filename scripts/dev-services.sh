@@ -12,8 +12,8 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
 
-# Read PORT and VITE_DEV_PORT from env, .env.local, or .env.example
-for VAR in PORT VITE_DEV_PORT; do
+# Read PORT, VITE_DEV_PORT, WORKER_HEALTH_PORT from env, .env.local, or .env.example
+for VAR in PORT VITE_DEV_PORT WORKER_HEALTH_PORT; do
   if [ -z "$(eval echo "\${${VAR}:-}")" ] && [ -f "$PROJECT_ROOT/.env.local" ]; then
     eval "$VAR=$(grep -m1 "^${VAR}=" "$PROJECT_ROOT/.env.local" | cut -d= -f2)"
   fi
@@ -23,6 +23,7 @@ for VAR in PORT VITE_DEV_PORT; do
 done
 APP_PORT="${PORT:?ERROR: PORT not found in env, .env.local, or .env.example}"
 DEV_PORT="${VITE_DEV_PORT:-}"
+WORKER_PORT="${WORKER_HEALTH_PORT:-3404}"
 ACTION="${1:-start}"
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -48,6 +49,9 @@ port_free() {
 
 case "$ACTION" in
   stop)
+    kill_port "$APP_PORT" 2>/dev/null || true
+    [ -n "$DEV_PORT" ] && kill_port "$DEV_PORT" 2>/dev/null || true
+    kill_port "$WORKER_PORT" 2>/dev/null || true
     docker compose -f "$COMPOSE_FILE" down
     ;;
   status)
@@ -55,16 +59,22 @@ case "$ACTION" in
     ;;
   reset)
     echo "This will DELETE all PostgreSQL + Redis data."
+    kill_port "$APP_PORT" 2>/dev/null || true
+    [ -n "$DEV_PORT" ] && kill_port "$DEV_PORT" 2>/dev/null || true
+    kill_port "$WORKER_PORT" 2>/dev/null || true
     docker compose -f "$COMPOSE_FILE" down -v
     echo "Volumes removed."
     ;;
   start)
-    # 1. Kill stale processes on APP_PORT and DEV_PORT (e.g. leftover tsx/vite from previous dev session)
+    # 1. Kill stale processes on APP_PORT, DEV_PORT, and WORKER_PORT (e.g. leftover tsx/vite/worker from previous dev session)
     if ! port_free "$APP_PORT"; then
       kill_port "$APP_PORT"
     fi
     if [ -n "$DEV_PORT" ] && ! port_free "$DEV_PORT"; then
       kill_port "$DEV_PORT"
+    fi
+    if ! port_free "$WORKER_PORT"; then
+      kill_port "$WORKER_PORT"
     fi
 
     # 2. Start PG + Redis via docker compose (--wait blocks until healthy)

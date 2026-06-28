@@ -5,7 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "dev": "pnpm dev:services && concurrently -k -n api,web -c green,blue \"pnpm dev:server\" \"pnpm dev:web:wait\"",
+    "dev": "pnpm dev:services && concurrently -k -n api,web,worker -c green,blue,magenta \"pnpm dev:server\" \"pnpm dev:web:wait\" \"pnpm dev:worker\"",
+    "dev:stop": "bash scripts/dev-services.sh stop",
+    "dev:status": "bash scripts/dev-services.sh status",
     "dev:services": "bash scripts/dev-services.sh",
     "dev:services:stop": "bash scripts/dev-services.sh stop",
     "dev:services:status": "bash scripts/dev-services.sh status",
