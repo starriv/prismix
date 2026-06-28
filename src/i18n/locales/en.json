@@ -119,7 +119,7 @@
     "ai-gateway": "AI Gateway",
     "ai-endpoints": "AI Endpoints",
     "ai-models": "Models",
-    "ai-relay": "AI Endpoints",
+    "ai-relay": "Access Endpoints",
     "ai-usage": "Usage",
     "ai-upstreams": "Upstreams",
     "ai-logs": "Logs",
@@ -2637,7 +2637,7 @@
     "title": "AI Endpoints",
     "desc": "Separate OpenAI and Anthropic base URLs with shared routing, billing, and usage tracking",
     "intro": {
-      "title": "What are AI Endpoints?",
+      "title": "What are Access Endpoints?",
       "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each endpoint has its own model catalog while sharing endpoint routing, billing, and usage tracking behind the scenes.",
       "benefits": "Protocol-specific URLs | Per-key billing & rate limits | Native SDK compatibility"
     },

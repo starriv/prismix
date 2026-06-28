@@ -119,7 +119,7 @@
     "ai-gateway": "AI 网关",
     "ai-endpoints": "AI 端点",
     "ai-models": "模型",
-    "ai-relay": "AI 端点",
+    "ai-relay": "接入端点",
     "ai-usage": "用量",
     "ai-upstreams": "上游",
     "ai-logs": "日志",
@@ -2637,7 +2637,7 @@
     "title": "AI 端点",
     "desc": "分离 OpenAI 与 Anthropic Base URL，共享路由、计费和用量追踪",
     "intro": {
-      "title": "什么是 AI 端点？",
+      "title": "什么是接入端点？",
       "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个端点有自己的模型目录，底层共享端点路由、计费和用量追踪。",
       "benefits": "按协议分离 URL | 按 Key 计费与限速 | 原生 SDK 兼容"
     },
