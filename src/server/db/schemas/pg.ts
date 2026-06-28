@@ -548,6 +548,10 @@ export const aiSuppliers = pgTable(
     supplierId: text("supplier_id").notNull(), // real vendor slug: "deepseek", "openai"
     name: text("name").notNull(),
     iconUrl: text("icon_url"),
+    authType: text("auth_type").notNull().default("bearer"), // default auth mode for official endpoints
+    authConfig: text("auth_config").notNull().default("{}"), // JSON: { headerName?, clientId?, region?, accessKeyId? }
+    officialConcurrencyLimit: integer("official_concurrency_limit"),
+    officialQueueTimeoutMs: integer("official_queue_timeout_ms").notNull().default(30_000),
     metadata: text("metadata").notNull().default("{}"),
     enabled: boolean("enabled").notNull().default(true),
     updatedAt: timestamp("updated_at")
@@ -574,11 +578,13 @@ export const aiEndpoints = pgTable(
     name: text("name").notNull(), // display name
     baseUrl: text("base_url").notNull(), // e.g. "https://api.openai.com/v1"
     apiFormat: text("api_format").notNull(), // "openai" | "anthropic" | "gemini"
+    authMode: text("auth_mode").notNull().default("inherit"), // "inherit" | "override"
     authType: text("auth_type").notNull(), // "bearer" | "api-key" | "sigv4" | "cloudflare"
     authConfig: text("auth_config").notNull().default("{}"), // JSON: { headerName?: string, clientId?: string }
     enabled: boolean("enabled").notNull().default(true),
     loadBalanceStrategy: text("load_balance_strategy").notNull().default("round-robin"), // "round-robin" | "random"
     upstreamRoutingStrategy: text("upstream_routing_strategy").notNull().default("priority"), // "priority" | "weighted-random"
+    concurrencyMode: text("concurrency_mode").notNull().default("inherit"), // "inherit" | "override"
     officialConcurrencyLimit: integer("official_concurrency_limit"),
     officialQueueTimeoutMs: integer("official_queue_timeout_ms").notNull().default(30_000),
     iconUrl: text("icon_url"),
