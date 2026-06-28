@@ -118,9 +118,9 @@
     "webhooks": "Webhooks",
     "ai-gateway": "AI Gateway",
     "ai-suppliers": "Suppliers",
-    "ai-endpoints": "AI Endpoints",
+    "supplier-connections": "Supplier Connections",
     "ai-models": "Models",
-    "ai-relay": "Access Endpoints",
+    "access-endpoints": "Access Endpoints",
     "ai-usage": "Usage",
     "ai-upstreams": "Upstreams",
     "ai-logs": "Logs",
@@ -479,7 +479,7 @@
         "collapse": "Collapse",
         "cost": "Upstream cost",
         "profit": "Revenue share",
-        "provider": "AI Provider",
+        "provider": "Key Provider",
         "requests": "Requests",
         "upstream": "Upstream",
         "weight": "Weight",
@@ -2308,7 +2308,7 @@
   },
   "ai-suppliers": {
     "title": "Suppliers",
-    "desc": "Manage real AI suppliers. Each supplier can own multiple AI endpoints with different protocols and auth formats.",
+    "desc": "Manage real AI suppliers, default auth, and official concurrency. Supplier connections can inherit or override these defaults.",
     "empty": "No suppliers configured yet",
     "none": "None",
     "btn": {
@@ -2318,6 +2318,8 @@
     "th": {
       "supplier-id": "Supplier ID",
       "icon-url": "Icon URL",
+      "auth-type": "Auth Type",
+      "official-limit": "Official Limit",
       "enabled": "Enabled"
     },
     "form": {
@@ -2328,6 +2330,18 @@
       "name-ph": "OpenAI",
       "icon-url": "Icon URL",
       "icon-url-ph": "https://example.com/icon.png",
+      "auth-type": "Default Auth Type",
+      "api-key-header": "API Key Header",
+      "api-key-header-ph": "x-api-key",
+      "cloudflare-client-id": "Cloudflare Client ID",
+      "cloudflare-client-id-ph": "Cloudflare Access client ID",
+      "sigv4-region": "SigV4 Region",
+      "sigv4-region-ph": "Select region",
+      "sigv4-access-key-id": "Access Key ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "official-concurrency-limit": "Official Concurrency Limit",
+      "official-concurrency-limit-ph": "Empty means unlimited",
+      "official-queue-timeout": "Queue Timeout (ms)",
       "enabled": "Enabled"
     },
     "valid": {
@@ -2341,7 +2355,7 @@
       "create-title": "Add Supplier",
       "edit-title": "Edit Supplier",
       "delete-title": "Delete Supplier",
-      "delete-body": "Delete \"{{name}}\"? All AI endpoints, models, and credentials under it will also be deleted. Usually disabling the supplier is safer."
+      "delete-body": "Delete \"{{name}}\"? All supplier connections, models, and credentials under it will also be deleted. Usually disabling the supplier is safer."
     },
     "toast": {
       "created": "Supplier created",
@@ -2352,193 +2366,23 @@
       "delete-error": "Failed to delete supplier"
     }
   },
-  "ai-endpoints": {
-    "title": "AI Endpoints",
-    "desc": "Manage callable AI endpoints under real suppliers",
-    "empty": "No endpoints configured yet",
-    "card": {
-      "upstreams": "{{count}} upstreams",
-      "no-upstreams": "Official upstream",
-      "loading": "Loading…",
-      "unavailable": "Upstreams unavailable",
-      "open-endpoint": "Open {{name}}"
-    },
-    "btn": {
-      "new": "Add Endpoint",
-      "create": "Create Endpoint",
-      "assign-upstream": "Assign Upstream"
-    },
-    "th": {
-      "api-format": "API Format",
-      "auth-type": "Auth Type",
-      "routing": "Upstream Routing"
-    },
-    "strategy": {
-      "priority": "Priority",
-      "weighted-random": "Weighted Random"
-    },
-    "form": {
-      "supplier": "Supplier",
-      "supplier-ph": "Select supplier",
-      "endpoint-id": "Endpoint ID",
-      "endpoint-id-ph": "Enter endpoint ID",
-      "name": "Name",
-      "name-ph": "Enter endpoint name",
-      "base-url": "Base URL",
-      "base-url-ph": "https://api.example.com/v1",
-      "api-format": "API Format",
-      "auth-type": "Auth Type",
-      "upstream-routing-strategy": "Upstream Routing Strategy",
-      "upstream-routing-strategy-hint": "Controls how multiple upstreams under this endpoint are selected by default.",
-      "official-concurrency-limit": "Official Upstream Concurrency",
-      "official-concurrency-limit-ph": "Leave empty for unlimited",
-      "official-concurrency-limit-desc": "Maximum in-flight requests sent to the endpoint official base URL at the same time.",
-      "official-queue-timeout": "Official Queue Timeout (ms)",
-      "official-queue-timeout-desc": "How long a request may wait for an official upstream slot when the limit is reached.",
-      "sigv4-region": "AWS Region",
-      "sigv4-region-ph": "us-east-1",
-      "sigv4-region-hint": "The AWS region for your Bedrock endpoint",
-      "sigv4-access-key-id": "AWS Access Key ID",
-      "sigv4-access-key-id-ph": "AKIA...",
-      "sigv4-access-key-id-hint": "Your IAM access key ID for Bedrock API access",
-      "cloudflare-client-id": "CF Access Client ID",
-      "cloudflare-client-id-ph": "xxxx.access",
-      "cloudflare-client-id-hint": "The service-token client ID sent as CF-Access-Client-Id"
-    },
-    "dialog": {
-      "add-title": "Add Endpoint",
-      "edit-title": "Edit Endpoint",
-      "delete-title": "Delete Endpoint",
-      "delete-body": "Delete \"{{name}}\"? All models and credentials will also be deleted.",
-      "assign-upstream-title": "Assign Upstream",
-      "edit-upstream-title": "Edit Assignment",
-      "delete-upstream-title": "Remove Upstream",
-      "delete-upstream-body": "Remove upstream \"{{name}}\" from this endpoint? All credentials bound to this upstream will also be deleted."
-    },
-    "upstreams": {
-      "section-title": "Upstreams",
-      "desc": "Configure additional execution endpoints for one endpoint and control their routing order or weights.",
-      "empty": "No additional upstreams assigned.",
-      "official-title": "Official Upstream",
-      "official-id": "official",
-      "official-default-desc": "Currently uses the endpoint base URL as the default execution endpoint.",
-      "official-fallback-desc": "Falls back to the endpoint base URL when higher-priority upstreams are unavailable.",
-      "unlimited": "Unlimited",
-      "route-role": "Route Role",
-      "default-route": "Default",
-      "fallback": "Fallback",
-      "th": {
-        "name": "Name",
-        "upstream-id": "Upstream ID",
-        "kind": "Kind",
-        "base-url": "Base URL",
-        "concurrency-limit": "Concurrency",
-        "queue-timeout": "Queue Timeout",
-        "priority": "Priority",
-        "weight": "Weight",
-        "enabled": "Enabled"
-      },
-      "form": {
-        "upstream": "Upstream",
-        "upstream-ph": "Select an upstream",
-        "no-available": "All upstreams are already assigned to this endpoint.",
-        "priority": "Priority",
-        "weight": "Weight",
-        "enabled": "Enabled"
-      },
-      "kind": {
-        "official": "Official",
-        "reseller": "Reseller",
-        "openrouter": "OpenRouter",
-        "custom": "Custom"
-      }
-    },
-    "credentials": {
-      "section-title": "Credential Pools",
-      "desc": "Credentials grouped by upstream. Credentials in each pool are load-balanced according to the endpoint strategy.",
-      "empty": "No credentials in this pool yet",
-      "official-bucket": "Official",
-      "official-hint": "Fallback pool — uses the endpoint base URL (priority 1000)",
-      "count": "{{enabled}}/{{total}} active",
-      "next": "Next in rotation",
-      "add": "Add Credential",
-      "weight-hint": "Weight — higher value means more traffic share",
-      "weight-down": "Decrease weight",
-      "weight-up": "Increase weight",
-      "strategy": {
-        "label": "Credential Balancing",
-        "round-robin": "Round-robin",
-        "random": "Random"
-      },
-      "form": {
-        "name": "Credential Name",
-        "name-ph": "Give your credential a name",
-        "api-key": "API Key",
-        "api-key-ph": "sk-...",
-        "api-key-hint": "Your credential will be encrypted and stored securely",
-        "cloudflare-client-secret": "CF Access Client Secret",
-        "cloudflare-client-secret-ph": "Enter your Cloudflare Access client secret",
-        "cloudflare-client-secret-hint": "Stored encrypted and sent as CF-Access-Client-Secret",
-        "secret-access-key": "AWS Secret Access Key",
-        "secret-access-key-ph": "Enter your AWS secret access key",
-        "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",
-        "owner": "Key Provider (optional)",
-        "owner-ph": "Select a key provider",
-        "owner-none": "Platform-owned (no provider)",
-        "owner-hint": "Assign this credential to a third-party key provider for revenue sharing"
-      },
-      "dialog": {
-        "add-title": "Add Credential to {{upstream}}",
-        "delete-title": "Delete API Credential",
-        "delete-body": "Delete credential \"{{name}}\"? This cannot be undone."
-      },
-      "toast": {
-        "created": "API credential created",
-        "updated": "API credential updated",
-        "deleted": "API credential deleted",
-        "create-error": "Failed to create API credential",
-        "update-error": "Failed to update API credential",
-        "delete-error": "Failed to delete API credential",
-        "test-ok": "Connection successful ({{ms}}ms)",
-        "test-error": "Connection failed"
-      },
-      "tag": {
-        "platform": "Platform"
-      },
-      "never": "Never"
-    },
-    "toast": {
-      "created": "Endpoint created",
-      "updated": "Endpoint updated",
-      "deleted": "Endpoint deleted",
-      "create-error": "Failed to create endpoint",
-      "update-error": "Failed to update endpoint",
-      "delete-error": "Failed to delete endpoint",
-      "upstream-assigned": "Upstream assigned",
-      "upstream-updated": "Assignment updated",
-      "upstream-deleted": "Upstream removed",
-      "upstream-assign-error": "Failed to assign upstream",
-      "upstream-update-error": "Failed to update assignment",
-      "upstream-delete-error": "Failed to remove upstream"
-    }
-  },
   "ai-models": {
     "title": "AI Models",
-    "desc": "Manage model catalog and endpoint routes",
+    "desc": "Manage model catalog and supplier connection routes",
     "empty": "No models configured",
     "card-title": "Model Catalog",
-    "no-endpoints": "No endpoints configured",
+    "no-endpoints": "No supplier connections configured",
     "btn": {
       "new": "Add Model",
       "create": "Create Model",
-      "add-selected": "Add {{count}} Models",
+      "import": "Import Models",
       "sync-prices": "Sync Prices",
       "delete-selected": "Delete {{count}} Models",
       "clean-zero-price": "Clean Invalid Pricing",
       "routes": "Routes"
     },
     "filter": {
-      "all-endpoints": "All Endpoints",
+      "all-endpoints": "All Connections",
       "no-routes": "No Routes",
       "all-status": "All Status",
       "enabled": "Enabled",
@@ -2569,8 +2413,6 @@
       "input-price": "Input Price (/1M tokens)",
       "output-price": "Output Price (/1M tokens)",
       "price-ph": "0.00",
-      "endpoint": "Endpoint",
-      "endpoint-ph": "Select an endpoint to discover models",
       "capabilities": "Capabilities",
       "capabilities-ph": "chat, vision, tools, streaming",
       "limited-free-until": "Limited-free expiry",
@@ -2584,14 +2426,20 @@
       "enabled": "Enabled"
     },
     "discover": {
-      "toggle": "Discover from endpoint",
-      "loading": "Fetching models from endpoint…",
-      "no-key": "No credential configured for this endpoint. Add a credential first to discover models.",
+      "loading": "Fetching models from connection…",
+      "no-key": "No credential configured for this connection. Add a credential first to discover models.",
       "models": "Models",
       "select-all": "All",
       "select-none": "None",
       "source-official": "Official API",
       "source-upstream": "Upstream"
+    },
+    "import": {
+      "title": "Import Models from Connection",
+      "connection": "Supplier Connection",
+      "connection-ph": "Select a supplier connection",
+      "source": "Discovery Source",
+      "submit": "Import {{count}} Models"
     },
     "dialog": {
       "add-title": "Add Model",
@@ -2625,28 +2473,28 @@
       "delete-error": "Failed to delete model"
     },
     "routes": {
-      "title": "Endpoint Routes",
-      "desc": "Configure which endpoints serve this model. Lower priority = tried first.",
-      "empty": "No routes configured. Add an endpoint route to enable this model.",
+      "title": "Supplier Connection Routes",
+      "desc": "Configure which supplier connections provide this model. Lower priority values are tried first.",
+      "empty": "No routes configured. Add a supplier connection route to enable this model.",
       "btn": {
-        "add": "Add Route",
+        "add": "Add Connection Route",
         "routes": "Routes"
       },
       "th": {
         "priority": "Priority",
-        "endpoint": "Endpoint",
+        "endpoint": "Supplier Connection",
         "endpoint-model-id": "Upstream Model",
         "weight": "Weight"
       },
       "form": {
-        "endpoint-ph": "Select an endpoint",
+        "endpoint-ph": "Select a supplier connection",
         "endpoint-model-id-hint": "Leave empty to use the model's own ID",
         "priority-hint": "Lower value = higher priority (tried first)"
       },
       "dialog": {
-        "add-title": "Add Endpoint Route",
+        "add-title": "Add Supplier Connection Route",
         "delete-title": "Remove Route",
-        "delete-body": "Remove the route to {{provider}}? The model will no longer be served via this endpoint."
+        "delete-body": "Remove the route to {{provider}}? This model will no longer be served through that supplier connection."
       },
       "toast": {
         "created": "Route added",
@@ -2664,7 +2512,7 @@
     "desc": "Available models and pricing for your account",
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
-    "no-endpoints": "No endpoints configured yet",
+    "no-endpoints": "No supplier connections configured yet",
     "tag": {
       "limited-free": "Limited free",
       "limited-free-until": "Limited free until {{time}}"
@@ -2680,12 +2528,12 @@
       "capabilities": "Capabilities"
     }
   },
-  "ai-relay": {
-    "title": "AI Endpoints",
-    "desc": "Separate OpenAI and Anthropic base URLs with shared routing, billing, and usage tracking",
+  "access-endpoints": {
+    "title": "Access Endpoints",
+    "desc": "Expose protocol-specific base URLs for client SDKs with shared routing, billing, and usage tracking",
     "intro": {
       "title": "What are Access Endpoints?",
-      "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each endpoint has its own model catalog while sharing endpoint routing, billing, and usage tracking behind the scenes.",
+      "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each access endpoint has its own client protocol while sharing supplier-connection routing, billing, and usage tracking behind the scenes.",
       "benefits": "Protocol-specific URLs | Per-key billing & rate limits | Native SDK compatibility"
     },
     "endpoint": {
@@ -2694,12 +2542,12 @@
       "hint-link": "consumer key (ska_)",
       "hint-after": ". Use the OpenAI URL for OpenAI SDKs and the Anthropic URL for Claude Code; Anthropic clients append /v1 automatically."
     },
-    "providers": {
-      "title": "Endpoint Status",
-      "manage-keys": "Manage Keys",
+    "connections": {
+      "title": "Supplier Connections",
+      "manage-keys": "Manage Connections and Credentials",
       "ready": "Ready",
       "no-key": "No Key",
-      "empty": "No endpoints available"
+      "empty": "No supplier connections available"
     },
     "toast": {
       "copied": "Copied to clipboard"
@@ -2717,7 +2565,7 @@
       "error-rate": "Error Rate"
     },
     "by-endpoint": {
-      "title": "By Endpoint"
+      "title": "By Connection"
     },
     "by-model": {
       "title": "By Model"
@@ -2729,7 +2577,7 @@
       "collapse": "Show less"
     },
     "th": {
-      "endpoint": "Endpoint",
+      "endpoint": "Connection",
       "model": "Model",
       "upstream": "Upstream",
       "requests": "Requests",
@@ -2775,7 +2623,7 @@
     "th": {
       "request-id": "Request ID",
       "model": "Model",
-      "endpoint": "Endpoint",
+      "endpoint": "Connection",
       "upstream": "Upstream",
       "tokens": "Tokens",
       "cost": "Cost",
@@ -2795,7 +2643,7 @@
       "overview": "Overview",
       "request-id": "Request ID",
       "model": "Model",
-      "endpoint": "Endpoint",
+      "endpoint": "Connection",
       "upstream": "Upstream",
       "upstream-url": "Upstream URL",
       "consumer-key": "Consumer Key",
@@ -2869,7 +2717,7 @@
       "create-title": "Create Upstream",
       "edit-title": "Edit Upstream",
       "delete-title": "Delete Upstream",
-      "delete-body": "This upstream and all its endpoint assignments will be removed. Credentials bound to it will fall back to the default endpoint URL."
+      "delete-body": "This upstream and all its connection assignments will be removed. Credentials bound to it will fall back to the default connection URL."
     },
     "form": {
       "upstream-id": "Upstream ID",
@@ -2905,8 +2753,8 @@
       "info": "Information",
       "metrics": "24h Metrics",
       "assignments": "Assignments",
-      "assignments-title": "Endpoint Assignments",
-      "assignments-empty": "No endpoints are using this upstream yet",
+      "assignments-title": "Connection Assignments",
+      "assignments-empty": "No supplier connections are using this upstream yet",
       "upstream-id": "Upstream ID",
       "base-url": "Base URL",
       "kind": "Kind",
@@ -2923,7 +2771,7 @@
       "last-checked": "Last Checked",
       "consecutive-failures": "Consecutive Failures",
       "last-error": "Last Error",
-      "provider-name": "Endpoint",
+      "connection-name": "Connection",
       "priority": "Priority",
       "weight": "Weight",
       "recent-title": "Recent Requests",
@@ -3306,6 +3154,185 @@
     "transactions": {
       "title": "Transactions",
       "desc": "View wallet deposits, withdrawals, payments, and AI usage history"
+    }
+  },
+  "supplier-connections": {
+    "title": "Supplier Connections",
+    "desc": "Manage callable API connections under real suppliers, including protocol format, auth mode, and credential pools.",
+    "empty": "No supplier connections configured yet",
+    "card": {
+      "upstreams": "{{count}} upstreams",
+      "no-upstreams": "Official upstream",
+      "loading": "Loading…",
+      "unavailable": "Upstreams unavailable",
+      "open-endpoint": "Open {{name}}"
+    },
+    "btn": {
+      "new": "Add Connection",
+      "create": "Create Connection",
+      "assign-upstream": "Assign Upstream"
+    },
+    "th": {
+      "api-format": "API Format",
+      "auth-type": "Auth Type",
+      "routing": "Upstream Routing"
+    },
+    "strategy": {
+      "priority": "Priority",
+      "weighted-random": "Weighted Random"
+    },
+    "mode": {
+      "inherit": "Inherit Supplier",
+      "override": "Connection Override"
+    },
+    "form": {
+      "supplier": "Supplier",
+      "supplier-ph": "Select supplier",
+      "endpoint-id": "Connection ID",
+      "endpoint-id-ph": "Enter connection ID",
+      "name": "Name",
+      "name-ph": "Enter connection name",
+      "base-url": "Base URL",
+      "base-url-ph": "https://api.example.com/v1",
+      "api-format": "API Format",
+      "auth-mode": "Override Supplier Auth",
+      "auth-mode-inherit-hint": "Currently uses the supplier default auth config.",
+      "auth-mode-override-hint": "Currently uses this connection's auth config.",
+      "auth-type": "Auth Type",
+      "api-key-header-name": "API Key Header",
+      "api-key-header-name-ph": "x-api-key",
+      "api-key-header-name-hint": "Leave empty to use x-api-key.",
+      "sigv4-region": "AWS Region",
+      "sigv4-region-ph": "us-east-1",
+      "sigv4-region-hint": "The AWS region for your Bedrock connection",
+      "sigv4-access-key-id": "AWS Access Key ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "sigv4-access-key-id-hint": "Your IAM access key ID for Bedrock API access",
+      "cloudflare-client-id": "CF Access Client ID",
+      "cloudflare-client-id-ph": "xxxx.access",
+      "cloudflare-client-id-hint": "The service-token client ID sent as CF-Access-Client-Id",
+      "concurrency-mode": "Override Official Concurrency",
+      "concurrency-mode-inherit-hint": "Currently uses the supplier default official concurrency config.",
+      "concurrency-mode-override-hint": "Currently uses this connection's official concurrency config.",
+      "official-concurrency-limit": "Official Concurrency Limit",
+      "official-concurrency-limit-ph": "Leave empty for unlimited",
+      "official-queue-timeout": "Official Queue Timeout (ms)"
+    },
+    "dialog": {
+      "add-title": "Add Supplier Connection",
+      "edit-title": "Edit Supplier Connection",
+      "delete-title": "Delete Supplier Connection",
+      "delete-body": "Delete \"{{name}}\"? All associated models and credentials will also be deleted.",
+      "assign-upstream-title": "Assign Upstream",
+      "edit-upstream-title": "Edit Assignment",
+      "delete-upstream-title": "Remove Upstream",
+      "delete-upstream-body": "Remove upstream \"{{name}}\" from this connection? All credentials bound to this upstream will also be deleted."
+    },
+    "upstreams": {
+      "section-title": "Upstreams",
+      "desc": "Configure additional execution entries for one supplier connection and control their routing order or weights.",
+      "empty": "No additional upstreams assigned.",
+      "official-title": "Official Upstream",
+      "official-id": "official",
+      "official-default-desc": "Currently uses the connection base URL as the default execution entry.",
+      "official-fallback-desc": "Falls back to the connection base URL when additional upstreams are unavailable.",
+      "unlimited": "Unlimited",
+      "route-role": "Route Role",
+      "default-route": "Default",
+      "fallback": "Fallback",
+      "th": {
+        "name": "Name",
+        "upstream-id": "Upstream ID",
+        "kind": "Kind",
+        "base-url": "Base URL",
+        "concurrency-limit": "Concurrency",
+        "queue-timeout": "Queue Timeout",
+        "priority": "Priority",
+        "weight": "Weight",
+        "enabled": "Enabled"
+      },
+      "form": {
+        "upstream": "Upstream",
+        "upstream-ph": "Select an upstream",
+        "no-available": "All upstreams are already assigned to this connection.",
+        "priority": "Priority",
+        "weight": "Weight",
+        "enabled": "Enabled"
+      },
+      "kind": {
+        "official": "Official",
+        "reseller": "Reseller",
+        "openrouter": "OpenRouter",
+        "custom": "Custom"
+      }
+    },
+    "credentials": {
+      "section-title": "Credential Pools",
+      "desc": "Credentials grouped by upstream. Credentials in each pool are load-balanced according to the connection strategy.",
+      "empty": "No credentials in this pool yet",
+      "official-bucket": "Official",
+      "official-hint": "Fallback pool - uses the connection base URL (priority 1000)",
+      "count": "{{enabled}}/{{total}} active",
+      "next": "Next in rotation",
+      "add": "Add Credential",
+      "weight-hint": "Weight — higher value means more traffic share",
+      "weight-down": "Decrease weight",
+      "weight-up": "Increase weight",
+      "strategy": {
+        "label": "Credential Balancing",
+        "round-robin": "Round-robin",
+        "random": "Random"
+      },
+      "form": {
+        "name": "Credential Name",
+        "name-ph": "Give your credential a name",
+        "api-key": "API Key",
+        "api-key-ph": "sk-...",
+        "api-key-hint": "Your credential will be encrypted and stored securely",
+        "cloudflare-client-secret": "CF Access Client Secret",
+        "cloudflare-client-secret-ph": "Enter your Cloudflare Access client secret",
+        "cloudflare-client-secret-hint": "Stored encrypted and sent as CF-Access-Client-Secret",
+        "secret-access-key": "AWS Secret Access Key",
+        "secret-access-key-ph": "Enter your AWS secret access key",
+        "secret-access-key-hint": "Your AWS secret access key will be encrypted and stored securely",
+        "owner": "Key Provider (optional)",
+        "owner-ph": "Select a key provider",
+        "owner-none": "Platform-owned (no provider)",
+        "owner-hint": "Assign this credential to a third-party key provider for revenue sharing"
+      },
+      "dialog": {
+        "add-title": "Add Credential to {{upstream}}",
+        "delete-title": "Delete API Credential",
+        "delete-body": "Delete credential \"{{name}}\"? This cannot be undone."
+      },
+      "toast": {
+        "created": "API credential created",
+        "updated": "API credential updated",
+        "deleted": "API credential deleted",
+        "create-error": "Failed to create API credential",
+        "update-error": "Failed to update API credential",
+        "delete-error": "Failed to delete API credential",
+        "test-ok": "Connection successful ({{ms}}ms)",
+        "test-error": "Connection failed"
+      },
+      "tag": {
+        "platform": "Platform"
+      },
+      "never": "Never"
+    },
+    "toast": {
+      "created": "Connection created",
+      "updated": "Connection updated",
+      "deleted": "Connection deleted",
+      "create-error": "Failed to create connection",
+      "update-error": "Failed to update connection",
+      "delete-error": "Failed to delete connection",
+      "upstream-assigned": "Upstream assigned",
+      "upstream-updated": "Assignment updated",
+      "upstream-deleted": "Upstream removed",
+      "upstream-assign-error": "Failed to assign upstream",
+      "upstream-update-error": "Failed to update assignment",
+      "upstream-delete-error": "Failed to remove upstream"
     }
   }
 }

@@ -7,7 +7,7 @@
 
 ## Problem
 
-当前 `ai_providers` 和 `ai_upstreams` 只有 `enabled` 布尔字段，无法反映真实联通状况。问题：
+当前 `ai_endpoints` 和 `ai_upstreams` 只有 `enabled` 布尔字段，无法反映真实联通状况。问题：
 
 1. **静默故障** — 上游 API 挂了/密钥失效/网络不通，系统不知道，请求继续路由过去 → 5xx 雪崩
 2. **无自动恢复** — 即使上游临时挂了自己恢复，管理员也只能手动重新启用
@@ -71,10 +71,10 @@ BullMQ 的 repeatable job 由 Redis 分布式锁保证同一时刻只有一个 w
 
 ### 2. Schema 变更
 
-给 `ai_providers` 和 `ai_upstreams` 表都新增以下列：
+给 `ai_endpoints` 和 `ai_upstreams` 表都新增以下列：
 
 ```sql
-ALTER TABLE ai_providers
+ALTER TABLE ai_endpoints
   ADD COLUMN health_status          TEXT NOT NULL DEFAULT 'unknown',
   ADD COLUMN last_checked_at        TIMESTAMPTZ,
   ADD COLUMN last_success_at        TIMESTAMPTZ,
@@ -289,7 +289,7 @@ async function initSupplierHealthCheckJob() {
 
 ```ts
 async function checkAllSuppliers() {
-  const providers = await aiProviderRepo.findAllEnabled();
+  const providers = await aiEndpointRepo.findAllEnabled();
 
   // 限制并发: 最多 5 个 provider 同时检查
   await runWithConcurrency(providers, 5, async (provider) => {
@@ -301,7 +301,7 @@ async function checkAllSuppliers() {
     // 2. 取 provider 的 API key
     const key = await aiKeyRepo.findAnyEnabledByProvider(provider.id);
     if (!key) {
-      await aiProviderRepo.recordFailure(provider.id, "No enabled API key");
+      await aiEndpointRepo.recordFailure(provider.id, "No enabled API key");
       // 无 key 不计入禁用阈值，仅标记 degraded
       return;
     }
@@ -335,7 +335,7 @@ async function checkAllSuppliers() {
     );
 
     // 5. 更新 provider 状态
-    await applyHealthResult(aiProviderRepo, provider, providerResult);
+    await applyHealthResult(aiEndpointRepo, provider, providerResult);
 
     // 6. 更新每个 upstream 状态
     for (const { upstream, result } of upstreamResults) {
@@ -386,9 +386,9 @@ async function applyHealthResult(repo, entity, result: PingResult) {
 async findAllActive(): Promise<AiProvider[]> {
   // enabled=true && autoDisabled=false — 供路由层使用
   return queryAll(
-    db.select().from(aiProviders)
-      .where(and(eq(aiProviders.enabled, true), eq(aiProviders.autoDisabled, false)))
-      .orderBy(asc(aiProviders.id)),
+    db.select().from(aiEndpoints)
+      .where(and(eq(aiEndpoints.enabled, true), eq(aiEndpoints.autoDisabled, false)))
+      .orderBy(asc(aiEndpoints.id)),
   );
 },
 
@@ -431,9 +431,9 @@ async markAutoReenabled(id: number): Promise<void> {
 **已识别的关键位置**：
 
 - `src/server/ai/lib/upstream-routing.ts` — `resolveUpstreamCandidates()` 过滤 enabled upstreams
-- `src/server/jobs/refresh-litellm-pricing.ts#L47` — `eq(aiProviders.enabled, true)` 改为 `and(eq(enabled, true), eq(autoDisabled, false))`
+- `src/server/jobs/refresh-litellm-pricing.ts#L47` — `eq(aiEndpoints.enabled, true)` 改为 `and(eq(enabled, true), eq(autoDisabled, false))`
 - `src/server/ai/lib/key-balancer.ts` — 若有 provider 启用检查
-- 其他 admin/dashboard/计费路径中 `eq(aiProviders.enabled, true)` / `eq(aiUpstreams.enabled, true)` 出现处
+- 其他 admin/dashboard/计费路径中 `eq(aiEndpoints.enabled, true)` / `eq(aiUpstreams.enabled, true)` 出现处
 
 **审计例外**：
 
@@ -483,7 +483,7 @@ async markAutoReenabled(id: number): Promise<void> {
 
 ### Phase 1: 数据库 + 仓库层（3 任务）
 
-1. `ai_providers` + `ai_upstreams` 表新增 7 个健康字段
+1. `ai_endpoints` + `ai_upstreams` 表新增 7 个健康字段
 2. 更新 `src/server/db/schemas/pg.ts` 字段定义
 3. 生成 Drizzle migration 并验证 SQL（应为 `ALTER TABLE ... ADD COLUMN ...`）
 4. `ai-provider-repo.ts` 新增 6 个方法（`findAllActive`、`updateHealth`、`recordSuccess`、`recordFailure`、`markAutoDisabled`、`markAutoReenabled`）
@@ -570,7 +570,7 @@ async markAutoReenabled(id: number): Promise<void> {
 3. **Admin 手动覆盖** — 当 `autoDisabled=true` 时，管理员是否可以手动强制启用（设 `autoDisabled=false` 但保留 `enabled=true`）？若可以，健康检查下次成功前是否应跳过该供应商？
 4. **健康检查期间路由层行为** — 健康检查请求（`/v1/models`）本身会消耗上游配额吗？OpenAI/Anthropic 的 `/v1/models` 端点是否计入 rate limit？
 5. **跨实例 SWRR 一致性** — Worker 的 SWRR 状态是进程本地的（参考现有 `key-balancer.ts`）。多实例部署时各进程独立轮询，可接受（等价于现有 key-balancer 行为）。但 BullMQ repeatable job 的调度本身是多实例安全的。
-6. **历史健康趋势** — v1 只保留最新状态（`last_checked_at`、`last_error` 等）。是否需要记录历史到独立表（`ai_provider_health_logs`）供后续做 SLA 分析？本次 RFC 不包含。
+6. **历史健康趋势** — v1 只保留最新状态（`last_checked_at`、`last_error` 等）。是否需要记录历史到独立表（`ai_endpoint_health_logs`）供后续做 SLA 分析？本次 RFC 不包含。
 
 ---
 

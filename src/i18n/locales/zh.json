@@ -118,9 +118,9 @@
     "webhooks": "Webhooks",
     "ai-gateway": "AI 网关",
     "ai-suppliers": "供应商",
-    "ai-endpoints": "AI 端点",
+    "supplier-connections": "供应商连接",
     "ai-models": "模型",
-    "ai-relay": "接入端点",
+    "access-endpoints": "接入端点",
     "ai-usage": "用量",
     "ai-upstreams": "上游",
     "ai-logs": "日志",
@@ -479,7 +479,7 @@
         "collapse": "收起",
         "cost": "上游成本",
         "profit": "分润金额",
-        "provider": "AI 供应商",
+        "provider": "分润合作方",
         "requests": "请求数",
         "upstream": "上游",
         "weight": "权重",
@@ -2308,7 +2308,7 @@
   },
   "ai-suppliers": {
     "title": "供应商",
-    "desc": "管理真实 AI 供应商。每个供应商下面可以配置多个不同协议和认证格式的 AI 端点。",
+    "desc": "管理真实 AI 供应商，配置默认认证和官方并发；供应商连接可继承或覆盖。",
     "empty": "暂无供应商",
     "none": "无",
     "btn": {
@@ -2318,6 +2318,8 @@
     "th": {
       "supplier-id": "供应商 ID",
       "icon-url": "图标 URL",
+      "auth-type": "认证类型",
+      "official-limit": "官方并发",
       "enabled": "启用"
     },
     "form": {
@@ -2328,6 +2330,18 @@
       "name-ph": "OpenAI",
       "icon-url": "图标 URL",
       "icon-url-ph": "https://example.com/icon.png",
+      "auth-type": "默认认证类型",
+      "api-key-header": "API Key Header",
+      "api-key-header-ph": "x-api-key",
+      "cloudflare-client-id": "Cloudflare Client ID",
+      "cloudflare-client-id-ph": "Cloudflare Access client ID",
+      "sigv4-region": "SigV4 区域",
+      "sigv4-region-ph": "选择区域",
+      "sigv4-access-key-id": "Access Key ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "official-concurrency-limit": "官方并发上限",
+      "official-concurrency-limit-ph": "留空为不限制",
+      "official-queue-timeout": "队列超时 (ms)",
       "enabled": "启用"
     },
     "valid": {
@@ -2341,7 +2355,7 @@
       "create-title": "添加供应商",
       "edit-title": "编辑供应商",
       "delete-title": "删除供应商",
-      "delete-body": "删除「{{name}}」？其下所有 AI 端点、模型和凭证会一并删除。通常请优先禁用供应商。"
+      "delete-body": "删除「{{name}}」？其下所有供应商连接、模型和凭证会一并删除。通常请优先禁用供应商。"
     },
     "toast": {
       "created": "供应商已创建",
@@ -2352,193 +2366,23 @@
       "delete-error": "删除供应商失败"
     }
   },
-  "ai-endpoints": {
-    "title": "AI 端点",
-    "desc": "管理真实供应商下可调用的 AI 端点",
-    "empty": "暂未配置 AI 端点",
-    "card": {
-      "upstreams": "{{count}} 个上游",
-      "no-upstreams": "官方上游",
-      "loading": "加载中…",
-      "unavailable": "上游信息不可用",
-      "open-endpoint": "打开 {{name}}"
-    },
-    "btn": {
-      "new": "添加端点",
-      "create": "创建端点",
-      "assign-upstream": "分配上游"
-    },
-    "th": {
-      "api-format": "API 格式",
-      "auth-type": "认证类型",
-      "routing": "上游调度"
-    },
-    "strategy": {
-      "priority": "优先级",
-      "weighted-random": "加权随机"
-    },
-    "form": {
-      "supplier": "供应商",
-      "supplier-ph": "选择供应商",
-      "endpoint-id": "端点 ID",
-      "endpoint-id-ph": "输入端点 ID",
-      "name": "名称",
-      "name-ph": "输入端点名称",
-      "base-url": "基础 URL",
-      "base-url-ph": "https://api.example.com/v1",
-      "api-format": "API 格式",
-      "auth-type": "认证类型",
-      "upstream-routing-strategy": "上游调度策略",
-      "upstream-routing-strategy-hint": "决定端点下多个 upstream 的默认选择顺序。",
-      "official-concurrency-limit": "官方上游并发上限",
-      "official-concurrency-limit-ph": "留空表示不限制",
-      "official-concurrency-limit-desc": "同一时间最多向端点官方 Base URL 发送的请求数。",
-      "official-queue-timeout": "官方上游排队超时 (ms)",
-      "official-queue-timeout-desc": "官方上游达到并发上限时，请求等待并发槽的最长时间。",
-      "sigv4-region": "AWS 区域",
-      "sigv4-region-ph": "us-east-1",
-      "sigv4-region-hint": "Bedrock 端点所在的 AWS 区域",
-      "sigv4-access-key-id": "AWS 访问密钥 ID",
-      "sigv4-access-key-id-ph": "AKIA...",
-      "sigv4-access-key-id-hint": "用于访问 Bedrock API 的 IAM 访问密钥 ID",
-      "cloudflare-client-id": "CF Access Client ID",
-      "cloudflare-client-id-ph": "xxxx.access",
-      "cloudflare-client-id-hint": "作为 CF-Access-Client-Id 发送的服务令牌 Client ID"
-    },
-    "dialog": {
-      "add-title": "添加端点",
-      "edit-title": "编辑端点",
-      "delete-title": "删除端点",
-      "delete-body": "删除「{{name}}」？所有关联的模型和凭证也会被删除。",
-      "assign-upstream-title": "分配上游",
-      "edit-upstream-title": "编辑分配",
-      "delete-upstream-title": "移除上游",
-      "delete-upstream-body": "从此端点移除上游「{{name}}」？绑定到该上游的所有凭证也会被一并删除。"
-    },
-    "upstreams": {
-      "section-title": "上游",
-      "desc": "为同一个端点配置多个执行入口，并设置调度优先级或权重。",
-      "empty": "暂无已分配上游。",
-      "official-title": "官方上游",
-      "official-id": "official",
-      "official-default-desc": "当前使用端点 Base URL 作为默认执行入口。",
-      "official-fallback-desc": "额外上游不可用时回退到端点 Base URL。",
-      "unlimited": "不限制",
-      "route-role": "调度角色",
-      "default-route": "默认入口",
-      "fallback": "兜底入口",
-      "th": {
-        "name": "名称",
-        "upstream-id": "上游 ID",
-        "kind": "类型",
-        "base-url": "Base URL",
-        "concurrency-limit": "并发",
-        "queue-timeout": "排队超时",
-        "priority": "优先级",
-        "weight": "权重",
-        "enabled": "启用"
-      },
-      "form": {
-        "upstream": "上游",
-        "upstream-ph": "选择上游",
-        "no-available": "所有上游均已分配至此端点。",
-        "priority": "优先级",
-        "weight": "权重",
-        "enabled": "启用"
-      },
-      "kind": {
-        "official": "官方",
-        "reseller": "转售",
-        "openrouter": "OpenRouter",
-        "custom": "自定义"
-      }
-    },
-    "credentials": {
-      "section-title": "凭证池",
-      "desc": "按上游分组的 API 凭证。每个池内的凭证按端点策略进行负载均衡。",
-      "empty": "此池暂无凭证",
-      "official-bucket": "官方",
-      "official-hint": "兜底池 — 使用端点 Base URL（优先级 1000）",
-      "count": "{{enabled}}/{{total}} 启用",
-      "next": "下一个轮到",
-      "add": "添加凭证",
-      "weight-hint": "权重 — 值越大分配的流量越多",
-      "weight-down": "降低权重",
-      "weight-up": "增加权重",
-      "strategy": {
-        "label": "凭证均衡",
-        "round-robin": "轮询",
-        "random": "随机"
-      },
-      "form": {
-        "name": "凭证名称",
-        "name-ph": "输入凭证名称",
-        "api-key": "API 密钥",
-        "api-key-ph": "sk-...",
-        "api-key-hint": "您的凭证将被加密存储",
-        "cloudflare-client-secret": "CF Access Client Secret",
-        "cloudflare-client-secret-ph": "输入 Cloudflare Access Client Secret",
-        "cloudflare-client-secret-hint": "将被加密存储，并作为 CF-Access-Client-Secret 发送",
-        "secret-access-key": "AWS 秘密访问密钥",
-        "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
-        "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
-        "owner": "密钥合作方（可选）",
-        "owner-ph": "选择密钥合作方",
-        "owner-none": "平台自有（无合作方）",
-        "owner-hint": "将此凭证分配给第三方密钥合作方以启用分润"
-      },
-      "dialog": {
-        "add-title": "添加凭证到 {{upstream}}",
-        "delete-title": "删除 API 凭证",
-        "delete-body": "删除凭证「{{name}}」？此操作不可撤销。"
-      },
-      "toast": {
-        "created": "API 凭证已创建",
-        "updated": "API 凭证已更新",
-        "deleted": "API 凭证已删除",
-        "create-error": "创建 API 凭证失败",
-        "update-error": "更新 API 凭证失败",
-        "delete-error": "删除 API 凭证失败",
-        "test-ok": "连接成功 ({{ms}}ms)",
-        "test-error": "连接失败"
-      },
-      "tag": {
-        "platform": "平台"
-      },
-      "never": "从未使用"
-    },
-    "toast": {
-      "created": "端点已创建",
-      "updated": "端点已更新",
-      "deleted": "端点已删除",
-      "create-error": "创建端点失败",
-      "update-error": "更新端点失败",
-      "delete-error": "删除端点失败",
-      "upstream-assigned": "上游已分配",
-      "upstream-updated": "分配已更新",
-      "upstream-deleted": "上游已移除",
-      "upstream-assign-error": "分配上游失败",
-      "upstream-update-error": "更新分配失败",
-      "upstream-delete-error": "移除上游失败"
-    }
-  },
   "ai-models": {
     "title": "AI 模型",
-    "desc": "管理模型目录与端点路由",
+    "desc": "管理模型目录与供应商连接路由",
     "empty": "暂无已配置的模型",
     "card-title": "模型目录",
-    "no-endpoints": "暂无已配置的模型端点",
+    "no-endpoints": "暂无已配置的供应商连接",
     "btn": {
       "new": "添加模型",
       "create": "创建模型",
-      "add-selected": "添加 {{count}} 个模型",
+      "import": "导入模型",
       "sync-prices": "同步价格",
       "delete-selected": "删除 {{count}} 个模型",
       "clean-zero-price": "清理无效定价",
       "routes": "路由"
     },
     "filter": {
-      "all-endpoints": "所有端点",
+      "all-endpoints": "所有连接",
       "no-routes": "无路由",
       "all-status": "全部状态",
       "enabled": "已启用",
@@ -2569,8 +2413,6 @@
       "input-price": "输入价格 (/1M tokens)",
       "output-price": "输出价格 (/1M tokens)",
       "price-ph": "0.00",
-      "endpoint": "端点",
-      "endpoint-ph": "选择端点以发现模型",
       "capabilities": "能力",
       "capabilities-ph": "chat, vision, tools, streaming",
       "limited-free-until": "限时免费到期时间",
@@ -2584,14 +2426,20 @@
       "enabled": "启用"
     },
     "discover": {
-      "toggle": "从端点发现模型",
-      "loading": "正在从端点拉取模型…",
-      "no-key": "此端点尚未配置凭证，请先添加凭证以启用模型发现。",
+      "loading": "正在从连接拉取模型…",
+      "no-key": "此连接尚未配置凭证，请先添加凭证以启用模型发现。",
       "models": "模型",
       "select-all": "全选",
       "select-none": "取消全选",
       "source-official": "官方 API",
       "source-upstream": "上游"
+    },
+    "import": {
+      "title": "从连接导入模型",
+      "connection": "供应商连接",
+      "connection-ph": "选择供应商连接",
+      "source": "发现来源",
+      "submit": "导入 {{count}} 个模型"
     },
     "dialog": {
       "add-title": "添加模型",
@@ -2625,28 +2473,28 @@
       "delete-error": "删除模型失败"
     },
     "routes": {
-      "title": "端点路由",
-      "desc": "配置哪些端点提供此模型。优先级数值越小越先尝试。",
-      "empty": "暂无路由配置。添加端点路由以启用此模型。",
+      "title": "供应商连接路由",
+      "desc": "配置哪些供应商连接提供此模型。优先级数值越小越先尝试。",
+      "empty": "暂无路由配置。添加供应商连接路由以启用此模型。",
       "btn": {
-        "add": "添加路由",
+        "add": "添加连接路由",
         "routes": "路由"
       },
       "th": {
         "priority": "优先级",
-        "endpoint": "端点",
+        "endpoint": "供应商连接",
         "endpoint-model-id": "上游模型",
         "weight": "权重"
       },
       "form": {
-        "endpoint-ph": "选择端点",
+        "endpoint-ph": "选择供应商连接",
         "endpoint-model-id-hint": "留空则使用模型自身的 ID",
         "priority-hint": "数值越小优先级越高（优先尝试）"
       },
       "dialog": {
-        "add-title": "添加端点路由",
+        "add-title": "添加供应商连接路由",
         "delete-title": "移除路由",
-        "delete-body": "移除到 {{provider}} 的路由？此模型将不再通过该端点提供服务。"
+        "delete-body": "移除到 {{provider}} 的路由？此模型将不再通过该供应商连接提供服务。"
       },
       "toast": {
         "created": "路由已添加",
@@ -2664,7 +2512,7 @@
     "desc": "您账户可用的模型及定价",
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
-    "no-endpoints": "暂无已配置的模型端点",
+    "no-endpoints": "暂无已配置的供应商连接",
     "tag": {
       "limited-free": "限时免费",
       "limited-free-until": "限时免费至 {{time}}"
@@ -2680,12 +2528,12 @@
       "capabilities": "能力"
     }
   },
-  "ai-relay": {
-    "title": "AI 端点",
-    "desc": "分离 OpenAI 与 Anthropic Base URL，共享路由、计费和用量追踪",
+  "access-endpoints": {
+    "title": "接入端点",
+    "desc": "为客户端 SDK 暴露按协议分离的 Base URL，共享路由、计费和用量追踪",
     "intro": {
       "title": "什么是接入端点？",
-      "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个端点有自己的模型目录，底层共享端点路由、计费和用量追踪。",
+      "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个接入端点对应一种客户端协议，底层共享供应商连接路由、计费和用量追踪。",
       "benefits": "按协议分离 URL | 按 Key 计费与限速 | 原生 SDK 兼容"
     },
     "endpoint": {
@@ -2694,12 +2542,12 @@
       "hint-link": "消费者密钥 (ska_)",
       "hint-after": "。OpenAI SDK 使用 OpenAI URL；Claude Code 使用 Anthropic URL，客户端会自动追加 /v1。"
     },
-    "providers": {
-      "title": "端点状态",
-      "manage-keys": "管理密钥",
+    "connections": {
+      "title": "供应商连接",
+      "manage-keys": "管理连接和凭证",
       "ready": "就绪",
       "no-key": "未配置",
-      "empty": "暂无可用端点"
+      "empty": "暂无可用供应商连接"
     },
     "toast": {
       "copied": "已复制到剪贴板"
@@ -2717,7 +2565,7 @@
       "error-rate": "错误率"
     },
     "by-endpoint": {
-      "title": "按端点"
+      "title": "按连接"
     },
     "by-model": {
       "title": "按模型"
@@ -2729,7 +2577,7 @@
       "collapse": "收起"
     },
     "th": {
-      "endpoint": "端点",
+      "endpoint": "连接",
       "model": "模型",
       "upstream": "上游",
       "requests": "请求数",
@@ -2775,7 +2623,7 @@
     "th": {
       "request-id": "请求 ID",
       "model": "模型",
-      "endpoint": "端点",
+      "endpoint": "连接",
       "upstream": "上游",
       "tokens": "Token 数",
       "cost": "费用",
@@ -2795,7 +2643,7 @@
       "overview": "概览",
       "request-id": "请求 ID",
       "model": "模型",
-      "endpoint": "端点",
+      "endpoint": "连接",
       "upstream": "上游",
       "upstream-url": "上游地址",
       "consumer-key": "消费者密钥",
@@ -2869,7 +2717,7 @@
       "create-title": "创建上游",
       "edit-title": "编辑上游",
       "delete-title": "删除上游",
-      "delete-body": "该上游及其所有端点分配将被移除。绑定到该上游的凭证将回退到端点默认 URL。"
+      "delete-body": "该上游及其所有连接分配将被移除。绑定到该上游的凭证将回退到连接默认 URL。"
     },
     "form": {
       "upstream-id": "上游 ID",
@@ -2905,8 +2753,8 @@
       "info": "基本信息",
       "metrics": "24h 指标",
       "assignments": "分配数",
-      "assignments-title": "关联端点",
-      "assignments-empty": "暂无端点使用此上游",
+      "assignments-title": "关联连接",
+      "assignments-empty": "暂无供应商连接使用此上游",
       "upstream-id": "上游 ID",
       "base-url": "Base URL",
       "kind": "类型",
@@ -2923,7 +2771,7 @@
       "last-checked": "最近检测",
       "consecutive-failures": "连续失败",
       "last-error": "最近错误",
-      "provider-name": "端点",
+      "connection-name": "连接",
       "priority": "优先级",
       "weight": "权重",
       "recent-title": "最近请求",
@@ -3306,6 +3154,185 @@
     "transactions": {
       "title": "交易",
       "desc": "查看钱包的充值、提现、支付和 AI 使用记录"
+    }
+  },
+  "supplier-connections": {
+    "title": "供应商连接",
+    "desc": "管理真实供应商下可调用的 API 连接、协议格式、认证方式和凭证池。",
+    "empty": "暂未配置供应商连接",
+    "card": {
+      "upstreams": "{{count}} 个上游",
+      "no-upstreams": "官方上游",
+      "loading": "加载中…",
+      "unavailable": "上游信息不可用",
+      "open-endpoint": "打开 {{name}}"
+    },
+    "btn": {
+      "new": "添加连接",
+      "create": "创建连接",
+      "assign-upstream": "分配上游"
+    },
+    "th": {
+      "api-format": "API 格式",
+      "auth-type": "认证类型",
+      "routing": "上游调度"
+    },
+    "strategy": {
+      "priority": "优先级",
+      "weighted-random": "加权随机"
+    },
+    "mode": {
+      "inherit": "继承供应商",
+      "override": "连接覆盖"
+    },
+    "form": {
+      "supplier": "供应商",
+      "supplier-ph": "选择供应商",
+      "endpoint-id": "连接 ID",
+      "endpoint-id-ph": "输入连接 ID",
+      "name": "名称",
+      "name-ph": "输入连接名称",
+      "base-url": "基础 URL",
+      "base-url-ph": "https://api.example.com/v1",
+      "api-format": "API 格式",
+      "auth-mode": "覆盖供应商认证",
+      "auth-mode-inherit-hint": "当前使用供应商默认认证配置。",
+      "auth-mode-override-hint": "当前使用此连接自己的认证配置。",
+      "auth-type": "认证类型",
+      "api-key-header-name": "API Key Header",
+      "api-key-header-name-ph": "x-api-key",
+      "api-key-header-name-hint": "留空则使用 x-api-key。",
+      "sigv4-region": "AWS 区域",
+      "sigv4-region-ph": "us-east-1",
+      "sigv4-region-hint": "Bedrock 连接所在的 AWS 区域",
+      "sigv4-access-key-id": "AWS 访问密钥 ID",
+      "sigv4-access-key-id-ph": "AKIA...",
+      "sigv4-access-key-id-hint": "用于访问 Bedrock API 的 IAM 访问密钥 ID",
+      "cloudflare-client-id": "CF Access Client ID",
+      "cloudflare-client-id-ph": "xxxx.access",
+      "cloudflare-client-id-hint": "作为 CF-Access-Client-Id 发送的服务令牌 Client ID",
+      "concurrency-mode": "覆盖官方上游并发",
+      "concurrency-mode-inherit-hint": "当前使用供应商默认官方并发配置。",
+      "concurrency-mode-override-hint": "当前使用此连接自己的官方并发配置。",
+      "official-concurrency-limit": "官方并发上限",
+      "official-concurrency-limit-ph": "留空表示不限制",
+      "official-queue-timeout": "官方排队超时 (ms)"
+    },
+    "dialog": {
+      "add-title": "添加供应商连接",
+      "edit-title": "编辑供应商连接",
+      "delete-title": "删除供应商连接",
+      "delete-body": "删除「{{name}}」？所有关联的模型和凭证也会被删除。",
+      "assign-upstream-title": "分配上游",
+      "edit-upstream-title": "编辑分配",
+      "delete-upstream-title": "移除上游",
+      "delete-upstream-body": "从此连接移除上游「{{name}}」？绑定到该上游的所有凭证也会被一并删除。"
+    },
+    "upstreams": {
+      "section-title": "上游",
+      "desc": "为同一个供应商连接配置多个执行入口，并设置调度优先级或权重。",
+      "empty": "暂无已分配上游。",
+      "official-title": "官方上游",
+      "official-id": "official",
+      "official-default-desc": "当前使用连接 Base URL 作为默认执行入口。",
+      "official-fallback-desc": "额外上游不可用时回退到连接 Base URL。",
+      "unlimited": "不限制",
+      "route-role": "调度角色",
+      "default-route": "默认入口",
+      "fallback": "兜底入口",
+      "th": {
+        "name": "名称",
+        "upstream-id": "上游 ID",
+        "kind": "类型",
+        "base-url": "Base URL",
+        "concurrency-limit": "并发",
+        "queue-timeout": "排队超时",
+        "priority": "优先级",
+        "weight": "权重",
+        "enabled": "启用"
+      },
+      "form": {
+        "upstream": "上游",
+        "upstream-ph": "选择上游",
+        "no-available": "所有上游均已分配至此连接。",
+        "priority": "优先级",
+        "weight": "权重",
+        "enabled": "启用"
+      },
+      "kind": {
+        "official": "官方",
+        "reseller": "转售",
+        "openrouter": "OpenRouter",
+        "custom": "自定义"
+      }
+    },
+    "credentials": {
+      "section-title": "凭证池",
+      "desc": "按上游分组的 API 凭证。每个池内的凭证按连接策略进行负载均衡。",
+      "empty": "此池暂无凭证",
+      "official-bucket": "官方",
+      "official-hint": "兜底池 - 使用连接 Base URL（优先级 1000）",
+      "count": "{{enabled}}/{{total}} 启用",
+      "next": "下一个轮到",
+      "add": "添加凭证",
+      "weight-hint": "权重 — 值越大分配的流量越多",
+      "weight-down": "降低权重",
+      "weight-up": "增加权重",
+      "strategy": {
+        "label": "凭证均衡",
+        "round-robin": "轮询",
+        "random": "随机"
+      },
+      "form": {
+        "name": "凭证名称",
+        "name-ph": "输入凭证名称",
+        "api-key": "API 密钥",
+        "api-key-ph": "sk-...",
+        "api-key-hint": "您的凭证将被加密存储",
+        "cloudflare-client-secret": "CF Access Client Secret",
+        "cloudflare-client-secret-ph": "输入 Cloudflare Access Client Secret",
+        "cloudflare-client-secret-hint": "将被加密存储，并作为 CF-Access-Client-Secret 发送",
+        "secret-access-key": "AWS 秘密访问密钥",
+        "secret-access-key-ph": "输入您的 AWS 秘密访问密钥",
+        "secret-access-key-hint": "您的 AWS 秘密访问密钥将被加密安全存储",
+        "owner": "密钥合作方（可选）",
+        "owner-ph": "选择密钥合作方",
+        "owner-none": "平台自有（无合作方）",
+        "owner-hint": "将此凭证分配给第三方密钥合作方以启用分润"
+      },
+      "dialog": {
+        "add-title": "添加凭证到 {{upstream}}",
+        "delete-title": "删除 API 凭证",
+        "delete-body": "删除凭证「{{name}}」？此操作不可撤销。"
+      },
+      "toast": {
+        "created": "API 凭证已创建",
+        "updated": "API 凭证已更新",
+        "deleted": "API 凭证已删除",
+        "create-error": "创建 API 凭证失败",
+        "update-error": "更新 API 凭证失败",
+        "delete-error": "删除 API 凭证失败",
+        "test-ok": "连接成功 ({{ms}}ms)",
+        "test-error": "连接失败"
+      },
+      "tag": {
+        "platform": "平台"
+      },
+      "never": "从未使用"
+    },
+    "toast": {
+      "created": "连接已创建",
+      "updated": "连接已更新",
+      "deleted": "连接已删除",
+      "create-error": "创建连接失败",
+      "update-error": "更新连接失败",
+      "delete-error": "删除连接失败",
+      "upstream-assigned": "上游已分配",
+      "upstream-updated": "分配已更新",
+      "upstream-deleted": "上游已移除",
+      "upstream-assign-error": "分配上游失败",
+      "upstream-update-error": "更新分配失败",
+      "upstream-delete-error": "移除上游失败"
     }
   }
 }
