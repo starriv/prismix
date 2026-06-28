@@ -68,9 +68,9 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 // ── Nav tree ─────────────────────────────────────────────────────────
 
 const AI_CHILD_PATHS = [
-  "/admin/ai-endpoint",
+  "/admin/access-endpoints",
   "/admin/ai-suppliers",
-  "/admin/ai-endpoints",
+  "/admin/supplier-connections",
   "/admin/ai-models",
   "/admin/ai-upstreams",
   "/admin/key-providers",
@@ -121,9 +121,9 @@ const navTree: NavEntry[] = [
     icon: Brain,
     childPaths: AI_CHILD_PATHS,
     children: [
-      { href: "/admin/ai-endpoint", labelKey: "nav.ai-relay", icon: Zap },
+      { href: "/admin/access-endpoints", labelKey: "nav.access-endpoints", icon: Zap },
       { href: "/admin/ai-suppliers", labelKey: "nav.ai-suppliers", icon: Building2 },
-      { href: "/admin/ai-endpoints", labelKey: "nav.ai-endpoints", icon: Brain },
+      { href: "/admin/supplier-connections", labelKey: "nav.supplier-connections", icon: Brain },
       { href: "/admin/ai-models", labelKey: "nav.ai-models", icon: Sparkles },
       { href: "/admin/ai-upstreams", labelKey: "nav.ai-upstreams", icon: Network },
       { href: "/admin/key-providers", labelKey: "nav.key-providers", icon: HandCoins },

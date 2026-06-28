@@ -54,9 +54,9 @@ const NotificationsPage = lazy(() => import("./pages/notifications"));
 const WebhooksPage = lazy(() => import("./pages/webhooks"));
 const SettingsPage = lazy(() => import("./pages/settings"));
 const AiSuppliersPage = lazy(() => import("./pages/ai-suppliers"));
-const AiEndpointsPage = lazy(() => import("./pages/ai-endpoints"));
+const SupplierConnectionsPage = lazy(() => import("./pages/supplier-connections"));
 const AiModelsPage = lazy(() => import("./pages/ai-models"));
-const AiRelayPage = lazy(() => import("./pages/ai-endpoint"));
+const AccessEndpointsPage = lazy(() => import("./pages/access-endpoints"));
 const AiUsagePage = lazy(() => import("./pages/ai-usage"));
 const AiUpstreamsPage = lazy(() => import("./pages/ai-upstreams"));
 const AiLogsPage = lazy(() => import("./pages/ai-logs"));
@@ -161,9 +161,9 @@ export function App() {
 
                 {/* AI Gateway */}
                 <Route path="ai-suppliers" element={<AiSuppliersPage />} />
-                <Route path="ai-endpoints" element={<AiEndpointsPage />} />
+                <Route path="supplier-connections" element={<SupplierConnectionsPage />} />
                 <Route path="ai-models" element={<AiModelsPage />} />
-                <Route path="ai-endpoint" element={<AiRelayPage />} />
+                <Route path="access-endpoints" element={<AccessEndpointsPage />} />
                 <Route path="ai-usage" element={<AiUsagePage />} />
                 <Route path="ai-upstreams" element={<AiUpstreamsPage />} />
                 <Route path="ai-logs" element={<AiLogsPage />} />

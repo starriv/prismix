@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,27 +41,66 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
+
+import { BEDROCK_REGIONS } from "./supplier-connections/constants";
 
 const urlSchema = z.string().url();
 
-const supplierFormSchema = z.object({
-  supplierId: z
-    .string()
-    .trim()
-    .min(1, "common.valid.required")
-    .max(50, "common.valid.range")
-    .regex(/^[a-z0-9-]+$/, "ai-suppliers.valid.supplier-id"),
-  name: z.string().trim().min(1, "common.valid.name-required").max(100, "common.valid.range"),
-  iconUrl: z
-    .string()
-    .trim()
-    .max(500, "common.valid.range")
-    .refine((value) => value === "" || urlSchema.safeParse(value).success, {
-      message: "common.valid.invalid-url",
-    }),
-  enabled: z.boolean(),
-});
+const authTypes = ["bearer", "api-key", "cloudflare", "sigv4"] as const;
+
+const supplierFormSchema = z
+  .object({
+    supplierId: z
+      .string()
+      .trim()
+      .min(1, "common.valid.required")
+      .max(50, "common.valid.range")
+      .regex(/^[a-z0-9-]+$/, "ai-suppliers.valid.supplier-id"),
+    name: z.string().trim().min(1, "common.valid.name-required").max(100, "common.valid.range"),
+    iconUrl: z
+      .string()
+      .trim()
+      .max(500, "common.valid.range")
+      .refine((value) => value === "" || urlSchema.safeParse(value).success, {
+        message: "common.valid.invalid-url",
+      }),
+    authType: z.enum(authTypes),
+    apiKeyHeaderName: z.string().trim().max(100, "common.valid.range").optional(),
+    cloudflareClientId: z.string().trim().max(255, "common.valid.range").optional(),
+    sigv4Region: z.string().optional(),
+    sigv4AccessKeyId: z.string().trim().max(255, "common.valid.range").optional(),
+    officialConcurrencyLimit: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+      .refine((value) => value === "" || Number(value) <= 10_000, "common.valid.invalid-amount"),
+    officialQueueTimeoutMs: z
+      .string()
+      .trim()
+      .refine((value) => /^[1-9]\d*$/.test(value), "common.valid.invalid-amount")
+      .refine((value) => Number(value) <= 30 * 60 * 1000, "common.valid.invalid-amount"),
+    enabled: z.boolean(),
+  })
+  .refine((d) => d.authType !== "cloudflare" || !!d.cloudflareClientId?.trim(), {
+    message: "common.valid.required",
+    path: ["cloudflareClientId"],
+  })
+  .refine((d) => d.authType !== "sigv4" || !!d.sigv4Region, {
+    message: "common.valid.required",
+    path: ["sigv4Region"],
+  })
+  .refine((d) => d.authType !== "sigv4" || !!d.sigv4AccessKeyId?.trim(), {
+    message: "common.valid.required",
+    path: ["sigv4AccessKeyId"],
+  });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;
 
@@ -69,6 +108,13 @@ const EMPTY_SUPPLIER_FORM: SupplierFormValues = {
   supplierId: "",
   name: "",
   iconUrl: "",
+  authType: "bearer",
+  apiKeyHeaderName: "x-api-key",
+  cloudflareClientId: "",
+  sigv4Region: "us-east-1",
+  sigv4AccessKeyId: "",
+  officialConcurrencyLimit: "",
+  officialQueueTimeoutMs: "30000",
   enabled: true,
 };
 
@@ -126,14 +172,22 @@ export default function AiSuppliersPage() {
         meta: { headerClassName: "w-[18%]" },
       },
       {
-        accessorKey: "iconUrl",
+        accessorKey: "authType",
         cell: ({ row }) => (
-          <DataTableText className="max-w-[240px]" muted truncate>
-            {row.original.iconUrl || t("ai-suppliers.none")}
+          <DataTableBadge variant="outline">{row.original.authType}</DataTableBadge>
+        ),
+        header: t("ai-suppliers.th.auth-type"),
+        meta: { headerClassName: "w-[14%]" },
+      },
+      {
+        accessorKey: "officialConcurrencyLimit",
+        cell: ({ row }) => (
+          <DataTableText mono nowrap>
+            {row.original.officialConcurrencyLimit ?? t("ai-suppliers.none")}
           </DataTableText>
         ),
-        header: t("ai-suppliers.th.icon-url"),
-        meta: { headerClassName: "w-[26%]", ...dataTableMeta.hiddenOnMobile },
+        header: t("ai-suppliers.th.official-limit"),
+        meta: { headerClassName: "w-[16%]", ...dataTableMeta.hiddenOnMobile },
       },
       {
         accessorKey: "enabled",
@@ -212,7 +266,7 @@ export default function AiSuppliersPage() {
           getRowId={(row) => String(row.id)}
           loading={isLoading}
           showPagination={false}
-          tableClassName="min-w-[860px]"
+          tableClassName="min-w-[920px]"
         />
       </div>
 
@@ -266,15 +320,28 @@ function SupplierFormDialog({
     resolver: zodResolver(supplierFormSchema),
     defaultValues: EMPTY_SUPPLIER_FORM,
   });
+  const watchedAuthType = useWatch({ control: form.control, name: "authType" });
 
   useEffect(() => {
     if (!open) return;
 
     if (editTarget) {
+      const authConfig = (editTarget.authConfig ?? {}) as Record<string, unknown>;
       form.reset({
         supplierId: editTarget.supplierId,
         name: editTarget.name,
         iconUrl: editTarget.iconUrl ?? "",
+        authType: (authTypes.includes(editTarget.authType as SupplierFormValues["authType"])
+          ? editTarget.authType
+          : "bearer") as SupplierFormValues["authType"],
+        apiKeyHeaderName: (authConfig.headerName as string | undefined) ?? "x-api-key",
+        cloudflareClientId: (authConfig.clientId as string | undefined) ?? "",
+        sigv4Region: (authConfig.region as string | undefined) ?? "us-east-1",
+        sigv4AccessKeyId: (authConfig.accessKeyId as string | undefined) ?? "",
+        officialConcurrencyLimit: editTarget.officialConcurrencyLimit
+          ? String(editTarget.officialConcurrencyLimit)
+          : "",
+        officialQueueTimeoutMs: String(editTarget.officialQueueTimeoutMs ?? 30_000),
         enabled: editTarget.enabled,
       });
       return;
@@ -284,9 +351,28 @@ function SupplierFormDialog({
   }, [editTarget, form, open]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    let authConfig: Record<string, unknown> = {};
+    if (values.authType === "api-key") {
+      authConfig = { headerName: values.apiKeyHeaderName?.trim() || "x-api-key" };
+    } else if (values.authType === "cloudflare") {
+      authConfig = { clientId: values.cloudflareClientId?.trim() ?? "" };
+    } else if (values.authType === "sigv4") {
+      authConfig = {
+        region: values.sigv4Region,
+        service: "bedrock",
+        accessKeyId: values.sigv4AccessKeyId?.trim() ?? "",
+      };
+    }
+    const officialConcurrencyLimit =
+      values.officialConcurrencyLimit === "" ? null : Number(values.officialConcurrencyLimit);
+    const officialQueueTimeoutMs = Number(values.officialQueueTimeoutMs);
     const body = {
       name: values.name.trim(),
       iconUrl: values.iconUrl.trim(),
+      authType: values.authType,
+      authConfig,
+      officialConcurrencyLimit,
+      officialQueueTimeoutMs,
       enabled: values.enabled,
     };
 
@@ -315,7 +401,7 @@ function SupplierFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {t(isEdit ? "ai-suppliers.dialog.edit-title" : "ai-suppliers.dialog.create-title")}
@@ -371,6 +457,142 @@ function SupplierFormDialog({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="authType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-suppliers.form.auth-type")}</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bearer">Bearer</SelectItem>
+                        <SelectItem value="api-key">API Key</SelectItem>
+                        <SelectItem value="cloudflare">Cloudflare Access</SelectItem>
+                        <SelectItem value="sigv4">AWS SigV4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {watchedAuthType === "api-key" && (
+                <FormField
+                  control={form.control}
+                  name="apiKeyHeaderName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-suppliers.form.api-key-header")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="font-mono"
+                          placeholder={t("ai-suppliers.form.api-key-header-ph")}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {watchedAuthType === "cloudflare" && (
+                <FormField
+                  control={form.control}
+                  name="cloudflareClientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-suppliers.form.cloudflare-client-id")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="font-mono"
+                          placeholder={t("ai-suppliers.form.cloudflare-client-id-ph")}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {watchedAuthType === "sigv4" && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="sigv4Region"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("ai-suppliers.form.sigv4-region")}</FormLabel>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={t("ai-suppliers.form.sigv4-region-ph")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BEDROCK_REGIONS.map((region) => (
+                              <SelectItem key={region.code} value={region.code}>
+                                {region.code} - {region.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sigv4AccessKeyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("ai-suppliers.form.sigv4-access-key-id")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            className="font-mono"
+                            placeholder={t("ai-suppliers.form.sigv4-access-key-id-ph")}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="officialConcurrencyLimit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-suppliers.form.official-concurrency-limit")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          min={1}
+                          placeholder={t("ai-suppliers.form.official-concurrency-limit-ph")}
+                          step={1}
+                          type="number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="officialQueueTimeoutMs"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-suppliers.form.official-queue-timeout")}</FormLabel>
+                      <FormControl>
+                        <Input min={1} step={1000} type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="enabled"
