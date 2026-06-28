@@ -318,12 +318,12 @@ export const updateGatewayConfigBody = z.object({
         .array(
           z
             .object({
-              providerId: z.string().trim().optional(),
+              endpointId: z.string().trim().optional(),
               modelId: z.string().trim().optional(),
               upstreamFetchMs: z.number().int().positive(),
             })
-            .refine((value) => value.providerId || value.modelId, {
-              message: "providerId or modelId is required",
+            .refine((value) => value.endpointId || value.modelId, {
+              message: "endpointId or modelId is required",
             }),
         )
         .optional(),

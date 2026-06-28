@@ -1,5 +1,5 @@
 import type { ClientFormat } from "../lib/client-format";
-import type { OpenAIChatBody, OpenAIChatResponse } from "../providers/types";
+import type { OpenAIChatBody, OpenAIChatResponse } from "../protocol-adapters/types";
 
 export type ClientProtocolRequestResult =
   | { ok: true; body: OpenAIChatBody }

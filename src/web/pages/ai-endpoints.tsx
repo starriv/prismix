@@ -5,48 +5,26 @@ import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import { groupBy, orderBy } from "lodash-es";
-import {
-  Activity,
-  ArrowLeft,
-  Key,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Route,
-  Server,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Route, Server, Sparkles, Trash2 } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import type { HealthStatus } from "@/web/api/health-status";
 import {
-  useAiProviderAssignments,
-  useAiProviderKeys,
-  useAiProviders,
-  useAiProvidersOverview,
+  useAiEndpointAssignments,
+  useAiEndpoints,
+  useAiEndpointsOverview,
+  useAiSuppliers,
   useAiUpstreams,
-  useCreateAiKey,
-  useCreateAiProvider,
-  useCreateAiProviderAssignment,
-  useDeleteAiKey,
-  useDeleteAiProvider,
-  useDeleteAiProviderAssignment,
-  useKeyProviders,
-  useTestAiKey,
-  useUpdateAiKey,
-  useUpdateAiProvider,
-  useUpdateAiProviderAssignment,
+  useCreateAiEndpoint,
+  useCreateAiEndpointAssignment,
+  useDeleteAiEndpoint,
+  useDeleteAiEndpointAssignment,
+  useUpdateAiEndpoint,
+  useUpdateAiEndpointAssignment,
 } from "@/web/api/hooks";
-import type {
-  AiKey,
-  AiProvider,
-  AiProviderOverviewItem,
-  AiUpstreamAssignment,
-} from "@/web/api/schemas";
+import type { AiEndpoint, AiEndpointOverviewItem, AiUpstreamAssignment } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import {
   DataTable,
@@ -76,7 +54,6 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
-import { SecretInput } from "@/web/components/ui/secret-input";
 import {
   Select,
   SelectContent,
@@ -89,38 +66,19 @@ import { Switch } from "@/web/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 import { cn } from "@/web/shared/utils";
 
-// ── AWS Bedrock regions (runtime endpoints) ─────────────────────────
-
-const BEDROCK_REGIONS = [
-  { code: "us-east-1", label: "US East (N. Virginia)" },
-  { code: "us-east-2", label: "US East (Ohio)" },
-  { code: "us-west-2", label: "US West (Oregon)" },
-  { code: "ap-south-1", label: "Asia Pacific (Mumbai)" },
-  { code: "ap-south-2", label: "Asia Pacific (Hyderabad)" },
-  { code: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
-  { code: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
-  { code: "ap-northeast-3", label: "Asia Pacific (Osaka)" },
-  { code: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
-  { code: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
-  { code: "ca-central-1", label: "Canada (Central)" },
-  { code: "eu-central-1", label: "Europe (Frankfurt)" },
-  { code: "eu-central-2", label: "Europe (Zurich)" },
-  { code: "eu-west-1", label: "Europe (Ireland)" },
-  { code: "eu-west-2", label: "Europe (London)" },
-  { code: "eu-west-3", label: "Europe (Paris)" },
-  { code: "eu-south-1", label: "Europe (Milan)" },
-  { code: "eu-south-2", label: "Europe (Spain)" },
-  { code: "eu-north-1", label: "Europe (Stockholm)" },
-  { code: "sa-east-1", label: "South America (São Paulo)" },
-  { code: "us-gov-east-1", label: "AWS GovCloud (US-East)" },
-  { code: "us-gov-west-1", label: "AWS GovCloud (US-West)" },
-] as const;
+import {
+  BEDROCK_REGIONS,
+  DEFAULT_UPSTREAM_PRIORITY,
+  DEFAULT_UPSTREAM_WEIGHT,
+} from "./ai-endpoints/constants";
+import { EndpointCredentialBucketsSection } from "./ai-endpoints/credential-buckets";
 
 // ── Form schemas ────────────────────────────────────────────────────
 
-const providerFormSchema = z
+const endpointFormSchema = z
   .object({
-    providerId: z.string().min(1, "common.valid.required"),
+    supplierId: z.number().min(1, "common.valid.required"),
+    endpointId: z.string().min(1, "common.valid.required"),
     name: z.string().min(1, "common.valid.name-required"),
     baseUrl: z.string().url("common.valid.invalid-url"),
     apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
@@ -153,10 +111,10 @@ const providerFormSchema = z
     message: "common.valid.required",
     path: ["cloudflareClientId"],
   });
-type ProviderFormValues = z.infer<typeof providerFormSchema>;
+type EndpointFormValues = z.infer<typeof endpointFormSchema>;
 
-function isProviderEffectiveEnabled(provider: AiProvider): boolean {
-  return provider.enabled && !provider.autoDisabled;
+function isEndpointEffectiveEnabled(endpoint: AiEndpoint): boolean {
+  return endpoint.enabled && !endpoint.autoDisabled;
 }
 
 const assignUpstreamFormSchema = z.object({
@@ -176,49 +134,46 @@ const editAssignmentFormSchema = z.object({
 type EditAssignmentFormInput = z.input<typeof editAssignmentFormSchema>;
 type EditAssignmentFormValues = z.output<typeof editAssignmentFormSchema>;
 
-const DEFAULT_UPSTREAM_PRIORITY = 1000;
-const DEFAULT_UPSTREAM_WEIGHT = 1;
-
 // ── Page ────────────────────────────────────────────────────────────
 
-export default function AiProvidersPage() {
+export default function AiEndpointsPage() {
   const { t } = useTranslation();
-  const { data: providers = [], isLoading } = useAiProviders();
-  const { data: overview } = useAiProvidersOverview(24, 30_000);
+  const { data: endpoints = [], isLoading } = useAiEndpoints();
+  const { data: overview } = useAiEndpointsOverview(24, 30_000);
   const healthMap = useMemo(
-    () => new Map(overview?.providers.map((p) => [p.id, p]) ?? []),
-    [overview?.providers],
+    () => new Map(overview?.endpoints.map((p) => [p.id, p]) ?? []),
+    [overview?.endpoints],
   );
-  const [selectedId, setSelectedId] = useQueryState("providerId", parseAsInteger);
+  const [selectedId, setSelectedId] = useQueryState("endpointId", parseAsInteger);
 
   const [addOpen, setAddOpen] = useState(false);
 
-  const selectedProvider = providers.find((p) => p.id === selectedId) ?? null;
+  const selectedEndpoint = endpoints.find((p) => p.id === selectedId) ?? null;
 
   const handleBack = useCallback(() => setSelectedId(null), [setSelectedId]);
-  const handleSelect = useCallback((p: AiProvider) => setSelectedId(p.id), [setSelectedId]);
+  const handleSelect = useCallback((p: AiEndpoint) => setSelectedId(p.id), [setSelectedId]);
 
   return (
     <div>
-      <Header title={t("ai-providers.title")} description={t("ai-providers.desc")} />
+      <Header title={t("ai-endpoints.title")} description={t("ai-endpoints.desc")} />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
-        {selectedProvider ? (
-          <ProviderDetail
-            provider={selectedProvider}
+        {selectedEndpoint ? (
+          <EndpointDetail
+            endpoint={selectedEndpoint}
             onBack={handleBack}
-            healthOverview={healthMap.get(selectedProvider.id)}
+            healthOverview={healthMap.get(selectedEndpoint.id)}
           />
         ) : (
           <>
             <div className="flex items-center justify-end">
               <Button size="sm" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
-                {t("ai-providers.btn.new")}
+                {t("ai-endpoints.btn.new")}
               </Button>
             </div>
-            <ProviderGrid
-              providers={providers}
+            <EndpointGrid
+              endpoints={endpoints}
               loading={isLoading}
               onSelect={handleSelect}
               healthMap={healthMap}
@@ -227,23 +182,23 @@ export default function AiProvidersPage() {
         )}
       </div>
 
-      <ProviderFormDialog open={addOpen} onOpenChange={setAddOpen} />
+      <EndpointFormDialog open={addOpen} onOpenChange={setAddOpen} />
     </div>
   );
 }
 
-// ── Provider Grid ───────────────────────────────────────────────────
+// ── Endpoint Grid ───────────────────────────────────────────────────
 
-function ProviderGrid({
-  providers,
+function EndpointGrid({
+  endpoints,
   loading,
   onSelect,
   healthMap,
 }: {
-  providers: AiProvider[];
+  endpoints: AiEndpoint[];
   loading: boolean;
-  onSelect: (p: AiProvider) => void;
-  healthMap: Map<number, AiProviderOverviewItem>;
+  onSelect: (p: AiEndpoint) => void;
+  healthMap: Map<number, AiEndpointOverviewItem>;
 }) {
   const { t } = useTranslation();
 
@@ -261,12 +216,12 @@ function ProviderGrid({
     );
   }
 
-  if (providers.length === 0) {
+  if (endpoints.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <Server className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">{t("ai-providers.empty")}</p>
+          <p className="text-sm text-muted-foreground">{t("ai-endpoints.empty")}</p>
         </CardContent>
       </Card>
     );
@@ -274,38 +229,38 @@ function ProviderGrid({
 
   return (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      {providers.map((provider) => (
-        <ProviderCard
-          key={provider.id}
-          provider={provider}
-          upstreamCount={provider.upstreamCount ?? 0}
-          onClick={() => onSelect(provider)}
-          healthOverview={healthMap.get(provider.id)}
+      {endpoints.map((endpoint) => (
+        <EndpointCard
+          key={endpoint.id}
+          endpoint={endpoint}
+          upstreamCount={endpoint.upstreamCount ?? 0}
+          onClick={() => onSelect(endpoint)}
+          healthOverview={healthMap.get(endpoint.id)}
         />
       ))}
     </div>
   );
 }
 
-function ProviderCard({
-  provider,
+function EndpointCard({
+  endpoint,
   upstreamCount,
   onClick,
   healthOverview,
 }: {
-  provider: AiProvider;
+  endpoint: AiEndpoint;
   upstreamCount: number;
   onClick: () => void;
-  healthOverview?: AiProviderOverviewItem;
+  healthOverview?: AiEndpointOverviewItem;
 }) {
   const { t } = useTranslation();
-  const effectiveEnabled = isProviderEffectiveEnabled(provider);
+  const effectiveEnabled = isEndpointEffectiveEnabled(endpoint);
   const healthStatus: HealthStatus = healthOverview?.healthStatus ?? "unknown";
 
   const upstreamLabel =
     upstreamCount > 0
-      ? t("ai-providers.card.upstreams", { count: upstreamCount })
-      : t("ai-providers.card.no-upstreams");
+      ? t("ai-endpoints.card.upstreams", { count: upstreamCount })
+      : t("ai-endpoints.card.no-upstreams");
 
   return (
     <button
@@ -315,7 +270,7 @@ function ProviderCard({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       )}
       onClick={onClick}
-      aria-label={t("ai-providers.card.open-provider", { name: provider.name })}
+      aria-label={t("ai-endpoints.card.open-endpoint", { name: endpoint.name })}
     >
       <Card
         className={cn(
@@ -327,10 +282,10 @@ function ProviderCard({
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              {provider.iconUrl ? (
+              {endpoint.iconUrl ? (
                 <img
-                  src={provider.iconUrl}
-                  alt={provider.name}
+                  src={endpoint.iconUrl}
+                  alt={endpoint.name}
                   className="h-8 w-8 rounded-md object-contain"
                   width={32}
                   height={32}
@@ -340,7 +295,7 @@ function ProviderCard({
                   <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
                 </div>
               )}
-              <h3 className="truncate text-sm font-semibold">{provider.name}</h3>
+              <h3 className="truncate text-sm font-semibold">{endpoint.name}</h3>
             </div>
             <div
               className={cn("h-2.5 w-2.5 shrink-0 rounded-full", healthDotColor(healthStatus))}
@@ -351,10 +306,10 @@ function ProviderCard({
         <CardContent className="space-y-3 pb-4 pt-0">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline" className="text-xs">
-              {provider.apiFormat}
+              {endpoint.apiFormat}
             </Badge>
             <Badge variant="outline" className="text-xs">
-              {provider.authType}
+              {endpoint.authType}
             </Badge>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -367,20 +322,20 @@ function ProviderCard({
   );
 }
 
-// ── Provider Detail ─────────────────────────────────────────────────
+// ── Endpoint Detail ─────────────────────────────────────────────────
 
-function ProviderDetail({
-  provider,
+function EndpointDetail({
+  endpoint,
   onBack,
   healthOverview,
 }: {
-  provider: AiProvider;
+  endpoint: AiEndpoint;
   onBack: () => void;
-  healthOverview?: AiProviderOverviewItem;
+  healthOverview?: AiEndpointOverviewItem;
 }) {
   const { t } = useTranslation();
-  const updateProvider = useUpdateAiProvider();
-  const deleteProvider = useDeleteAiProvider();
+  const updateEndpoint = useUpdateAiEndpoint();
+  const deleteEndpoint = useDeleteAiEndpoint();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -389,25 +344,25 @@ function ProviderDetail({
 
   const handleToggle = useCallback(async () => {
     try {
-      await updateProvider.mutateAsync({
-        id: provider.id,
-        enabled: !isProviderEffectiveEnabled(provider),
+      await updateEndpoint.mutateAsync({
+        id: endpoint.id,
+        enabled: !isEndpointEffectiveEnabled(endpoint),
       });
-      toast.success(t("ai-providers.toast.updated"));
+      toast.success(t("ai-endpoints.toast.updated"));
     } catch {
-      toast.error(t("ai-providers.toast.update-error"));
+      toast.error(t("ai-endpoints.toast.update-error"));
     }
-  }, [updateProvider, provider, t]);
+  }, [updateEndpoint, endpoint, t]);
 
   const handleConfirmDelete = useCallback(async () => {
     try {
-      await deleteProvider.mutateAsync(provider.id);
-      toast.success(t("ai-providers.toast.deleted"));
+      await deleteEndpoint.mutateAsync(endpoint.id);
+      toast.success(t("ai-endpoints.toast.deleted"));
       onBack();
     } catch {
-      toast.error(t("ai-providers.toast.delete-error"));
+      toast.error(t("ai-endpoints.toast.delete-error"));
     }
-  }, [deleteProvider, provider, onBack, t]);
+  }, [deleteEndpoint, endpoint, onBack, t]);
 
   return (
     <>
@@ -424,10 +379,10 @@ function ProviderDetail({
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              {provider.iconUrl ? (
+              {endpoint.iconUrl ? (
                 <img
-                  src={provider.iconUrl}
-                  alt={provider.name}
+                  src={endpoint.iconUrl}
+                  alt={endpoint.name}
                   className="h-6 w-6 rounded object-contain"
                   width={24}
                   height={24}
@@ -437,16 +392,16 @@ function ProviderDetail({
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                 </div>
               )}
-              <CardTitle className="text-base">{provider.name}</CardTitle>
+              <CardTitle className="text-base">{endpoint.name}</CardTitle>
               <Badge variant="secondary" className="font-mono text-xs">
-                {provider.providerId}
+                {endpoint.endpointId}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
               <Switch
-                checked={isProviderEffectiveEnabled(provider)}
+                checked={isEndpointEffectiveEnabled(endpoint)}
                 onCheckedChange={handleToggle}
-                disabled={updateProvider.isPending}
+                disabled={updateEndpoint.isPending}
               />
               <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -463,30 +418,30 @@ function ProviderDetail({
           <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {t("ai-providers.form.base-url")}
+                {t("ai-endpoints.form.base-url")}
               </div>
-              <div className="font-mono text-xs break-all">{provider.baseUrl}</div>
+              <div className="font-mono text-xs break-all">{endpoint.baseUrl}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {t("ai-providers.th.api-format")}
+                {t("ai-endpoints.th.api-format")}
               </div>
-              <div>{provider.apiFormat}</div>
+              <div>{endpoint.apiFormat}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {t("ai-providers.th.auth-type")}
+                {t("ai-endpoints.th.auth-type")}
               </div>
-              <div>{provider.authType}</div>
+              <div>{endpoint.authType}</div>
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {t("ai-providers.th.routing")}
+                {t("ai-endpoints.th.routing")}
               </div>
               <div>
-                {provider.upstreamRoutingStrategy === "weighted-random"
-                  ? t("ai-providers.strategy.weighted-random")
-                  : t("ai-providers.strategy.priority")}
+                {endpoint.upstreamRoutingStrategy === "weighted-random"
+                  ? t("ai-endpoints.strategy.weighted-random")
+                  : t("ai-endpoints.strategy.priority")}
               </div>
             </div>
           </div>
@@ -537,23 +492,23 @@ function ProviderDetail({
       </Card>
 
       {/* Upstreams */}
-      <ProviderUpstreamsSection provider={provider} />
+      <EndpointUpstreamsSection endpoint={endpoint} />
 
-      {/* Key Pools */}
-      <ProviderKeyBucketsSection provider={provider} />
+      {/* Credential Pools */}
+      <EndpointCredentialBucketsSection endpoint={endpoint} />
 
       {/* Edit dialog */}
-      <ProviderFormDialog open={editOpen} onOpenChange={setEditOpen} provider={provider} />
+      <EndpointFormDialog open={editOpen} onOpenChange={setEditOpen} endpoint={endpoint} />
 
       {/* Delete dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("ai-providers.dialog.delete-title")}</DialogTitle>
+            <DialogTitle>{t("ai-endpoints.dialog.delete-title")}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              {t("ai-providers.dialog.delete-body", { name: provider.name })}
+              {t("ai-endpoints.dialog.delete-body", { name: endpoint.name })}
             </p>
           </DialogBody>
           <DialogFooter>
@@ -563,7 +518,7 @@ function ProviderDetail({
             <Button
               variant="destructive"
               onClick={handleConfirmDelete}
-              disabled={deleteProvider.isPending}
+              disabled={deleteEndpoint.isPending}
             >
               {t("common.btn.delete")}
             </Button>
@@ -574,13 +529,13 @@ function ProviderDetail({
   );
 }
 
-// ── Provider Upstreams Section ───────────────────────────────────────
+// ── Endpoint Upstreams Section ───────────────────────────────────────
 
-function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
+function EndpointUpstreamsSection({ endpoint }: { endpoint: AiEndpoint }) {
   const { t } = useTranslation();
-  const { data: assignments = [], isLoading } = useAiProviderAssignments(provider.id);
-  const updateAssignment = useUpdateAiProviderAssignment();
-  const deleteAssignment = useDeleteAiProviderAssignment();
+  const { data: assignments = [], isLoading } = useAiEndpointAssignments(endpoint.id);
+  const updateAssignment = useUpdateAiEndpointAssignment();
+  const deleteAssignment = useDeleteAiEndpointAssignment();
 
   const [editTarget, setEditTarget] = useState<AiUpstreamAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AiUpstreamAssignment | null>(null);
@@ -601,17 +556,17 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
     if (!deleteTarget) return;
     try {
       await deleteAssignment.mutateAsync({
-        providerId: provider.id,
+        endpointId: endpoint.id,
         assignmentId: deleteTarget.id,
       });
-      toast.success(t("ai-providers.toast.upstream-deleted"));
+      toast.success(t("ai-endpoints.toast.upstream-deleted"));
       setDeleteTarget(null);
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : t("ai-providers.toast.upstream-delete-error"),
+        err instanceof Error ? err.message : t("ai-endpoints.toast.upstream-delete-error"),
       );
     }
-  }, [deleteTarget, deleteAssignment, provider, t]);
+  }, [deleteTarget, deleteAssignment, endpoint, t]);
 
   const columns = useMemo<ColumnDef<AiUpstreamAssignment>[]>(
     () => [
@@ -621,7 +576,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         cell: ({ row }) => (
           <DataTableText className="font-medium">{row.original.upstream.name}</DataTableText>
         ),
-        header: t("ai-providers.upstreams.th.name"),
+        header: t("ai-endpoints.upstreams.th.name"),
         meta: { headerClassName: "w-[14%]" },
       },
       {
@@ -635,7 +590,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
             {row.original.upstream.upstreamId}
           </CopyableText>
         ),
-        header: t("ai-providers.upstreams.th.upstream-id"),
+        header: t("ai-endpoints.upstreams.th.upstream-id"),
         meta: { headerClassName: "w-[26%]" },
       },
       {
@@ -644,7 +599,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         cell: ({ row }) => (
           <DataTableBadge variant="outline">{row.original.upstream.kind}</DataTableBadge>
         ),
-        header: t("ai-providers.upstreams.th.kind"),
+        header: t("ai-endpoints.upstreams.th.kind"),
         meta: { headerClassName: "w-[8%]" },
       },
       {
@@ -655,19 +610,19 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
             {row.original.upstream.baseUrl}
           </DataTableText>
         ),
-        header: t("ai-providers.upstreams.th.base-url"),
+        header: t("ai-endpoints.upstreams.th.base-url"),
         meta: { headerClassName: "w-[20%]" },
       },
       {
         accessorKey: "priority",
         cell: ({ row }) => <DataTableText>{row.original.priority}</DataTableText>,
-        header: t("ai-providers.upstreams.th.priority"),
+        header: t("ai-endpoints.upstreams.th.priority"),
         meta: { headerClassName: "w-[8%]" },
       },
       {
         accessorKey: "weight",
         cell: ({ row }) => <DataTableText>{row.original.weight}</DataTableText>,
-        header: t("ai-providers.upstreams.th.weight"),
+        header: t("ai-endpoints.upstreams.th.weight"),
         meta: { headerClassName: "w-[8%]" },
       },
       {
@@ -678,22 +633,22 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
             onCheckedChange={(enabled) => {
               void updateAssignment
                 .mutateAsync({
-                  providerId: provider.id,
+                  endpointId: endpoint.id,
                   assignmentId: row.original.id,
                   enabled,
                 })
-                .then(() => toast.success(t("ai-providers.toast.upstream-updated")))
+                .then(() => toast.success(t("ai-endpoints.toast.upstream-updated")))
                 .catch((err: unknown) =>
                   toast.error(
                     err instanceof Error
                       ? err.message
-                      : t("ai-providers.toast.upstream-update-error"),
+                      : t("ai-endpoints.toast.upstream-update-error"),
                   ),
                 );
             }}
           />
         ),
-        header: t("ai-providers.upstreams.th.enabled"),
+        header: t("ai-endpoints.upstreams.th.enabled"),
         meta: { headerClassName: "w-[8%]" },
       },
       {
@@ -723,7 +678,7 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         meta: { headerClassName: "w-[8%]", ...dataTableMeta.right },
       },
     ],
-    [provider.id, t, updateAssignment],
+    [endpoint.id, t, updateAssignment],
   );
 
   return (
@@ -732,25 +687,25 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle className="text-sm">{t("ai-providers.upstreams.section-title")}</CardTitle>
-              <p className="text-sm text-muted-foreground">{t("ai-providers.upstreams.desc")}</p>
+              <CardTitle className="text-sm">{t("ai-endpoints.upstreams.section-title")}</CardTitle>
+              <p className="text-sm text-muted-foreground">{t("ai-endpoints.upstreams.desc")}</p>
             </div>
             <Button size="sm" onClick={() => setAssignOpen(true)}>
               <Plus className="mr-1 h-4 w-4" />
-              {t("ai-providers.btn.assign-upstream")}
+              {t("ai-endpoints.btn.assign-upstream")}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <OfficialUpstreamRouteCard
-            provider={provider}
+            endpoint={endpoint}
             hasAssignments={sortedAssignments.length > 0}
           />
           {(sortedAssignments.length > 0 || isLoading) && (
             <DataTable
               columns={columns}
               data={sortedAssignments}
-              emptyText={t("ai-providers.upstreams.empty")}
+              emptyText={t("ai-endpoints.upstreams.empty")}
               getRowId={(row) => String(row.id)}
               loading={isLoading}
               showPagination={false}
@@ -761,14 +716,14 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
       </Card>
 
       <AssignUpstreamDialog
-        provider={provider}
+        endpoint={endpoint}
         existingAssignments={assignments}
         open={assignOpen}
         onOpenChange={setAssignOpen}
       />
 
       <EditAssignmentDialog
-        provider={provider}
+        endpoint={endpoint}
         assignment={editTarget}
         open={!!editTarget}
         onOpenChange={(v) => {
@@ -784,11 +739,11 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("ai-providers.dialog.delete-upstream-title")}</DialogTitle>
+            <DialogTitle>{t("ai-endpoints.dialog.delete-upstream-title")}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              {t("ai-providers.dialog.delete-upstream-body", {
+              {t("ai-endpoints.dialog.delete-upstream-body", {
                 name: deleteTarget?.upstream.name ?? "",
               })}
             </p>
@@ -812,14 +767,14 @@ function ProviderUpstreamsSection({ provider }: { provider: AiProvider }) {
 }
 
 function OfficialUpstreamRouteCard({
-  provider,
+  endpoint,
   hasAssignments,
 }: {
-  provider: AiProvider;
+  endpoint: AiEndpoint;
   hasAssignments: boolean;
 }) {
   const { t } = useTranslation();
-  const enabled = isProviderEffectiveEnabled(provider);
+  const enabled = isEndpointEffectiveEnabled(endpoint);
 
   return (
     <div
@@ -836,9 +791,9 @@ function OfficialUpstreamRouteCard({
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-medium">{t("ai-providers.upstreams.official-title")}</h3>
+              <h3 className="text-sm font-medium">{t("ai-endpoints.upstreams.official-title")}</h3>
               <Badge variant="secondary" className="text-[10px]">
-                {t("ai-providers.upstreams.kind.official")}
+                {t("ai-endpoints.upstreams.kind.official")}
               </Badge>
               <Badge variant="outline" className="font-mono text-[10px]">
                 P{DEFAULT_UPSTREAM_PRIORITY} W{DEFAULT_UPSTREAM_WEIGHT}
@@ -846,8 +801,8 @@ function OfficialUpstreamRouteCard({
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {hasAssignments
-                ? t("ai-providers.upstreams.official-fallback-desc")
-                : t("ai-providers.upstreams.official-default-desc")}
+                ? t("ai-endpoints.upstreams.official-fallback-desc")
+                : t("ai-endpoints.upstreams.official-default-desc")}
             </p>
           </div>
         </div>
@@ -859,70 +814,72 @@ function OfficialUpstreamRouteCard({
       <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_140px_120px_120px_120px]">
         <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("ai-providers.upstreams.th.base-url")}
+            {t("ai-endpoints.upstreams.th.base-url")}
           </div>
           <CopyableText
-            value={provider.baseUrl}
+            value={endpoint.baseUrl}
             className="rounded-sm font-mono text-xs break-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            {provider.baseUrl}
+            {endpoint.baseUrl}
           </CopyableText>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("ai-providers.upstreams.route-role")}
+            {t("ai-endpoints.upstreams.route-role")}
           </div>
           <div>
             {hasAssignments
-              ? t("ai-providers.upstreams.fallback")
-              : t("ai-providers.upstreams.default-route")}
+              ? t("ai-endpoints.upstreams.fallback")
+              : t("ai-endpoints.upstreams.default-route")}
           </div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("ai-providers.upstreams.th.upstream-id")}
+            {t("ai-endpoints.upstreams.th.upstream-id")}
           </div>
-          <div className="font-mono text-xs">{t("ai-providers.upstreams.official-id")}</div>
+          <div className="font-mono text-xs">{t("ai-endpoints.upstreams.official-id")}</div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("ai-providers.upstreams.th.concurrency-limit")}
+            {t("ai-endpoints.upstreams.th.concurrency-limit")}
           </div>
           <div className="font-mono text-xs">
-            {provider.officialConcurrencyLimit ?? t("ai-providers.upstreams.unlimited")}
+            {endpoint.officialConcurrencyLimit ?? t("ai-endpoints.upstreams.unlimited")}
           </div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("ai-providers.upstreams.th.queue-timeout")}
+            {t("ai-endpoints.upstreams.th.queue-timeout")}
           </div>
-          <div className="font-mono text-xs">{provider.officialQueueTimeoutMs ?? 30_000}ms</div>
+          <div className="font-mono text-xs">{endpoint.officialQueueTimeoutMs ?? 30_000}ms</div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Provider Form Dialog ────────────────────────────────────────────
+// ── Endpoint Form Dialog ────────────────────────────────────────────
 
-function ProviderFormDialog({
+function EndpointFormDialog({
   open,
   onOpenChange,
-  provider,
+  endpoint,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  provider?: AiProvider | null;
+  endpoint?: AiEndpoint | null;
 }) {
   const { t } = useTranslation();
-  const createProvider = useCreateAiProvider();
-  const updateProvider = useUpdateAiProvider();
-  const isEdit = !!provider;
+  const createEndpoint = useCreateAiEndpoint();
+  const updateEndpoint = useUpdateAiEndpoint();
+  const { data: suppliers = [] } = useAiSuppliers();
+  const isEdit = !!endpoint;
 
-  const form = useForm<ProviderFormValues>({
-    resolver: zodResolver(providerFormSchema),
+  const form = useForm<EndpointFormValues>({
+    resolver: zodResolver(endpointFormSchema),
     defaultValues: {
-      providerId: "",
+      supplierId: 0,
+      endpointId: "",
       name: "",
       baseUrl: "",
       apiFormat: "openai",
@@ -938,28 +895,30 @@ function ProviderFormDialog({
   });
 
   useEffect(() => {
-    if (open && provider) {
-      const ac = (provider.authConfig ?? {}) as Record<string, unknown>;
+    if (open && endpoint) {
+      const ac = (endpoint.authConfig ?? {}) as Record<string, unknown>;
       form.reset({
-        providerId: provider.providerId,
-        name: provider.name,
-        baseUrl: provider.baseUrl,
-        apiFormat: provider.apiFormat as ProviderFormValues["apiFormat"],
-        authType: provider.authType as ProviderFormValues["authType"],
+        supplierId: endpoint.supplierId,
+        endpointId: endpoint.endpointId,
+        name: endpoint.name,
+        baseUrl: endpoint.baseUrl,
+        apiFormat: endpoint.apiFormat as EndpointFormValues["apiFormat"],
+        authType: endpoint.authType as EndpointFormValues["authType"],
         upstreamRoutingStrategy:
-          provider.upstreamRoutingStrategy === "weighted-random" ? "weighted-random" : "priority",
-        officialConcurrencyLimit: provider.officialConcurrencyLimit
-          ? String(provider.officialConcurrencyLimit)
+          endpoint.upstreamRoutingStrategy === "weighted-random" ? "weighted-random" : "priority",
+        officialConcurrencyLimit: endpoint.officialConcurrencyLimit
+          ? String(endpoint.officialConcurrencyLimit)
           : "",
-        officialQueueTimeoutMs: String(provider.officialQueueTimeoutMs ?? 30_000),
-        enabled: provider.enabled,
+        officialQueueTimeoutMs: String(endpoint.officialQueueTimeoutMs ?? 30_000),
+        enabled: endpoint.enabled,
         sigv4Region: (ac.region as string) ?? "",
         sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
         cloudflareClientId: (ac.clientId as string) ?? "",
       });
     } else if (open) {
       form.reset({
-        providerId: "",
+        supplierId: suppliers[0]?.id ?? 0,
+        endpointId: "",
         name: "",
         baseUrl: "",
         apiFormat: "openai",
@@ -973,7 +932,7 @@ function ProviderFormDialog({
         cloudflareClientId: "",
       });
     }
-  }, [open, provider, form]);
+  }, [open, endpoint, suppliers, form]);
 
   // Auto-link: Bedrock apiFormat → default region + baseUrl
   const watchedApiFormat = useWatch({ control: form.control, name: "apiFormat" });
@@ -1020,26 +979,26 @@ function ProviderFormDialog({
 
     try {
       if (isEdit) {
-        await updateProvider.mutateAsync({
-          id: provider.id,
+        await updateEndpoint.mutateAsync({
+          id: endpoint.id,
           ...rest,
           officialConcurrencyLimit,
           officialQueueTimeoutMs,
           authConfig,
         });
-        toast.success(t("ai-providers.toast.updated"));
+        toast.success(t("ai-endpoints.toast.updated"));
       } else {
-        await createProvider.mutateAsync({
+        await createEndpoint.mutateAsync({
           ...rest,
           officialConcurrencyLimit,
           officialQueueTimeoutMs,
           authConfig,
         });
-        toast.success(t("ai-providers.toast.created"));
+        toast.success(t("ai-endpoints.toast.created"));
       }
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("ai-providers.toast.create-error"));
+      toast.error(err instanceof Error ? err.message : t("ai-endpoints.toast.create-error"));
     }
   });
 
@@ -1048,7 +1007,7 @@ function ProviderFormDialog({
       <DialogContent preventClose>
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? t("ai-providers.dialog.edit-title") : t("ai-providers.dialog.add-title")}
+            {isEdit ? t("ai-endpoints.dialog.edit-title") : t("ai-endpoints.dialog.add-title")}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
@@ -1056,13 +1015,38 @@ function ProviderFormDialog({
             <DialogBody className="space-y-4">
               <FormField
                 control={form.control}
-                name="providerId"
+                name="supplierId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.provider-id")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.supplier")}</FormLabel>
+                    <Select
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(value) => field.onChange(Number(value))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={t("ai-endpoints.form.supplier-ph")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={String(supplier.id)}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endpointId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-endpoints.form.endpoint-id")}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t("ai-providers.form.provider-id-ph")}
+                        placeholder={t("ai-endpoints.form.endpoint-id-ph")}
                         {...field}
                         disabled={isEdit}
                       />
@@ -1076,9 +1060,9 @@ function ProviderFormDialog({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.name")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.name")}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t("ai-providers.form.name-ph")} {...field} />
+                      <Input placeholder={t("ai-endpoints.form.name-ph")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1089,9 +1073,9 @@ function ProviderFormDialog({
                 name="baseUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.base-url")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.base-url")}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t("ai-providers.form.base-url-ph")} {...field} />
+                      <Input placeholder={t("ai-endpoints.form.base-url-ph")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1102,22 +1086,22 @@ function ProviderFormDialog({
                 name="upstreamRoutingStrategy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.upstream-routing-strategy")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.upstream-routing-strategy")}</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="priority">
-                          {t("ai-providers.strategy.priority")}
+                          {t("ai-endpoints.strategy.priority")}
                         </SelectItem>
                         <SelectItem value="weighted-random">
-                          {t("ai-providers.strategy.weighted-random")}
+                          {t("ai-endpoints.strategy.weighted-random")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-[11px] text-muted-foreground">
-                      {t("ai-providers.form.upstream-routing-strategy-hint")}
+                      {t("ai-endpoints.form.upstream-routing-strategy-hint")}
                     </p>
                     <FormMessage />
                   </FormItem>
@@ -1129,7 +1113,7 @@ function ProviderFormDialog({
                   name="officialConcurrencyLimit"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.form.official-concurrency-limit")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.form.official-concurrency-limit")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -1137,11 +1121,11 @@ function ProviderFormDialog({
                           step={1}
                           value={field.value ?? ""}
                           onChange={field.onChange}
-                          placeholder={t("ai-providers.form.official-concurrency-limit-ph")}
+                          placeholder={t("ai-endpoints.form.official-concurrency-limit-ph")}
                         />
                       </FormControl>
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.form.official-concurrency-limit-desc")}
+                        {t("ai-endpoints.form.official-concurrency-limit-desc")}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1152,12 +1136,12 @@ function ProviderFormDialog({
                   name="officialQueueTimeoutMs"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.form.official-queue-timeout")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.form.official-queue-timeout")}</FormLabel>
                       <FormControl>
                         <Input type="number" min={1} step={1000} {...field} />
                       </FormControl>
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.form.official-queue-timeout-desc")}
+                        {t("ai-endpoints.form.official-queue-timeout-desc")}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1169,7 +1153,7 @@ function ProviderFormDialog({
                 name="apiFormat"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.api-format")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.api-format")}</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
@@ -1191,7 +1175,7 @@ function ProviderFormDialog({
                 name="authType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.form.auth-type")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.form.auth-type")}</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
@@ -1213,10 +1197,10 @@ function ProviderFormDialog({
                   name="sigv4Region"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.form.sigv4-region")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.form.sigv4-region")}</FormLabel>
                       <Select value={field.value ?? ""} onValueChange={field.onChange}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder={t("ai-providers.form.sigv4-region-ph")} />
+                          <SelectValue placeholder={t("ai-endpoints.form.sigv4-region-ph")} />
                         </SelectTrigger>
                         <SelectContent>
                           {BEDROCK_REGIONS.map((r) => (
@@ -1227,7 +1211,7 @@ function ProviderFormDialog({
                         </SelectContent>
                       </Select>
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.form.sigv4-region-hint")}
+                        {t("ai-endpoints.form.sigv4-region-hint")}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1240,16 +1224,16 @@ function ProviderFormDialog({
                   name="cloudflareClientId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.form.cloudflare-client-id")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.form.cloudflare-client-id")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t("ai-providers.form.cloudflare-client-id-ph")}
+                          placeholder={t("ai-endpoints.form.cloudflare-client-id-ph")}
                           className="font-mono"
                           {...field}
                         />
                       </FormControl>
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.form.cloudflare-client-id-hint")}
+                        {t("ai-endpoints.form.cloudflare-client-id-hint")}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1262,15 +1246,15 @@ function ProviderFormDialog({
                   name="sigv4AccessKeyId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.form.sigv4-access-key-id")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.form.sigv4-access-key-id")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t("ai-providers.form.sigv4-access-key-id-ph")}
+                          placeholder={t("ai-endpoints.form.sigv4-access-key-id-ph")}
                           {...field}
                         />
                       </FormControl>
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.form.sigv4-access-key-id-hint")}
+                        {t("ai-endpoints.form.sigv4-access-key-id-hint")}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -1282,8 +1266,8 @@ function ProviderFormDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.btn.cancel")}
               </Button>
-              <Button type="submit" disabled={createProvider.isPending || updateProvider.isPending}>
-                {isEdit ? t("common.btn.save") : t("ai-providers.btn.create")}
+              <Button type="submit" disabled={createEndpoint.isPending || updateEndpoint.isPending}>
+                {isEdit ? t("common.btn.save") : t("ai-endpoints.btn.create")}
               </Button>
             </DialogFooter>
           </form>
@@ -1296,19 +1280,19 @@ function ProviderFormDialog({
 // ── Assign Upstream Dialog ──────────────────────────────────────────
 
 function AssignUpstreamDialog({
-  provider,
+  endpoint,
   existingAssignments,
   open,
   onOpenChange,
 }: {
-  provider: AiProvider | null;
+  endpoint: AiEndpoint | null;
   existingAssignments: AiUpstreamAssignment[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
   const { data: allUpstreams = [] } = useAiUpstreams();
-  const createAssignment = useCreateAiProviderAssignment();
+  const createAssignment = useCreateAiEndpointAssignment();
 
   const assignedUpstreamIds = useMemo(
     () => new Set(existingAssignments.map((a) => a.upstream.id)),
@@ -1337,20 +1321,20 @@ function AssignUpstreamDialog({
   }, [form, open]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!provider) return;
+    if (!endpoint) return;
     try {
       await createAssignment.mutateAsync({
-        providerId: provider.id,
+        endpointId: endpoint.id,
         upstreamId: values.upstreamId,
         priority: values.priority,
         weight: values.weight,
         enabled: values.enabled,
       });
-      toast.success(t("ai-providers.toast.upstream-assigned"));
+      toast.success(t("ai-endpoints.toast.upstream-assigned"));
       onOpenChange(false);
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : t("ai-providers.toast.upstream-assign-error"),
+        err instanceof Error ? err.message : t("ai-endpoints.toast.upstream-assign-error"),
       );
     }
   });
@@ -1359,7 +1343,7 @@ function AssignUpstreamDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent preventClose>
         <DialogHeader>
-          <DialogTitle>{t("ai-providers.dialog.assign-upstream-title")}</DialogTitle>
+          <DialogTitle>{t("ai-endpoints.dialog.assign-upstream-title")}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={handleSubmit}>
@@ -1369,13 +1353,13 @@ function AssignUpstreamDialog({
                 name="upstreamId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("ai-providers.upstreams.form.upstream")}</FormLabel>
+                    <FormLabel>{t("ai-endpoints.upstreams.form.upstream")}</FormLabel>
                     <Select
                       value={field.value ? String(field.value) : ""}
                       onValueChange={(v) => field.onChange(Number(v))}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("ai-providers.upstreams.form.upstream-ph")} />
+                        <SelectValue placeholder={t("ai-endpoints.upstreams.form.upstream-ph")} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableUpstreams.map((u) => (
@@ -1387,7 +1371,7 @@ function AssignUpstreamDialog({
                     </Select>
                     {availableUpstreams.length === 0 && (
                       <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.upstreams.form.no-available")}
+                        {t("ai-endpoints.upstreams.form.no-available")}
                       </p>
                     )}
                     <FormMessage />
@@ -1400,7 +1384,7 @@ function AssignUpstreamDialog({
                   name="priority"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.upstreams.form.priority")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.priority")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -1422,7 +1406,7 @@ function AssignUpstreamDialog({
                   name="weight"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.upstreams.form.weight")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.weight")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -1446,7 +1430,7 @@ function AssignUpstreamDialog({
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <FormLabel>{t("ai-providers.upstreams.form.enabled")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.enabled")}</FormLabel>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1460,7 +1444,7 @@ function AssignUpstreamDialog({
                 {t("common.btn.cancel")}
               </Button>
               <Button type="submit" disabled={createAssignment.isPending}>
-                {t("ai-providers.btn.assign-upstream")}
+                {t("ai-endpoints.btn.assign-upstream")}
               </Button>
             </DialogFooter>
           </form>
@@ -1473,18 +1457,18 @@ function AssignUpstreamDialog({
 // ── Edit Assignment Dialog ──────────────────────────────────────────
 
 function EditAssignmentDialog({
-  provider,
+  endpoint,
   assignment,
   open,
   onOpenChange,
 }: {
-  provider: AiProvider | null;
+  endpoint: AiEndpoint | null;
   assignment: AiUpstreamAssignment | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const updateAssignment = useUpdateAiProviderAssignment();
+  const updateAssignment = useUpdateAiEndpointAssignment();
 
   const form = useForm<EditAssignmentFormInput, unknown, EditAssignmentFormValues>({
     resolver: zodResolver(editAssignmentFormSchema),
@@ -1505,20 +1489,20 @@ function EditAssignmentDialog({
   }, [form, open, assignment]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!provider || !assignment) return;
+    if (!endpoint || !assignment) return;
     try {
       await updateAssignment.mutateAsync({
-        providerId: provider.id,
+        endpointId: endpoint.id,
         assignmentId: assignment.id,
         priority: values.priority,
         weight: values.weight,
         enabled: values.enabled,
       });
-      toast.success(t("ai-providers.toast.upstream-updated"));
+      toast.success(t("ai-endpoints.toast.upstream-updated"));
       onOpenChange(false);
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : t("ai-providers.toast.upstream-update-error"),
+        err instanceof Error ? err.message : t("ai-endpoints.toast.upstream-update-error"),
       );
     }
   });
@@ -1527,7 +1511,7 @@ function EditAssignmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent preventClose>
         <DialogHeader>
-          <DialogTitle>{t("ai-providers.dialog.edit-upstream-title")}</DialogTitle>
+          <DialogTitle>{t("ai-endpoints.dialog.edit-upstream-title")}</DialogTitle>
         </DialogHeader>
         {assignment && (
           <div className="px-6 pb-2">
@@ -1548,7 +1532,7 @@ function EditAssignmentDialog({
                   name="priority"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.upstreams.form.priority")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.priority")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -1570,7 +1554,7 @@ function EditAssignmentDialog({
                   name="weight"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-providers.upstreams.form.weight")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.weight")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -1594,7 +1578,7 @@ function EditAssignmentDialog({
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <FormLabel>{t("ai-providers.upstreams.form.enabled")}</FormLabel>
+                      <FormLabel>{t("ai-endpoints.upstreams.form.enabled")}</FormLabel>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -1609,622 +1593,6 @@ function EditAssignmentDialog({
               </Button>
               <Button type="submit" disabled={updateAssignment.isPending}>
                 {t("common.btn.save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Key Pools Section ──────────────────────────────────────────────
-
-interface KeyBucket {
-  id: string;
-  name: string;
-  kind: string | null;
-  baseUrl: string;
-  upstreamId: number | null;
-  priority: number;
-  weight: number;
-  enabled: boolean;
-  keys: AiKey[];
-}
-
-function ProviderKeyBucketsSection({ provider }: { provider: AiProvider }) {
-  const { t } = useTranslation();
-  const { data: keys = [], isLoading: keysLoading } = useAiProviderKeys(provider.id);
-  const { data: assignments = [] } = useAiProviderAssignments(provider.id);
-  const updateKey = useUpdateAiKey();
-  const deleteKey = useDeleteAiKey();
-  const testKey = useTestAiKey();
-  const updateProvider = useUpdateAiProvider();
-
-  const [addBucket, setAddBucket] = useState<KeyBucket | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<AiKey | null>(null);
-
-  const buckets = useMemo<KeyBucket[]>(() => {
-    const grouped = groupBy(keys, (k) => k.upstreamId ?? "official");
-
-    const officialBucket: KeyBucket = {
-      id: "official",
-      name: t("ai-providers.keys.official-bucket"),
-      kind: null,
-      baseUrl: provider.baseUrl,
-      upstreamId: null,
-      priority: DEFAULT_UPSTREAM_PRIORITY,
-      weight: DEFAULT_UPSTREAM_WEIGHT,
-      enabled: true,
-      keys: orderBy(
-        grouped["official"] ?? [],
-        [
-          (k) => -(k.weight ?? 1),
-          (k) => -(k.lastUsedAt ? new Date(k.lastUsedAt).getTime() : 0),
-          "name",
-        ],
-        ["asc", "asc", "asc"],
-      ),
-    };
-
-    const sortedAssignments = [...assignments].sort(
-      (a, b) =>
-        a.priority - b.priority ||
-        b.weight - a.weight ||
-        a.upstream.name.localeCompare(b.upstream.name),
-    );
-
-    const assignmentBuckets: KeyBucket[] = sortedAssignments.map((a) => ({
-      id: String(a.upstream.id),
-      name: a.upstream.name,
-      kind: a.upstream.kind,
-      baseUrl: a.upstream.baseUrl,
-      upstreamId: a.upstream.id,
-      priority: a.priority,
-      weight: a.weight,
-      enabled: a.enabled && a.upstream.enabled,
-      keys: orderBy(
-        grouped[String(a.upstream.id)] ?? [],
-        [
-          (k) => -(k.weight ?? 1),
-          (k) => -(k.lastUsedAt ? new Date(k.lastUsedAt).getTime() : 0),
-          "name",
-        ],
-        ["asc", "asc", "asc"],
-      ),
-    }));
-
-    return [officialBucket, ...assignmentBuckets];
-  }, [keys, assignments, provider.baseUrl, t]);
-
-  const strategy = provider.loadBalanceStrategy ?? "round-robin";
-
-  const handleToggle = useCallback(
-    async (key: AiKey) => {
-      try {
-        await updateKey.mutateAsync({ id: key.id, enabled: !key.enabled });
-        toast.success(t("ai-providers.keys.toast.updated"));
-      } catch {
-        toast.error(t("ai-providers.keys.toast.update-error"));
-      }
-    },
-    [updateKey, t],
-  );
-
-  const handleWeightChange = useCallback(
-    async (key: AiKey, delta: number) => {
-      const newWeight = Math.max(0, Math.min(100, (key.weight ?? 1) + delta));
-      if (newWeight === key.weight) return;
-      try {
-        await updateKey.mutateAsync({ id: key.id, weight: newWeight });
-      } catch {
-        toast.error(t("ai-providers.keys.toast.update-error"));
-      }
-    },
-    [updateKey, t],
-  );
-
-  const handleTest = useCallback(
-    async (key: AiKey) => {
-      try {
-        const result = await testKey.mutateAsync(key.id);
-        if (result.success) {
-          toast.success(t("ai-providers.keys.toast.test-ok", { ms: result.latencyMs ?? 0 }));
-        } else {
-          toast.error(result.error ?? t("ai-providers.keys.toast.test-error"));
-        }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("ai-providers.keys.toast.test-error"));
-      }
-    },
-    [testKey, t],
-  );
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    try {
-      await deleteKey.mutateAsync(deleteTarget.id);
-      toast.success(t("ai-providers.keys.toast.deleted"));
-      setDeleteTarget(null);
-    } catch {
-      toast.error(t("ai-providers.keys.toast.delete-error"));
-    }
-  }, [deleteTarget, deleteKey, t]);
-
-  const handleStrategyChange = useCallback(
-    async (newStrategy: string) => {
-      try {
-        await updateProvider.mutateAsync({ id: provider.id, loadBalanceStrategy: newStrategy });
-        toast.success(t("ai-providers.toast.updated"));
-      } catch {
-        toast.error(t("ai-providers.toast.update-error"));
-      }
-    },
-    [updateProvider, provider.id, t],
-  );
-
-  const totalKeys = keys.length;
-  const showPool = totalKeys > 1;
-
-  return (
-    <>
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-sm">{t("ai-providers.keys.section-title")}</CardTitle>
-              <p className="text-sm text-muted-foreground">{t("ai-providers.keys.desc")}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {showPool && (
-                <Select value={strategy} onValueChange={handleStrategyChange}>
-                  <SelectTrigger className="h-7 w-auto gap-1 border-dashed px-2 text-xs">
-                    <RefreshCw className="h-3 w-3" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="round-robin">
-                      {t("ai-providers.keys.strategy.round-robin")}
-                    </SelectItem>
-                    <SelectItem value="random">{t("ai-providers.keys.strategy.random")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {keysLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          ) : (
-            buckets.map((bucket) => (
-              <BucketCard
-                key={bucket.id}
-                bucket={bucket}
-                showPool={showPool}
-                onToggle={handleToggle}
-                onWeightChange={handleWeightChange}
-                onTest={handleTest}
-                onDelete={setDeleteTarget}
-                onAdd={() => {
-                  if (!bucket.enabled) return;
-                  setAddBucket(bucket);
-                }}
-                isToggling={updateKey.isPending}
-                isTesting={testKey.isPending}
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <AddKeyToBucketDialog
-        open={!!addBucket}
-        onOpenChange={(v) => {
-          if (!v) setAddBucket(null);
-        }}
-        provider={provider}
-        bucket={addBucket}
-      />
-
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => {
-          if (!v) setDeleteTarget(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("ai-providers.keys.dialog.delete-title")}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="text-sm text-muted-foreground">
-              {t("ai-providers.keys.dialog.delete-body", { name: deleteTarget?.name ?? "" })}
-            </p>
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              {t("common.btn.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={deleteKey.isPending}
-            >
-              {t("common.btn.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-// ── Bucket Card ────────────────────────────────────────────────────
-
-function BucketCard({
-  bucket,
-  showPool,
-  onToggle,
-  onWeightChange,
-  onTest,
-  onDelete,
-  onAdd,
-  isToggling,
-  isTesting,
-}: {
-  bucket: KeyBucket;
-  showPool: boolean;
-  onToggle: (key: AiKey) => void;
-  onWeightChange: (key: AiKey, delta: number) => void;
-  onTest: (key: AiKey) => void;
-  onDelete: (key: AiKey) => void;
-  onAdd: () => void;
-  isToggling: boolean;
-  isTesting: boolean;
-}) {
-  const { t } = useTranslation();
-  const isOfficial = bucket.upstreamId === null;
-  const enabledCount = bucket.keys.filter((k) => k.enabled).length;
-  const enabledPool = bucket.keys.filter((k) => k.enabled);
-  const nextKeyId =
-    enabledPool.length > 0
-      ? orderBy(enabledPool, [(k) => k.lastUsedAt ?? ""], ["asc"])[0].id
-      : null;
-
-  return (
-    <div className={cn("rounded-lg border", !bucket.enabled && "opacity-60")}>
-      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b bg-muted/30">
-        <div className="flex items-center gap-2 min-w-0">
-          <Key className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-medium truncate">{bucket.name}</span>
-          {bucket.kind && (
-            <Badge variant="outline" className="text-[10px]">
-              {bucket.kind}
-            </Badge>
-          )}
-          {isOfficial && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="secondary" className="text-[10px]">
-                  P1000
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>{t("ai-providers.keys.official-hint")}</TooltipContent>
-            </Tooltip>
-          )}
-          {!isOfficial && (
-            <Badge variant="secondary" className="text-[10px] font-mono">
-              P{bucket.priority} W{bucket.weight}
-            </Badge>
-          )}
-          <Badge variant="outline" className="text-[10px]">
-            {t("ai-providers.keys.count", { enabled: enabledCount, total: bucket.keys.length })}
-          </Badge>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs shrink-0"
-          onClick={onAdd}
-          disabled={!bucket.enabled}
-          title={!bucket.enabled ? t("common.status.disabled") : undefined}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          {t("ai-providers.keys.add")}
-        </Button>
-      </div>
-
-      <div className="p-2 space-y-1.5">
-        {bucket.keys.length === 0 ? (
-          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-            {t("ai-providers.keys.empty")}
-          </div>
-        ) : (
-          bucket.keys.map((k) => {
-            const isNext = k.id === nextKeyId;
-            const weight = k.weight ?? 1;
-            return (
-              <div
-                key={k.id}
-                className={cn(
-                  "rounded-md border px-3 py-2",
-                  isNext && k.enabled ? "border-primary/30 bg-primary/5" : "bg-muted/20",
-                )}
-              >
-                {/* Row 1: Name + controls */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          className={cn(
-                            "flex h-2 w-2 shrink-0 rounded-full",
-                            !k.enabled
-                              ? "bg-muted-foreground/40"
-                              : isNext
-                                ? "bg-green-500 shadow-[0_0_6px_1px] shadow-green-500/40"
-                                : "bg-green-500",
-                          )}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {!k.enabled
-                          ? t("common.status.disabled")
-                          : isNext
-                            ? t("ai-providers.keys.next")
-                            : t("common.status.active")}
-                      </TooltipContent>
-                    </Tooltip>
-                    <span className="text-sm font-medium truncate">{k.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {showPool && (
-                      <div className="flex items-center gap-0.5 mr-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => onWeightChange(k, -1)}
-                          disabled={weight <= 0}
-                          aria-label={t("ai-providers.keys.weight-down")}
-                        >
-                          <span className="text-xs font-bold">−</span>
-                        </Button>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="w-8 text-center text-xs font-mono tabular-nums">
-                              {weight}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("ai-providers.keys.weight-hint")}</TooltipContent>
-                        </Tooltip>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => onWeightChange(k, 1)}
-                          disabled={weight >= 100}
-                          aria-label={t("ai-providers.keys.weight-up")}
-                        >
-                          <span className="text-xs font-bold">+</span>
-                        </Button>
-                      </div>
-                    )}
-                    <Switch
-                      checked={k.enabled}
-                      onCheckedChange={() => onToggle(k)}
-                      disabled={isToggling}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onTest(k)}
-                      disabled={isTesting}
-                      aria-label={t("common.a11y.test")}
-                    >
-                      <Activity className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onDelete(k)}
-                      aria-label={t("common.btn.delete")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-                {/* Row 2: Prefix + owner + last used */}
-                <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                  <code className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded w-[160px] truncate inline-block">
-                    {k.keyPrefix}****
-                  </code>
-                  <Badge
-                    variant={k.ownerName ? "secondary" : "outline"}
-                    className="text-[10px] px-1.5 py-0"
-                  >
-                    {k.ownerName ?? t("ai-providers.keys.tag.platform")}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {k.lastUsedAt
-                      ? formatDistanceToNow(new Date(k.lastUsedAt), { addSuffix: true })
-                      : t("ai-providers.keys.never")}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Add Key to Bucket Dialog ───────────────────────────────────────
-
-const addKeyToBucketSchema = z.object({
-  name: z.string().min(1, "common.valid.name-required"),
-  apiKey: z.string().min(1, "common.valid.required"),
-  ownerId: z.number().int().positive().nullable().optional(),
-});
-type AddKeyToBucketValues = z.infer<typeof addKeyToBucketSchema>;
-
-function AddKeyToBucketDialog({
-  open,
-  onOpenChange,
-  provider,
-  bucket,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  provider: AiProvider;
-  bucket: KeyBucket | null;
-}) {
-  const { t } = useTranslation();
-  const createKey = useCreateAiKey();
-  const { data: keyProviders = [] } = useKeyProviders();
-  const activeKeyProviders = useMemo(
-    () => keyProviders.filter((kp) => kp.status === "active"),
-    [keyProviders],
-  );
-  const isSigV4 = provider.authType === "sigv4";
-  const isCloudflare = provider.authType === "cloudflare";
-
-  const form = useForm<AddKeyToBucketValues>({
-    resolver: zodResolver(addKeyToBucketSchema),
-    defaultValues: { name: "", apiKey: "", ownerId: null },
-  });
-
-  useEffect(() => {
-    if (open) form.reset({ name: "", apiKey: "", ownerId: null });
-  }, [open, form]);
-
-  const handleSubmit = form.handleSubmit(async (data) => {
-    if (!bucket || !bucket.enabled) {
-      toast.error(t("ai-providers.keys.toast.create-error"));
-      return;
-    }
-
-    try {
-      await createKey.mutateAsync({
-        providerId: provider.id,
-        upstreamId: bucket.upstreamId ?? null,
-        name: data.name,
-        apiKey: data.apiKey,
-        ownerId: data.ownerId,
-      });
-      toast.success(t("ai-providers.keys.toast.created"));
-      onOpenChange(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("ai-providers.keys.toast.create-error"));
-    }
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent preventClose>
-        <DialogHeader>
-          <DialogTitle>
-            {t("ai-providers.keys.dialog.add-title", { upstream: bucket?.name ?? "" })}
-          </DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={handleSubmit}>
-            <DialogBody className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("ai-providers.keys.form.name")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t("ai-providers.keys.form.name-ph")} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="apiKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {isCloudflare
-                        ? t("ai-providers.keys.form.cloudflare-client-secret")
-                        : isSigV4
-                          ? t("ai-providers.keys.form.secret-access-key")
-                          : t("ai-providers.keys.form.api-key")}
-                    </FormLabel>
-                    <FormControl>
-                      <SecretInput
-                        placeholder={
-                          isCloudflare
-                            ? t("ai-providers.keys.form.cloudflare-client-secret-ph")
-                            : isSigV4
-                              ? t("ai-providers.keys.form.secret-access-key-ph")
-                              : t("ai-providers.keys.form.api-key-ph")
-                        }
-                        {...field}
-                      />
-                    </FormControl>
-                    <p className="text-[11px] text-muted-foreground">
-                      {isCloudflare
-                        ? t("ai-providers.keys.form.cloudflare-client-secret-hint")
-                        : isSigV4
-                          ? t("ai-providers.keys.form.secret-access-key-hint")
-                          : t("ai-providers.keys.form.api-key-hint")}
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {activeKeyProviders.length > 0 && (
-                <FormField
-                  control={form.control}
-                  name="ownerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("ai-providers.keys.form.owner")}</FormLabel>
-                      <Select
-                        value={field.value ? String(field.value) : "none"}
-                        onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={t("ai-providers.keys.form.owner-ph")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            {t("ai-providers.keys.form.owner-none")}
-                          </SelectItem>
-                          {activeKeyProviders.map((kp) => (
-                            <SelectItem key={kp.id} value={String(kp.id)}>
-                              {kp.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground">
-                        {t("ai-providers.keys.form.owner-hint")}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </DialogBody>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                {t("common.btn.cancel")}
-              </Button>
-              <Button type="submit" disabled={createKey.isPending || !bucket?.enabled}>
-                {t("ai-providers.keys.add")}
               </Button>
             </DialogFooter>
           </form>

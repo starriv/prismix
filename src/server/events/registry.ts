@@ -11,12 +11,12 @@ export const DOMAIN_EVENT_TYPES = {
   ALERT_UPSTREAM_TIMEOUT: "alert.upstream-timeout",
   ALERT_ERROR_SPIKE: "alert.error-spike",
   ALERT_RESOURCE_DOWN: "alert.resource-down",
-  SUPPLIER_DISABLED: "supplier.disabled",
-  SUPPLIER_REENABLED: "supplier.reenabled",
+  ENDPOINT_DISABLED: "endpoint.disabled",
+  ENDPOINT_REENABLED: "endpoint.reenabled",
   SYSTEM_ANNOUNCEMENT: "system.announcement",
   CONFIG_GATEWAY_UPDATED: "config.gateway-updated",
   AI_UPSTREAM_CACHE_INVALIDATED: "ai.upstream-cache-invalidated",
-  AI_KEY_POOL_INVALIDATED: "ai.key-pool-invalidated",
+  AI_CREDENTIAL_POOL_INVALIDATED: "ai.credential-pool-invalidated",
   AGENT_CREATED: "agent.created",
   AGENT_SUSPENDED: "agent.suspended",
   CONSUMER_KEY_DELETED: "consumer-key.deleted",
@@ -28,7 +28,6 @@ export const DOMAIN_EVENT_GROUPS = {
   TOPUP: "topup",
   TX: "tx",
   ALERT: "alert",
-  SUPPLIER: "supplier",
   SYSTEM: "system",
   CONFIG: "config",
   AI: "ai",
@@ -262,15 +261,15 @@ function registerBuiltInEvents(): void {
   });
 
   registerDomainEvent({
-    type: DOMAIN_EVENT_TYPES.SUPPLIER_DISABLED,
-    group: DOMAIN_EVENT_GROUPS.SUPPLIER,
+    type: DOMAIN_EVENT_TYPES.ENDPOINT_DISABLED,
+    group: DOMAIN_EVENT_GROUPS.AI,
     scope: "system",
     version: 1,
     notification: {
       buildPayload: (event) => {
         const { title, body, ...metadata } = event.data;
         return {
-          title: String(title ?? `Supplier disabled: ${event.data.name ?? "Unknown"}`),
+          title: String(title ?? `Endpoint disabled: ${event.data.name ?? "Unknown"}`),
           body: String(body ?? JSON.stringify(event.data)),
           metadata,
         };
@@ -279,15 +278,15 @@ function registerBuiltInEvents(): void {
   });
 
   registerDomainEvent({
-    type: DOMAIN_EVENT_TYPES.SUPPLIER_REENABLED,
-    group: DOMAIN_EVENT_GROUPS.SUPPLIER,
+    type: DOMAIN_EVENT_TYPES.ENDPOINT_REENABLED,
+    group: DOMAIN_EVENT_GROUPS.AI,
     scope: "system",
     version: 1,
     notification: {
       buildPayload: (event) => {
         const { title, body, ...metadata } = event.data;
         return {
-          title: String(title ?? `Supplier reenabled: ${event.data.name ?? "Unknown"}`),
+          title: String(title ?? `Endpoint reenabled: ${event.data.name ?? "Unknown"}`),
           body: String(body ?? JSON.stringify(event.data)),
           metadata,
         };
@@ -324,7 +323,7 @@ function registerBuiltInEvents(): void {
   });
 
   registerDomainEvent({
-    type: DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED,
+    type: DOMAIN_EVENT_TYPES.AI_CREDENTIAL_POOL_INVALIDATED,
     group: DOMAIN_EVENT_GROUPS.AI,
     scope: "system",
     version: 1,

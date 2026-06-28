@@ -67,10 +67,10 @@ vi.mock("@/server/ai/lib/model-mapping-cache", () => ({
   resolveModelMapping: (...args: unknown[]) => mockResolveModelMapping(...args),
 }));
 
-vi.mock("@/server/ai/lib/key-balancer", () => ({
-  pickKey: (...args: unknown[]) => mockPickKey(...args),
-  markKeyFailure: vi.fn(),
-  markKeySuccess: vi.fn(),
+vi.mock("@/server/ai/lib/credential-balancer", () => ({
+  pickEndpointCredential: (...args: unknown[]) => mockPickKey(...args),
+  markCredentialFailure: vi.fn(),
+  markCredentialSuccess: vi.fn(),
 }));
 
 vi.mock("@/server/lib/crypto", () => ({
@@ -131,9 +131,9 @@ vi.mock("@/server/ai/lib/stream-proxy", () => ({
   forwardStream: vi.fn(),
 }));
 
-const { anthropicAdapter } = await import("@/server/ai/providers/anthropic");
-const { openaiAdapter } = await import("@/server/ai/providers/openai");
-const { registerAdapter } = await import("@/server/ai/providers/registry");
+const { anthropicAdapter } = await import("@/server/ai/protocol-adapters/anthropic");
+const { openaiAdapter } = await import("@/server/ai/protocol-adapters/openai");
+const { registerAdapter } = await import("@/server/ai/protocol-adapters/registry");
 registerAdapter(anthropicAdapter);
 registerAdapter(openaiAdapter);
 const { consumerAnthropicRelayRouter } = await import("@/server/ai/routes/consumer-relay");
@@ -161,24 +161,24 @@ describe("consumer relay Anthropic client protocol routing", () => {
         route: {
           id: 201,
           modelId: 101,
-          providerId: 7,
-          providerModelId: null,
+          endpointId: 7,
+          endpointModelId: null,
           priority: 100,
           weight: 1,
           enabled: true,
         },
         model: {
           id: 101,
-          providerId: 7,
+          endpointId: 7,
           clientFormat: "anthropic",
           modelId: "claude-sonnet-4",
           inputPrice: "3",
           outputPrice: "15",
           enabled: true,
         },
-        provider: {
+        endpoint: {
           id: 7,
-          providerId: "anthropic",
+          endpointId: "anthropic",
           name: "Anthropic",
           baseUrl: "https://api.anthropic.com",
           apiFormat: "anthropic",
@@ -205,7 +205,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "friend-key",
@@ -262,7 +262,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "friend-key",
@@ -305,24 +305,24 @@ describe("consumer relay Anthropic client protocol routing", () => {
         route: {
           id: 201,
           modelId: 101,
-          providerId: 7,
-          providerModelId: "glm-5.2",
+          endpointId: 7,
+          endpointModelId: "glm-5.2",
           priority: 100,
           weight: 1,
           enabled: true,
         },
         model: {
           id: 101,
-          providerId: 7,
+          endpointId: 7,
           clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",
           enabled: true,
         },
-        provider: {
+        endpoint: {
           id: 7,
-          providerId: "glm",
+          endpointId: "glm",
           name: "GLM",
           baseUrl: "https://glm.example.com/v1",
           apiFormat: "openai",
@@ -342,7 +342,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "glm-key",
@@ -418,24 +418,24 @@ describe("consumer relay Anthropic client protocol routing", () => {
         route: {
           id: 201,
           modelId: 101,
-          providerId: 7,
-          providerModelId: "glm-5.2",
+          endpointId: 7,
+          endpointModelId: "glm-5.2",
           priority: 100,
           weight: 1,
           enabled: true,
         },
         model: {
           id: 101,
-          providerId: 7,
+          endpointId: 7,
           clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",
           enabled: true,
         },
-        provider: {
+        endpoint: {
           id: 7,
-          providerId: "glm",
+          endpointId: "glm",
           name: "GLM",
           baseUrl: "https://glm.example.com/v1",
           apiFormat: "openai",
@@ -472,24 +472,24 @@ describe("consumer relay Anthropic client protocol routing", () => {
         route: {
           id: 201,
           modelId: 101,
-          providerId: 7,
-          providerModelId: "glm-5.2",
+          endpointId: 7,
+          endpointModelId: "glm-5.2",
           priority: 100,
           weight: 1,
           enabled: true,
         },
         model: {
           id: 101,
-          providerId: 7,
+          endpointId: 7,
           clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "0",
           outputPrice: "0",
           enabled: true,
         },
-        provider: {
+        endpoint: {
           id: 7,
-          providerId: "glm",
+          endpointId: "glm",
           name: "GLM",
           baseUrl: "https://glm.example.com/v1",
           apiFormat: "openai",
@@ -514,7 +514,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "glm-key",
@@ -562,24 +562,24 @@ describe("consumer relay Anthropic client protocol routing", () => {
         route: {
           id: 201,
           modelId: 101,
-          providerId: 7,
-          providerModelId: "glm-5.2",
+          endpointId: 7,
+          endpointModelId: "glm-5.2",
           priority: 100,
           weight: 1,
           enabled: true,
         },
         model: {
           id: 101,
-          providerId: 7,
+          endpointId: 7,
           clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",
           enabled: true,
         },
-        provider: {
+        endpoint: {
           id: 7,
-          providerId: "glm",
+          endpointId: "glm",
           name: "GLM",
           baseUrl: "https://glm.example.com/v1",
           apiFormat: "openai",
@@ -617,7 +617,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "anthropic-key",

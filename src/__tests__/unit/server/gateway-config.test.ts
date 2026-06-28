@@ -32,28 +32,28 @@ describe("gateway timeout config", () => {
   it("adds a long DeepSeek upstream fetch timeout by default", () => {
     const config = resolveTimeoutConfig();
 
-    expect(resolveUpstreamFetchTimeoutMs(config, { providerId: "deepseek" })).toBe(600_000);
-    expect(resolveUpstreamFetchTimeoutMs(config, { providerId: "openai" })).toBe(120_000);
+    expect(resolveUpstreamFetchTimeoutMs(config, { endpointId: "deepseek" })).toBe(600_000);
+    expect(resolveUpstreamFetchTimeoutMs(config, { endpointId: "openai" })).toBe(120_000);
   });
 
   it("uses the most specific upstream fetch timeout override", () => {
     const config = resolveTimeoutConfig({
       upstreamFetchMs: 100_000,
       upstreamFetchOverrides: [
-        { providerId: "deepseek", upstreamFetchMs: 600_000 },
-        { providerId: "deepseek", modelId: "deepseek-v4-pro", upstreamFetchMs: 900_000 },
+        { endpointId: "deepseek", upstreamFetchMs: 600_000 },
+        { endpointId: "deepseek", modelId: "deepseek-v4-pro", upstreamFetchMs: 900_000 },
       ],
     });
 
     expect(
       resolveUpstreamFetchTimeoutMs(config, {
-        providerId: "deepseek",
+        endpointId: "deepseek",
         modelId: "deepseek-v4-pro",
       }),
     ).toBe(900_000);
     expect(
       resolveUpstreamFetchTimeoutMs(config, {
-        providerId: "deepseek",
+        endpointId: "deepseek",
         modelId: "deepseek-chat",
       }),
     ).toBe(600_000);
@@ -67,13 +67,13 @@ describe("gateway timeout config", () => {
 
     expect(
       resolveUpstreamFetchTimeoutMs(config, {
-        providerId: "deepseek",
+        endpointId: "deepseek",
         modelId: "deepseek-v4-pro",
       }),
     ).toBe(900_000);
     expect(
       resolveUpstreamFetchTimeoutMs(config, {
-        providerId: "openai-compatible-proxy",
+        endpointId: "openai-compatible-proxy",
         modelId: "deepseek-v4-pro",
       }),
     ).toBe(900_000);
@@ -82,33 +82,33 @@ describe("gateway timeout config", () => {
   it("falls back to the base timeout when no override key matches", () => {
     const config = resolveTimeoutConfig({
       upstreamFetchMs: 100_000,
-      upstreamFetchOverrides: [{ providerId: "deepseek", upstreamFetchMs: 600_000 }],
+      upstreamFetchOverrides: [{ endpointId: "deepseek", upstreamFetchMs: 600_000 }],
     });
 
     expect(resolveUpstreamFetchTimeoutMs(config, {})).toBe(100_000);
-    expect(resolveUpstreamFetchTimeoutMs(config, { providerId: "openai" })).toBe(100_000);
+    expect(resolveUpstreamFetchTimeoutMs(config, { endpointId: "openai" })).toBe(100_000);
   });
 
   it("keeps an explicitly empty override list", () => {
     const config = resolveTimeoutConfig({ upstreamFetchOverrides: [] });
 
     expect(config.upstreamFetchOverrides).toEqual([]);
-    expect(resolveUpstreamFetchTimeoutMs(config, { providerId: "deepseek" })).toBe(120_000);
+    expect(resolveUpstreamFetchTimeoutMs(config, { endpointId: "deepseek" })).toBe(120_000);
   });
 
   it("drops invalid overrides and logs a warning", () => {
     const config = resolveTimeoutConfig({
       upstreamFetchMs: 100_000,
       upstreamFetchOverrides: [
-        { providerId: "deepseek", upstreamFetchMs: 600_000 },
-        { providerId: "  ", modelId: "", upstreamFetchMs: 600_000 },
-        { providerId: "deepseek", upstreamFetchMs: 0 },
+        { endpointId: "deepseek", upstreamFetchMs: 600_000 },
+        { endpointId: "  ", modelId: "", upstreamFetchMs: 600_000 },
+        { endpointId: "deepseek", upstreamFetchMs: 0 },
         { modelId: "deepseek-v4-pro", upstreamFetchMs: Number.NaN },
       ] as unknown as ReturnType<typeof resolveTimeoutConfig>["upstreamFetchOverrides"],
     });
 
     expect(config.upstreamFetchOverrides).toEqual([
-      { providerId: "deepseek", modelId: undefined, upstreamFetchMs: 600_000 },
+      { endpointId: "deepseek", modelId: undefined, upstreamFetchMs: 600_000 },
     ]);
     expect(mocks.gatewayWarn).toHaveBeenCalledWith(
       { dropped: 3, total: 4 },

@@ -2,19 +2,19 @@
  * Bedrock adapter + SigV4 auth — unit tests.
  *
  * Covers: URL construction, multi-vendor dispatch, SigV4 signing,
- * buildProviderAuth integration, and anthropic-version header injection.
+ * buildEndpointAuth integration, and anthropic-version header injection.
  */
 import crypto from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { buildProviderAuth, signSigV4 } from "@/server/ai/lib/provider-auth";
+import { buildEndpointAuth, signSigV4 } from "@/server/ai/lib/endpoint-auth";
 import {
   BEDROCK_STREAMING_SUPPORTED,
   bedrockAdapter,
   ensureInferenceProfile,
   getVendorPrefix,
-} from "@/server/ai/providers/bedrock";
+} from "@/server/ai/protocol-adapters/bedrock";
 
 // ── Bedrock Adapter ─────────────────────────────────────────────────────
 
@@ -290,15 +290,15 @@ describe("bedrock adapter — multi-vendor dispatch", () => {
 
 // ── anthropic-version header injection ──────────────────────────────────
 
-describe("buildProviderAuth anthropic-version for bedrock", () => {
+describe("buildEndpointAuth anthropic-version for bedrock", () => {
   it("injects anthropic-version header for bedrock apiFormat", () => {
-    const provider = {
+    const endpoint = {
       authType: "bearer",
       authConfig: "{}",
       apiFormat: "bedrock",
     };
 
-    const result = buildProviderAuth(provider, "test-key", "https://example.com/invoke");
+    const result = buildEndpointAuth(endpoint, "test-key", "https://example.com/invoke");
     expect(result.headers["anthropic-version"]).toBe("2023-06-01");
   });
 });
@@ -361,11 +361,11 @@ describe("signSigV4", () => {
   });
 });
 
-// ── buildProviderAuth with SigV4 ────────────────────────────────────────
+// ── buildEndpointAuth with SigV4 ────────────────────────────────────────
 
-describe("buildProviderAuth sigv4", () => {
-  it("produces AWS SigV4 headers for bedrock provider", () => {
-    const provider = {
+describe("buildEndpointAuth sigv4", () => {
+  it("produces AWS SigV4 headers for bedrock endpoint", () => {
+    const endpoint = {
       authType: "sigv4",
       authConfig: JSON.stringify({
         region: "us-east-1",
@@ -375,8 +375,8 @@ describe("buildProviderAuth sigv4", () => {
       apiFormat: "bedrock",
     };
 
-    const result = buildProviderAuth(
-      provider,
+    const result = buildEndpointAuth(
+      endpoint,
       "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
       "https://bedrock-runtime.us-east-1.amazonaws.com/model/test/invoke",
       '{"messages":[]}',

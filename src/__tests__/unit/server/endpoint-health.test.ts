@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pingEndpoint } from "@/server/ai/lib/supplier-health";
+import { pingEndpoint } from "@/server/ai/lib/endpoint-health";
 
 const mockFetch = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
 
-describe("supplier health ping", () => {
+describe("endpoint health ping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -17,8 +17,8 @@ describe("supplier health ping", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ content: [] }), { status: 200 }));
 
     const result = await pingEndpoint({
-      provider: {
-        providerId: "deepseek-anthropic",
+      endpoint: {
+        endpointId: "deepseek-anthropic",
         apiFormat: "anthropic",
         authType: "bearer",
         authConfig: "{}",
@@ -51,8 +51,8 @@ describe("supplier health ping", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ content: [] }), { status: 200 }));
 
     await pingEndpoint({
-      provider: {
-        providerId: "custom-anthropic-compatible",
+      endpoint: {
+        endpointId: "custom-anthropic-compatible",
         apiFormat: "anthropic",
         authType: "bearer",
         authConfig: "{}",
@@ -71,8 +71,8 @@ describe("supplier health ping", () => {
     mockFetch.mockResolvedValueOnce(new Response("not found", { status: 404 }));
 
     const result = await pingEndpoint({
-      provider: {
-        providerId: "deepseek-anthropic",
+      endpoint: {
+        endpointId: "deepseek-anthropic",
         apiFormat: "anthropic",
         authType: "bearer",
         authConfig: "{}",

@@ -57,8 +57,8 @@ export function LogDetail({ log, keyName, requestLog, bodyLoading }: LogDetailPr
           <DetailRow label={t("ai-logs.detail.model")}>
             <span className="font-mono text-xs">{log.modelId ?? "—"}</span>
           </DetailRow>
-          <DetailRow label={t("ai-logs.detail.provider")}>
-            <span className="text-xs">{log.providerId ?? "—"}</span>
+          <DetailRow label={t("ai-logs.detail.endpoint")}>
+            <span className="text-xs">{log.endpointId ?? "—"}</span>
           </DetailRow>
           <DetailRow label={t("ai-logs.detail.upstream")}>
             <span className="text-xs">{log.upstreamName ?? "—"}</span>

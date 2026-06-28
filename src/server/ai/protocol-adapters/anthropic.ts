@@ -13,7 +13,7 @@ import type {
   BuildUrlOptions,
   OpenAIChatBody,
   OpenAIChatResponse,
-  ProviderAdapter,
+  ProtocolAdapter,
   TokenUsage,
 } from "./types";
 
@@ -201,7 +201,7 @@ function mapMessages(messages: OpenAIChatBody["messages"]) {
 
 // ── Adapter ──────────────────────────────────────────────────────────
 
-export const anthropicAdapter: ProviderAdapter = {
+export const anthropicAdapter: ProtocolAdapter = {
   format: "anthropic",
 
   buildUrl(baseUrl: string, _opts: BuildUrlOptions): string {
@@ -220,7 +220,7 @@ export const anthropicAdapter: ProviderAdapter = {
       .join("\n\n");
 
     const { max_tokens, stop, stop_sequences, tool_choice, tools, ...rest } = body;
-    const providerFields: Record<string, unknown> = { ...rest };
+    const passthroughFields: Record<string, unknown> = { ...rest };
     for (const key of [
       "max_completion_tokens",
       "messages",
@@ -228,7 +228,7 @@ export const anthropicAdapter: ProviderAdapter = {
       "response_format",
       "stream_options",
     ]) {
-      delete providerFields[key];
+      delete passthroughFields[key];
     }
 
     const mappedTools = mapTools(tools);
@@ -236,7 +236,7 @@ export const anthropicAdapter: ProviderAdapter = {
     const mappedStopSequences = mapStopSequences(stop, stop_sequences);
 
     return {
-      ...providerFields,
+      ...passthroughFields,
       messages: mapMessages(nonSystemMessages),
       max_tokens: max_tokens ?? DEFAULT_MAX_TOKENS,
       ...(systemText ? { system: systemText } : {}),

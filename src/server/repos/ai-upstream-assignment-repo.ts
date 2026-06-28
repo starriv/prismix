@@ -1,7 +1,7 @@
 /**
  * AI Upstream Assignment repository — CRUD for `ai_upstream_assignments` junction table.
  *
- * Manages the M:N relationship between providers and global upstreams.
+ * Manages the M:N relationship between endpoints and global upstreams.
  * Assignment-level fields: priority, weight, enabled.
  */
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -36,22 +36,22 @@ export const aiUpstreamAssignmentRepo = {
     );
   },
 
-  /** All assignments for a provider, joined with global upstream, ordered by priority. */
-  async findByProviderId(providerId: number): Promise<AssignmentWithUpstream[]> {
+  /** All assignments for an endpoint, joined with global upstream, ordered by priority. */
+  async findByEndpointId(endpointId: number): Promise<AssignmentWithUpstream[]> {
     const rows = await queryAll<JoinRow>(
       db
         .select()
         .from(aiUpstreamAssignments)
         .innerJoin(aiUpstreams, eq(aiUpstreamAssignments.upstreamId, aiUpstreams.id))
-        .where(eq(aiUpstreamAssignments.providerId, providerId))
+        .where(eq(aiUpstreamAssignments.endpointId, endpointId))
         .orderBy(asc(aiUpstreamAssignments.priority), asc(aiUpstreamAssignments.id)),
     );
 
     return rows.map(toAssignmentWithUpstream);
   },
 
-  /** Enabled assignments for a provider (both assignment and upstream must be enabled + !autoDisabled). */
-  async findEnabledByProviderId(providerId: number): Promise<AssignmentWithUpstream[]> {
+  /** Enabled assignments for an endpoint (both assignment and upstream must be enabled + !autoDisabled). */
+  async findEnabledByEndpointId(endpointId: number): Promise<AssignmentWithUpstream[]> {
     const rows = await queryAll<JoinRow>(
       db
         .select()
@@ -59,7 +59,7 @@ export const aiUpstreamAssignmentRepo = {
         .innerJoin(aiUpstreams, eq(aiUpstreamAssignments.upstreamId, aiUpstreams.id))
         .where(
           and(
-            eq(aiUpstreamAssignments.providerId, providerId),
+            eq(aiUpstreamAssignments.endpointId, endpointId),
             eq(aiUpstreamAssignments.enabled, true),
             eq(aiUpstreams.enabled, true),
             eq(aiUpstreams.autoDisabled, false),
@@ -71,9 +71,9 @@ export const aiUpstreamAssignmentRepo = {
     return rows.map(toAssignmentWithUpstream);
   },
 
-  /** Check for duplicate assignment (same provider + upstream). */
-  async findByProviderAndUpstreamId(
-    providerId: number,
+  /** Check for duplicate assignment (same endpoint + upstream). */
+  async findByEndpointAndUpstreamId(
+    endpointId: number,
     upstreamId: number,
   ): Promise<AiUpstreamAssignment | undefined> {
     return queryOne(
@@ -82,14 +82,14 @@ export const aiUpstreamAssignmentRepo = {
         .from(aiUpstreamAssignments)
         .where(
           and(
-            eq(aiUpstreamAssignments.providerId, providerId),
+            eq(aiUpstreamAssignments.endpointId, endpointId),
             eq(aiUpstreamAssignments.upstreamId, upstreamId),
           ),
         ),
     );
   },
 
-  /** All assignments for a global upstream (across all providers). */
+  /** All assignments for a global upstream (across all endpoints). */
   async findByUpstreamId(upstreamId: number): Promise<AiUpstreamAssignment[]> {
     return queryAll(
       db
@@ -116,19 +116,19 @@ export const aiUpstreamAssignmentRepo = {
     return counts;
   },
 
-  /** Count assignments per provider for a batch of provider IDs. */
-  async countByProviderIds(providerIds: number[]): Promise<Map<number, number>> {
-    if (providerIds.length === 0) return new Map();
+  /** Count assignments per endpoint for a batch of endpoint IDs. */
+  async countByEndpointIds(endpointIds: number[]): Promise<Map<number, number>> {
+    if (endpointIds.length === 0) return new Map();
     const rows = await queryAll<AiUpstreamAssignment>(
       db
         .select()
         .from(aiUpstreamAssignments)
-        .where(inArray(aiUpstreamAssignments.providerId, providerIds)),
+        .where(inArray(aiUpstreamAssignments.endpointId, endpointIds)),
     );
 
     const counts = new Map<number, number>();
     for (const row of rows) {
-      counts.set(row.providerId, (counts.get(row.providerId) ?? 0) + 1);
+      counts.set(row.endpointId, (counts.get(row.endpointId) ?? 0) + 1);
     }
     return counts;
   },
@@ -139,7 +139,7 @@ export const aiUpstreamAssignmentRepo = {
 
   async update(
     id: number,
-    data: Partial<Omit<AiUpstreamAssignment, "id" | "providerId" | "upstreamId" | "createdAt">>,
+    data: Partial<Omit<AiUpstreamAssignment, "id" | "endpointId" | "upstreamId" | "createdAt">>,
   ): Promise<AiUpstreamAssignment | undefined> {
     return returningOne(
       db

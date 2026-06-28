@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindAnyEnabledByProvider = vi.fn();
+const mockFindAnyEnabledByEndpoint = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
-const mockFindEnabledModelsByProviderId = vi.fn();
-const mockProviderUpdateHealth = vi.fn();
-const mockProviderFindById = vi.fn();
-const mockProviderRecordSuccess = vi.fn();
-const mockProviderRecordFailure = vi.fn();
-const mockProviderMarkAutoDisabled = vi.fn();
-const mockProviderMarkAutoReenabled = vi.fn();
+const mockFindEnabledModelsByEndpointId = vi.fn();
+const mockEndpointUpdateHealth = vi.fn();
+const mockEndpointFindById = vi.fn();
+const mockEndpointRecordSuccess = vi.fn();
+const mockEndpointRecordFailure = vi.fn();
+const mockEndpointMarkAutoDisabled = vi.fn();
+const mockEndpointMarkAutoReenabled = vi.fn();
 const mockUpstreamFindByIds = vi.fn();
 const mockUpstreamFindById = vi.fn();
 const mockUpstreamUpdateHealth = vi.fn();
@@ -16,7 +16,7 @@ const mockUpstreamRecordSuccess = vi.fn();
 const mockUpstreamRecordFailure = vi.fn();
 const mockUpstreamMarkAutoDisabled = vi.fn();
 const mockUpstreamMarkAutoReenabled = vi.fn();
-const mockFindAssignmentsByProviderId = vi.fn();
+const mockFindAssignmentsByEndpointId = vi.fn();
 const mockPingEndpoint = vi.fn();
 const mockEmit = vi.fn();
 
@@ -30,7 +30,7 @@ vi.mock("@/server/lib/crypto", () => ({
 
 vi.mock("@/server/lib/logger", () => ({
   log: {
-    supplier: {
+    endpoint: {
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
@@ -40,20 +40,20 @@ vi.mock("@/server/lib/logger", () => ({
 }));
 
 vi.mock("@/server/repos", () => ({
-  aiKeyRepo: {
-    findAnyEnabledByProvider: (...args: unknown[]) => mockFindAnyEnabledByProvider(...args),
+  aiEndpointCredentialRepo: {
+    findAnyEnabledByEndpoint: (...args: unknown[]) => mockFindAnyEnabledByEndpoint(...args),
     findAnyEnabledByUpstream: (...args: unknown[]) => mockFindAnyEnabledByUpstream(...args),
   },
   aiModelRepo: {
-    findEnabledByProviderId: (...args: unknown[]) => mockFindEnabledModelsByProviderId(...args),
+    findEnabledByEndpointId: (...args: unknown[]) => mockFindEnabledModelsByEndpointId(...args),
   },
-  aiProviderRepo: {
-    updateHealth: (...args: unknown[]) => mockProviderUpdateHealth(...args),
-    findById: (...args: unknown[]) => mockProviderFindById(...args),
-    recordSuccess: (...args: unknown[]) => mockProviderRecordSuccess(...args),
-    recordFailure: (...args: unknown[]) => mockProviderRecordFailure(...args),
-    markAutoDisabled: (...args: unknown[]) => mockProviderMarkAutoDisabled(...args),
-    markAutoReenabled: (...args: unknown[]) => mockProviderMarkAutoReenabled(...args),
+  aiEndpointRepo: {
+    updateHealth: (...args: unknown[]) => mockEndpointUpdateHealth(...args),
+    findById: (...args: unknown[]) => mockEndpointFindById(...args),
+    recordSuccess: (...args: unknown[]) => mockEndpointRecordSuccess(...args),
+    recordFailure: (...args: unknown[]) => mockEndpointRecordFailure(...args),
+    markAutoDisabled: (...args: unknown[]) => mockEndpointMarkAutoDisabled(...args),
+    markAutoReenabled: (...args: unknown[]) => mockEndpointMarkAutoReenabled(...args),
   },
   aiUpstreamRepo: {
     findByIds: (...args: unknown[]) => mockUpstreamFindByIds(...args),
@@ -64,24 +64,21 @@ vi.mock("@/server/repos", () => ({
     markAutoDisabled: (...args: unknown[]) => mockUpstreamMarkAutoDisabled(...args),
     markAutoReenabled: (...args: unknown[]) => mockUpstreamMarkAutoReenabled(...args),
   },
-}));
-
-vi.mock("@/server/repos/ai-upstream-assignment-repo", () => ({
   aiUpstreamAssignmentRepo: {
-    findByProviderId: (...args: unknown[]) => mockFindAssignmentsByProviderId(...args),
+    findByEndpointId: (...args: unknown[]) => mockFindAssignmentsByEndpointId(...args),
   },
 }));
 
-vi.mock("@/server/ai/lib/supplier-health", () => ({
+vi.mock("@/server/ai/lib/endpoint-health", () => ({
   pingEndpoint: (...args: unknown[]) => mockPingEndpoint(...args),
 }));
 
-process.env.SUPPLIER_HEALTH_CHECK_FAILURE_THRESHOLD = "2";
-process.env.SUPPLIER_HEALTH_CHECK_FAILURE_WINDOW_MS = "180000";
+process.env.ENDPOINT_HEALTH_CHECK_FAILURE_THRESHOLD = "2";
+process.env.ENDPOINT_HEALTH_CHECK_FAILURE_WINDOW_MS = "180000";
 
-const { checkProvider } = await import("@/server/jobs/check-supplier-health");
+const { checkEndpoint } = await import("@/server/jobs/check-endpoint-health");
 
-function providerFixture() {
+function endpointFixture() {
   return {
     id: 1,
     name: "OpenAI",
@@ -94,11 +91,11 @@ function providerFixture() {
   } as never;
 }
 
-describe("supplier health job", () => {
+describe("endpoint health job", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPingEndpoint.mockResolvedValue({ ok: true, status: 200, latencyMs: 12 });
-    mockProviderFindById.mockResolvedValue({
+    mockEndpointFindById.mockResolvedValue({
       id: 1,
       autoDisabled: false,
       consecutiveFailures: 0,
@@ -110,22 +107,22 @@ describe("supplier health job", () => {
       consecutiveFailures: 0,
       lastFailureAt: null,
     }));
-    mockFindAssignmentsByProviderId.mockResolvedValue([]);
+    mockFindAssignmentsByEndpointId.mockResolvedValue([]);
     mockUpstreamFindByIds.mockResolvedValue([]);
-    mockFindAnyEnabledByProvider.mockResolvedValue({ id: 100, encryptedKey: "provider-key" });
+    mockFindAnyEnabledByEndpoint.mockResolvedValue({ id: 100, encryptedKey: "endpoint-key" });
     mockFindAnyEnabledByUpstream.mockResolvedValue({ id: 101, encryptedKey: "upstream-key" });
-    mockFindEnabledModelsByProviderId.mockResolvedValue([]);
+    mockFindEnabledModelsByEndpointId.mockResolvedValue([]);
   });
 
-  it("checks upstreams with upstream-scoped keys even when the provider has no default key", async () => {
-    mockFindAnyEnabledByProvider.mockResolvedValue(null);
+  it("checks upstreams with upstream-scoped keys even when the endpoint has no default credential", async () => {
+    mockFindAnyEnabledByEndpoint.mockResolvedValue(null);
     mockFindAnyEnabledByUpstream.mockImplementation(
-      async (_providerId: number, upstreamId: number) =>
+      async (_endpointId: number, upstreamId: number) =>
         upstreamId === 10
           ? { id: 101, encryptedKey: "upstream-10" }
           : { id: 102, encryptedKey: "upstream-11" },
     );
-    mockFindAssignmentsByProviderId.mockResolvedValue([{ upstreamId: 10 }, { upstreamId: 11 }]);
+    mockFindAssignmentsByEndpointId.mockResolvedValue([{ upstreamId: 10 }, { upstreamId: 11 }]);
     mockUpstreamFindByIds.mockResolvedValue([
       {
         id: 10,
@@ -145,13 +142,13 @@ describe("supplier health job", () => {
       },
     ]);
 
-    await checkProvider(providerFixture());
+    await checkEndpoint(endpointFixture());
 
-    expect(mockProviderUpdateHealth).toHaveBeenCalledWith(
+    expect(mockEndpointUpdateHealth).toHaveBeenCalledWith(
       1,
       expect.objectContaining({
         healthStatus: "degraded",
-        lastError: "No enabled API key configured",
+        lastError: "No enabled endpoint credential configured",
       }),
     );
     expect(mockFindAnyEnabledByUpstream).toHaveBeenCalledWith(1, 10);
@@ -181,7 +178,7 @@ describe("supplier health job", () => {
       error: "upstream-timeout",
       latencyMs: 10,
     });
-    mockProviderFindById
+    mockEndpointFindById
       .mockResolvedValueOnce({
         id: 1,
         autoDisabled: false,
@@ -195,12 +192,12 @@ describe("supplier health job", () => {
         lastFailureAt: new Date(),
       });
 
-    await checkProvider(providerFixture());
+    await checkEndpoint(endpointFixture());
 
-    expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
-    expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
+    expect(mockEndpointRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockEndpointMarkAutoDisabled).not.toHaveBeenCalled();
     expect(mockEmit).not.toHaveBeenCalledWith(
-      "supplier.disabled",
+      "endpoint.disabled",
       expect.anything(),
       expect.anything(),
     );
@@ -213,7 +210,7 @@ describe("supplier health job", () => {
       error: "upstream-timeout",
       latencyMs: 10,
     });
-    mockProviderFindById
+    mockEndpointFindById
       .mockResolvedValueOnce({
         id: 1,
         autoDisabled: false,
@@ -227,14 +224,14 @@ describe("supplier health job", () => {
         lastFailureAt: new Date(),
       });
 
-    await checkProvider(providerFixture());
+    await checkEndpoint(endpointFixture());
 
-    expect(mockProviderMarkAutoDisabled).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockEndpointMarkAutoDisabled).toHaveBeenCalledWith(1, "upstream-timeout");
     expect(mockEmit).toHaveBeenCalledWith(
-      "supplier.disabled",
+      "endpoint.disabled",
       null,
       expect.objectContaining({
-        title: "供应商已自动禁用: OpenAI",
+        title: "Endpoint 已自动禁用: OpenAI",
         body: expect.stringContaining("在 3 分钟内累计 2 次连通性检查失败"),
       }),
     );
@@ -247,7 +244,7 @@ describe("supplier health job", () => {
       error: "upstream-timeout",
       latencyMs: 10,
     });
-    mockProviderFindById
+    mockEndpointFindById
       .mockResolvedValueOnce({
         id: 1,
         autoDisabled: false,
@@ -261,15 +258,81 @@ describe("supplier health job", () => {
         lastFailureAt: new Date(),
       });
 
-    await checkProvider(providerFixture());
+    await checkEndpoint(endpointFixture());
 
-    expect(mockProviderUpdateHealth).toHaveBeenCalledWith(1, { consecutiveFailures: 0 });
-    expect(mockProviderRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
-    expect(mockProviderMarkAutoDisabled).not.toHaveBeenCalled();
+    expect(mockEndpointUpdateHealth).toHaveBeenCalledWith(1, { consecutiveFailures: 0 });
+    expect(mockEndpointRecordFailure).toHaveBeenCalledWith(1, "upstream-timeout");
+    expect(mockEndpointMarkAutoDisabled).not.toHaveBeenCalled();
     expect(mockEmit).not.toHaveBeenCalledWith(
-      "supplier.disabled",
+      "endpoint.disabled",
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it("does not auto-disable an endpoint with bound upstreams even when failures exceed threshold", async () => {
+    mockPingEndpoint.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: "endpoint-down",
+      latencyMs: 10,
+    });
+    mockFindAssignmentsByEndpointId.mockResolvedValue([{ upstreamId: 10 }]);
+    mockUpstreamFindByIds.mockResolvedValue([
+      {
+        id: 10,
+        name: "Proxy A",
+        baseUrl: "https://proxy-a.example.com",
+        modelsEndpoint: null,
+        enabled: true,
+        autoDisabled: false,
+      },
+    ]);
+    mockEndpointFindById
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 5,
+        lastFailureAt: new Date(),
+      })
+      .mockResolvedValueOnce({
+        id: 1,
+        autoDisabled: false,
+        consecutiveFailures: 6,
+        lastFailureAt: new Date(),
+      });
+
+    await checkEndpoint(endpointFixture());
+
+    expect(mockEndpointRecordFailure).toHaveBeenCalledWith(1, "endpoint-down");
+    expect(mockEndpointMarkAutoDisabled).not.toHaveBeenCalledWith(1, expect.anything());
+    expect(mockEmit).not.toHaveBeenCalledWith(
+      "endpoint.disabled",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("auto-reenables a previously auto-disabled endpoint when ping succeeds", async () => {
+    mockPingEndpoint.mockResolvedValue({ ok: true, status: 200, latencyMs: 15 });
+    mockEndpointFindById.mockResolvedValue({
+      id: 1,
+      autoDisabled: true,
+      consecutiveFailures: 3,
+      lastFailureAt: new Date(),
+    });
+
+    await checkEndpoint(endpointFixture());
+
+    expect(mockEndpointMarkAutoReenabled).toHaveBeenCalledWith(1);
+    expect(mockEmit).toHaveBeenCalledWith(
+      "endpoint.reenabled",
+      null,
+      expect.objectContaining({
+        title: "Endpoint 已自动恢复: OpenAI",
+        body: expect.stringContaining("连通性恢复正常"),
+      }),
+    );
+    expect(mockEndpointRecordSuccess).not.toHaveBeenCalled();
   });
 });

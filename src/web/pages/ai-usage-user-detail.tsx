@@ -218,7 +218,7 @@ export default function AiUsageUserDetailPage() {
                 columns={byModelColumns}
                 data={summary.byModel}
                 emptyText={t("ai-usage.detail.daily-empty")}
-                getRowId={(row) => `${row.providerId}-${row.modelId}`}
+                getRowId={(row) => `${row.endpointId}-${row.modelId}`}
                 loading={false}
                 showPagination={false}
                 tableClassName="min-w-[860px]"

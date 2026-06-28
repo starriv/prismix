@@ -2,7 +2,7 @@
  * Upstream concurrency control — Redis-backed distributed admission queue.
  *
  * Scope is a stable upstream target key. Global upstreams use numeric ai_upstreams.id;
- * provider official upstreams use provider:{providerId}:official.
+ * endpoint official upstreams use endpoint:{endpointId}:official.
  */
 import { randomUUID } from "node:crypto";
 
@@ -75,7 +75,7 @@ export interface AcquireUpstreamSlotOptions {
   concurrencyLimit?: number | null;
   queueTimeoutMs?: number | null;
   requestId?: string;
-  providerId?: string;
+  endpointId?: string;
   modelId?: string;
 }
 
@@ -242,7 +242,7 @@ export async function acquireUpstreamSlot(
         log.gateway.info(
           {
             requestId: options.requestId,
-            providerId: options.providerId,
+            endpointId: options.endpointId,
             modelId: options.modelId,
             upstreamId,
             concurrencyScopeKey: scopeKey,
@@ -280,7 +280,7 @@ export async function acquireUpstreamSlot(
   log.gateway.warn(
     {
       requestId: options.requestId,
-      providerId: options.providerId,
+      endpointId: options.endpointId,
       modelId: options.modelId,
       upstreamId,
       concurrencyScopeKey: scopeKey,

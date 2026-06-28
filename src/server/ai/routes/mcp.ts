@@ -16,7 +16,7 @@ import { match } from "ts-pattern";
 
 import { log } from "@/server/lib/logger";
 import { getAdminSession } from "@/server/middleware/auth";
-import { aiKeyRepo, aiModelRepo, aiProviderRepo, aiUsageLogRepo } from "@/server/repos";
+import { aiEndpointCredentialRepo, aiModelRepo, aiUsageLogRepo } from "@/server/repos";
 
 const mcp = new Hono();
 
@@ -151,34 +151,36 @@ async function handleToolCall(params: Record<string, unknown>): Promise<unknown>
         content: [
           {
             type: "text",
-            text: `Model "${model}" is available via provider "${result.provider.providerId}". Use the relay endpoint POST /api/admin/ai/relay/v1/chat/completions to send requests.`,
+            text: `Model "${model}" is available via endpoint "${result.endpoint.endpointId}". Use the relay endpoint POST /api/admin/ai/relay/v1/chat/completions to send requests.`,
           },
         ],
       };
     })
     .with("list_models", async () => {
-      const providers = await aiProviderRepo.findAllActive();
-      const keys = await aiKeyRepo.findAll();
-      const keyProviderIds = new Set(keys.filter((k) => k.enabled).map((k) => k.providerId));
+      const rows = await aiModelRepo.findAllEnabled("openai");
+      const credentials = await aiEndpointCredentialRepo.findAll();
+      const credentialEndpointIds = new Set(
+        credentials
+          .filter((credential) => credential.enabled && credential.credentialEnabled)
+          .map((credential) => credential.endpointId),
+      );
 
-      const models = [];
-      for (const provider of providers) {
-        const providerModels = await aiModelRepo.findEnabledByProviderId(provider.id);
-        for (const m of providerModels) {
-          const caps = JSON.parse(m.capabilities) as string[];
-          const capFilter = args.capability as string | undefined;
-          if (capFilter && !caps.includes(capFilter)) continue;
+      const models = rows.flatMap(({ model, endpoint }) => {
+        const caps = JSON.parse(model.capabilities) as string[];
+        const capFilter = args.capability as string | undefined;
+        if (capFilter && !caps.includes(capFilter)) return [];
 
-          models.push({
-            modelId: m.modelId,
-            provider: provider.providerId,
+        return [
+          {
+            modelId: model.modelId,
+            endpoint: endpoint.endpointId,
             capabilities: caps,
-            inputPrice: m.inputPrice,
-            outputPrice: m.outputPrice,
-            hasKey: keyProviderIds.has(provider.id),
-          });
-        }
-      }
+            inputPrice: model.inputPrice,
+            outputPrice: model.outputPrice,
+            hasCredential: credentialEndpointIds.has(endpoint.id),
+          },
+        ];
+      });
 
       return {
         content: [{ type: "text", text: JSON.stringify(models, null, 2) }],

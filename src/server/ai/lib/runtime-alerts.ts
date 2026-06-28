@@ -10,8 +10,8 @@ const lastResourceDownAlertAt = new Map<string, number>();
 export interface ResourceDownAlertInput {
   route: "admin-chat" | "admin-passthrough" | "consumer-chat" | "consumer-passthrough";
   requestId: string;
-  providerId: string | null;
-  providerName?: string | null;
+  endpointId: string | null;
+  endpointName?: string | null;
   modelId?: string | null;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -29,7 +29,7 @@ export function notifyResourceDown(input: ResourceDownAlertInput): void {
   }
   lastResourceDownAlertAt.set(key, now);
 
-  const title = `AI 上游不可用: ${input.upstreamName ?? input.providerName ?? input.providerId ?? "unknown"}`;
+  const title = `AI 上游不可用: ${input.upstreamName ?? input.endpointName ?? input.endpointId ?? "unknown"}`;
   const body = buildResourceDownBody(input);
   emit(DOMAIN_EVENT_TYPES.ALERT_RESOURCE_DOWN, null, {
     ...input,
@@ -41,7 +41,7 @@ export function notifyResourceDown(input: ResourceDownAlertInput): void {
     {
       route: input.route,
       requestId: input.requestId,
-      providerId: input.providerId,
+      endpointId: input.endpointId,
       modelId: input.modelId,
       upstreamId: input.upstreamId,
       status: input.status,
@@ -54,8 +54,8 @@ export function notifyResourceDown(input: ResourceDownAlertInput): void {
 function buildResourceDownDedupeKey(input: ResourceDownAlertInput): string {
   return [
     input.route,
-    input.providerId ?? "unknown-provider",
-    input.upstreamId ?? "legacy",
+    input.endpointId ?? "unknown-endpoint",
+    input.upstreamId ?? "official",
     input.modelId ?? "unknown-model",
   ].join(":");
 }
@@ -68,7 +68,7 @@ function buildResourceDownBody(input: ResourceDownAlertInput): string {
     `路由: ${input.route}`,
     `请求 ID: ${input.requestId}`,
   ];
-  if (input.providerId) rows.push(`供应商: ${input.providerName ?? input.providerId}`);
+  if (input.endpointId) rows.push(`Endpoint: ${input.endpointName ?? input.endpointId}`);
   if (input.modelId) rows.push(`模型: ${input.modelId}`);
   if (input.upstreamId != null) rows.push(`上游 ID: ${input.upstreamId}`);
   if (input.upstreamName) rows.push(`上游名称: ${input.upstreamName}`);

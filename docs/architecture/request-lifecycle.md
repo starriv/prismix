@@ -1,6 +1,6 @@
 # 请求生命周期
 
-客户端通过消费者密钥（`ska_`）调用 AI 网关的完整链路，从 consumer key 认证到上游 AI provider 请求转发、计费、日志的全流程。
+客户端通过消费者密钥（`ska_`）调用 AI 网关的完整链路，从 consumer key 认证到上游 AI 端点请求转发、计费、日志的全流程。
 
 ---
 
@@ -58,8 +58,8 @@ HTTP Request (POST /api/gateway/ai/openai/v1/chat/completions)
   │  第五层：异步写入（不阻塞响应）                                      │
   │  src/server/ai/index.ts:51-175                                 │
   │                                                                │
-  │  enqueueJob() → agent-ai-txn / ai-usage-log / ai-request-log   │
-  │  / consumer-key-touch / ai-key-touch                           │
+   │  enqueueJob() → agent-ai-txn / ai-usage-log / ai-request-log   │
+   │  / consumer-key-touch / ai-endpoint-credential-touch           │
   └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -188,7 +188,7 @@ consumer.allowedModels.some((pattern) => {
 
 ### 3c. 输入 Guardrails (L197-214)
 
-加载所有 `ai_guardrail_config` 中启用的规则：
+加载所有 `ai_guardrail_configs` 中启用的规则：
 
 - 关键词黑名单（正则匹配）
 - 单条消息长度限制
@@ -200,7 +200,7 @@ consumer.allowedModels.some((pattern) => {
 
 ```
 aiModelRouteRepo.findEnabledRoutesByModelId(body.model)
-  → JOIN ai_model_routes + ai_models + ai_providers
+  → JOIN ai_model_routes + ai_models + ai_endpoints
   → orderRoutesByPriorityAndWeight()
 ```
 
@@ -224,32 +224,32 @@ cacheKey = SHA-256(model + JSON.stringify(messages))
 
 ### 3f. 上游候选组装 (L238-321)
 
-对每个 route（按 priority 顺序），对每个 provider，对每个 upstream：
+对每个 route（按 priority 顺序），对每个 endpoint，对每个 upstream：
 
 ```
-for (const { route, provider, model } of routes) {
-  adapter = getAdapter(provider.apiFormat)
+for (const { route, endpoint, model } of routes) {
+  adapter = getAdapter(endpoint.apiFormat)
   // openai / anthropic / gemini / azure-openai / bedrock
 
   transformedBody = adapter.transformRequest({
     ...body,
-    model: route.providerModelId ?? model.modelId,
+    model: route.endpointModelId ?? model.modelId,
     stream_options: body.stream ? { include_usage: true } : {},
   });
 
-  for (const upstream of resolveUpstreamCandidates(provider)) {
-    key = await pickKey(provider.id, upstream.id);     // 内存 SWRR
-    if (!key) continue;
+  for (const upstream of resolveUpstreamCandidates(endpoint)) {
+    ec = await pickEndpointCredential(endpoint.id, upstream.id);  // 内存 SWRR
+    if (!ec) continue;
 
-    plainKey = decrypt(key.encryptedKey, "ai-merchant-key");  // AES-256-GCM
-    mappedModelId = await resolveModelMapping(upstream.id, providerModelId);  // 30s cache
+    plainKey = decrypt(ec.encryptedKey, "ai-merchant-key");       // AES-256-GCM
+    mappedModelId = await resolveModelMapping(upstream.id, endpointModelId);  // 30s cache
     upstreamUrl = adapter.buildUrl(upstream.baseUrl, { model, stream });
-    auth = buildProviderAuth(provider, plainKey, upstreamUrl, body);
+    auth = buildEndpointAuth(endpoint, plainKey, upstreamUrl, body);
   }
 }
 ```
 
-返回 `ResolvedUpstream[]`，空 → **403** "No API key configured for any provider route"
+返回 `ResolvedUpstream[]`，空 → **403** "No endpoint credential configured for any endpoint route"
 
 ### 3g. 预检限额（L332-363）
 
@@ -269,14 +269,14 @@ for (const { route, provider, model } of routes) {
 - 最多尝试 `MAX_UPSTREAM_ATTEMPTS = 5` 个候选上游
 - 可重试状态码: `{429, 500, 502, 503, 504}`
 - 不可重试 (400, 401, 403 等) → 立即返回错误给客户端
-- 每个候选失败时调用 `markKeyFailure()` 施加惩罚
+- 每个候选失败时调用 `markCredentialFailure()` 施加惩罚
 - 全部候选耗尽 → **502** "All upstream candidates failed"
 
 ### 流式路径 (L388-456)
 
 ```
 fetchUpstream(url, headers, body, timeout)
-  → if !ok && retryable → markKeyFailure(), continue
+  → if !ok && retryable → markCredentialFailure(), continue
   → if ok:
       forwardStream(c, upstreamRes, adapter, meta, onComplete, timeouts)
         → SSE headers 已发送（不可回退重试）
@@ -298,12 +298,12 @@ fetchUpstream(url, headers, body, timeout)
 
 ```
 fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
-  → if !ok && retryable → markKeyFailure(), continue
+  → if !ok && retryable → markCredentialFailure(), continue
   → if ok:
       responseBody = await upstreamRes.json()
       transformed = adapter.transformResponse(responseBody)
       usage = adapter.extractUsage(responseBody)
-      markKeySuccess(keyId)
+      markCredentialSuccess(endpointCredentialId)
 
       // 计费
       upstreamCost = (inputTokens * inputPrice + outputTokens * outputPrice) / 1,000,000
@@ -328,7 +328,7 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
       enqueueJob("ai-usage-log", { ... })
       enqueueJob("ai-request-log", { ... })  // 按配置
       enqueueJob("consumer-key-touch", { consumerId })
-      enqueueJob("ai-key-touch", { keyId })
+      enqueueJob("ai-endpoint-credential-touch", { endpointCredentialId })
 
       // 写语义缓存
       setCachedResponse(cacheKey, transformed)
@@ -349,15 +349,15 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
 
 ### 缓存机制
 
-- 30s TTL 内存缓存（`upstreamCache` Map，key 为 provider PK）
-- `invalidateUpstreamCache(providerId)` 在 CRUD 操作后调用
+- 30s TTL 内存缓存（`upstreamCache` Map，key 为 endpoint PK）
+- `invalidateUpstreamCache(endpointId)` 在 CRUD 操作后调用
 - `invalidateUpstreamCacheForUpstream(upstreamId)` 在全局 upstream 变更时调用
 
 ### 候选来源
 
-1. `aiUpstreamAssignmentRepo.findEnabledByProviderId(provider.id)`
+1. `aiUpstreamAssignmentRepo.findEnabledByEndpointId(endpoint.id)`
    → JOIN `ai_upstream_assignments` + `ai_upstreams`（仅 enabled）
-2. 始终追加 legacy target: provider 自身的 `baseUrl`，priority=1000
+2. 始终追加 legacy target: endpoint 自身的 `baseUrl`，priority=1000
 
 ### 排序策略
 
@@ -366,9 +366,9 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
 
 ---
 
-## Key 负载均衡器
+## 凭证负载均衡器
 
-**文件**: `src/server/ai/lib/key-balancer.ts`
+**文件**: `src/server/ai/lib/credential-balancer.ts`
 
 ### 两种策略
 
@@ -377,7 +377,7 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
 | `round-robin` | Smooth Weighted Round-Robin (Nginx 风格) | ✅   |
 | `random`      | 加权随机概率选择                         |      |
 
-由 provider 的 `loadBalanceStrategy` 列配置。
+由 endpoint 的 `loadBalanceStrategy` 列配置。
 
 ### SWRR 算法细节 (L123-143)
 
@@ -393,7 +393,7 @@ fetch(url, { body, headers, signal: AbortSignal.timeout(streamMaxDurationMs) })
 ### 内存健康追踪
 
 ```typescript
-interface KeyHealth {
+interface CredentialHealth {
   consecutiveFailures: number;
   totalFailures: number;
   totalSuccesses: number;
@@ -405,7 +405,7 @@ interface KeyHealth {
 ### 惩罚机制 (L250-260)
 
 ```typescript
-markKeyFailure(keyId):
+markCredentialFailure(endpointCredentialId):
   consecutiveFailures++
   penaltyMs = min(BASE_PENALTY_MS * 2^(consecutiveFailures - 1), MAX_PENALTY_MS)
   // BASE_PENALTY_MS = 30s, MAX_PENALTY_MS = 2min
@@ -417,13 +417,13 @@ getEffectiveWeight():
   return weight
 ```
 
-成功恢复 (`markKeySuccess`): 重置 consecutiveFailures 和 penalty→ 立即恢复正常权重。
+成功恢复 (`markCredentialSuccess`): 重置 consecutiveFailures 和 penalty → 立即恢复正常权重。
 
 ---
 
-## Provider Auth 构建
+## 端点鉴权构建
 
-**文件**: `src/server/ai/lib/provider-auth.ts:38-96`
+**文件**: `src/server/ai/lib/endpoint-auth.ts:43-123`
 
 | Auth 类型 | 输出                                                                        | 来源          |
 | --------- | --------------------------------------------------------------------------- | ------------- |
@@ -483,7 +483,7 @@ RETURNING id, balance, status
 
 **文件**: `src/server/ai/index.ts:130-165`
 
-当 AI key 有 `ownerId`（key provider）且 provider 为 active 时：
+当 AI 凭证有 `ownerId`（Key Provider 合作方）且合作方为 active 时：
 
 ```
 platformProfit = consumerCost - upstreamCost
@@ -500,13 +500,13 @@ share = platformProfit * provider.revenueSharePercent / 100
 
 所有计费和日志通过 `enqueueJob()` 异步处理，不阻塞 HTTP 响应。
 
-| Job 名称             | 处理方式                    | 内容                                    |
-| -------------------- | --------------------------- | --------------------------------------- |
-| `agent-ai-txn`       | write handler               | 交易记录 + Key Provider 分润            |
-| `ai-usage-log`       | **batch handler** (50条/1s) | 用量日志批量 INSERT                     |
-| `ai-request-log`     | write handler（按开关）     | 请求/响应体日志                         |
-| `consumer-key-touch` | write handler               | 更新 `relay_consumer_keys.last_used_at` |
-| `ai-key-touch`       | write handler               | 更新 `ai_keys.last_used_at`             |
+| Job 名称                       | 处理方式                    | 内容                                        |
+| ------------------------------ | --------------------------- | ------------------------------------------- |
+| `agent-ai-txn`                 | write handler               | 交易记录 + Key Provider 分润                |
+| `ai-usage-log`                 | **batch handler** (50条/1s) | 用量日志批量 INSERT                         |
+| `ai-request-log`               | write handler（按开关）     | 请求/响应体日志                             |
+| `consumer-key-touch`           | write handler               | 更新 `relay_consumer_keys.last_used_at`     |
+| `ai-endpoint-credential-touch` | write handler               | 更新 `ai_endpoint_credentials.last_used_at` |
 
 降级: Redis 不可用时静默丢弃 + 节流告警。
 
@@ -543,32 +543,34 @@ share = platformProfit * provider.revenueSharePercent / 100
 
 ## 核心数据表
 
-| 表                             | 用途                     | 关键字段                                                                   |
-| ------------------------------ | ------------------------ | -------------------------------------------------------------------------- |
-| `relay_consumer_keys`          | 消费者 API Key           | hash, agentId, allowedModels, markupPercent, expiresAt, rateLimitRpm       |
-| `relay_consumer_key_blacklist` | 已删除 Key 防重放        | apiKeyHash                                                                 |
-| `pay_agents`                   | 钱包/余额账户            | balance, perPayLimit, dailyLimit, monthlyLimit, defaultMarkupPercent       |
-| `pay_agent_transactions`       | 交易流水                 | agentId, amount, consumerKeyId, modelId, tokens, upstreamCost              |
-| `ai_models`                    | 模型目录                 | modelId, inputPrice, outputPrice, fallbackModelIds                         |
-| `ai_model_routes`              | 模型→Provider 路由       | modelId, providerId, providerModelId, priority, weight                     |
-| `ai_providers`                 | Provider 配置            | apiFormat, authType, baseUrl, loadBalanceStrategy, upstreamRoutingStrategy |
-| `ai_keys`                      | 上游 API Key（加密存储） | encryptedKey, weight, upstreamId, ownerId                                  |
-| `ai_upstreams`                 | 上游端点                 | baseUrl, kind (official/reseller/custom), modelsEndpoint                   |
-| `ai_upstream_assignments`      | Provider↔Upstream N:N    | providerId, upstreamId, priority, weight                                   |
-| `ai_upstream_model_mappings`   | 模型名重映射             | upstreamId, sourceModelId, mappedModelId                                   |
-| `ai_guardrail_config`          | 内容审核规则             | rules (JSON), action (warn/block)                                          |
+| 表                             | 用途                      | 关键字段                                                             |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------- |
+| `relay_consumer_keys`          | 消费者 API Key            | hash, agentId, allowedModels, markupPercent, expiresAt, rateLimitRpm |
+| `relay_consumer_key_blacklist` | 已删除 Key 防重放         | apiKeyHash                                                           |
+| `pay_agents`                   | 钱包/余额账户             | balance, perPayLimit, dailyLimit, monthlyLimit, defaultMarkupPercent |
+| `pay_agent_transactions`       | 交易流水                  | agentId, amount, consumerKeyId, modelId, tokens, upstreamCost        |
+| `ai_suppliers`                 | 供应商（真实厂商）        | supplierId, name, enabled                                            |
+| `ai_models`                    | 模型目录                  | modelId, inputPrice, outputPrice, fallbackModelIds                   |
+| `ai_model_routes`              | 模型→端点路由             | modelId, endpointId, endpointModelId, priority, weight               |
+| `ai_endpoints`                 | 协议端点配置              | supplierId, apiFormat, authType, baseUrl, loadBalanceStrategy        |
+| `ai_credentials`               | 上游 API 凭证（加密存储） | supplierId, ownerId, encryptedKey, keyHash, keyPrefix                |
+| `ai_endpoint_credentials`      | 端点↔凭证绑定             | endpointId, upstreamId, credentialId, weight, enabled                |
+| `ai_upstreams`                 | 上游端点                  | baseUrl, kind (official/reseller/custom), modelsEndpoint             |
+| `ai_upstream_assignments`      | 端点↔Upstream N:N         | endpointId, upstreamId, priority, weight                             |
+| `ai_upstream_model_mappings`   | 模型名重映射              | upstreamId, sourceModelId, mappedModelId                             |
+| `ai_guardrail_configs`         | 内容审核规则              | rules (JSON), action (warn/block)                                    |
 
 ---
 
-## Provider 适配器
+## 协议适配器
 
-| 适配器       | apiFormat      | 文件                                      |
-| ------------ | -------------- | ----------------------------------------- |
-| OpenAI       | `openai`       | `src/server/ai/providers/openai.ts`       |
-| Anthropic    | `anthropic`    | `src/server/ai/providers/anthropic.ts`    |
-| Gemini       | `gemini`       | `src/server/ai/providers/gemini.ts`       |
-| Azure OpenAI | `azure-openai` | `src/server/ai/providers/azure-openai.ts` |
-| AWS Bedrock  | `bedrock`      | `src/server/ai/providers/bedrock.ts`      |
+| 适配器       | apiFormat      | 文件                                              |
+| ------------ | -------------- | ------------------------------------------------- |
+| OpenAI       | `openai`       | `src/server/ai/protocol-adapters/openai.ts`       |
+| Anthropic    | `anthropic`    | `src/server/ai/protocol-adapters/anthropic.ts`    |
+| Gemini       | `gemini`       | `src/server/ai/protocol-adapters/gemini.ts`       |
+| Azure OpenAI | `azure-openai` | `src/server/ai/protocol-adapters/azure-openai.ts` |
+| AWS Bedrock  | `bedrock`      | `src/server/ai/protocol-adapters/bedrock.ts`      |
 
 每个适配器实现: `transformRequest`, `transformResponse`, `extractUsage`, `transformStreamEvent`, `extractStreamUsage`, `isStreamDone`, `buildUrl`。
 
@@ -580,8 +582,8 @@ share = platformProfit * provider.revenueSharePercent / 100
 t=0ms   全局中间件链 (requestId, CORS, rate limiter...)
 t=1ms   认证: SHA256(key) → DB lookup → status/expiry/balance checks
 t=5ms   路由: Zod 校验 body → ACL 检查 → guardrails → model routing
-t=10ms  上游组装: resolveUpstreamCandidates → pickKey (内存 SWRR)
-         → decrypt key → resolveModelMapping (30s cache) → buildProviderAuth
+t=10ms  上游组装: resolveUpstreamCandidates → pickEndpointCredential (内存 SWRR)
+         → decrypt credential → resolveModelMapping (30s cache) → buildEndpointAuth
 t=12ms  预检 daily/monthly 限额
 t=15ms  fetch(upstreamUrl) 发出上游请求
 t=?     上游响应 → transformResponse → extractUsage
@@ -595,7 +597,7 @@ t=?+2   enqueueJob(日志 + 交易 + touch) → 返回 JSON/SSE 给客户端
 
 1. **两层标识隔离**: 外部 `uuid` 在路由边界解析为内部 `id`，下游逻辑统一用内部 `id`
 2. **非阻塞写**: 计费日志/交易记录/Key touch 全部通过 `enqueueJob` 异步写入，响应时间不受 DB 延迟影响
-3. **内存 Key 池**: 绕过 DB 的 LRU 竞争条件，用内存 SWRR 同步轮转；健康追踪带指数退避惩罚
+3. **内存凭证池**: 绕过 DB 的 LRU 竞争条件，用内存 SWRR 同步轮转；健康追踪带指数退避惩罚
 4. **缓存命中免费**: 语义缓存命中不计费，鼓励客户端重用相同请求
 5. **流式不可回退**: SSE headers 发送后即无法重试，失败仅记录
 6. **安全 Fail-Closed**: allowedModels JSON 损坏 → 500 拒绝；guardrails 异常 → 警告后放行

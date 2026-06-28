@@ -6,7 +6,7 @@ import { ArrowLeft, Brain, Info, Search, Sparkles } from "lucide-react";
 import { parseAsInteger, useQueryState } from "nuqs";
 
 import { useUserModels } from "@/web/api/user-hooks";
-import type { UserModel, UserModelProvider } from "@/web/api/user-hooks";
+import type { UserModel, UserModelEndpoint } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import {
   DataTable,
@@ -31,15 +31,18 @@ function formatDateTime(value: string | null | undefined, locale: string): strin
 export default function UserModelsPage() {
   const { t } = useTranslation();
   const { data, isLoading } = useUserModels();
-  const [providerId, setProviderId] = useQueryState("providerId", parseAsInteger);
+  const [endpointId, setEndpointId] = useQueryState("endpointId", parseAsInteger);
 
-  const providers = data?.providers ?? [];
+  const endpoints = data?.endpoints ?? [];
   const markupPercent = data?.markupPercent ?? 0;
 
-  const selectedProvider = providers.find((p) => p.id === providerId) ?? null;
+  const selectedEndpoint = endpoints.find((endpoint) => endpoint.id === endpointId) ?? null;
 
-  const handleBack = useCallback(() => setProviderId(null), [setProviderId]);
-  const handleSelect = useCallback((p: UserModelProvider) => setProviderId(p.id), [setProviderId]);
+  const handleBack = useCallback(() => setEndpointId(null), [setEndpointId]);
+  const handleSelect = useCallback(
+    (endpoint: UserModelEndpoint) => setEndpointId(endpoint.id),
+    [setEndpointId],
+  );
 
   return (
     <div>
@@ -57,26 +60,26 @@ export default function UserModelsPage() {
           </Card>
         )}
 
-        {selectedProvider ? (
-          <ModelList provider={selectedProvider} onBack={handleBack} />
+        {selectedEndpoint ? (
+          <ModelList endpoint={selectedEndpoint} onBack={handleBack} />
         ) : (
-          <ProviderGrid providers={providers} loading={isLoading} onSelect={handleSelect} />
+          <EndpointGrid endpoints={endpoints} loading={isLoading} onSelect={handleSelect} />
         )}
       </div>
     </div>
   );
 }
 
-// ── Provider Grid ───────────────────────────────────────────────
+// ── Endpoint Grid ───────────────────────────────────────────────
 
-function ProviderGrid({
-  providers,
+function EndpointGrid({
+  endpoints,
   loading,
   onSelect,
 }: {
-  providers: UserModelProvider[];
+  endpoints: UserModelEndpoint[];
   loading: boolean;
-  onSelect: (p: UserModelProvider) => void;
+  onSelect: (endpoint: UserModelEndpoint) => void;
 }) {
   const { t } = useTranslation();
 
@@ -93,12 +96,12 @@ function ProviderGrid({
     );
   }
 
-  if (providers.length === 0) {
+  if (endpoints.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <Brain className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">{t("user-models.no-providers")}</p>
+          <p className="text-sm text-muted-foreground">{t("user-models.no-endpoints")}</p>
         </CardContent>
       </Card>
     );
@@ -106,16 +109,16 @@ function ProviderGrid({
 
   return (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      {providers.map((provider) => (
-        <ProviderCard key={provider.id} provider={provider} onClick={() => onSelect(provider)} />
+      {endpoints.map((endpoint) => (
+        <EndpointCard key={endpoint.id} endpoint={endpoint} onClick={() => onSelect(endpoint)} />
       ))}
     </div>
   );
 }
 
-function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onClick: () => void }) {
+function EndpointCard({ endpoint, onClick }: { endpoint: UserModelEndpoint; onClick: () => void }) {
   const { t } = useTranslation();
-  const limitedFreeCount = provider.models.filter((model) => model.isLimitedFree).length;
+  const limitedFreeCount = endpoint.models.filter((model) => model.isLimitedFree).length;
 
   return (
     <Card
@@ -127,18 +130,18 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold truncate">{provider.name}</h3>
+          <h3 className="text-sm font-semibold truncate">{endpoint.name}</h3>
           <Badge variant="secondary" className="text-xs tabular-nums">
-            {provider.models.length}
+            {endpoint.models.length}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-0 pb-4">
         <div className="flex flex-wrap items-center gap-2">
-          {provider.iconUrl ? (
+          {endpoint.iconUrl ? (
             <img
-              src={provider.iconUrl}
-              alt={provider.name}
+              src={endpoint.iconUrl}
+              alt={endpoint.name}
               className="h-8 w-8 rounded-md object-contain"
               width={32}
               height={32}
@@ -149,7 +152,7 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
             </div>
           )}
           <Badge variant="outline" className="text-xs">
-            {provider.apiFormat}
+            {endpoint.apiFormat}
           </Badge>
           {limitedFreeCount > 0 && (
             <Badge
@@ -167,17 +170,17 @@ function ProviderCard({ provider, onClick }: { provider: UserModelProvider; onCl
 
 // ── Model List ──────────────────────────────────────────────────
 
-function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: () => void }) {
+function ModelList({ endpoint, onBack }: { endpoint: UserModelEndpoint; onBack: () => void }) {
   const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filteredModels = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return provider.models;
-    return provider.models.filter(
+    if (!q) return endpoint.models;
+    return endpoint.models.filter(
       (m) => m.modelId.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
     );
-  }, [provider.models, search]);
+  }, [endpoint.models, search]);
 
   const columns = useMemo<ColumnDef<UserModel>[]>(
     () => [
@@ -256,10 +259,10 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center gap-2">
-            {provider.iconUrl ? (
+            {endpoint.iconUrl ? (
               <img
-                src={provider.iconUrl}
-                alt={provider.name}
+                src={endpoint.iconUrl}
+                alt={endpoint.name}
                 className="h-6 w-6 rounded object-contain"
                 width={24}
                 height={24}
@@ -269,7 +272,7 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
               </div>
             )}
-            <CardTitle className="text-base">{provider.name}</CardTitle>
+            <CardTitle className="text-base">{endpoint.name}</CardTitle>
           </div>
         </div>
       </CardHeader>
@@ -294,9 +297,9 @@ function ModelList({ provider, onBack }: { provider: UserModelProvider; onBack: 
                 {search.trim()
                   ? t("user-models.filter-count-filtered", {
                       filtered: filteredModels.length,
-                      total: provider.models.length,
+                      total: endpoint.models.length,
                     })
-                  : t("user-models.filter-count", { count: provider.models.length })}
+                  : t("user-models.filter-count", { count: endpoint.models.length })}
               </span>
             </DataTableToolbar>
           }

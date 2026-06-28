@@ -1,5 +1,5 @@
 /**
- * AI-domain Zod body schemas: providers, models, keys, relay.
+ * AI-domain Zod body schemas: suppliers, endpoints, credentials, models, relay.
  */
 import { z } from "zod";
 
@@ -37,14 +37,34 @@ const safeUrlSchema = z
   .max(500)
   .refine(isSafeUpstreamUrl, "URL must not point to private or internal network addresses");
 
-// ── AI: Providers ──────────────────────────────────────────────────────
+// ── AI: Suppliers ─────────────────────────────────────────────────────
 
-export const createAiProviderBody = z.object({
-  providerId: z
+export const createAiSupplierBody = z.object({
+  supplierId: z
     .string()
     .min(1)
     .max(50)
-    .regex(/^[a-z0-9-]+$/, "Provider ID must be lowercase alphanumeric with hyphens"),
+    .regex(/^[a-z0-9-]+$/, "Supplier ID must be lowercase alphanumeric with hyphens"),
+  name: z.string().min(1).max(100),
+  iconUrl: z.string().url().max(500).optional().or(z.literal("")),
+  enabled: z.boolean().optional(),
+});
+
+export const updateAiSupplierBody = z.object({
+  name: z.string().min(1).max(100).optional(),
+  iconUrl: z.string().url().max(500).optional().or(z.literal("")),
+  enabled: z.boolean().optional(),
+});
+
+// ── AI: Endpoints ─────────────────────────────────────────────────────
+
+export const createAiEndpointBody = z.object({
+  supplierId: z.number().int().positive(),
+  endpointId: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, "Endpoint ID must be lowercase alphanumeric with hyphens"),
   name: z.string().min(1).max(100),
   baseUrl: z.string().url().max(500),
   apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
@@ -62,7 +82,8 @@ export const createAiProviderBody = z.object({
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 
-export const updateAiProviderBody = z.object({
+export const updateAiEndpointBody = z.object({
+  supplierId: z.number().int().positive().optional(),
   name: z.string().min(1).max(100).optional(),
   baseUrl: z.string().url().max(500).optional(),
   apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]).optional(),
@@ -134,7 +155,7 @@ export const updateAiUpstreamModelMappingBody = z.object({
   enabled: z.boolean().optional(),
 });
 
-// ── AI: Upstream Assignments (provider ↔ upstream junction) ──────────
+// ── AI: Upstream Assignments (endpoint ↔ upstream junction) ──────────
 
 export const createAiUpstreamAssignmentBody = z.object({
   upstreamId: z.number().int().positive(),
@@ -170,7 +191,7 @@ export const batchCreateAiModelsBody = z.object({
         clientFormat: z.enum(CLIENT_FORMATS).optional(),
         modelId: z.string().min(1).max(100),
         name: z.string().min(1).max(200),
-        contextWindow: z.number().int().positive().optional(),
+        contextWindow: z.number().int().positive().nullable().optional(),
         inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
         capabilities: z.array(z.string()).optional(),
@@ -186,13 +207,9 @@ export const batchCreateAiModelsBody = z.object({
 
 export const createAiModelBody = z.object({
   clientFormat: z.enum(CLIENT_FORMATS).optional(),
-  modelId: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-z0-9._:-]+$/, "Model ID must be lowercase alphanumeric with dots, colons, hyphens"),
+  modelId: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
-  contextWindow: z.number().int().positive().optional(),
+  contextWindow: z.number().int().positive().nullable().optional(),
   inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
   outputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").default("0"),
   capabilities: z.array(z.string()).optional(),
@@ -222,35 +239,48 @@ export const updateAiModelBody = z.object({
 // ── AI: Model Routes ─────────────────────────────────────────────────
 
 export const createAiModelRouteBody = z.object({
-  providerId: z.number().int().positive(),
-  providerModelId: z.string().min(1).max(100).optional(),
+  endpointId: z.number().int().positive(),
+  endpointModelId: z.string().min(1).max(100).optional(),
   priority: z.number().int().min(0).max(10000).optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });
 
 export const updateAiModelRouteBody = z.object({
-  providerModelId: z.string().min(1).max(100).nullable().optional(),
+  endpointModelId: z.string().min(1).max(100).nullable().optional(),
   priority: z.number().int().min(0).max(10000).optional(),
   weight: z.number().int().min(0).max(100).optional(),
   enabled: z.boolean().optional(),
 });
 
-// ── AI: Keys ──────────────────────────────────────────────────────────
+// ── AI: Credentials ───────────────────────────────────────────────────
 
-export const createAiKeyBody = z.object({
-  providerId: z.number().int().positive(),
-  upstreamId: z.number().int().positive().nullable().optional(),
+export const createAiCredentialBody = z.object({
+  supplierId: z.number().int().positive(),
   name: z.string().min(1).max(100),
   apiKey: z.string().min(1).max(10000),
   ownerId: z.number().int().positive().nullable().optional(),
 });
 
-export const updateAiKeyBody = z.object({
+export const updateAiCredentialBody = z.object({
+  name: z.string().min(1).max(100).optional(),
+  enabled: z.boolean().optional(),
+  ownerId: z.number().int().positive().nullable().optional(),
+});
+
+export const createAiEndpointCredentialBody = z.object({
+  endpointId: z.number().int().positive(),
+  credentialId: z.number().int().positive(),
+  upstreamId: z.number().int().positive().nullable().optional(),
+  name: z.string().min(1).max(100).optional(),
+  weight: z.number().int().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const updateAiEndpointCredentialBody = z.object({
   name: z.string().min(1).max(100).optional(),
   enabled: z.boolean().optional(),
   weight: z.number().int().min(0).max(100).optional(),
-  ownerId: z.number().int().positive().nullable().optional(),
   upstreamId: z.number().int().positive().nullable().optional(),
 });
 

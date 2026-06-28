@@ -17,7 +17,7 @@ vi.mock("@/server/middleware/auth", () => ({
 }));
 
 vi.mock("@/server/repos", () => ({
-  aiProviderRepo: {
+  aiEndpointRepo: {
     findAll: vi.fn().mockResolvedValue([]),
     findById: vi.fn(),
   },
@@ -41,7 +41,7 @@ vi.mock("@/server/repos", () => ({
     delete: vi.fn(),
     deleteByUpstreamId: (...args: unknown[]) => mockDeleteMappingsByUpstreamId(...args),
   },
-  aiKeyRepo: {
+  aiEndpointCredentialRepo: {
     countByUpstreamIds: (...args: unknown[]) => mockCountByUpstreamIds(...args),
   },
   aiUsageLogRepo: {
@@ -52,8 +52,8 @@ vi.mock("@/server/repos", () => ({
   },
 }));
 
-vi.mock("@/server/ai/lib/key-balancer", () => ({
-  invalidateKeyPool: vi.fn(),
+vi.mock("@/server/ai/lib/credential-balancer", () => ({
+  invalidateCredentialPool: vi.fn(),
 }));
 
 vi.mock("@/server/ai/lib/upstream-routing", () => ({
@@ -106,7 +106,9 @@ describe("admin ai upstream routes", () => {
       },
     ]);
     mockCountAssignmentsByUpstreamIds.mockResolvedValue(new Map([[11, 2]]));
-    mockCountByUpstreamIds.mockResolvedValue([{ upstreamId: 11, totalKeys: 2, enabledKeys: 1 }]);
+    mockCountByUpstreamIds.mockResolvedValue([
+      { upstreamId: 11, totalCredentials: 2, enabledCredentials: 1 },
+    ]);
     mockUpstreamOverview.mockResolvedValue([
       {
         upstreamId: 11,
@@ -149,7 +151,7 @@ describe("admin ai upstream routes", () => {
           healthStatus: string;
           lastStatusCode: number | null;
           modelsEndpoint: string | null;
-          enabledKeys: number;
+          enabledCredentials: number;
           requests24h: number;
           assignmentCount: number;
         }>;
@@ -170,7 +172,7 @@ describe("admin ai upstream routes", () => {
       healthStatus: "degraded",
       lastStatusCode: 502,
       modelsEndpoint: "https://friend-a.example.com/v1/models",
-      enabledKeys: 1,
+      enabledCredentials: 1,
       requests24h: 12,
       assignmentCount: 2,
     });
@@ -191,7 +193,9 @@ describe("admin ai upstream routes", () => {
       },
     ]);
     mockCountAssignmentsByUpstreamIds.mockResolvedValue(new Map([[11, 2]]));
-    mockCountByUpstreamIds.mockResolvedValue([{ upstreamId: 11, totalKeys: 2, enabledKeys: 2 }]);
+    mockCountByUpstreamIds.mockResolvedValue([
+      { upstreamId: 11, totalCredentials: 2, enabledCredentials: 2 },
+    ]);
     mockUpstreamOverview.mockResolvedValue([
       {
         upstreamId: 11,

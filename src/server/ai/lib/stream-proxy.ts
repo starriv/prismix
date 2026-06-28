@@ -1,5 +1,5 @@
 /**
- * SSE stream proxy — forwards upstream AI provider SSE events to the client.
+ * SSE stream proxy — forwards upstream AI endpoint SSE events to the client.
  *
  * Split into two stages for fallback support:
  * - fetchUpstream(): attempts the HTTP fetch (can be retried with different models)
@@ -7,10 +7,10 @@
  *
  * The combined proxyStream() is kept for non-fallback use.
  *
- * NOTE: Provider-specific usage extraction (OpenAI / Anthropic / Gemini) is handled inside
- * extractStreamUsageUniversal() as inline branches rather than separate per-provider adapter
- * files. The stream forwarding is provider-agnostic; only the ~85-line usage parser has
- * provider awareness, which doesn't justify the overhead of 3+ files + barrel for ~25 lines each.
+ * NOTE: Protocol-specific usage extraction (OpenAI / Anthropic / Gemini) is handled inside
+ * extractStreamUsageUniversal() as inline branches rather than separate per-protocol adapter
+ * files. The stream forwarding is endpoint-agnostic; only the small usage parser has
+ * protocol awareness, which doesn't justify the overhead of 3+ files + barrel for ~25 lines each.
  */
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -29,8 +29,8 @@ import {
 import { enqueueJob } from "@/server/lib/write-queue";
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
-import type { ProviderAdapter, TokenUsage } from "../providers/types";
-import { markKeyFailure, markKeySuccess } from "./key-balancer";
+import type { ProtocolAdapter, TokenUsage } from "../protocol-adapters/types";
+import { markCredentialFailure, markCredentialSuccess } from "./credential-balancer";
 import { extractTokenUsageFromUsageObject } from "./token-usage";
 
 /**
@@ -86,8 +86,9 @@ const streamRuntimeStats: StreamRuntimeStats = {
 };
 
 export interface StreamRelayMeta {
-  keyId: number;
-  providerId: string;
+  endpointCredentialId: number;
+  supplierId?: string | null;
+  endpointId: string;
   modelId: string;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -162,30 +163,30 @@ function recordStreamStart(meta: StreamRelayMeta): void {
   const route = getRouteType(meta);
   streamRuntimeStats.started++;
   streamRuntimeStats.active++;
-  aiStreamStartedTotal.inc({ provider: meta.providerId, route });
-  aiStreamActive.inc({ provider: meta.providerId, route });
+  aiStreamStartedTotal.inc({ endpoint: meta.endpointId, route });
+  aiStreamActive.inc({ endpoint: meta.endpointId, route });
 }
 
 function recordStreamEnd(meta: StreamRelayMeta, state: StreamLifecycleState): void {
   const route = state.routeType;
   streamRuntimeStats.active = Math.max(0, streamRuntimeStats.active - 1);
-  aiStreamActive.dec({ provider: meta.providerId, route });
+  aiStreamActive.dec({ endpoint: meta.endpointId, route });
 
   const outcome = state.abortReason ?? "completed";
   if (outcome === "completed") {
     streamRuntimeStats.completed++;
   } else {
     streamRuntimeStats.aborts[outcome]++;
-    aiStreamAbortTotal.inc({ provider: meta.providerId, route, reason: outcome });
+    aiStreamAbortTotal.inc({ endpoint: meta.endpointId, route, reason: outcome });
   }
-  aiStreamCompletedTotal.inc({ provider: meta.providerId, route, outcome });
+  aiStreamCompletedTotal.inc({ endpoint: meta.endpointId, route, outcome });
 }
 
 function observeFirstChunk(meta: StreamRelayMeta, state: StreamLifecycleState): void {
   if (state.firstChunkLatencyMs !== null) return;
   state.firstChunkLatencyMs = Date.now() - meta.start;
   aiStreamFirstChunkLatency.observe(
-    { provider: meta.providerId, route: state.routeType },
+    { endpoint: meta.endpointId, route: state.routeType },
     state.firstChunkLatencyMs / 1000,
   );
 }
@@ -195,7 +196,7 @@ function observeChunk(meta: StreamRelayMeta, state: StreamLifecycleState, bytes:
   state.totalBytes += bytes;
   state.lastChunkAt = Date.now();
   observeFirstChunk(meta, state);
-  aiStreamChunksTotal.inc({ provider: meta.providerId, route: state.routeType });
+  aiStreamChunksTotal.inc({ endpoint: meta.endpointId, route: state.routeType });
 }
 
 function tryParseStreamEventType(dataLine: string): string | null {
@@ -230,7 +231,7 @@ async function writeStreamError(
         error: {
           type: reason,
           message: messageMap[reason],
-          provider: meta.providerId,
+          endpoint: meta.endpointId,
           request_id: meta.requestId,
         },
       }),
@@ -250,7 +251,7 @@ export function getStreamRuntimeStats(): StreamRuntimeStats {
 // ── Stage 1: Fetch upstream (retryable) ─────────────────────────────
 
 /**
- * Attempt to fetch the upstream AI provider. Returns the Response object.
+ * Attempt to fetch the upstream AI endpoint. Returns the Response object.
  * Throws on network error. Does NOT commit SSE headers to the client.
  */
 export async function fetchUpstream(
@@ -258,7 +259,7 @@ export async function fetchUpstream(
   headers: Record<string, string>,
   body: string,
   timeoutMs = resolveTimeoutConfig().upstreamFetchMs,
-  metricLabels?: { provider: string; route: "chat" | "passthrough" },
+  metricLabels?: { endpoint: string; route: "chat" | "passthrough" },
 ): Promise<Response> {
   const start = Date.now();
   const response = await fetch(url, {
@@ -269,7 +270,7 @@ export async function fetchUpstream(
   });
   if (metricLabels) {
     gatewayUpstreamDuration.observe(
-      { provider: metricLabels.provider, route: metricLabels.route, phase: "headers" },
+      { endpoint: metricLabels.endpoint, route: metricLabels.route, phase: "headers" },
       (Date.now() - start) / 1000,
     );
   }
@@ -292,7 +293,7 @@ export async function fetchUpstream(
 export function forwardStream(
   c: Context,
   upstreamRes: Response,
-  adapter: ProviderAdapter,
+  adapter: ProtocolAdapter,
   meta: StreamRelayMeta,
   onComplete?: StreamCompleteCallback,
   timeoutConfig?: Partial<TimeoutConfig>,
@@ -357,7 +358,7 @@ export function forwardStream(
     if (!upstreamRes.body) {
       clearTimers();
       setAbortReason(state, "upstream_missing_body");
-      markKeyFailure(meta.keyId);
+      markCredentialFailure(meta.endpointCredentialId);
       await writeStreamError(stream, "upstream_missing_body", meta);
       errorSent = true;
       recordStreamEnd(meta, state);
@@ -403,7 +404,7 @@ export function forwardStream(
         if (buffer.length > MAX_BUFFER_SIZE) {
           setAbortReason(state, "buffer_overflow");
           log.gateway.error(
-            { provider: meta.providerId, model: meta.modelId, requestId: meta.requestId },
+            { endpoint: meta.endpointId, model: meta.modelId, requestId: meta.requestId },
             "AI relay SSE buffer overflow",
           );
           cancelAll("buffer_overflow");
@@ -481,7 +482,7 @@ export function forwardStream(
       if (err instanceof Error && err.name !== "AbortError") {
         setAbortReason(state, "upstream_read_error");
         log.gateway.error(
-          { err, provider: meta.providerId, model: meta.modelId },
+          { err, endpoint: meta.endpointId, model: meta.modelId },
           "AI relay stream read error",
         );
         await writeStreamError(stream, "upstream_read_error", meta);
@@ -510,9 +511,8 @@ export function forwardStream(
         // Admin relay — log usage here
         const cost = calculateCost(usage, meta);
         enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost);
-        enqueueJob("ai-key-touch", {
-          keyId: meta.keyId,
-          keyType: "admin",
+        enqueueJob("ai-endpoint-credential-touch", {
+          endpointCredentialId: meta.endpointCredentialId,
         });
       }
 
@@ -527,14 +527,14 @@ export function forwardStream(
       }
 
       if (state.abortReason === "completed" || state.abortReason === null) {
-        markKeySuccess(meta.keyId);
+        markCredentialSuccess(meta.endpointCredentialId);
       } else if (state.abortReason !== "client_abort") {
-        markKeyFailure(meta.keyId);
+        markCredentialFailure(meta.endpointCredentialId);
       }
 
       log.gateway.info(
         {
-          provider: meta.providerId,
+          endpoint: meta.endpointId,
           model: meta.modelId,
           requestId: meta.requestId,
           routeType: state.routeType,
@@ -589,7 +589,7 @@ export function extractDataLine(frame: string): string | null {
  * Parses each SSE frame to extract usage via universal pattern matching
  * (OpenAI / Anthropic / Gemini), then forwards the raw frame as-is.
  *
- * Used by generic `/v1/*` passthrough routes that don't know the provider format.
+ * Used by generic `/v1/*` passthrough routes that don't know the upstream protocol format.
  * Same resilience features as forwardStream: idle timeout, heartbeat, reader cancel.
  */
 export function forwardPassthroughStream(
@@ -657,7 +657,7 @@ export function forwardPassthroughStream(
     if (!upstreamRes.body) {
       clearTimers();
       setAbortReason(state, "upstream_missing_body");
-      markKeyFailure(meta.keyId);
+      markCredentialFailure(meta.endpointCredentialId);
       await writeStreamError(stream, "upstream_missing_body", meta);
       errorSent = true;
       recordStreamEnd({ ...meta, routeType: "passthrough" }, state);
@@ -696,7 +696,7 @@ export function forwardPassthroughStream(
 
         if (buffer.length > MAX_BUFFER_SIZE) {
           setAbortReason(state, "buffer_overflow");
-          log.gateway.error({ provider: meta.providerId }, "AI passthrough SSE buffer overflow");
+          log.gateway.error({ endpoint: meta.endpointId }, "AI passthrough SSE buffer overflow");
           cancelAll("buffer_overflow");
           await writeStreamError(stream, "buffer_overflow", meta);
           errorSent = true;
@@ -740,7 +740,7 @@ export function forwardPassthroughStream(
       if (err instanceof Error && err.name !== "AbortError") {
         setAbortReason(state, "upstream_read_error");
         log.gateway.error(
-          { err, provider: meta.providerId, model: meta.modelId },
+          { err, endpoint: meta.endpointId, model: meta.modelId },
           "AI passthrough stream read error",
         );
         await writeStreamError(stream, "upstream_read_error", meta);
@@ -773,21 +773,20 @@ export function forwardPassthroughStream(
       } else {
         const cost = calculateCost(usage, meta);
         enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost);
-        enqueueJob("ai-key-touch", {
-          keyId: meta.keyId,
-          keyType: "admin",
+        enqueueJob("ai-endpoint-credential-touch", {
+          endpointCredentialId: meta.endpointCredentialId,
         });
       }
 
       if (state.abortReason === "completed" || state.abortReason === null) {
-        markKeySuccess(meta.keyId);
+        markCredentialSuccess(meta.endpointCredentialId);
       } else if (state.abortReason !== "client_abort") {
-        markKeyFailure(meta.keyId);
+        markCredentialFailure(meta.endpointCredentialId);
       }
 
       log.gateway.info(
         {
-          provider: meta.providerId,
+          endpoint: meta.endpointId,
           model: meta.modelId,
           requestId: meta.requestId,
           routeType: state.routeType,
@@ -826,7 +825,7 @@ export const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 /**
  * Extract token usage from a raw JSON response string.
  * Supports both OpenAI (`usage.prompt_tokens`) and Anthropic (`usage.input_tokens`) shapes.
- * Used by generic passthrough routes that don't have a ProviderAdapter.
+ * Used by generic passthrough routes that don't have a ProtocolAdapter.
  */
 export function extractPassthroughUsage(text: string): TokenUsage | null {
   try {
@@ -850,7 +849,7 @@ export function extractPassthroughUsage(text: string): TokenUsage | null {
 }
 
 /**
- * Extract token usage from a single SSE data line without knowing the provider format.
+ * Extract token usage from a single SSE data line without knowing the upstream protocol format.
  * Covers OpenAI, Anthropic, and Gemini streaming usage shapes.
  *
  * Returns partial counts per frame — caller must accumulate across frames.
@@ -964,8 +963,9 @@ function enqueueUsageLog(
   estimatedCost?: string,
 ): void {
   enqueueJob("ai-usage-log", {
-    keyId: meta.keyId,
-    providerId: meta.providerId,
+    endpointCredentialId: meta.endpointCredentialId,
+    supplierId: meta.supplierId ?? null,
+    endpointId: meta.endpointId,
     modelId: meta.modelId,
     upstreamId: meta.upstreamId ?? null,
     upstreamName: meta.upstreamName ?? null,

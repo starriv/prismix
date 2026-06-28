@@ -15,7 +15,7 @@ const JWT_AUDIENCE = "prismix";
 
 // ── Secret ─────────────────────────────────────────────────────────
 
-let secretKey: Uint8Array;
+let secretKey: Uint8Array | undefined;
 
 export function initJwtSecret(): void {
   const raw = process.env.JWT_SECRET;
@@ -23,6 +23,14 @@ export function initJwtSecret(): void {
     throw new Error("JWT_SECRET must be set before calling initJwtSecret");
   }
   secretKey = new TextEncoder().encode(raw);
+}
+
+function getSecretKey(): Uint8Array {
+  if (!secretKey) initJwtSecret();
+  if (!secretKey) {
+    throw new Error("JWT secret initialization failed");
+  }
+  return secretKey;
 }
 
 // ── JWT Claims ─────────────────────────────────────────────────────
@@ -49,12 +57,12 @@ export async function signAccessToken(payload: {
     .setAudience(JWT_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_TTL)
-    .sign(secretKey);
+    .sign(getSecretKey());
 }
 
 export async function verifyAccessToken(token: string): Promise<AccessTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secretKey, {
+    const { payload } = await jwtVerify(token, getSecretKey(), {
       algorithms: ["HS256"],
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,

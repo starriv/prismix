@@ -51,7 +51,7 @@ describe("domain event registry", () => {
       descriptionKey: "notif.event-desc.topup-requested",
     });
     expect(listNotificationSubscriptions()).toContain("topup.*");
-    expect(listNotificationSubscriptions()).toContain("supplier.disabled");
+    expect(listNotificationSubscriptions()).toContain("endpoint.disabled");
   });
 
   it("rejects duplicate and invalid event registrations", () => {

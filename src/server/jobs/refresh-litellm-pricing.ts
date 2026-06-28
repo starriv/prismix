@@ -14,7 +14,7 @@ import {
   lookupPricing,
   refreshLiteLLMPricing,
 } from "@/server/ai/lib/litellm-pricing";
-import { aiModels, aiProviders, db, queryAll } from "@/server/db";
+import { aiEndpoints, aiModelRoutes, aiModels, db, queryAll } from "@/server/db";
 import { removeStaleRepeatableJobs } from "@/server/jobs/repeatable";
 import { log } from "@/server/lib/logger";
 import { formatPercent } from "@/shared/number";
@@ -39,24 +39,26 @@ async function checkPriceDrift(): Promise<void> {
       modelId: string;
       inputPrice: string;
       outputPrice: string;
-      providerId: string;
-      providerName: string;
+      endpointId: string;
+      endpointName: string;
     }>(
       db
         .select({
           modelId: aiModels.modelId,
           inputPrice: aiModels.inputPrice,
           outputPrice: aiModels.outputPrice,
-          providerId: aiProviders.providerId,
-          providerName: aiProviders.name,
+          endpointId: aiEndpoints.endpointId,
+          endpointName: aiEndpoints.name,
         })
         .from(aiModels)
-        .innerJoin(aiProviders, eq(aiModels.providerId, aiProviders.id))
+        .innerJoin(aiModelRoutes, eq(aiModels.id, aiModelRoutes.modelId))
+        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
         .where(
           and(
             eq(aiModels.enabled, true),
-            eq(aiProviders.enabled, true),
-            eq(aiProviders.autoDisabled, false),
+            eq(aiModelRoutes.enabled, true),
+            eq(aiEndpoints.enabled, true),
+            eq(aiEndpoints.autoDisabled, false),
           ),
         ),
     );
@@ -64,7 +66,7 @@ async function checkPriceDrift(): Promise<void> {
     let driftCount = 0;
 
     for (const row of rows) {
-      const catalog = lookupPricing(row.modelId, row.providerId);
+      const catalog = lookupPricing(row.modelId, row.endpointId);
       if (!catalog) continue;
 
       const inputDrift = relativeDiff(Number(row.inputPrice), Number(catalog.inputPricePerMTok));
@@ -73,7 +75,7 @@ async function checkPriceDrift(): Promise<void> {
       if (inputDrift > DRIFT_THRESHOLD || outputDrift > DRIFT_THRESHOLD) {
         log.pricing.warn(
           {
-            provider: row.providerId,
+            endpoint: row.endpointId,
             model: row.modelId,
             stored: { input: row.inputPrice, output: row.outputPrice },
             litellm: { input: catalog.inputPricePerMTok, output: catalog.outputPricePerMTok },

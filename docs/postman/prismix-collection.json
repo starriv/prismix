@@ -149,83 +149,191 @@
     },
     {
       "name": "Admin AI",
-      "description": "AI provider, upstream, model, and key management endpoints. All require admin JWT.",
+      "description": "AI supplier, endpoint, upstream, model, and credential management endpoints. All require admin JWT.",
       "item": [
         {
-          "name": "Providers",
-          "description": "AI provider CRUD. Providers represent upstream AI services (OpenAI, Anthropic, etc.).",
+          "name": "Suppliers",
+          "description": "AI supplier CRUD. Suppliers are the organizations that issue API credentials (OpenAI, Anthropic, Google, etc.). An endpoint references a supplier.",
           "item": [
             {
-              "name": "List Providers",
+              "name": "List Suppliers",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers",
+                  "raw": "{{baseUrl}}/admin/ai/suppliers",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers"]
+                  "path": ["admin", "ai", "suppliers"]
                 },
-                "description": "List all AI providers. Auto-seeds default providers on first access after a database reset."
+                "description": "List all AI suppliers."
               }
             },
             {
-              "name": "Create Provider",
+              "name": "Create Supplier",
               "request": {
                 "method": "POST",
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"providerId\": \"openai\",\n  \"name\": \"OpenAI\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"apiFormat\": \"openai\",\n  \"authType\": \"bearer\",\n  \"authConfig\": {},\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"priority\"\n}"
+                  "raw": "{\n  \"supplierId\": \"openai\",\n  \"name\": \"OpenAI\",\n  \"iconUrl\": \"https://example.com/openai.svg\",\n  \"enabled\": true\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers",
+                  "raw": "{{baseUrl}}/admin/ai/suppliers",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers"]
+                  "path": ["admin", "ai", "suppliers"]
                 },
-                "description": "Create a new AI provider. providerId must be unique, lowercase alphanumeric with hyphens. apiFormat: openai | anthropic | gemini | azure-openai | bedrock. authType: bearer | api-key | sigv4."
+                "description": "Create a new AI supplier. supplierId must be unique, lowercase alphanumeric with hyphens (1-50 chars). iconUrl is optional (pass empty string to clear). Returns 409 if supplierId already exists."
               }
             },
             {
-              "name": "Update Provider",
+              "name": "Update Supplier",
               "request": {
                 "method": "PUT",
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"OpenAI (Updated)\",\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"weighted-random\"\n}"
+                  "raw": "{\n  \"name\": \"OpenAI (Updated)\",\n  \"iconUrl\": \"\",\n  \"enabled\": true\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id",
+                  "raw": "{{baseUrl}}/admin/ai/suppliers/:id",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id"],
+                  "path": ["admin", "ai", "suppliers", ":id"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Supplier internal numeric ID" }
                   ]
                 },
-                "description": "Update an existing AI provider. All fields are optional."
+                "description": "Update an existing AI supplier. All fields optional. Pass iconUrl as empty string to clear it."
               }
             },
             {
-              "name": "Delete Provider",
+              "name": "Delete Supplier",
               "request": {
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id",
+                  "raw": "{{baseUrl}}/admin/ai/suppliers/:id",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id"],
+                  "path": ["admin", "ai", "suppliers", ":id"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Supplier internal numeric ID" }
                   ]
                 },
-                "description": "Delete an AI provider and cascade-delete its upstream assignments."
+                "description": "Delete an AI supplier by internal numeric ID."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Endpoints",
+          "description": "AI endpoint CRUD. Endpoints pair a supplier with a callable base URL, API format, and auth type. Auto-seeds default endpoints on first access.",
+          "item": [
+            {
+              "name": "List Endpoints",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints"]
+                },
+                "description": "List all AI endpoints with supplier info and upstream counts. Auto-seeds default endpoints on first access after a database reset."
+              }
+            },
+            {
+              "name": "Endpoints Overview",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/overview?hours=24",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints", "overview"],
+                  "query": [
+                    {
+                      "key": "hours",
+                      "value": "24",
+                      "description": "Lookback window (1-720, default 24)"
+                    }
+                  ]
+                },
+                "description": "Health overview for all endpoints. Returns totals (total/enabled/active/degraded) and per-endpoint stats: credential counts, upstream count, 24h request/error/token counts, error rate, and health status (healthy | degraded | idle | no-key | disabled | down | unknown)."
+              }
+            },
+            {
+              "name": "Create Endpoint",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplierId\": 1,\n  \"endpointId\": \"openai\",\n  \"name\": \"OpenAI\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"apiFormat\": \"openai\",\n  \"authType\": \"bearer\",\n  \"authConfig\": {},\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"priority\",\n  \"iconUrl\": \"https://example.com/openai.svg\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints"]
+                },
+                "description": "Create a new AI endpoint. supplierId must reference an existing enabled supplier. endpointId must be unique, lowercase alphanumeric with hyphens (1-50 chars). apiFormat: openai | anthropic | gemini | azure-openai | bedrock. authType: bearer | api-key | sigv4 | cloudflare. upstreamRoutingStrategy: priority | weighted-random. officialConcurrencyLimit / officialQueueTimeoutMs optional."
+              }
+            },
+            {
+              "name": "Update Endpoint",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"OpenAI (Updated)\",\n  \"enabled\": true,\n  \"upstreamRoutingStrategy\": \"weighted-random\",\n  \"loadBalanceStrategy\": \"round-robin\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
+                  ]
+                },
+                "description": "Update an existing AI endpoint. All fields optional. Toggling enabled also clears autoDisabled, consecutiveFailures, lastError, and resets healthStatus to unknown. Invalidates routing and credential caches when relevant fields change."
+              }
+            },
+            {
+              "name": "Delete Endpoint",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints", ":id"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
+                  ]
+                },
+                "description": "Delete an AI endpoint. Invalidates routing and credential caches."
+              }
+            },
+            {
+              "name": "List Endpoint Credentials",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/credentials",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoints", ":id", "credentials"],
+                  "variable": [
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
+                  ]
+                },
+                "description": "List all endpoint credentials bound to this endpoint, with redacted secret and enriched credential/upstream names."
               }
             }
           ]
         },
         {
           "name": "Global Upstreams",
-          "description": "Global AI upstream CRUD. Upstreams represent distinct API endpoints (e.g. official OpenAI, a reseller, OpenRouter). Providers are assigned to upstreams via the assignment endpoints.",
+          "description": "Global AI upstream CRUD. Upstreams represent distinct API endpoints (e.g. official OpenAI, a reseller, OpenRouter). Endpoints are assigned to upstreams via the assignment endpoints.",
           "item": [
             {
               "name": "List Upstreams",
@@ -247,14 +355,14 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"upstreamId\": \"openai-official\",\n  \"name\": \"OpenAI Official\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"kind\": \"official\",\n  \"enabled\": true,\n  \"metadata\": {}\n}"
+                  "raw": "{\n  \"name\": \"OpenAI Official\",\n  \"baseUrl\": \"https://api.openai.com\",\n  \"kind\": \"official\",\n  \"modelsEndpoint\": \"https://api.openai.com/v1/models\",\n  \"enabled\": true,\n  \"concurrencyLimit\": 10,\n  \"queueTimeoutMs\": 30000,\n  \"metadata\": {}\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/admin/ai/upstreams",
                   "host": ["{{baseUrl}}"],
                   "path": ["admin", "ai", "upstreams"]
                 },
-                "description": "Create a new global upstream. upstreamId must be unique, lowercase alphanumeric with hyphens. kind: official | reseller | openrouter | custom (default: custom). baseUrl is validated against SSRF (no private/internal addresses). metadata must be under 4 KB."
+                "description": "Create a new global upstream. upstreamId is auto-generated. kind: official | reseller | openrouter | custom (default: custom). baseUrl and modelsEndpoint are validated against SSRF (no private/internal addresses). concurrencyLimit and queueTimeoutMs optional. metadata must be under 4 KB."
               }
             },
             {
@@ -270,7 +378,7 @@
                     { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
                   ]
                 },
-                "description": "Get upstream detail including its provider assignments (which providers use this upstream, with priority/weight/enabled per assignment)."
+                "description": "Get upstream detail including its endpoint assignments (which endpoints use this upstream, with priority/weight/enabled per assignment)."
               }
             },
             {
@@ -290,7 +398,7 @@
                     { "key": "id", "value": "1", "description": "Upstream internal numeric ID" }
                   ]
                 },
-                "description": "Update an existing global upstream. All fields optional. Invalidates upstream routing cache and key pools for all providers assigned to this upstream."
+                "description": "Update an existing global upstream. All fields optional. Invalidates upstream routing cache and credential pools for all endpoints assigned to this upstream."
               }
             },
             {
@@ -355,23 +463,23 @@
           ]
         },
         {
-          "name": "Provider Upstream Assignments",
-          "description": "M:N provider-upstream assignment management. Assign shared upstreams to providers with per-assignment priority, weight, and enabled toggle.",
+          "name": "Endpoint Upstream Assignments",
+          "description": "M:N endpoint-upstream assignment management. Assign shared upstreams to endpoints with per-assignment priority, weight, and enabled toggle.",
           "item": [
             {
-              "name": "List Provider Assignments",
+              "name": "List Endpoint Assignments",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/upstreams",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/upstreams",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "upstreams"],
+                  "path": ["admin", "ai", "endpoints", ":id", "upstreams"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "List all upstream assignments for a provider. Each assignment includes the nested upstream object, priority, weight, and enabled status."
+                "description": "List all upstream assignments for an endpoint. Each assignment includes the nested upstream object, priority, weight, and enabled status."
               }
             },
             {
@@ -384,14 +492,14 @@
                   "raw": "{\n  \"upstreamId\": 1,\n  \"priority\": 100,\n  \"weight\": 1,\n  \"enabled\": true\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/upstreams",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/upstreams",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "upstreams"],
+                  "path": ["admin", "ai", "endpoints", ":id", "upstreams"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "Assign a global upstream to a provider. upstreamId: numeric ID of an existing upstream. priority: 0-10000 (default 100, lower = higher priority). weight: 0-100 (default 1, for weighted-random strategy). Returns 409 if the upstream is already assigned to this provider."
+                "description": "Assign a global upstream to an endpoint. upstreamId: numeric ID of an existing upstream. priority: 0-10000 (default 100, lower = higher priority). weight: 0-100 (default 1, for weighted-random strategy). Returns 409 if the upstream is already assigned to this endpoint."
               }
             },
             {
@@ -404,14 +512,14 @@
                   "raw": "{\n  \"priority\": 50,\n  \"weight\": 2,\n  \"enabled\": true\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:providerId/upstreams/:assignmentId",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:endpointId/upstreams/:assignmentId",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":providerId", "upstreams", ":assignmentId"],
+                  "path": ["admin", "ai", "endpoints", ":endpointId", "upstreams", ":assignmentId"],
                   "variable": [
                     {
-                      "key": "providerId",
+                      "key": "endpointId",
                       "value": "1",
-                      "description": "Provider internal numeric ID"
+                      "description": "Endpoint internal numeric ID"
                     },
                     {
                       "key": "assignmentId",
@@ -420,7 +528,7 @@
                     }
                   ]
                 },
-                "description": "Update an existing provider-upstream assignment. All fields optional. Invalidates upstream routing cache and key pool for the provider."
+                "description": "Update an existing endpoint-upstream assignment. All fields optional. Invalidates upstream routing cache and credential pool for the endpoint."
               }
             },
             {
@@ -429,14 +537,14 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:providerId/upstreams/:assignmentId",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:endpointId/upstreams/:assignmentId",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":providerId", "upstreams", ":assignmentId"],
+                  "path": ["admin", "ai", "endpoints", ":endpointId", "upstreams", ":assignmentId"],
                   "variable": [
                     {
-                      "key": "providerId",
+                      "key": "endpointId",
                       "value": "1",
-                      "description": "Provider internal numeric ID"
+                      "description": "Endpoint internal numeric ID"
                     },
                     {
                       "key": "assignmentId",
@@ -445,7 +553,7 @@
                     }
                   ]
                 },
-                "description": "Remove an upstream assignment from a provider. Keys bound to this upstream for the provider have upstreamId set to NULL. Returns { success: true, affectedKeys: N }."
+                "description": "Remove an upstream assignment from an endpoint. Invalidates routing and credential caches for the endpoint and affected upstream."
               }
             }
           ]
@@ -455,19 +563,19 @@
           "description": "AI model CRUD, discovery, and price sync.",
           "item": [
             {
-              "name": "List Provider Models",
+              "name": "List Endpoint Models",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "models"],
+                  "path": ["admin", "ai", "endpoints", ":id", "models"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "List all models registered under a provider."
+                "description": "List all models registered under an endpoint, including gray-release users."
               }
             },
             {
@@ -476,14 +584,26 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/discover-models",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/discover-models?source=official&clientFormat=openai",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "discover-models"],
+                  "path": ["admin", "ai", "endpoints", ":id", "discover-models"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
+                  ],
+                  "query": [
+                    {
+                      "key": "source",
+                      "value": "official",
+                      "description": "official = hit endpoint.baseUrl; upstream = hit a bound upstream's baseUrl (default: official)"
+                    },
+                    {
+                      "key": "clientFormat",
+                      "value": "openai",
+                      "description": "Filter discovered models by client format (optional)"
+                    }
                   ]
                 },
-                "description": "Fetch available models from the upstream provider API. Requires at least one API key configured. Returns models with their registration status and LiteLLM pricing data."
+                "description": "Fetch available models from the endpoint or a bound upstream. Requires at least one enabled endpoint credential. Returns models with registration status and LiteLLM pricing data."
               }
             },
             {
@@ -493,17 +613,17 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"modelId\": \"gpt-4o\",\n  \"name\": \"GPT-4o\",\n  \"contextWindow\": 128000,\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"capabilities\": [\"chat\", \"vision\"],\n  \"enabled\": true\n}"
+                  "raw": "{\n  \"modelId\": \"gpt-4o\",\n  \"name\": \"GPT-4o\",\n  \"clientFormat\": \"openai\",\n  \"contextWindow\": 128000,\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"capabilities\": [\"chat\", \"vision\"],\n  \"enabled\": true\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "models"],
+                  "path": ["admin", "ai", "endpoints", ":id", "models"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "Register a new model under a provider. Prices are per million tokens."
+                "description": "Register a new model under an endpoint. Auto-creates a route to this endpoint. If the model already exists, only adds a route. Prices are per million tokens. clientFormat defaults to the endpoint's native format."
               }
             },
             {
@@ -516,14 +636,14 @@
                   "raw": "{\n  \"models\": [\n    {\n      \"modelId\": \"gpt-4o-mini\",\n      \"name\": \"GPT-4o Mini\",\n      \"contextWindow\": 128000,\n      \"inputPrice\": \"0.15\",\n      \"outputPrice\": \"0.6\"\n    }\n  ]\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/batch",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models/batch",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "models", "batch"],
+                  "path": ["admin", "ai", "endpoints", ":id", "models", "batch"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "Batch create models for a provider (up to 500). Used by discover-and-add flow."
+                "description": "Batch create models for an endpoint (up to 500). Used by discover-and-add flow. Existing models get a route added; new models are created and routed."
               }
             },
             {
@@ -585,14 +705,14 @@
                 "method": "POST",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/sync-prices/preview",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models/sync-prices/preview",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "models", "sync-prices", "preview"],
+                  "path": ["admin", "ai", "endpoints", ":id", "models", "sync-prices", "preview"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "Preview price changes from LiteLLM pricing catalog for a provider's models."
+                "description": "Preview price changes from LiteLLM pricing catalog for an endpoint's models. Returns up to 200 diffs with old/new prices."
               }
             },
             {
@@ -605,11 +725,11 @@
                   "raw": "{\n  \"modelIds\": [1, 2]\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/providers/:id/models/sync-prices/apply",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models/sync-prices/apply",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "providers", ":id", "models", "sync-prices", "apply"],
+                  "path": ["admin", "ai", "endpoints", ":id", "models", "sync-prices", "apply"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Provider internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
                 "description": "Apply selected price updates from LiteLLM catalog. Pass model internal IDs to update."
@@ -618,96 +738,180 @@
           ]
         },
         {
-          "name": "Keys",
-          "description": "AI API key management. Keys are bound to a provider and optionally to an upstream.",
+          "name": "Credentials",
+          "description": "AI credential (secret) CRUD. A credential is the real upstream API key issued by a supplier, stored encrypted at rest. Credentials are bound to endpoints via the endpoint-credential junction.",
           "item": [
             {
-              "name": "List Keys",
+              "name": "List Credentials",
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/keys",
+                  "raw": "{{baseUrl}}/admin/ai/credentials",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "keys"]
+                  "path": ["admin", "ai", "credentials"]
                 },
-                "description": "List all AI API keys (encrypted key and hash excluded). Enriched with provider name, owner name, upstream name/slug."
+                "description": "List all AI credentials (encrypted key and hash excluded). Enriched with supplier name and owner."
               }
             },
             {
-              "name": "Create Key",
+              "name": "Create Credential",
               "request": {
                 "method": "POST",
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"providerId\": 1,\n  \"upstreamId\": 1,\n  \"name\": \"OpenAI Key #1\",\n  \"apiKey\": \"sk-proj-abc123...\"\n}"
+                  "raw": "{\n  \"supplierId\": 1,\n  \"name\": \"OpenAI Credential #1\",\n  \"apiKey\": \"sk-proj-abc123...\",\n  \"ownerId\": null\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/keys",
+                  "raw": "{{baseUrl}}/admin/ai/credentials",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "keys"]
+                  "path": ["admin", "ai", "credentials"]
                 },
-                "description": "Create a new AI API key. providerId is required. upstreamId is optional (null = unbound); if provided, the upstream must be assigned to the provider. apiKey is encrypted at rest."
+                "description": "Create a new AI credential. supplierId must reference an existing enabled supplier. apiKey is AES-256-GCM encrypted at rest. ownerId optionally links the credential to a Key Provider for revenue share. Returns 409 if the apiKey hash already exists."
               }
             },
             {
-              "name": "Update Key",
+              "name": "Update Credential",
               "request": {
                 "method": "PUT",
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"OpenAI Key #1 (Updated)\",\n  \"enabled\": true,\n  \"weight\": 1,\n  \"upstreamId\": 1\n}"
+                  "raw": "{\n  \"name\": \"OpenAI Credential #1 (Updated)\",\n  \"enabled\": true,\n  \"ownerId\": null\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/keys/:id",
+                  "raw": "{{baseUrl}}/admin/ai/credentials/:id",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "keys", ":id"],
+                  "path": ["admin", "ai", "credentials", ":id"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Credential internal numeric ID" }
                   ]
                 },
-                "description": "Update an existing AI API key. Can reassign to a different upstream (must be assigned to the key's provider)."
+                "description": "Update an existing AI credential. All fields optional. Invalidates credential pools for every endpoint this credential is bound to."
               }
             },
             {
-              "name": "Delete Key",
+              "name": "Delete Credential",
               "request": {
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/keys/:id",
+                  "raw": "{{baseUrl}}/admin/ai/credentials/:id",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "keys", ":id"],
+                  "path": ["admin", "ai", "credentials", ":id"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                    { "key": "id", "value": "1", "description": "Credential internal numeric ID" }
                   ]
                 },
-                "description": "Delete an AI API key."
+                "description": "Delete an AI credential. Invalidates credential pools for every endpoint this credential was bound to."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Endpoint Credentials",
+          "description": "Endpoint-credential junction CRUD. Binds a credential to a callable endpoint (optionally to a specific upstream) with routing weight. This is what the gateway actually draws from at request time.",
+          "item": [
+            {
+              "name": "List Endpoint Credentials",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoint-credentials",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoint-credentials"]
+                },
+                "description": "List all endpoint credentials (encrypted key excluded). Enriched with endpoint, credential, supplier, and upstream names."
               }
             },
             {
-              "name": "Test Key Connectivity",
+              "name": "Create Endpoint Credential",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"endpointId\": 1,\n  \"credentialId\": 1,\n  \"upstreamId\": null,\n  \"name\": \"OpenAI via official\",\n  \"weight\": 1,\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoint-credentials",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoint-credentials"]
+                },
+                "description": "Bind a credential to an endpoint. endpointId and credentialId required. The credential's supplier must match the endpoint's supplier. upstreamId optional (null = use endpoint.baseUrl; if provided, the upstream must be assigned to the endpoint). weight: 0-100 (default 1)."
+              }
+            },
+            {
+              "name": "Update Endpoint Credential",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"OpenAI via official (Updated)\",\n  \"enabled\": true,\n  \"weight\": 2,\n  \"upstreamId\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoint-credentials/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoint-credentials", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "1",
+                      "description": "Endpoint credential internal numeric ID"
+                    }
+                  ]
+                },
+                "description": "Update an existing endpoint credential. All fields optional. If upstreamId changes, the new upstream must be assigned to the endpoint. Invalidates credential pools for the old and new bindings."
+              }
+            },
+            {
+              "name": "Delete Endpoint Credential",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ai/endpoint-credentials/:id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "ai", "endpoint-credentials", ":id"],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "1",
+                      "description": "Endpoint credential internal numeric ID"
+                    }
+                  ]
+                },
+                "description": "Delete an endpoint credential binding. Invalidates the credential pool for the affected endpoint."
+              }
+            },
+            {
+              "name": "Test Endpoint Credential",
               "request": {
                 "method": "POST",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/keys/:id/test",
+                  "raw": "{{baseUrl}}/admin/ai/endpoint-credentials/:id/test",
                   "host": ["{{baseUrl}}"],
-                  "path": ["admin", "ai", "keys", ":id", "test"],
+                  "path": ["admin", "ai", "endpoint-credentials", ":id", "test"],
                   "variable": [
-                    { "key": "id", "value": "1", "description": "Key internal numeric ID" }
+                    {
+                      "key": "id",
+                      "value": "1",
+                      "description": "Endpoint credential internal numeric ID"
+                    }
                   ]
                 },
-                "description": "Test an AI API key by hitting the upstream /models endpoint. Returns success status, latency, and HTTP status code."
+                "description": "Test an endpoint credential by hitting the upstream /models endpoint (or a probe chat call for Anthropic). Returns success status, latency in ms, and HTTP status code. Updates lastUsedAt on success."
               }
             }
           ]
         },
         {
           "name": "Catalog",
-          "description": "Aggregated model catalog across all enabled providers.",
+          "description": "Aggregated model catalog across all enabled endpoints.",
           "item": [
             {
               "name": "Get Catalog",
@@ -719,7 +923,7 @@
                   "host": ["{{baseUrl}}"],
                   "path": ["admin", "ai", "catalog"]
                 },
-                "description": "Get the aggregated model catalog across all enabled providers. Each entry includes model info, provider name, pricing, capabilities, and whether an API key is configured."
+                "description": "Get the aggregated model catalog across all enabled endpoints. Each entry includes model info, endpoint name, pricing, capabilities, and whether a credential is configured."
               }
             }
           ]
@@ -776,7 +980,7 @@
                     { "key": "limit", "value": "20" },
                     { "key": "offset", "value": "0" },
                     { "key": "modelId", "value": "", "disabled": true },
-                    { "key": "providerId", "value": "", "disabled": true },
+                    { "key": "endpointId", "value": "", "disabled": true },
                     { "key": "statusCode", "value": "", "disabled": true },
                     {
                       "key": "statusClass",

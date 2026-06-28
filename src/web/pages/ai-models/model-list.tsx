@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 
 import { useBatchDeleteAiModels, useDeleteAiModel, useUpdateAiModel } from "@/web/api/hooks";
-import type { AiModel, AiProvider } from "@/web/api/schemas";
+import type { AiEndpoint, AiModel } from "@/web/api/schemas";
 import {
   DataTable,
   DataTableBadge,
@@ -78,12 +78,12 @@ function formatDateTime(value: string | null | undefined, locale: string): strin
 
 export function ModelList({
   models,
-  providers,
+  endpoints,
   loading,
   onManageRoutes,
 }: {
   models: AiModel[];
-  providers: AiProvider[];
+  endpoints: AiEndpoint[];
   loading: boolean;
   onManageRoutes: (model: AiModel) => void;
 }) {
@@ -99,21 +99,21 @@ export function ModelList({
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [cleanZeroOpen, setCleanZeroOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
-  const [syncProviderId, setSyncProviderId] = useState(0);
+  const [syncEndpointId, setSyncEndpointId] = useState(0);
 
   // Filters
-  const [providerFilter, setProviderFilter] = useState("all");
+  const [endpointFilter, setEndpointFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
 
   const filteredModels = useMemo(() => {
     let result = models;
 
-    if (providerFilter === "no-routes") {
+    if (endpointFilter === "no-routes") {
       result = result.filter((m) => !m.routes || m.routes.length === 0);
-    } else if (providerFilter !== "all") {
-      const pid = Number(providerFilter);
-      result = result.filter((m) => m.routes?.some((r) => r.providerId === pid));
+    } else if (endpointFilter !== "all") {
+      const pid = Number(endpointFilter);
+      result = result.filter((m) => m.routes?.some((r) => r.endpointId === pid));
     }
 
     if (statusFilter === "enabled") {
@@ -130,12 +130,12 @@ export function ModelList({
     }
 
     return result;
-  }, [models, providerFilter, statusFilter, search]);
+  }, [models, endpointFilter, statusFilter, search]);
 
-  const isFiltered = providerFilter !== "all" || statusFilter !== "all" || search !== "";
+  const isFiltered = endpointFilter !== "all" || statusFilter !== "all" || search !== "";
 
   const handleResetFilters = useCallback(() => {
-    setProviderFilter("all");
+    setEndpointFilter("all");
     setStatusFilter("all");
     setSearch("");
   }, []);
@@ -434,13 +434,13 @@ export function ModelList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {providers
+                  {endpoints
                     .filter((p) => p.enabled)
                     .map((p) => (
                       <DropdownMenuItem
                         key={p.id}
                         onClick={() => {
-                          setSyncProviderId(p.id);
+                          setSyncEndpointId(p.id);
                           setSyncOpen(true);
                         }}
                       >
@@ -470,14 +470,14 @@ export function ModelList({
         <CardContent className="space-y-4">
           {/* Filter bar */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-            <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <Select value={endpointFilter} onValueChange={setEndpointFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("ai-models.filter.all-providers")}</SelectItem>
+                <SelectItem value="all">{t("ai-models.filter.all-endpoints")}</SelectItem>
                 <SelectItem value="no-routes">{t("ai-models.filter.no-routes")}</SelectItem>
-                {providers
+                {endpoints
                   .filter((p) => p.enabled)
                   .map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
@@ -555,14 +555,14 @@ export function ModelList({
 
       <ModelFormDialog open={addOpen} onOpenChange={setAddOpen} />
 
-      {syncProviderId > 0 && (
+      {syncEndpointId > 0 && (
         <SyncPricesDialog
           open={syncOpen}
           onOpenChange={(v) => {
             setSyncOpen(v);
-            if (!v) setSyncProviderId(0);
+            if (!v) setSyncEndpointId(0);
           }}
-          providerId={syncProviderId}
+          endpointId={syncEndpointId}
         />
       )}
 
@@ -673,9 +673,9 @@ function RoutesBadges({ routes }: { routes: NonNullable<AiModel["routes"]> }) {
     <div className="flex flex-wrap gap-1">
       {routes.slice(0, 3).map((r) => (
         <Badge key={r.id} variant="outline" className="text-xs gap-1">
-          {r.providerIconUrl ? (
+          {r.endpointIconUrl ? (
             <img
-              src={r.providerIconUrl}
+              src={r.endpointIconUrl}
               alt=""
               className="h-3 w-3 rounded-sm object-contain"
               width={12}
@@ -684,7 +684,7 @@ function RoutesBadges({ routes }: { routes: NonNullable<AiModel["routes"]> }) {
           ) : (
             <Sparkles className="h-3 w-3" />
           )}
-          {r.providerName ?? `#${r.providerId}`}
+          {r.endpointName ?? `#${r.endpointId}`}
         </Badge>
       ))}
       {routes.length > 3 && (

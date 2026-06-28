@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { parseAsInteger, useQueryState } from "nuqs";
 
-import { useAiModelsList, useAiProviders } from "@/web/api/hooks";
+import { useAiEndpoints, useAiModelsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 
 import { ModelList } from "./model-list";
@@ -12,7 +12,7 @@ import { ModelRoutesSheet } from "./model-routes-sheet";
 export default function AiModelsPage() {
   const { t } = useTranslation();
   const { data: models = [], isLoading } = useAiModelsList();
-  const { data: providers = [] } = useAiProviders();
+  const { data: endpoints = [] } = useAiEndpoints();
   const [routeModelId, setRouteModelId] = useQueryState("routeModel", parseAsInteger);
 
   const routeModel = models.find((m) => m.id === routeModelId) ?? null;
@@ -24,7 +24,7 @@ export default function AiModelsPage() {
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         <ModelList
           models={models}
-          providers={providers}
+          endpoints={endpoints}
           loading={isLoading}
           onManageRoutes={(m) => setRouteModelId(m.id)}
         />
@@ -37,7 +37,7 @@ export default function AiModelsPage() {
             if (!v) setRouteModelId(null);
           }}
           model={routeModel}
-          providers={providers}
+          endpoints={endpoints}
         />
       )}
     </div>

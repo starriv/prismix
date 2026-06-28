@@ -99,6 +99,13 @@
       "when": 1782498910175,
       "tag": "0013_add_model_gray_release",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782604800000,
+      "tag": "0014_supplier_endpoint_credentials",
+      "breakpoints": true
     }
   ]
 }

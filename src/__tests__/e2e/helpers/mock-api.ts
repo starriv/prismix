@@ -126,11 +126,11 @@ export const MOCK_NOTIFICATION_EVENTS = {
       ],
     },
     {
-      key: "supplier",
-      labelKey: "notif.group.supplier",
+      key: "ai",
+      labelKey: "notif.group.ai",
       events: [
-        mockNotificationEvent("supplier.disabled"),
-        mockNotificationEvent("supplier.reenabled"),
+        mockNotificationEvent("endpoint.disabled"),
+        mockNotificationEvent("endpoint.reenabled"),
       ],
     },
     {
@@ -297,10 +297,13 @@ export const MOCK_WEBHOOK_DELIVERIES = {
   total: 1,
 };
 
-export const MOCK_AI_PROVIDERS = [
+export const MOCK_AI_ENDPOINTS = [
   {
     id: 1,
-    providerId: "openai",
+    supplierId: 1,
+    supplierSlug: "openai",
+    supplierName: "OpenAI",
+    endpointId: "openai",
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     apiFormat: "openai",
@@ -333,7 +336,7 @@ export const MOCK_AI_UPSTREAMS = [
 export const MOCK_AI_UPSTREAM_ASSIGNMENTS = [
   {
     id: 100,
-    providerId: 1,
+    endpointId: 1,
     upstream: MOCK_AI_UPSTREAMS[0],
     priority: 100,
     weight: 1,
@@ -343,17 +346,18 @@ export const MOCK_AI_UPSTREAM_ASSIGNMENTS = [
   },
 ];
 
-export const MOCK_AI_KEYS = [
+export const MOCK_AI_ENDPOINT_CREDENTIALS = [
   {
     id: 1,
-    providerId: 1,
+    endpointId: 1,
+    credentialId: 1,
     upstreamId: null,
     ownerId: null,
-    name: "Official Key",
+    name: "Official Credential",
     keyPrefix: "sk-offi",
     weight: 1,
     enabled: true,
-    providerName: "OpenAI",
+    endpointName: "OpenAI",
     ownerName: null,
     upstreamName: null,
     upstreamSlug: null,
@@ -363,14 +367,15 @@ export const MOCK_AI_KEYS = [
   },
   {
     id: 2,
-    providerId: 1,
+    endpointId: 1,
+    credentialId: 2,
     upstreamId: 10,
     ownerId: null,
-    name: "OpenRouter Key",
+    name: "OpenRouter Credential",
     keyPrefix: "sk-open",
     weight: 1,
     enabled: true,
-    providerName: "OpenAI",
+    endpointName: "OpenAI",
     ownerName: null,
     upstreamName: "OpenRouter",
     upstreamSlug: "openrouter-1",
@@ -661,20 +666,48 @@ export class MockApi {
     );
   }
 
-  async mockAiProviders() {
+  async mockAiEndpoints() {
     await this.page.route(
-      (url) => isApiPath(url, "/api/admin/ai/providers"),
+      (url) => isApiPath(url, "/api/admin/ai/endpoints"),
       (route) => {
         const pathname = new URL(route.request().url()).pathname;
-        // Provider upstream assignments: /api/admin/ai/providers/:id/upstreams
-        if (pathname.match(/\/providers\/\d+\/upstreams/)) {
+        if (pathname.endsWith("/endpoints/overview")) {
+          return route.fulfill(
+            json({
+              totals: {
+                totalEndpoints: MOCK_AI_ENDPOINTS.length,
+                enabledEndpoints: MOCK_AI_ENDPOINTS.length,
+                activeEndpoints24h: 0,
+                degradedEndpoints30m: 0,
+              },
+              endpoints: MOCK_AI_ENDPOINTS.map((endpoint) => ({
+                ...endpoint,
+                totalCredentials: MOCK_AI_ENDPOINT_CREDENTIALS.length,
+                enabledCredentials: MOCK_AI_ENDPOINT_CREDENTIALS.filter((item) => item.enabled)
+                  .length,
+                requests24h: 0,
+                clientErrors24h: 0,
+                serverErrors24h: 0,
+                totalTokens24h: 0,
+                avgLatencyMs24h: 0,
+                errorRate24h: 0,
+                lastSeenAt: null,
+                healthStatus: "idle",
+                lastCheckedAt: null,
+                lastError: null,
+                consecutiveFailures: 0,
+                autoDisabled: false,
+              })),
+            }),
+          );
+        }
+        if (pathname.match(/\/endpoints\/\d+\/upstreams/)) {
           return route.fulfill(json(MOCK_AI_UPSTREAM_ASSIGNMENTS));
         }
-        // Provider-scoped keys: /api/admin/ai/providers/:id/keys
-        if (pathname.match(/\/providers\/\d+\/keys/)) {
-          return route.fulfill(json(MOCK_AI_KEYS));
+        if (pathname.match(/\/endpoints\/\d+\/credentials/)) {
+          return route.fulfill(json(MOCK_AI_ENDPOINT_CREDENTIALS));
         }
-        return route.fulfill(json(MOCK_AI_PROVIDERS));
+        return route.fulfill(json(MOCK_AI_ENDPOINTS));
       },
     );
   }
@@ -686,14 +719,16 @@ export class MockApi {
     );
   }
 
-  async mockAiKeys() {
+  async mockAiEndpointCredentials() {
     await this.page.route(
-      (url) => isApiPath(url, "/api/admin/ai/keys"),
+      (url) => isApiPath(url, "/api/admin/ai/endpoint-credentials"),
       (route) => {
         const method = route.request().method();
-        if (method === "POST") return route.fulfill(json({ ...MOCK_AI_KEYS[0], id: 99 }, 201));
+        if (method === "POST") {
+          return route.fulfill(json({ ...MOCK_AI_ENDPOINT_CREDENTIALS[0], id: 99 }, 201));
+        }
         if (method === "DELETE") return route.fulfill(json({ success: true }));
-        return route.fulfill(json(MOCK_AI_KEYS));
+        return route.fulfill(json(MOCK_AI_ENDPOINT_CREDENTIALS));
       },
     );
   }

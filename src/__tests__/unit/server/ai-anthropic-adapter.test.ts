@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { anthropicAdapter } from "@/server/ai/providers/anthropic";
+import { anthropicAdapter } from "@/server/ai/protocol-adapters/anthropic";
 
 // ── buildUrl ────────────────────────────────────────────────────────────
 

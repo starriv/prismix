@@ -119,29 +119,31 @@ export const apiKeyProviderAdjust = (id: number) => `/api/admin/key-providers/${
 export const API_KEY_PROVIDER_TXNS = "/api/admin/key-providers/txns";
 
 // ── AI ──────────────────────────────────────────────────────────
-export const API_AI_PROVIDERS = "/api/admin/ai/providers";
-export const apiAiProviderDetail = (id: number) => `/api/admin/ai/providers/${id}`;
-export const apiAiProviderKeys = (id: number) => `/api/admin/ai/providers/${id}/keys`;
-export const apiAiProviderUpstreams = (id: number) => `/api/admin/ai/providers/${id}/upstreams`;
-export const apiAiProviderUpstreamAssignment = (providerId: number, assignmentId: number) =>
-  `/api/admin/ai/providers/${providerId}/upstreams/${assignmentId}`;
+export const API_AI_SUPPLIERS = "/api/admin/ai/suppliers";
+export const apiAiSupplierDetail = (id: number) => `/api/admin/ai/suppliers/${id}`;
+export const API_AI_ENDPOINTS = "/api/admin/ai/endpoints";
+export const apiAiEndpointDetail = (id: number) => `/api/admin/ai/endpoints/${id}`;
+export const apiAiEndpointCredentials = (id: number) => `/api/admin/ai/endpoints/${id}/credentials`;
+export const apiAiEndpointUpstreams = (id: number) => `/api/admin/ai/endpoints/${id}/upstreams`;
+export const apiAiEndpointUpstreamAssignment = (endpointId: number, assignmentId: number) =>
+  `/api/admin/ai/endpoints/${endpointId}/upstreams/${assignmentId}`;
 export const API_AI_UPSTREAMS = "/api/admin/ai/upstreams";
 export const apiAiUpstreamDetail = (id: number) => `/api/admin/ai/upstreams/${id}`;
 export const API_AI_UPSTREAMS_OVERVIEW = "/api/admin/ai/upstreams/overview";
-export const API_AI_PROVIDERS_OVERVIEW = "/api/admin/ai/providers/overview";
+export const API_AI_ENDPOINTS_OVERVIEW = "/api/admin/ai/endpoints/overview";
 export const apiAiUpstreamHourly = (id: number) => `/api/admin/ai/upstreams/${id}/hourly`;
 export const apiAiUpstreamRecent = (id: number) => `/api/admin/ai/upstreams/${id}/recent`;
 export const apiAiUpstreamModelMappings = (id: number) =>
   `/api/admin/ai/upstreams/${id}/model-mappings`;
 export const apiAiUpstreamModelMapping = (upstreamId: number, mappingId: number) =>
   `/api/admin/ai/upstreams/${upstreamId}/model-mappings/${mappingId}`;
-export const apiAiProviderModels = (id: number) => `/api/admin/ai/providers/${id}/models`;
-export const apiAiProviderModelsBatch = (id: number) =>
-  `/api/admin/ai/providers/${id}/models/batch`;
+export const apiAiEndpointModels = (id: number) => `/api/admin/ai/endpoints/${id}/models`;
+export const apiAiEndpointModelsBatch = (id: number) =>
+  `/api/admin/ai/endpoints/${id}/models/batch`;
 export const apiAiSyncPricesPreview = (id: number) =>
-  `/api/admin/ai/providers/${id}/models/sync-prices/preview`;
+  `/api/admin/ai/endpoints/${id}/models/sync-prices/preview`;
 export const apiAiSyncPricesApply = (id: number) =>
-  `/api/admin/ai/providers/${id}/models/sync-prices/apply`;
+  `/api/admin/ai/endpoints/${id}/models/sync-prices/apply`;
 export const API_AI_MODELS = "/api/admin/ai/models";
 export const apiAiModelDetail = (id: number) => `/api/admin/ai/models/${id}`;
 export const API_AI_MODELS_BATCH_DELETE = "/api/admin/ai/models/batch-delete";
@@ -149,16 +151,20 @@ export const apiAiModelRoutes = (modelId: number) => `/api/admin/ai/models/${mod
 export const apiAiModelRouteDetail = (modelId: number, routeId: number) =>
   `/api/admin/ai/models/${modelId}/routes/${routeId}`;
 export const apiAiDiscoverModels = (id: number, source?: string, clientFormat?: string) => {
-  const base = `/api/admin/ai/providers/${id}/discover-models`;
+  const base = `/api/admin/ai/endpoints/${id}/discover-models`;
   const params = new URLSearchParams();
   if (source) params.set("source", source);
   if (clientFormat) params.set("clientFormat", clientFormat);
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 };
-export const API_AI_KEYS = "/api/admin/ai/keys";
-export const apiAiKeyDetail = (id: number) => `/api/admin/ai/keys/${id}`;
-export const apiAiKeyTest = (id: number) => `/api/admin/ai/keys/${id}/test`;
+export const API_AI_CREDENTIALS = "/api/admin/ai/credentials";
+export const apiAiCredentialDetail = (id: number) => `/api/admin/ai/credentials/${id}`;
+export const API_AI_ENDPOINT_CREDENTIALS = "/api/admin/ai/endpoint-credentials";
+export const apiAiEndpointCredentialDetail = (id: number) =>
+  `/api/admin/ai/endpoint-credentials/${id}`;
+export const apiAiEndpointCredentialTest = (id: number) =>
+  `/api/admin/ai/endpoint-credentials/${id}/test`;
 export const API_AI_USAGE_SUMMARY = "/api/admin/ai/usage/summary";
 export const API_AI_USAGE_RECENT = "/api/admin/ai/usage/recent";
 export const API_AI_USAGE_DAILY = "/api/admin/ai/usage/daily";

@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { markKeyFailure } from "@/server/ai/lib/key-balancer";
+import { markCredentialFailure } from "@/server/ai/lib/credential-balancer";
 import {
   forwardPassthroughStream,
   forwardStream,
@@ -29,9 +29,9 @@ vi.mock("@/server/lib/logger", () => ({
   log: { gateway: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 
-vi.mock("@/server/ai/lib/key-balancer", () => ({
-  markKeyFailure: vi.fn(),
-  markKeySuccess: vi.fn(),
+vi.mock("@/server/ai/lib/credential-balancer", () => ({
+  markCredentialFailure: vi.fn(),
+  markCredentialSuccess: vi.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -39,8 +39,8 @@ vi.mock("@/server/ai/lib/key-balancer", () => ({
 /** Build a minimal StreamRelayMeta for testing. */
 function makeMeta(overrides?: Partial<StreamRelayMeta>): StreamRelayMeta {
   return {
-    keyId: 1,
-    providerId: "test-provider",
+    endpointCredentialId: 1,
+    endpointId: "test-provider",
     modelId: "test-model",
     requestId: "req-test",
     start: Date.now(),
@@ -158,7 +158,7 @@ describe("forwardStream", () => {
 
     expect(text).toContain("event: error");
     expect(text).toContain('"type":"upstream_missing_body"');
-    expect(markKeyFailure).toHaveBeenCalledWith(1);
+    expect(markCredentialFailure).toHaveBeenCalledWith(1);
   });
 
   it("calls onComplete callback after stream finishes", async () => {
@@ -280,7 +280,7 @@ describe("forwardPassthroughStream", () => {
 
     expect(text).toContain("event: error");
     expect(text).toContain('"type":"upstream_missing_body"');
-    expect(markKeyFailure).toHaveBeenCalledWith(1);
+    expect(markCredentialFailure).toHaveBeenCalledWith(1);
   });
 
   it("sends heartbeat comments", async () => {

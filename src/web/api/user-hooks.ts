@@ -76,7 +76,7 @@ const userModelSchema = z.object({
   isLimitedFree: z.coerce.boolean().optional(),
 });
 
-const userModelProviderSchema = z.object({
+const userModelEndpointSchema = z.object({
   id: z.number(),
   name: z.string(),
   iconUrl: z.string().nullable(),
@@ -85,11 +85,11 @@ const userModelProviderSchema = z.object({
 });
 
 const userModelCatalogSchema = z.object({
-  providers: z.array(userModelProviderSchema),
+  endpoints: z.array(userModelEndpointSchema),
   markupPercent: z.number(),
 });
 
-export type UserModelProvider = z.infer<typeof userModelProviderSchema>;
+export type UserModelEndpoint = z.infer<typeof userModelEndpointSchema>;
 export type UserModel = z.infer<typeof userModelSchema>;
 export type UserModelCatalog = z.infer<typeof userModelCatalogSchema>;
 

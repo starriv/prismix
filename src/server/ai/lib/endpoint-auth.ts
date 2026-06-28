@@ -1,5 +1,5 @@
 /**
- * Provider auth builder — constructs authentication headers/URL for AI provider requests.
+ * Endpoint auth builder — constructs authentication headers/URL for AI endpoint requests.
  *
  * Supports four auth modes:
  * - bearer:  Authorization: Bearer <key>
@@ -14,10 +14,10 @@ import crypto from "crypto";
 
 import { match } from "ts-pattern";
 
-import type { AiProvider } from "@/server/db";
+import type { AiEndpoint } from "@/server/db";
 import { log } from "@/server/lib/logger";
 
-export interface ProviderAuthResult {
+export interface EndpointAuthResult {
   headers: Record<string, string>;
   url: string;
 }
@@ -33,30 +33,30 @@ export interface CloudflareAccessConfig {
 }
 
 /**
- * Build authentication headers and (possibly modified) URL for an AI provider request.
+ * Build authentication headers and (possibly modified) URL for an AI endpoint request.
  *
- * @param provider - The AI provider configuration from `ai_providers` table
+ * @param endpoint - The AI endpoint configuration from `ai_endpoints` table
  * @param plainKey - The decrypted API key (or secret access key for SigV4)
  * @param url      - The upstream URL (may be modified for Gemini query-param auth)
  * @param body     - Request body (needed for SigV4 payload signing)
  */
-export function buildProviderAuth(
-  provider: Pick<AiProvider, "authType" | "authConfig" | "apiFormat">,
+export function buildEndpointAuth(
+  endpoint: Pick<AiEndpoint, "authType" | "authConfig" | "apiFormat">,
   plainKey: string,
   url: string,
   body?: string,
-): ProviderAuthResult {
+): EndpointAuthResult {
   const headers: Record<string, string> = {};
   let finalUrl = url;
 
   // -- Auth type dispatch --
-  match(provider.authType)
+  match(endpoint.authType)
     .with("bearer", () => {
       headers.Authorization = `Bearer ${plainKey}`;
     })
     .with("api-key", () => {
       try {
-        const authConfig = JSON.parse(provider.authConfig) as { headerName?: string };
+        const authConfig = JSON.parse(endpoint.authConfig) as { headerName?: string };
         headers[authConfig.headerName || "x-api-key"] = plainKey;
       } catch {
         headers["x-api-key"] = plainKey;
@@ -65,7 +65,7 @@ export function buildProviderAuth(
     .with("cloudflare", () => {
       let config: CloudflareAccessConfig;
       try {
-        config = JSON.parse(provider.authConfig) as CloudflareAccessConfig;
+        config = JSON.parse(endpoint.authConfig) as CloudflareAccessConfig;
       } catch {
         log.gateway.warn(
           { authType: "cloudflare" },
@@ -87,7 +87,7 @@ export function buildProviderAuth(
     .with("sigv4", () => {
       let config: SigV4Config;
       try {
-        config = JSON.parse(provider.authConfig) as SigV4Config;
+        config = JSON.parse(endpoint.authConfig) as SigV4Config;
       } catch {
         log.gateway.warn({ authType: "sigv4" }, "Invalid SigV4 authConfig — skipping signature");
         return;
@@ -108,12 +108,12 @@ export function buildProviderAuth(
     });
 
   // -- Anthropic requires version header (Bedrock Claude models also need it) --
-  if (provider.apiFormat === "anthropic" || provider.apiFormat === "bedrock") {
+  if (endpoint.apiFormat === "anthropic" || endpoint.apiFormat === "bedrock") {
     headers["anthropic-version"] = "2023-06-01";
   }
 
   // -- Gemini uses query param instead of header --
-  if (provider.apiFormat === "gemini" && provider.authType !== "cloudflare") {
+  if (endpoint.apiFormat === "gemini" && endpoint.authType !== "cloudflare") {
     delete headers.Authorization;
     const sep = finalUrl.includes("?") ? "&" : "?";
     finalUrl = `${finalUrl}${sep}key=${plainKey}`;

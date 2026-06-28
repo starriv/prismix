@@ -40,45 +40,45 @@ export const gatewayPaymentTotal = new Counter({
 export const gatewayUpstreamDuration = new Histogram({
   name: "prismix_gateway_upstream_duration_seconds",
   help: "Upstream fetch duration in seconds",
-  labelNames: ["provider", "route", "phase"] as const,
+  labelNames: ["endpoint", "route", "phase"] as const,
   buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
 });
 
 export const aiStreamStartedTotal = new Counter({
   name: "prismix_ai_stream_started_total",
   help: "Total AI streams started",
-  labelNames: ["provider", "route"] as const,
+  labelNames: ["endpoint", "route"] as const,
 });
 
 export const aiStreamCompletedTotal = new Counter({
   name: "prismix_ai_stream_completed_total",
   help: "Total AI streams completed by outcome",
-  labelNames: ["provider", "route", "outcome"] as const,
+  labelNames: ["endpoint", "route", "outcome"] as const,
 });
 
 export const aiStreamAbortTotal = new Counter({
   name: "prismix_ai_stream_abort_total",
   help: "Total AI streams aborted by reason",
-  labelNames: ["provider", "route", "reason"] as const,
+  labelNames: ["endpoint", "route", "reason"] as const,
 });
 
 export const aiStreamFirstChunkLatency = new Histogram({
   name: "prismix_ai_stream_first_chunk_latency_seconds",
   help: "Latency from stream start to first upstream chunk",
-  labelNames: ["provider", "route"] as const,
+  labelNames: ["endpoint", "route"] as const,
   buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
 });
 
 export const aiStreamChunksTotal = new Counter({
   name: "prismix_ai_stream_chunks_total",
   help: "Total upstream chunks observed in AI streams",
-  labelNames: ["provider", "route"] as const,
+  labelNames: ["endpoint", "route"] as const,
 });
 
 export const aiStreamActive = new Gauge({
   name: "prismix_ai_stream_active",
   help: "Current active AI streams",
-  labelNames: ["provider", "route"] as const,
+  labelNames: ["endpoint", "route"] as const,
 });
 
 export const aiUpstreamConcurrencyActive = new Gauge({

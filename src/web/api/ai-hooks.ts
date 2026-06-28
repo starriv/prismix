@@ -6,15 +6,17 @@ import { del, get, post, put } from "./client";
 import {
   API_ADMIN_GATEWAY_CONFIG,
   API_ADMIN_GATEWAY_STATUS,
+  API_AI_CREDENTIALS,
   API_AI_DEFAULT_MARKUP,
+  API_AI_ENDPOINT_CREDENTIALS,
+  API_AI_ENDPOINTS,
+  API_AI_ENDPOINTS_OVERVIEW,
   API_AI_ERROR_DAILY,
   API_AI_ERROR_OVERVIEW,
-  API_AI_KEYS,
   API_AI_MODELS,
   API_AI_MODELS_BATCH_DELETE,
-  API_AI_PROVIDERS,
-  API_AI_PROVIDERS_OVERVIEW,
   API_AI_REQUEST_LOGGING,
+  API_AI_SUPPLIERS,
   API_AI_UPSTREAMS,
   API_AI_UPSTREAMS_OVERVIEW,
   API_AI_USAGE_BY_KEY,
@@ -24,17 +26,18 @@ import {
   API_RELAY_KEY_OPTIONS,
   API_RELAY_KEYS,
   apiAiDiscoverModels,
-  apiAiKeyDetail,
-  apiAiKeyTest,
+  apiAiEndpointCredentialDetail,
+  apiAiEndpointCredentials,
+  apiAiEndpointCredentialTest,
+  apiAiEndpointDetail,
+  apiAiEndpointModels,
+  apiAiEndpointModelsBatch,
+  apiAiEndpointUpstreamAssignment,
+  apiAiEndpointUpstreams,
   apiAiModelDetail,
   apiAiModelRouteDetail,
   apiAiModelRoutes,
-  apiAiProviderDetail,
-  apiAiProviderKeys,
-  apiAiProviderModels,
-  apiAiProviderModelsBatch,
-  apiAiProviderUpstreamAssignment,
-  apiAiProviderUpstreams,
+  apiAiSupplierDetail,
   apiAiSyncPricesApply,
   apiAiSyncPricesPreview,
   apiAiUpstreamDetail,
@@ -50,15 +53,17 @@ import {
 } from "./constants";
 import { queryKeys } from "./query-keys";
 import {
+  aiCredentialSchema,
   aiDailyUsageSchema,
+  aiEndpointCredentialSchema,
+  aiEndpointSchema,
+  aiEndpointsOverviewSchema,
   aiErrorDailySchema,
   aiErrorOverviewSchema,
-  aiKeySchema,
   aiModelRouteSchema,
   aiModelSchema,
-  aiProviderSchema,
-  aiProvidersOverviewSchema,
   aiRequestLogSchema,
+  aiSupplierSchema,
   aiUpstreamAssignmentSchema,
   aiUpstreamDetailSchema,
   aiUpstreamHourlyRowSchema,
@@ -74,7 +79,7 @@ import {
   priceDiffSchema,
   relayConsumerKeySchema,
   relayKeyOptionSchema,
-  testAiKeyResultSchema,
+  testAiEndpointCredentialResultSchema,
 } from "./schemas";
 
 const paginatedAiUsageRecordsSchema = z.object({
@@ -86,12 +91,19 @@ const paginatedRelayConsumerKeysSchema = z.object({
   total: z.number(),
 });
 
-// ── AI Providers ──────────────────────────────────────────────────────
+// ── AI Suppliers / Endpoints ──────────────────────────────────────────
 
-export function useAiProviders() {
+export function useAiSuppliers() {
   return useQuery({
-    queryKey: queryKeys.aiProviders(),
-    queryFn: () => get(API_AI_PROVIDERS, z.array(aiProviderSchema)),
+    queryKey: queryKeys.aiSuppliers(),
+    queryFn: () => get(API_AI_SUPPLIERS, z.array(aiSupplierSchema)),
+  });
+}
+
+export function useAiEndpoints() {
+  return useQuery({
+    queryKey: queryKeys.aiEndpoints(),
+    queryFn: () => get(API_AI_ENDPOINTS, z.array(aiEndpointSchema)),
   });
 }
 
@@ -144,7 +156,7 @@ export function useUpdateAiUpstream() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
-      qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
+      qc.invalidateQueries({ queryKey: ["app", "ai-endpoint-assignments"] });
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetail(vars.id) });
     },
   });
@@ -157,10 +169,11 @@ export function useDeleteAiUpstream() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreams() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
-      qc.invalidateQueries({ queryKey: ["app", "ai-provider-assignments"] });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: ["app", "ai-endpoint-assignments"] });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
     },
   });
 }
@@ -230,13 +243,13 @@ export function useDeleteModelMapping() {
   });
 }
 
-// ── Provider ↔ Upstream Assignments ──────────────────────────────────
+// ── Endpoint ↔ Upstream Assignments ──────────────────────────────────
 
-export function useAiProviderAssignments(providerId: number) {
+export function useAiEndpointAssignments(endpointId: number) {
   return useQuery({
-    queryKey: queryKeys.aiProviderAssignments(providerId),
-    queryFn: () => get(apiAiProviderUpstreams(providerId), z.array(aiUpstreamAssignmentSchema)),
-    enabled: providerId > 0,
+    queryKey: queryKeys.aiEndpointAssignments(endpointId),
+    queryFn: () => get(apiAiEndpointUpstreams(endpointId), z.array(aiUpstreamAssignmentSchema)),
+    enabled: endpointId > 0,
   });
 }
 
@@ -256,10 +269,10 @@ export function useAiUpstreamsOverview(hours = 24, refetchInterval?: number | fa
   });
 }
 
-export function useAiProvidersOverview(hours = 24, refetchInterval?: number | false) {
+export function useAiEndpointsOverview(hours = 24, refetchInterval?: number | false) {
   return useQuery({
-    queryKey: queryKeys.aiProvidersOverview(hours),
-    queryFn: () => get(`${API_AI_PROVIDERS_OVERVIEW}?hours=${hours}`, aiProvidersOverviewSchema),
+    queryKey: queryKeys.aiEndpointsOverview(hours),
+    queryFn: () => get(`${API_AI_ENDPOINTS_OVERVIEW}?hours=${hours}`, aiEndpointsOverviewSchema),
     refetchInterval,
   });
 }
@@ -291,110 +304,160 @@ export function useAiUpstreamHourly(
   });
 }
 
-interface CreateAiProviderBody {
-  providerId: string;
+interface CreateAiSupplierBody {
+  supplierId: string;
+  name: string;
+  iconUrl?: string;
+  enabled?: boolean;
+}
+
+export function useCreateAiSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAiSupplierBody) => post(API_AI_SUPPLIERS, body, aiSupplierSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiSuppliers() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+    },
+  });
+}
+
+export function useUpdateAiSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<CreateAiSupplierBody>) =>
+      put(apiAiSupplierDetail(id), body, aiSupplierSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiSuppliers() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+    },
+  });
+}
+
+export function useDeleteAiSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => del(apiAiSupplierDetail(id), z.object({ success: z.boolean() })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiSuppliers() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+    },
+  });
+}
+
+interface CreateAiEndpointBody {
+  supplierId: number;
+  endpointId: string;
   name: string;
   baseUrl: string;
   apiFormat: string;
   authType: string;
   enabled?: boolean;
-  loadBalanceStrategy?: string;
   upstreamRoutingStrategy?: string;
   officialConcurrencyLimit?: number | null;
   officialQueueTimeoutMs?: number;
   authConfig?: Record<string, unknown>;
 }
 
-export function useCreateAiProvider() {
+type UpdateAiEndpointBody = Partial<CreateAiEndpointBody> & {
+  loadBalanceStrategy?: string;
+};
+
+export function useCreateAiEndpoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateAiProviderBody) => post(API_AI_PROVIDERS, body, aiProviderSchema),
+    mutationFn: (body: CreateAiEndpointBody) => post(API_AI_ENDPOINTS, body, aiEndpointSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
     },
   });
 }
 
-export function useUpdateAiProvider() {
+export function useUpdateAiEndpoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number } & Partial<CreateAiProviderBody>) =>
-      put(apiAiProviderDetail(id), body, aiProviderSchema),
+    mutationFn: ({ id, ...body }: { id: number } & UpdateAiEndpointBody) =>
+      put(apiAiEndpointDetail(id), body, aiEndpointSchema),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
     },
   });
 }
 
-export function useDeleteAiProvider() {
+export function useDeleteAiEndpoint() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => del(apiAiProviderDetail(id), z.object({ success: z.boolean() })),
+    mutationFn: (id: number) => del(apiAiEndpointDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
     },
   });
 }
 
-export function useCreateAiProviderAssignment() {
+export function useCreateAiEndpointAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      providerId,
+      endpointId,
       ...body
     }: {
-      providerId: number;
+      endpointId: number;
       upstreamId: number;
       priority?: number;
       weight?: number;
       enabled?: boolean;
-    }) => post(apiAiProviderUpstreams(providerId), body, z.unknown()),
+    }) => post(apiAiEndpointUpstreams(endpointId), body, z.unknown()),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointAssignments(vars.endpointId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
   });
 }
 
-export function useUpdateAiProviderAssignment() {
+export function useUpdateAiEndpointAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      providerId,
+      endpointId,
       assignmentId,
       ...body
     }: {
-      providerId: number;
+      endpointId: number;
       assignmentId: number;
       priority?: number;
       weight?: number;
       enabled?: boolean;
-    }) => put(apiAiProviderUpstreamAssignment(providerId, assignmentId), body, z.unknown()),
+    }) => put(apiAiEndpointUpstreamAssignment(endpointId, assignmentId), body, z.unknown()),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviders() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointAssignments(vars.endpointId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpoints() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
       qc.invalidateQueries({ queryKey: ["app", "ai-upstreams-overview"] });
       qc.invalidateQueries({ queryKey: queryKeys.aiUpstreamDetailPrefix() });
     },
   });
 }
 
-export function useDeleteAiProviderAssignment() {
+export function useDeleteAiEndpointAssignment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ providerId, assignmentId }: { providerId: number; assignmentId: number }) =>
+    mutationFn: ({ endpointId, assignmentId }: { endpointId: number; assignmentId: number }) =>
       del(
-        apiAiProviderUpstreamAssignment(providerId, assignmentId),
-        z.object({ success: z.boolean(), deletedKeys: z.number() }),
+        apiAiEndpointUpstreamAssignment(endpointId, assignmentId),
+        z.object({ success: z.boolean() }),
       ),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderAssignments(vars.providerId) });
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointAssignments(vars.endpointId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointsOverview(24) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -405,36 +468,62 @@ export function useDeleteAiProviderAssignment() {
   });
 }
 
-// ── AI Keys ───────────────────────────────────────────────────────────
+// ── AI Credentials ────────────────────────────────────────────────────
 
-export function useAiKeys() {
+export function useAiCredentials() {
   return useQuery({
-    queryKey: queryKeys.aiKeys(),
-    queryFn: () => get(API_AI_KEYS, z.array(aiKeySchema)),
+    queryKey: queryKeys.aiCredentials(),
+    queryFn: () => get(API_AI_CREDENTIALS, z.array(aiCredentialSchema)),
   });
 }
 
-export function useAiProviderKeys(providerId: number) {
+export function useAiEndpointCredentials(endpointId: number) {
   return useQuery({
-    queryKey: queryKeys.aiProviderKeys(providerId),
-    queryFn: () => get(apiAiProviderKeys(providerId), z.array(aiKeySchema)),
-    enabled: providerId > 0,
+    queryKey: queryKeys.aiEndpointCredentials(endpointId),
+    queryFn: () => get(apiAiEndpointCredentials(endpointId), z.array(aiEndpointCredentialSchema)),
+    enabled: endpointId > 0,
   });
 }
 
-export function useCreateAiKey() {
+export function useCreateAiEndpointCredential() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      providerId: number;
+    mutationFn: async (body: {
+      endpointId: number;
+      supplierId: number;
       upstreamId?: number | null;
       name: string;
       apiKey: string;
       ownerId?: number | null;
-    }) => post(API_AI_KEYS, body, aiKeySchema),
+      weight?: number;
+      enabled?: boolean;
+    }) => {
+      const credential = await post(
+        API_AI_CREDENTIALS,
+        {
+          supplierId: body.supplierId,
+          name: body.name,
+          apiKey: body.apiKey,
+          ownerId: body.ownerId,
+        },
+        aiCredentialSchema,
+      );
+      return post(
+        API_AI_ENDPOINT_CREDENTIALS,
+        {
+          endpointId: body.endpointId,
+          credentialId: credential.id,
+          upstreamId: body.upstreamId,
+          name: body.name,
+          weight: body.weight,
+          enabled: body.enabled,
+        },
+        aiEndpointCredentialSchema,
+      );
+    },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeys(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentials(vars.endpointId) });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -443,7 +532,7 @@ export function useCreateAiKey() {
   });
 }
 
-export function useUpdateAiKey() {
+export function useUpdateAiEndpointCredential() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -454,12 +543,11 @@ export function useUpdateAiKey() {
       name?: string;
       enabled?: boolean;
       weight?: number;
-      ownerId?: number | null;
       upstreamId?: number | null;
-    }) => put(apiAiKeyDetail(id), body, aiKeySchema),
+    }) => put(apiAiEndpointCredentialDetail(id), body, aiEndpointCredentialSchema),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeys(data.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentials(data.endpointId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -468,13 +556,14 @@ export function useUpdateAiKey() {
   });
 }
 
-export function useDeleteAiKey() {
+export function useDeleteAiEndpointCredential() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => del(apiAiKeyDetail(id), z.object({ success: z.boolean() })),
+    mutationFn: (id: number) =>
+      del(apiAiEndpointCredentialDetail(id), z.object({ success: z.boolean() })),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -483,24 +572,25 @@ export function useDeleteAiKey() {
   });
 }
 
-export function useTestAiKey() {
+export function useTestAiEndpointCredential() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => post(apiAiKeyTest(id), {}, testAiKeyResultSchema),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiKeys() });
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderKeysPrefix() });
+    mutationFn: (id: number) =>
+      post(apiAiEndpointCredentialTest(id), {}, testAiEndpointCredentialResultSchema),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
     },
   });
 }
 
 // ── AI Models ─────────────────────────────────────────────────────────
 
-export function useAiModels(providerId: number) {
+export function useAiModels(endpointId: number) {
   return useQuery({
-    queryKey: queryKeys.aiProviderModels(providerId),
-    queryFn: () => get(apiAiProviderModels(providerId), z.array(aiModelSchema)),
-    enabled: providerId > 0,
+    queryKey: queryKeys.aiEndpointModels(endpointId),
+    queryFn: () => get(apiAiEndpointModels(endpointId), z.array(aiModelSchema)),
+    enabled: endpointId > 0,
   });
 }
 
@@ -521,10 +611,10 @@ interface CreateAiModelBody {
 export function useCreateAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ providerId, ...body }: { providerId: number } & CreateAiModelBody) =>
-      post(apiAiProviderModels(providerId), body, aiModelSchema),
+    mutationFn: ({ endpointId, ...body }: { endpointId: number } & CreateAiModelBody) =>
+      post(apiAiEndpointModels(endpointId), body, aiModelSchema),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -534,10 +624,10 @@ export function useBatchCreateAiModels() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      providerId,
+      endpointId,
       models,
     }: {
-      providerId: number;
+      endpointId: number;
       models: Array<{
         clientFormat?: "openai" | "anthropic";
         modelId: string;
@@ -551,7 +641,7 @@ export function useBatchCreateAiModels() {
       }>;
     }) =>
       post(
-        apiAiProviderModelsBatch(providerId),
+        apiAiEndpointModelsBatch(endpointId),
         { models },
         z.object({
           created: z.number(),
@@ -560,7 +650,7 @@ export function useBatchCreateAiModels() {
         }),
       ),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -571,13 +661,13 @@ export function useUpdateAiModel() {
   return useMutation({
     mutationFn: ({
       id,
-      providerId: _pid,
+      endpointId: _endpointId,
       ...body
-    }: { id: number; providerId?: number | null } & Partial<CreateAiModelBody>) =>
+    }: { id: number; endpointId?: number | null } & Partial<CreateAiModelBody>) =>
       put(apiAiModelDetail(id), body, aiModelSchema),
     onSuccess: (_data, vars) => {
-      if (vars.providerId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.endpointId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       }
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
@@ -587,11 +677,11 @@ export function useUpdateAiModel() {
 export function useDeleteAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, providerId: _pid }: { id: number; providerId?: number | null }) =>
+    mutationFn: ({ id, endpointId: _endpointId }: { id: number; endpointId?: number | null }) =>
       del(apiAiModelDetail(id), z.object({ success: z.boolean() })),
     onSuccess: (_data, vars) => {
-      if (vars.providerId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.endpointId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       }
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
@@ -601,11 +691,11 @@ export function useDeleteAiModel() {
 export function useBatchDeleteAiModels() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, providerId: _pid }: { ids: number[]; providerId?: number | null }) =>
+    mutationFn: ({ ids, endpointId: _endpointId }: { ids: number[]; endpointId?: number | null }) =>
       post(API_AI_MODELS_BATCH_DELETE, { ids }, z.object({ deleted: z.number() })),
     onSuccess: (_data, vars) => {
-      if (vars.providerId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      if (vars.endpointId) {
+        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       }
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
@@ -613,32 +703,32 @@ export function useBatchDeleteAiModels() {
 }
 
 export function useDiscoverModels(
-  providerId: number,
+  endpointId: number,
   source: string = "official",
   clientFormat?: "openai" | "anthropic",
 ) {
   return useQuery({
-    queryKey: queryKeys.aiDiscoverModels(providerId, source, clientFormat),
+    queryKey: queryKeys.aiDiscoverModels(endpointId, source, clientFormat),
     queryFn: () =>
-      get(apiAiDiscoverModels(providerId, source, clientFormat), z.array(discoveredModelSchema)),
+      get(apiAiDiscoverModels(endpointId, source, clientFormat), z.array(discoveredModelSchema)),
     enabled: false,
   });
 }
 
 export function usePreviewSyncPrices() {
   return useMutation({
-    mutationFn: ({ providerId }: { providerId: number }) =>
-      post(apiAiSyncPricesPreview(providerId), {}, z.array(priceDiffSchema)),
+    mutationFn: ({ endpointId }: { endpointId: number }) =>
+      post(apiAiSyncPricesPreview(endpointId), {}, z.array(priceDiffSchema)),
   });
 }
 
 export function useApplySyncPrices() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ providerId, modelIds }: { providerId: number; modelIds: number[] }) =>
-      post(apiAiSyncPricesApply(providerId), { modelIds }, z.object({ synced: z.number() })),
+    mutationFn: ({ endpointId, modelIds }: { endpointId: number; modelIds: number[] }) =>
+      post(apiAiSyncPricesApply(endpointId), { modelIds }, z.object({ synced: z.number() })),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiProviderModels(vars.providerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -671,8 +761,8 @@ export function useCreateAiModelRoute() {
       ...body
     }: {
       modelId: number;
-      providerId: number;
-      providerModelId?: string;
+      endpointId: number;
+      endpointModelId?: string;
       priority?: number;
       weight?: number;
       enabled?: boolean;
@@ -694,7 +784,7 @@ export function useUpdateAiModelRoute() {
     }: {
       modelId: number;
       routeId: number;
-      providerModelId?: string | null;
+      endpointModelId?: string | null;
       priority?: number;
       weight?: number;
       enabled?: boolean;
@@ -837,7 +927,7 @@ export function useAiUsageByKeyForUser(userId: number) {
 export function useAiLogs(opts?: {
   consumerKeyId?: number;
   modelId?: string;
-  providerId?: string;
+  endpointId?: string;
   statusClass?: "4xx" | "5xx";
   requestId?: string;
   page?: number;
@@ -847,7 +937,7 @@ export function useAiLogs(opts?: {
   const params = new URLSearchParams();
   if (opts?.consumerKeyId != null) params.set("consumerKeyId", String(opts.consumerKeyId));
   if (opts?.modelId) params.set("modelId", opts.modelId);
-  if (opts?.providerId) params.set("providerId", opts.providerId);
+  if (opts?.endpointId) params.set("endpointId", opts.endpointId);
   if (opts?.statusClass) params.set("statusClass", opts.statusClass);
   if (opts?.requestId) params.set("requestId", opts.requestId);
   params.set("limit", String(DEFAULT_PAGE_SIZE));
@@ -858,7 +948,7 @@ export function useAiLogs(opts?: {
     queryKey: queryKeys.aiLogs({
       consumerKeyId: opts?.consumerKeyId,
       modelId: opts?.modelId,
-      providerId: opts?.providerId,
+      endpointId: opts?.endpointId,
       statusClass: opts?.statusClass,
       requestId: opts?.requestId,
       page,

@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, X } from "lucide-react";
 
 import { Badge } from "@/web/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/web/components/ui/popover";
@@ -28,6 +28,10 @@ interface MultiSelectProps {
   className?: string;
   disabled?: boolean;
   loading?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
 }
 
 export function MultiSelect({
@@ -39,14 +43,29 @@ export function MultiSelect({
   className,
   disabled,
   loading,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
+  emptyMessage,
 }: MultiSelectProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const search = searchValue ?? internalSearch;
+  const setSearch = onSearchChange ?? setInternalSearch;
 
   const selected = new Set(value);
-  const allSelected = options.length > 0 && value.length === options.length;
+  const filtered = search
+    ? options.filter(
+        (o) =>
+          o.label.toLowerCase().includes(search.toLowerCase()) ||
+          o.value.toLowerCase().includes(search.toLowerCase()),
+      )
+    : options;
+  const selectableOptions = filtered.filter((o) => !o.disabled);
+  const allSelected =
+    selectableOptions.length > 0 && selectableOptions.every((o) => selected.has(o.value));
 
   const toggle = (optionValue: string) => {
     const next = new Set(selected);
@@ -67,16 +86,8 @@ export function MultiSelect({
   };
 
   const selectAll = () => {
-    onValueChange(options.filter((o) => !o.disabled).map((o) => o.value));
+    onValueChange([...new Set([...value, ...selectableOptions.map((o) => o.value)])]);
   };
-
-  const filtered = search
-    ? options.filter(
-        (o) =>
-          o.label.toLowerCase().includes(search.toLowerCase()) ||
-          o.value.toLowerCase().includes(search.toLowerCase()),
-      )
-    : options;
 
   const displayValues = value.slice(0, maxDisplay);
   const overflow = value.length - maxDisplay;
@@ -109,7 +120,7 @@ export function MultiSelect({
           <div className="flex flex-1 flex-wrap items-center gap-1 overflow-hidden">
             {value.length === 0 ? (
               <span className="text-sm">{placeholder}</span>
-            ) : loading || options.length === 0 ? (
+            ) : options.length === 0 ? (
               <Badge variant="secondary" className="text-xs px-1.5 py-0 shrink-0">
                 {value.length} selected
               </Badge>
@@ -175,17 +186,22 @@ export function MultiSelect({
             ref={inputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("common.btn.search")}
-            aria-label={t("common.btn.search")}
+            placeholder={searchPlaceholder ?? t("common.btn.search")}
+            aria-label={searchPlaceholder ?? t("common.btn.search")}
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
 
         {/* Options list */}
         <div className="max-h-56 overflow-y-auto p-1">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>{t("common.loading")}</span>
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              {t("common.no-results")}
+              {emptyMessage ?? t("common.no-results")}
             </p>
           ) : (
             filtered.map((option) => {

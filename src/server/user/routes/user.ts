@@ -118,17 +118,17 @@ user.get("/models", async (c) => {
     userId: session.userId,
   });
 
-  // 6. Compute consumer prices + group by provider
+  // 6. Compute consumer prices + group by endpoint
   const markupMultiplier = 1 + effectiveMarkup / 100;
-  const grouped = groupBy(filtered, (r) => r.provider.id);
+  const grouped = groupBy(filtered, (r) => r.endpoint.id);
 
-  const providers = Object.entries(grouped).map(([, items]) => {
-    const { provider } = items[0];
+  const endpoints = Object.entries(grouped).map(([, items]) => {
+    const { endpoint } = items[0];
     return {
-      id: provider.id,
-      name: provider.name,
-      iconUrl: provider.iconUrl,
-      apiFormat: provider.apiFormat,
+      id: endpoint.id,
+      name: endpoint.name,
+      iconUrl: endpoint.iconUrl,
+      apiFormat: endpoint.apiFormat,
       models: items.map(({ model }) => ({
         modelId: model.modelId,
         name: model.name,
@@ -150,7 +150,7 @@ user.get("/models", async (c) => {
     };
   });
 
-  return ok(c, { providers, markupPercent: effectiveMarkup });
+  return ok(c, { endpoints, markupPercent: effectiveMarkup });
 });
 
 // ── Consumer Keys ────────────────────────────────────────────────

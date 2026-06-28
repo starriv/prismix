@@ -1,16 +1,16 @@
 /**
- * Supplier connectivity check — shared logic for health-check job + admin discover-models.
+ * Endpoint connectivity check — shared logic for health-check job + admin discover-models.
  *
  * Extracted from admin-ai-models.ts to avoid duplication between the periodic
  * health-check job and the admin "discover models" endpoint, both of which
- * ping a supplier's /models endpoint to verify connectivity.
+ * ping an endpoint's /models endpoint to verify connectivity.
  */
 import { match } from "ts-pattern";
 
-import type { AiProvider } from "@/server/db";
+import type { AiEndpoint } from "@/server/db";
 
-import { anthropicAdapter } from "../providers/anthropic";
-import { buildProviderAuth } from "./provider-auth";
+import { anthropicAdapter } from "../protocol-adapters/anthropic";
+import { buildEndpointAuth } from "./endpoint-auth";
 
 export interface PingResult {
   ok: boolean;
@@ -20,8 +20,8 @@ export interface PingResult {
 }
 
 export interface PingEndpointOpts {
-  provider: Pick<AiProvider, "authType" | "authConfig" | "apiFormat"> &
-    Partial<Pick<AiProvider, "providerId">>;
+  endpoint: Pick<AiEndpoint, "authType" | "authConfig" | "apiFormat"> &
+    Partial<Pick<AiEndpoint, "endpointId">>;
   baseUrl: string;
   modelsEndpointOverride?: string | null;
   plainKey: string;
@@ -33,7 +33,7 @@ const ANTHROPIC_OFFICIAL_PROBE_MODEL = "claude-haiku-4-5";
 const DEEPSEEK_ANTHROPIC_PROBE_MODEL = "deepseek-chat";
 
 export function buildModelsUrl(
-  provider: Pick<AiProvider, "apiFormat">,
+  endpoint: Pick<AiEndpoint, "apiFormat">,
   baseUrl: string,
   modelsEndpointOverride?: string | null,
 ): string {
@@ -41,7 +41,7 @@ export function buildModelsUrl(
 
   const base = baseUrl.replace(/\/+$/, "");
 
-  return match(provider.apiFormat)
+  return match(endpoint.apiFormat)
     .with("bedrock", () => {
       const controlPlaneBase = base.replace("bedrock-runtime.", "bedrock.");
       return `${controlPlaneBase}/foundation-models`;
@@ -52,40 +52,40 @@ export function buildModelsUrl(
 }
 
 function shouldFallbackToAnthropicMessageProbe(
-  provider: Pick<AiProvider, "apiFormat">,
+  endpoint: Pick<AiEndpoint, "apiFormat">,
   result: PingResult,
   modelsEndpointOverride?: string | null,
 ): boolean {
-  if (provider.apiFormat !== "anthropic") return false;
+  if (endpoint.apiFormat !== "anthropic") return false;
   if (modelsEndpointOverride) return false;
   return result.status === 400 || result.status === 404 || result.status === 405;
 }
 
 function defaultAnthropicProbeModel(
-  provider: Partial<Pick<AiProvider, "providerId">>,
+  endpoint: Partial<Pick<AiEndpoint, "endpointId">>,
   baseUrl: string,
 ): string {
-  const providerId = provider.providerId?.toLowerCase() ?? "";
+  const endpointId = endpoint.endpointId?.toLowerCase() ?? "";
   try {
     const host = new URL(baseUrl).hostname.toLowerCase();
-    if (host === "api.deepseek.com" || providerId.includes("deepseek")) {
+    if (host === "api.deepseek.com" || endpointId.includes("deepseek")) {
       return DEEPSEEK_ANTHROPIC_PROBE_MODEL;
     }
   } catch {
-    if (providerId.includes("deepseek")) return DEEPSEEK_ANTHROPIC_PROBE_MODEL;
+    if (endpointId.includes("deepseek")) return DEEPSEEK_ANTHROPIC_PROBE_MODEL;
   }
 
   return ANTHROPIC_OFFICIAL_PROBE_MODEL;
 }
 
 async function pingAnthropicMessagesEndpoint(opts: {
-  provider: PingEndpointOpts["provider"];
+  endpoint: PingEndpointOpts["endpoint"];
   baseUrl: string;
   plainKey: string;
   modelId: string;
   timeoutMs: number;
 }): Promise<PingResult> {
-  const { provider, baseUrl, plainKey, modelId, timeoutMs } = opts;
+  const { endpoint, baseUrl, plainKey, modelId, timeoutMs } = opts;
   const body = JSON.stringify(
     anthropicAdapter.transformRequest({
       model: modelId,
@@ -97,7 +97,7 @@ async function pingAnthropicMessagesEndpoint(opts: {
     model: modelId,
     stream: false,
   });
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, url, body);
+  const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(endpoint, plainKey, url, body);
 
   const start = Date.now();
   try {
@@ -131,15 +131,15 @@ async function pingAnthropicMessagesEndpoint(opts: {
 /** ok=true for any 2xx response; ok=false for 3xx/4xx/5xx/network errors. */
 export async function pingEndpoint(opts: PingEndpointOpts): Promise<PingResult> {
   const {
-    provider,
+    endpoint,
     baseUrl,
     modelsEndpointOverride,
     plainKey,
     anthropicProbeModelId,
     timeoutMs = 10_000,
   } = opts;
-  const modelsUrl = buildModelsUrl(provider, baseUrl, modelsEndpointOverride);
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, modelsUrl);
+  const modelsUrl = buildModelsUrl(endpoint, baseUrl, modelsEndpointOverride);
+  const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(endpoint, plainKey, modelsUrl);
 
   const start = Date.now();
   try {
@@ -161,12 +161,12 @@ export async function pingEndpoint(opts: PingEndpointOpts): Promise<PingResult> 
       error: `HTTP ${res.status}: ${body.slice(0, 200)}`,
       latencyMs,
     };
-    if (shouldFallbackToAnthropicMessageProbe(provider, result, modelsEndpointOverride)) {
+    if (shouldFallbackToAnthropicMessageProbe(endpoint, result, modelsEndpointOverride)) {
       return pingAnthropicMessagesEndpoint({
-        provider,
+        endpoint,
         baseUrl,
         plainKey,
-        modelId: anthropicProbeModelId ?? defaultAnthropicProbeModel(provider, baseUrl),
+        modelId: anthropicProbeModelId ?? defaultAnthropicProbeModel(endpoint, baseUrl),
         timeoutMs,
       });
     }

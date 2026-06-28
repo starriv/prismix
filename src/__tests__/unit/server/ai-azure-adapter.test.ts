@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { azureOpenaiAdapter } from "@/server/ai/providers/azure-openai";
+import { azureOpenaiAdapter } from "@/server/ai/protocol-adapters/azure-openai";
 
 describe("azure-openai adapter", () => {
   describe("buildUrl", () => {

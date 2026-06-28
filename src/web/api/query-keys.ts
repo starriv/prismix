@@ -134,14 +134,16 @@ export const queryKeys = {
     ["app", "key-provider-txns", providerId, limit, offset] as const,
 
   // ── AI ───────────────────────────────────────────────────────
-  aiProviders: () => ["app", "ai-providers"] as const,
-  aiProviderKeysPrefix: () => ["app", "ai-provider-keys"] as const,
-  aiProviderKeys: (providerId: number) => ["app", "ai-provider-keys", providerId] as const,
+  aiSuppliers: () => ["app", "ai-suppliers"] as const,
+  aiEndpoints: () => ["app", "ai-endpoints"] as const,
+  aiEndpointCredentialsPrefix: () => ["app", "ai-endpoint-credentials"] as const,
+  aiEndpointCredentials: (endpointId: number) =>
+    ["app", "ai-endpoint-credentials", endpointId] as const,
   aiUpstreams: () => ["app", "ai-upstreams"] as const,
-  aiProviderAssignments: (providerId: number) =>
-    ["app", "ai-provider-assignments", providerId] as const,
+  aiEndpointAssignments: (endpointId: number) =>
+    ["app", "ai-endpoint-assignments", endpointId] as const,
   aiUpstreamsOverview: (hours: number) => ["app", "ai-upstreams-overview", hours] as const,
-  aiProvidersOverview: (hours: number) => ["app", "ai-providers-overview", hours] as const,
+  aiEndpointsOverview: (hours: number) => ["app", "ai-endpoints-overview", hours] as const,
   aiUpstreamDetailPrefix: () => ["app", "ai-upstream-detail"] as const,
   aiUpstreamDetail: (id: number) => ["app", "ai-upstream-detail", id] as const,
   aiUpstreamModelMappings: (id: number) => ["app", "ai-upstream-model-mappings", id] as const,
@@ -151,8 +153,9 @@ export const queryKeys = {
     ["app", "ai-upstream-recent", id, limit] as const,
   aiModels: () => ["app", "ai-models-all"] as const,
   aiModelRoutes: (modelId: number) => ["app", "ai-model-routes", modelId] as const,
-  aiProviderModels: (providerId: number) => ["app", "ai-models", providerId] as const,
-  aiKeys: () => ["app", "ai-keys"] as const,
+  aiEndpointModels: (endpointId: number) => ["app", "ai-models", endpointId] as const,
+  aiCredentials: () => ["app", "ai-credentials"] as const,
+  aiEndpointCredentialsAll: () => ["app", "ai-endpoint-credentials-all"] as const,
   aiUsageSummary: () => ["app", "ai-usage-summary"] as const,
   aiUsageRecent: () => ["app", "ai-usage-recent"] as const,
   aiUsageDaily: (days: number) => ["app", "ai-usage-daily", days] as const,
@@ -171,7 +174,7 @@ export const queryKeys = {
   aiLogs: (params?: {
     consumerKeyId?: number;
     modelId?: string;
-    providerId?: string;
+    endpointId?: string;
     statusClass?: "4xx" | "5xx";
     requestId?: string;
     page?: number;
@@ -182,7 +185,7 @@ export const queryKeys = {
       {
         consumerKeyId: params?.consumerKeyId ?? null,
         modelId: params?.modelId ?? null,
-        providerId: params?.providerId ?? null,
+        endpointId: params?.endpointId ?? null,
         statusClass: params?.statusClass ?? null,
         requestId: params?.requestId ?? null,
         page: params?.page ?? 0,
@@ -195,11 +198,11 @@ export const queryKeys = {
     ["app", "relay-keys", params?.prefix ?? "", params?.userUuid ?? "", params?.page ?? 0] as const,
   relayKeysAll: () => ["app", "relay-keys"] as const,
   relayKeyOptions: () => ["app", "relay-key-options"] as const,
-  aiDiscoverModels: (providerId: number, source?: string, clientFormat?: string) =>
+  aiDiscoverModels: (endpointId: number, source?: string, clientFormat?: string) =>
     [
       "app",
       "ai-discover-models",
-      providerId,
+      endpointId,
       source ?? "official",
       clientFormat ?? "default",
     ] as const,

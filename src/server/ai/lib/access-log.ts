@@ -4,10 +4,13 @@ export interface AiAccessLogParams {
   requestId: string;
   statusCode: number;
   error: string;
-  keyId?: number | null;
+  endpointCredentialId?: number | null;
+  credentialId?: number | null;
+  credentialOwnerId?: number | null;
   consumerKeyId?: number | null;
   userId?: number | null;
-  providerId?: string | null;
+  supplierId?: string | null;
+  endpointId?: string | null;
   modelId?: string | null;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -35,10 +38,13 @@ export function buildAccessLogErrorMessage(error: string, detail?: unknown): str
 
 export function enqueueAiAccessLog(params: AiAccessLogParams): void {
   enqueueJob("ai-usage-log", {
-    keyId: params.keyId ?? null,
+    endpointCredentialId: params.endpointCredentialId ?? null,
+    credentialId: params.credentialId ?? null,
+    credentialOwnerId: params.credentialOwnerId ?? null,
     consumerKeyId: params.consumerKeyId ?? null,
     userId: params.userId ?? null,
-    providerId: params.providerId ?? null,
+    supplierId: params.supplierId ?? null,
+    endpointId: params.endpointId ?? null,
     modelId: params.modelId ?? null,
     upstreamId: params.upstreamId ?? null,
     upstreamName: params.upstreamName ?? null,

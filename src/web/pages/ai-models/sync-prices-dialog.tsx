@@ -22,11 +22,11 @@ import { cn } from "@/web/shared/utils";
 export function SyncPricesDialog({
   open,
   onOpenChange,
-  providerId,
+  endpointId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  providerId: number;
+  endpointId: number;
 }) {
   const { t } = useTranslation();
   const preview = usePreviewSyncPrices();
@@ -36,11 +36,11 @@ export function SyncPricesDialog({
   // Fetch preview when dialog opens
   useEffect(() => {
     if (open) {
-      preview.mutate({ providerId });
+      preview.mutate({ endpointId });
       setSelected(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, providerId]);
+  }, [open, endpointId]);
 
   // Auto-select all when preview data arrives
   const prevDataRef = useRef(preview.data);
@@ -72,13 +72,13 @@ export function SyncPricesDialog({
   const handleApply = useCallback(async () => {
     if (selected.size === 0) return;
     try {
-      const result = await apply.mutateAsync({ providerId, modelIds: [...selected] });
+      const result = await apply.mutateAsync({ endpointId, modelIds: [...selected] });
       toast.success(t("ai-models.toast.prices-synced", { count: result.synced }));
       onOpenChange(false);
     } catch {
       toast.error(t("ai-models.toast.sync-error"));
     }
-  }, [selected, apply, providerId, t, onOpenChange]);
+  }, [selected, apply, endpointId, t, onOpenChange]);
   const columns = useMemo<ColumnDef<(typeof diffs)[number]>[]>(
     () => [
       {

@@ -18,27 +18,27 @@ import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
-  aiKeyRepo,
+  aiEndpointCredentialRepo,
+  aiEndpointRepo,
   aiModelGrayUserRepo,
   aiModelRepo,
   aiModelRouteRepo,
-  aiProviderRepo,
 } from "@/server/repos";
 import { lte } from "@/shared/number";
 
 import {
-  canAttachProviderToClientFormat,
+  canAttachEndpointToClientFormat,
   type ClientFormat,
-  defaultClientFormatForProvider,
+  defaultClientFormatForEndpoint,
   isClientFormat,
 } from "../lib/client-format";
+import { buildEndpointAuth } from "../lib/endpoint-auth";
+import { buildModelsUrl } from "../lib/endpoint-health";
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
-import { buildProviderAuth } from "../lib/provider-auth";
-import { buildModelsUrl } from "../lib/supplier-health";
 import { resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { formatModel } from "./admin-ai-helpers";
 
-const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
+const AI_CREDENTIAL_DOMAIN_TAG = "ai-merchant-key";
 
 const router = new Hono();
 
@@ -69,15 +69,15 @@ function validateLimitedFreeConfig(
 
 // ── Models CRUD ─────────────────────────────────────────────────────────
 
-router.get("/providers/:id/models", async (c) => {
+router.get("/endpoints/:id/models", async (c) => {
   getAdminSession(c);
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
-  const provider = await aiProviderRepo.findById(id);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(id);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
-  const models = await aiModelRepo.findByProviderId(id);
+  const models = await aiModelRepo.findByEndpointId(id);
   const grayUsersByModelId = await aiModelGrayUserRepo.findUsersByModelIds(models.map((m) => m.id));
   return ok(
     c,
@@ -88,7 +88,7 @@ router.get("/providers/:id/models", async (c) => {
   );
 });
 
-router.get("/providers/:id/discover-models", async (c) => {
+router.get("/endpoints/:id/discover-models", async (c) => {
   getAdminSession(c);
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
@@ -102,43 +102,46 @@ router.get("/providers/:id/discover-models", async (c) => {
     return c.json({ error: "Invalid clientFormat" }, 400);
   }
 
-  const provider = await aiProviderRepo.findById(id);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(id);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
-  let key: Awaited<ReturnType<typeof aiKeyRepo.findAnyEnabledByUpstream>> | undefined;
+  let credential: Awaited<ReturnType<typeof aiEndpointCredentialRepo.findAnyEnabledByUpstream>>;
   let baseUrl: string | null = null;
   let modelsEndpointOverride: string | null = null;
 
   if (source === "official") {
-    if (!provider.baseUrl) {
-      return c.json({ error: "Provider has no base URL configured" }, 400);
+    if (!endpoint.baseUrl) {
+      return c.json({ error: "Endpoint has no base URL configured" }, 400);
     }
-    baseUrl = provider.baseUrl;
-    key = await aiKeyRepo.findAnyEnabledByProvider(id);
+    baseUrl = endpoint.baseUrl;
+    credential = await aiEndpointCredentialRepo.findAnyEnabledByEndpoint(id);
   } else {
-    for (const upstream of await resolveUpstreamCandidates(provider)) {
-      const candidateKey = await aiKeyRepo.findAnyEnabledByUpstream(id, upstream.id);
-      if (!candidateKey) continue;
-      key = candidateKey;
+    for (const upstream of await resolveUpstreamCandidates(endpoint)) {
+      const candidateCredential = await aiEndpointCredentialRepo.findAnyEnabledByUpstream(
+        id,
+        upstream.id,
+      );
+      if (!candidateCredential) continue;
+      credential = candidateCredential;
       baseUrl = upstream.baseUrl;
       modelsEndpointOverride = upstream.modelsEndpoint;
       break;
     }
   }
 
-  if (!key || !baseUrl) {
-    return c.json({ error: "No API key configured — add an API key for this provider first" }, 400);
+  if (!credential || !baseUrl) {
+    return c.json({ error: "No credential configured — add an endpoint credential first" }, 400);
   }
 
   let plainKey: string;
   try {
-    plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+    plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
   } catch {
-    return c.json({ error: "Failed to decrypt key" }, 500);
+    return c.json({ error: "Failed to decrypt credential" }, 500);
   }
 
-  const modelsUrl = buildModelsUrl(provider, baseUrl, modelsEndpointOverride);
-  const { headers: authHeaders, url: finalUrl } = buildProviderAuth(provider, plainKey, modelsUrl);
+  const modelsUrl = buildModelsUrl(endpoint, baseUrl, modelsEndpointOverride);
+  const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(endpoint, plainKey, modelsUrl);
 
   try {
     const res = await fetch(finalUrl, {
@@ -157,7 +160,7 @@ router.get("/providers/:id/discover-models", async (c) => {
     const upstream = (await res.json()) as Record<string, unknown>;
 
     // Parse model list — different providers return different shapes
-    const rawModels = match(provider.apiFormat)
+    const rawModels = match(endpoint.apiFormat)
       .with("bedrock", () => {
         // Bedrock ListFoundationModels: { modelSummaries: [{modelId, modelName, providerName}] }
         const arr = upstream.modelSummaries as Array<Record<string, unknown>> | undefined;
@@ -198,8 +201,8 @@ router.get("/providers/:id/discover-models", async (c) => {
     const models = rawModels;
 
     const clientFormat =
-      requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
-    const existing = await aiModelRepo.findByProviderId(id);
+      requestedClientFormat ?? defaultClientFormatForEndpoint(endpoint.apiFormat);
+    const existing = await aiModelRepo.findByEndpointId(id);
     const existingIds = new Set(
       existing.filter((e) => e.clientFormat === clientFormat).map((e) => e.modelId),
     );
@@ -207,7 +210,7 @@ router.get("/providers/:id/discover-models", async (c) => {
     return ok(
       c,
       models.map((m) => {
-        const pricing = lookupPricing(m.modelId, provider.providerId);
+        const pricing = lookupPricing(m.modelId, endpoint.endpointId);
         return {
           ...m,
           registered: existingIds.has(m.modelId),
@@ -224,13 +227,13 @@ router.get("/providers/:id/discover-models", async (c) => {
   }
 });
 
-router.post("/providers/:id/models", async (c) => {
+router.post("/endpoints/:id/models", async (c) => {
   getAdminSession(c);
-  const providerId = Number(c.req.param("id"));
-  if (Number.isNaN(providerId)) return c.json({ error: "Invalid id" }, 400);
+  const endpointId = Number(c.req.param("id"));
+  if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
-  const provider = await aiProviderRepo.findById(providerId);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(endpointId);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   const parsed = await parseBody(c, createAiModelBody);
   if (!parsed.ok) return parsed.response;
@@ -241,10 +244,10 @@ router.post("/providers/:id/models", async (c) => {
     grayUserIds,
     ...rest
   } = parsed.data;
-  const clientFormat = requestedClientFormat ?? defaultClientFormatForProvider(provider.apiFormat);
-  if (!canAttachProviderToClientFormat(clientFormat, provider.apiFormat)) {
+  const clientFormat = requestedClientFormat ?? defaultClientFormatForEndpoint(endpoint.apiFormat);
+  if (!canAttachEndpointToClientFormat(clientFormat, endpoint.apiFormat)) {
     return c.json(
-      { error: `Provider "${provider.name}" is not compatible with ${clientFormat} models` },
+      { error: `Endpoint "${endpoint.name}" is not compatible with ${clientFormat} models` },
       400,
     );
   }
@@ -258,10 +261,10 @@ router.post("/providers/:id/models", async (c) => {
 
   const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
   if (existing) {
-    // Model exists — just ensure a route to this provider exists
-    const route = await aiModelRouteRepo.findByModelAndProvider(existing.id, providerId);
-    if (route) return c.json({ error: "Model already has a route to this provider" }, 409);
-    await aiModelRouteRepo.create({ modelId: existing.id, providerId });
+    // Model exists — just ensure a route to this endpoint exists
+    const route = await aiModelRouteRepo.findByModelAndEndpoint(existing.id, endpointId);
+    if (route) return c.json({ error: "Model already has a route to this endpoint" }, 409);
+    await aiModelRouteRepo.create({ modelId: existing.id, endpointId });
     if (grayUserIds !== undefined) {
       try {
         await aiModelGrayUserRepo.replaceForModel(existing.id, grayUserIds);
@@ -276,20 +279,19 @@ router.post("/providers/:id/models", async (c) => {
         throw err;
       }
     }
-    log.auth.info({ modelId: existing.modelId, providerId }, "AI model route added");
+    log.auth.info({ modelId: existing.modelId, endpointId }, "AI model route added");
     return ok(c, await formatModelWithGrayUsers(existing), 201);
   }
 
   const created = await aiModelRepo.create({
     ...rest,
-    providerId,
     clientFormat,
     capabilities: JSON.stringify(capabilities ?? []),
     fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
   });
 
-  // Auto-create route to this provider
-  await aiModelRouteRepo.create({ modelId: created.id, providerId });
+  // Auto-create route to this endpoint
+  await aiModelRouteRepo.create({ modelId: created.id, endpointId });
   if (grayUserIds !== undefined) {
     try {
       await aiModelGrayUserRepo.replaceForModel(created.id, grayUserIds);
@@ -302,25 +304,24 @@ router.post("/providers/:id/models", async (c) => {
     }
   }
 
-  log.auth.info({ modelId: created.modelId, providerId }, "AI model created with route");
+  log.auth.info({ modelId: created.modelId, endpointId }, "AI model created with route");
   return ok(c, await formatModelWithGrayUsers(created), 201);
 });
 
-// POST /providers/:id/models/batch — batch create models (for discover-and-add)
-router.post("/providers/:id/models/batch", async (c) => {
+// POST /endpoints/:id/models/batch — batch create models (for discover-and-add)
+router.post("/endpoints/:id/models/batch", async (c) => {
   getAdminSession(c);
-  const providerId = Number(c.req.param("id"));
-  if (Number.isNaN(providerId)) return c.json({ error: "Invalid id" }, 400);
+  const endpointId = Number(c.req.param("id"));
+  if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
-  const provider = await aiProviderRepo.findById(providerId);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(endpointId);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   const parsed = await parseBody(c, batchCreateAiModelsBody);
   if (!parsed.ok) return parsed.response;
-  const defaultClientFormat = defaultClientFormatForProvider(provider.apiFormat);
+  const defaultClientFormat = defaultClientFormatForEndpoint(endpoint.apiFormat);
 
   const rows = parsed.data.models.map((m) => ({
-    providerId,
     clientFormat: m.clientFormat ?? defaultClientFormat,
     modelId: m.modelId,
     name: m.name,
@@ -334,12 +335,12 @@ router.post("/providers/:id/models/batch", async (c) => {
     enabled: m.enabled ?? true,
   }));
   const incompatible = rows.find(
-    (row) => !canAttachProviderToClientFormat(row.clientFormat, provider.apiFormat),
+    (row) => !canAttachEndpointToClientFormat(row.clientFormat, endpoint.apiFormat),
   );
   if (incompatible) {
     return c.json(
       {
-        error: `Provider "${provider.name}" is not compatible with ${incompatible.clientFormat} models`,
+        error: `Endpoint "${endpoint.name}" is not compatible with ${incompatible.clientFormat} models`,
       },
       400,
     );
@@ -391,7 +392,7 @@ router.post("/providers/:id/models/batch", async (c) => {
     return model ? [model] : [];
   });
   const linked = await aiModelRouteRepo.batchCreate(
-    routeTargets.map((model) => ({ modelId: model.id, providerId })),
+    routeTargets.map((model) => ({ modelId: model.id, endpointId })),
   );
 
   // Wire gray users for newly created models
@@ -415,7 +416,7 @@ router.post("/providers/:id/models/batch", async (c) => {
   );
 
   log.auth.info(
-    { providerId, requested: rows.length, created: created.length, linked: linked.length },
+    { endpointId, requested: rows.length, created: created.length, linked: linked.length },
     "AI models batch created with routes",
   );
   return ok(
@@ -432,23 +433,23 @@ router.post("/providers/:id/models/batch", async (c) => {
   );
 });
 
-// POST /providers/:id/models/sync-prices/preview — preview price diff from LiteLLM
-router.post("/providers/:id/models/sync-prices/preview", async (c) => {
+// POST /endpoints/:id/models/sync-prices/preview — preview price diff from LiteLLM
+router.post("/endpoints/:id/models/sync-prices/preview", async (c) => {
   getAdminSession(c);
-  const providerId = Number(c.req.param("id"));
-  if (Number.isNaN(providerId)) return c.json({ error: "Invalid id" }, 400);
+  const endpointId = Number(c.req.param("id"));
+  if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
-  const provider = await aiProviderRepo.findById(providerId);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(endpointId);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   if (!isCatalogReady()) await refreshLiteLLMPricing();
   if (!isCatalogReady()) return c.json({ error: "LiteLLM pricing catalog unavailable" }, 503);
 
-  const models = await aiModelRepo.findByProviderId(providerId);
+  const models = await aiModelRepo.findByEndpointId(endpointId);
   const diffs = [];
 
   for (const m of models) {
-    const pricing = lookupPricing(m.modelId, provider.providerId);
+    const pricing = lookupPricing(m.modelId, endpoint.endpointId);
     if (!pricing) continue;
 
     const changed =
@@ -471,14 +472,14 @@ router.post("/providers/:id/models/sync-prices/preview", async (c) => {
   return ok(c, diffs.slice(0, 200));
 });
 
-// POST /providers/:id/models/sync-prices/apply — apply selected price updates
-router.post("/providers/:id/models/sync-prices/apply", async (c) => {
+// POST /endpoints/:id/models/sync-prices/apply — apply selected price updates
+router.post("/endpoints/:id/models/sync-prices/apply", async (c) => {
   getAdminSession(c);
-  const providerId = Number(c.req.param("id"));
-  if (Number.isNaN(providerId)) return c.json({ error: "Invalid id" }, 400);
+  const endpointId = Number(c.req.param("id"));
+  if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
-  const provider = await aiProviderRepo.findById(providerId);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(endpointId);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   const raw: unknown = await c.req.json();
   const modelIds =
@@ -497,7 +498,7 @@ router.post("/providers/:id/models/sync-prices/apply", async (c) => {
   if (!isCatalogReady()) await refreshLiteLLMPricing();
   if (!isCatalogReady()) return c.json({ error: "LiteLLM pricing catalog unavailable" }, 503);
 
-  const models = await aiModelRepo.findByProviderId(providerId);
+  const models = await aiModelRepo.findByEndpointId(endpointId);
   const selected = new Set(modelIds);
   const updates: Array<{
     id: number;
@@ -508,7 +509,7 @@ router.post("/providers/:id/models/sync-prices/apply", async (c) => {
 
   for (const m of models) {
     if (!selected.has(m.id)) continue;
-    const pricing = lookupPricing(m.modelId, provider.providerId);
+    const pricing = lookupPricing(m.modelId, endpoint.endpointId);
     if (!pricing) continue;
 
     updates.push({
@@ -521,7 +522,7 @@ router.post("/providers/:id/models/sync-prices/apply", async (c) => {
 
   if (updates.length > 0) {
     await aiModelRepo.batchUpdatePrices(updates);
-    log.auth.info({ providerId, synced: updates.length }, "AI model prices synced from LiteLLM");
+    log.auth.info({ endpointId, synced: updates.length }, "AI model prices synced from LiteLLM");
   }
 
   return ok(c, { synced: updates.length });
@@ -557,12 +558,12 @@ router.put("/models/:id", async (c) => {
 
     const routes = await aiModelRouteRepo.findByModelPk(existing.id);
     const incompatible = routes.find(
-      ({ provider }) => !canAttachProviderToClientFormat(rest.clientFormat!, provider.apiFormat),
+      ({ endpoint }) => !canAttachEndpointToClientFormat(rest.clientFormat!, endpoint.apiFormat),
     );
     if (incompatible) {
       return c.json(
         {
-          error: `Provider "${incompatible.provider.name}" is not compatible with ${rest.clientFormat} models`,
+          error: `Endpoint "${incompatible.endpoint.name}" is not compatible with ${rest.clientFormat} models`,
         },
         400,
       );
@@ -636,12 +637,12 @@ router.get("/models", async (c) => {
         ...formatModel(model),
         grayUsers,
         grayUserIds: grayUsers.map((u) => u.id),
-        routes: routes.map(({ route, provider }) => ({
+        routes: routes.map(({ route, endpoint }) => ({
           id: route.id,
-          providerId: route.providerId,
-          providerName: provider.name,
-          providerIconUrl: provider.iconUrl,
-          providerModelId: route.providerModelId,
+          endpointId: route.endpointId,
+          endpointName: endpoint.name,
+          endpointIconUrl: endpoint.iconUrl,
+          endpointModelId: route.endpointModelId,
           priority: route.priority,
           weight: route.weight,
           enabled: route.enabled,
@@ -666,14 +667,14 @@ router.get("/models/:id/routes", async (c) => {
   const routes = await aiModelRouteRepo.findByModelPk(id);
   return ok(
     c,
-    routes.map(({ route, provider }) => ({
+    routes.map(({ route, endpoint }) => ({
       id: route.id,
       modelId: route.modelId,
-      providerId: route.providerId,
-      providerName: provider.name,
-      providerIconUrl: provider.iconUrl,
-      apiFormat: provider.apiFormat,
-      providerModelId: route.providerModelId,
+      endpointId: route.endpointId,
+      endpointName: endpoint.name,
+      endpointIconUrl: endpoint.iconUrl,
+      apiFormat: endpoint.apiFormat,
+      endpointModelId: route.endpointModelId,
       priority: route.priority,
       weight: route.weight,
       enabled: route.enabled,
@@ -694,25 +695,25 @@ router.post("/models/:id/routes", async (c) => {
   const parsed = await parseBody(c, createAiModelRouteBody);
   if (!parsed.ok) return parsed.response;
 
-  const provider = await aiProviderRepo.findById(parsed.data.providerId);
-  if (!provider) return c.json({ error: "Provider not found" }, 404);
+  const endpoint = await aiEndpointRepo.findById(parsed.data.endpointId);
+  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
-  if (!canAttachProviderToClientFormat(model.clientFormat as ClientFormat, provider.apiFormat)) {
+  if (!canAttachEndpointToClientFormat(model.clientFormat as ClientFormat, endpoint.apiFormat)) {
     return c.json(
-      { error: `Provider "${provider.name}" is not compatible with ${model.clientFormat} models` },
+      { error: `Endpoint "${endpoint.name}" is not compatible with ${model.clientFormat} models` },
       400,
     );
   }
 
-  const existing = await aiModelRouteRepo.findByModelAndProvider(modelPk, provider.id);
-  if (existing) return c.json({ error: "Route already exists for this provider" }, 409);
+  const existing = await aiModelRouteRepo.findByModelAndEndpoint(modelPk, endpoint.id);
+  if (existing) return c.json({ error: "Route already exists for this endpoint" }, 409);
 
   const route = await aiModelRouteRepo.create({
     modelId: modelPk,
     ...parsed.data,
   });
 
-  log.auth.info({ modelId: model.modelId, providerId: provider.id }, "AI model route created");
+  log.auth.info({ modelId: model.modelId, endpointId: endpoint.id }, "AI model route created");
   return ok(c, route, 201);
 });
 

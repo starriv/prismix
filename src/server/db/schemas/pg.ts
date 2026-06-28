@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -521,7 +522,7 @@ export const keyProviderTransactions = pgTable(
   {
     id: serial("id").primaryKey(),
     providerId: integer("provider_id").notNull(), // no FK — high-frequency append-only
-    keyId: integer("key_id"), // which ai_key earned this
+    credentialId: integer("credential_id"), // which ai_credential earned this
     type: text("type").notNull(), // revenue_share | withdraw | adjustment
     amount: text("amount").notNull(),
     balanceBefore: text("balance_before").notNull(),
@@ -540,11 +541,36 @@ export const keyProviderTransactions = pgTable(
 
 // ── AI Module ─────────────────────────────────────────────────────────
 
-export const aiProviders = pgTable(
-  "ai_providers",
+export const aiSuppliers = pgTable(
+  "ai_suppliers",
   {
     id: serial("id").primaryKey(),
-    providerId: text("provider_id").notNull().unique(), // slug: "openai", "anthropic", "google"
+    supplierId: text("supplier_id").notNull(), // real vendor slug: "deepseek", "openai"
+    name: text("name").notNull(),
+    iconUrl: text("icon_url"),
+    metadata: text("metadata").notNull().default("{}"),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("ai_suppliers_supplier_id_unique").on(t.supplierId),
+    index("idx_ai_suppliers_enabled").on(t.enabled),
+  ],
+);
+
+export const aiEndpoints = pgTable(
+  "ai_endpoints",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => aiSuppliers.id, { onDelete: "cascade" }),
+    endpointId: text("endpoint_id").notNull().unique(), // slug: "deepseek-openai"
     name: text("name").notNull(), // display name
     baseUrl: text("base_url").notNull(), // e.g. "https://api.openai.com/v1"
     apiFormat: text("api_format").notNull(), // "openai" | "anthropic" | "gemini"
@@ -572,7 +598,10 @@ export const aiProviders = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_ai_providers_provider_id").on(t.providerId)],
+  (t) => [
+    index("idx_ai_endpoints_endpoint_id").on(t.endpointId),
+    index("idx_ai_endpoints_supplier_id").on(t.supplierId),
+  ],
 );
 
 export const aiUpstreams = pgTable("ai_upstreams", {
@@ -608,9 +637,9 @@ export const aiUpstreamAssignments = pgTable(
   "ai_upstream_assignments",
   {
     id: serial("id").primaryKey(),
-    providerId: integer("provider_id")
+    endpointId: integer("endpoint_id")
       .notNull()
-      .references(() => aiProviders.id, { onDelete: "cascade" }),
+      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
     upstreamId: integer("upstream_id")
       .notNull()
       .references(() => aiUpstreams.id, { onDelete: "cascade" }),
@@ -625,8 +654,8 @@ export const aiUpstreamAssignments = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    unique().on(t.providerId, t.upstreamId),
-    index("idx_ai_upstream_assignments_provider_id").on(t.providerId),
+    unique().on(t.endpointId, t.upstreamId),
+    index("idx_ai_upstream_assignments_endpoint_id").on(t.endpointId),
     index("idx_ai_upstream_assignments_upstream_id").on(t.upstreamId),
   ],
 );
@@ -656,9 +685,6 @@ export const aiModels = pgTable(
   "ai_models",
   {
     id: serial("id").primaryKey(),
-    providerId: integer("provider_id").references(() => aiProviders.id, {
-      onDelete: "set null",
-    }), // legacy — nullable, kept for migration; use ai_model_routes instead
     clientFormat: text("client_format").notNull().default("openai"), // "openai" | "anthropic"
     modelId: text("model_id").notNull(), // format-local slug: "gpt-4o", "claude-sonnet-4-20250514"
     name: text("name").notNull(), // display name
@@ -693,10 +719,10 @@ export const aiModelRoutes = pgTable(
     modelId: integer("model_id")
       .notNull()
       .references(() => aiModels.id, { onDelete: "cascade" }),
-    providerId: integer("provider_id")
+    endpointId: integer("endpoint_id")
       .notNull()
-      .references(() => aiProviders.id, { onDelete: "cascade" }),
-    providerModelId: text("provider_model_id"), // actual slug sent upstream; null = use model.modelId
+      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
+    endpointModelId: text("endpoint_model_id"), // actual slug sent upstream; null = use model.modelId
     priority: integer("priority").notNull().default(100), // lower = tried first
     weight: integer("weight").notNull().default(1), // for weighted-random within same priority
     enabled: boolean("enabled").notNull().default(true),
@@ -708,9 +734,9 @@ export const aiModelRoutes = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    unique().on(t.modelId, t.providerId),
+    unique().on(t.modelId, t.endpointId),
     index("idx_ai_model_routes_model_id").on(t.modelId),
-    index("idx_ai_model_routes_provider_id").on(t.providerId),
+    index("idx_ai_model_routes_endpoint_id").on(t.endpointId),
   ],
 );
 
@@ -735,21 +761,47 @@ export const aiModelGrayUsers = pgTable(
   ],
 );
 
-export const aiKeys = pgTable(
-  "ai_keys",
+export const aiCredentials = pgTable(
+  "ai_credentials",
   {
     id: serial("id").primaryKey(),
-    providerId: integer("provider_id")
+    supplierId: integer("supplier_id").references(() => aiSuppliers.id, {
+      onDelete: "set null",
+    }),
+    ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    encryptedKey: text("encrypted_key").notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    keyPrefix: text("key_prefix").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastUsedAt: timestamp("last_used_at"),
+    updatedAt: timestamp("updated_at")
       .notNull()
-      .references(() => aiProviders.id, { onDelete: "cascade" }),
+      .$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_ai_credentials_supplier_id").on(t.supplierId),
+    index("idx_ai_credentials_owner_id").on(t.ownerId),
+  ],
+);
+
+export const aiEndpointCredentials = pgTable(
+  "ai_endpoint_credentials",
+  {
+    id: serial("id").primaryKey(),
+    endpointId: integer("endpoint_id")
+      .notNull()
+      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
     upstreamId: integer("upstream_id").references(() => aiUpstreams.id, {
       onDelete: "set null",
     }),
-    ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }), // key provider (密钥合作方)
-    name: text("name").notNull(), // user label
-    encryptedKey: text("encrypted_key").notNull(), // AES-encrypted API key
-    keyHash: text("key_hash").notNull().unique(), // SHA-256 hash for dedup (same key can't be added twice)
-    keyPrefix: text("key_prefix").notNull(), // first 8 chars for display: "sk-proj-..."
+    credentialId: integer("credential_id")
+      .notNull()
+      .references(() => aiCredentials.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // endpoint-local label
     weight: integer("weight").notNull().default(1), // load balancing weight (0 = excluded from pool)
     enabled: boolean("enabled").notNull().default(true),
     lastUsedAt: timestamp("last_used_at"),
@@ -761,8 +813,15 @@ export const aiKeys = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    index("idx_ai_keys_provider_id").on(t.providerId),
-    index("idx_ai_keys_upstream_id").on(t.upstreamId),
+    uniqueIndex("uq_ai_endpoint_credentials_official")
+      .on(t.endpointId, t.credentialId)
+      .where(sql`${t.upstreamId} IS NULL`),
+    uniqueIndex("uq_ai_endpoint_credentials_upstream")
+      .on(t.endpointId, t.credentialId, t.upstreamId)
+      .where(sql`${t.upstreamId} IS NOT NULL`),
+    index("idx_ai_endpoint_credentials_endpoint_id").on(t.endpointId),
+    index("idx_ai_endpoint_credentials_upstream_id").on(t.upstreamId),
+    index("idx_ai_endpoint_credentials_credential_id").on(t.credentialId),
   ],
 );
 
@@ -784,11 +843,13 @@ export const aiUsageLogs = pgTable(
   "ai_usage_logs",
   {
     id: serial("id").primaryKey(),
-    keyId: integer("key_id"), // no FK — references ai_keys.id
-    keyOwnerId: integer("key_owner_id"), // owner snapshot at log-write time for supplier reconciliation
+    endpointCredentialId: integer("endpoint_credential_id"), // no FK — hot-path append
+    credentialId: integer("credential_id"), // no FK — hot-path append
+    credentialOwnerId: integer("credential_owner_id"), // owner snapshot at log-write time
     consumerKeyId: integer("consumer_key_id"), // no FK — set when consumer key is used
     userId: integer("user_id"), // no FK — set when user is identified
-    providerId: text("provider_id"), // denormalized slug
+    supplierId: text("supplier_id"), // denormalized slug
+    endpointId: text("endpoint_id"), // denormalized slug
     modelId: text("model_id"), // denormalized slug
     upstreamId: integer("upstream_id"),
     upstreamName: text("upstream_name"),
@@ -811,11 +872,13 @@ export const aiUsageLogs = pgTable(
   },
   (t) => [
     index("idx_ai_usage_logs_created_at").on(t.createdAt),
-    index("idx_ai_usage_logs_provider_id").on(t.providerId),
+    index("idx_ai_usage_logs_supplier_id").on(t.supplierId),
+    index("idx_ai_usage_logs_endpoint_id").on(t.endpointId),
     index("idx_ai_usage_logs_consumer_key").on(t.consumerKeyId),
     index("idx_ai_usage_logs_user_id").on(t.userId),
-    index("idx_ai_usage_logs_key_id").on(t.keyId),
-    index("idx_ai_usage_logs_key_owner_id").on(t.keyOwnerId),
+    index("idx_ai_usage_logs_endpoint_credential_id").on(t.endpointCredentialId),
+    index("idx_ai_usage_logs_credential_id").on(t.credentialId),
+    index("idx_ai_usage_logs_credential_owner_id").on(t.credentialOwnerId),
     index("idx_ai_usage_logs_upstream_id").on(t.upstreamId),
   ],
 );
@@ -914,8 +977,8 @@ export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type NewWebhookEndpoint = typeof webhookEndpoints.$inferInsert;
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type NewWebhookDelivery = typeof webhookDeliveries.$inferInsert;
-export type AiProvider = typeof aiProviders.$inferSelect;
-export type NewAiProvider = typeof aiProviders.$inferInsert;
+export type AiEndpoint = typeof aiEndpoints.$inferSelect;
+export type NewAiEndpoint = typeof aiEndpoints.$inferInsert;
 export type AiUpstream = typeof aiUpstreams.$inferSelect;
 export type NewAiUpstream = typeof aiUpstreams.$inferInsert;
 export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;
@@ -928,8 +991,12 @@ export type AiModelRoute = typeof aiModelRoutes.$inferSelect;
 export type NewAiModelRoute = typeof aiModelRoutes.$inferInsert;
 export type AiModelGrayUser = typeof aiModelGrayUsers.$inferSelect;
 export type NewAiModelGrayUser = typeof aiModelGrayUsers.$inferInsert;
-export type AiKey = typeof aiKeys.$inferSelect;
-export type NewAiKey = typeof aiKeys.$inferInsert;
+export type AiSupplier = typeof aiSuppliers.$inferSelect;
+export type NewAiSupplier = typeof aiSuppliers.$inferInsert;
+export type AiCredential = typeof aiCredentials.$inferSelect;
+export type NewAiCredential = typeof aiCredentials.$inferInsert;
+export type AiEndpointCredential = typeof aiEndpointCredentials.$inferSelect;
+export type NewAiEndpointCredential = typeof aiEndpointCredentials.$inferInsert;
 export type AiGuardrailConfig = typeof aiGuardrailConfigs.$inferSelect;
 export type NewAiGuardrailConfig = typeof aiGuardrailConfigs.$inferInsert;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;

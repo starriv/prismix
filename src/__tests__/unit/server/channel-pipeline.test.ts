@@ -375,12 +375,12 @@ describe("telegram pipeline: emit → dispatcher → Telegram Bot API", () => {
     );
   });
 
-  it("does not use provider chatId for supplier health notifications without explicit configs", async () => {
+  it("does not use provider chatId for endpoint health notifications without explicit configs", async () => {
     _channelConfig = { botToken: BOT_TOKEN, chatId: "-100333444555" };
     mockFindByEvent.mockResolvedValue([]);
 
-    await emitNotification("supplier.disabled", {
-      title: "供应商已自动禁用: Proxy A",
+    await emitNotification("endpoint.disabled", {
+      title: "端点已自动禁用: Proxy A",
       body: `上游 "Proxy A" 连续 1 次连通性检查失败，已自动禁用。最后错误: HTTP 503: upstream-timeout
 
 详细信息:
@@ -389,7 +389,7 @@ ID: 10
 名称: Proxy A
 Base URL: https://proxy-a.example.com/v1
 所属供应商: OpenAI
-Provider ID: 1
+Endpoint ID: 1
 连续失败: 3
 最后错误: HTTP 503: upstream-timeout`,
       metadata: {
@@ -397,8 +397,8 @@ Provider ID: 1
         id: 10,
         name: "Proxy A",
         baseUrl: "https://proxy-a.example.com/v1",
-        providerId: 1,
-        providerName: "OpenAI",
+        endpointId: 1,
+        supplierName: "OpenAI",
         consecutiveFailures: 3,
         error: "HTTP 503: upstream-timeout",
       },

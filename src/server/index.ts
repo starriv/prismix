@@ -16,7 +16,7 @@ import { createRateLimiterMiddleware } from "@/server/middleware/rate-limiter";
 // Register auth strategies before API routes can receive traffic.
 import "./auth/index";
 import { env } from "./env";
-import { closeSupplierHealthCheckJob } from "./jobs/check-supplier-health";
+import { closeEndpointHealthCheckJob } from "./jobs/check-endpoint-health";
 import { closeLimitedFreeModelExpiryJob } from "./jobs/expire-limited-free-models";
 import { closeTopupExpiryJob } from "./jobs/expire-topup-orders";
 import { closeLiteLLMPricingJob } from "./jobs/refresh-litellm-pricing";
@@ -205,7 +205,7 @@ async function shutdown(signal: string) {
   // 1. Stop timers/queues started by this process.
   if (ROLE === "all") {
     await closeTopupExpiryJob();
-    await closeSupplierHealthCheckJob();
+    await closeEndpointHealthCheckJob();
     await closeLimitedFreeModelExpiryJob();
     await closeLiteLLMPricingJob();
     stopWebhookRetryJob();

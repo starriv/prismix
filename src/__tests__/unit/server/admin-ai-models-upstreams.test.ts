@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindProviderById = vi.fn();
-const mockFindAnyEnabledByProvider = vi.fn();
+const mockFindEndpointById = vi.fn();
+const mockFindAnyEnabledByEndpoint = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
-const mockFindModelsByProviderId = vi.fn();
+const mockFindModelsByEndpointId = vi.fn();
 const mockFindModelsByIds = vi.fn();
 const mockFindModelByModelId = vi.fn();
 const mockFindAllModels = vi.fn();
@@ -16,7 +16,7 @@ const mockFindGrayUsersByModelIds = vi.fn();
 const mockReplaceGrayUsersForModel = vi.fn();
 const mockCreateRoute = vi.fn();
 const mockBatchCreateRoutes = vi.fn();
-const mockFindRouteByModelAndProvider = vi.fn();
+const mockFindRouteByModelAndEndpoint = vi.fn();
 const mockFindRoutesByModelPk = vi.fn();
 const mockUpdateRouteForModel = vi.fn();
 const mockDeleteRouteForModel = vi.fn();
@@ -30,17 +30,17 @@ vi.mock("@/server/middleware/auth", () => ({
 }));
 
 vi.mock("@/server/repos", () => ({
-  aiKeyRepo: {
-    findAnyEnabledByProvider: (...args: unknown[]) => mockFindAnyEnabledByProvider(...args),
+  aiEndpointCredentialRepo: {
+    findAnyEnabledByEndpoint: (...args: unknown[]) => mockFindAnyEnabledByEndpoint(...args),
     findAnyEnabledByUpstream: (...args: unknown[]) => mockFindAnyEnabledByUpstream(...args),
   },
   aiModelRepo: {
-    findByProviderId: (...args: unknown[]) => mockFindModelsByProviderId(...args),
+    findByEndpointId: (...args: unknown[]) => mockFindModelsByEndpointId(...args),
     findByModelIds: (...args: unknown[]) => mockFindModelsByIds(...args),
     findByModelId: (...args: unknown[]) => mockFindModelByModelId(...args),
     findAll: (...args: unknown[]) => mockFindAllModels(...args),
     findById: (...args: unknown[]) => mockFindModelById(...args),
-    findByProviderAndModelId: vi.fn(),
+    findByEndpointAndModelId: vi.fn(),
     create: vi.fn(),
     update: (...args: unknown[]) => mockUpdateModel(...args),
     batchCreate: (...args: unknown[]) => mockBatchCreateModels(...args),
@@ -55,13 +55,13 @@ vi.mock("@/server/repos", () => ({
   aiModelRouteRepo: {
     create: (...args: unknown[]) => mockCreateRoute(...args),
     batchCreate: (...args: unknown[]) => mockBatchCreateRoutes(...args),
-    findByModelAndProvider: (...args: unknown[]) => mockFindRouteByModelAndProvider(...args),
+    findByModelAndEndpoint: (...args: unknown[]) => mockFindRouteByModelAndEndpoint(...args),
     findByModelPk: (...args: unknown[]) => mockFindRoutesByModelPk(...args),
     updateForModel: (...args: unknown[]) => mockUpdateRouteForModel(...args),
     deleteForModel: (...args: unknown[]) => mockDeleteRouteForModel(...args),
   },
-  aiProviderRepo: {
-    findById: (...args: unknown[]) => mockFindProviderById(...args),
+  aiEndpointRepo: {
+    findById: (...args: unknown[]) => mockFindEndpointById(...args),
   },
 }));
 
@@ -91,12 +91,12 @@ const { default: router } = await import("@/server/ai/routes/admin-ai-models");
 const app = new Hono();
 app.route("/", router);
 
-describe("admin ai model discovery with upstream-scoped keys", () => {
+describe("admin ai model discovery with upstream-scoped credentials", () => {
   beforeEach(() => {
-    mockFindProviderById.mockReset();
-    mockFindAnyEnabledByProvider.mockReset();
+    mockFindEndpointById.mockReset();
+    mockFindAnyEnabledByEndpoint.mockReset();
     mockFindAnyEnabledByUpstream.mockReset();
-    mockFindModelsByProviderId.mockReset();
+    mockFindModelsByEndpointId.mockReset();
     mockFindModelsByIds.mockReset();
     mockFindModelByModelId.mockReset();
     mockFindAllModels.mockReset();
@@ -108,16 +108,16 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockReplaceGrayUsersForModel.mockReset();
     mockCreateRoute.mockReset();
     mockBatchCreateRoutes.mockReset();
-    mockFindRouteByModelAndProvider.mockReset();
+    mockFindRouteByModelAndEndpoint.mockReset();
     mockFindRoutesByModelPk.mockReset();
     mockUpdateRouteForModel.mockReset();
     mockDeleteRouteForModel.mockReset();
     mockResolveUpstreamCandidates.mockReset();
     mockFetch.mockReset();
 
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "anthropic",
+      endpointId: "anthropic",
       name: "Anthropic",
       baseUrl: "https://api.anthropic.com",
       apiFormat: "anthropic",
@@ -125,14 +125,14 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       authConfig: JSON.stringify({ headerName: "x-api-key" }),
       enabled: true,
     });
-    mockFindModelsByProviderId.mockResolvedValue([]);
+    mockFindModelsByEndpointId.mockResolvedValue([]);
     mockFindModelsByIds.mockResolvedValue([]);
     mockFindModelByModelId.mockResolvedValue(undefined);
     mockFindAllModels.mockResolvedValue([]);
     mockUpdateModel.mockImplementation((_: number, data: Record<string, unknown>) =>
       Promise.resolve({
         id: 42,
-        providerId: 7,
+        endpointId: 7,
         clientFormat: data.clientFormat ?? "openai",
         modelId: "gpt-4o",
         name: data.name ?? "GPT-4o",
@@ -151,13 +151,13 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockFindGrayUsersByModelId.mockResolvedValue([]);
     mockFindGrayUsersByModelIds.mockResolvedValue(new Map());
     mockReplaceGrayUsersForModel.mockResolvedValue(undefined);
-    mockCreateRoute.mockResolvedValue({ id: 10, modelId: 42, providerId: 7 });
+    mockCreateRoute.mockResolvedValue({ id: 10, modelId: 42, endpointId: 7 });
     mockBatchCreateRoutes.mockResolvedValue([]);
-    mockFindRouteByModelAndProvider.mockResolvedValue(undefined);
+    mockFindRouteByModelAndEndpoint.mockResolvedValue(undefined);
     mockFindRoutesByModelPk.mockResolvedValue([]);
     mockFindModelById.mockResolvedValue({
       id: 42,
-      providerId: 7,
+      endpointId: 7,
       clientFormat: "openai",
       modelId: "gpt-4o",
       name: "GPT-4o",
@@ -173,10 +173,10 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
   });
 
-  it("discovers models using the official key by default", async () => {
-    mockFindAnyEnabledByProvider.mockResolvedValue({
+  it("discovers models using the official endpoint credential by default", async () => {
+    mockFindAnyEnabledByEndpoint.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: null,
       encryptedKey: "encrypted",
     });
@@ -189,13 +189,13 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models");
+    const res = await app.request("http://localhost/endpoints/7/discover-models");
     const json = (await res.json()) as {
       data: Array<{ modelId: string; name: string; registered: boolean }>;
     };
 
     expect(res.status).toBe(200);
-    expect(mockFindAnyEnabledByProvider).toHaveBeenCalledWith(7);
+    expect(mockFindAnyEnabledByEndpoint).toHaveBeenCalledWith(7);
     expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
     expect(mockFindAnyEnabledByUpstream).not.toHaveBeenCalled();
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -207,7 +207,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     });
   });
 
-  it("discovers models using the first upstream-scoped key when source=upstream", async () => {
+  it("discovers models using the first upstream-scoped credential when source=upstream", async () => {
     mockResolveUpstreamCandidates.mockResolvedValue([
       {
         id: 11,
@@ -219,7 +219,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
     });
@@ -232,7 +232,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    const res = await app.request("http://localhost/endpoints/7/discover-models?source=upstream");
     const json = (await res.json()) as {
       data: Array<{ modelId: string; name: string; registered: boolean }>;
     };
@@ -260,7 +260,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
     });
@@ -273,7 +273,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    const res = await app.request("http://localhost/endpoints/7/discover-models?source=upstream");
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     // Should use the custom modelsEndpoint, not {base}/models from anthropic format
@@ -281,9 +281,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
   });
 
   it("discovers models through a Cloudflare Access protected upstream", async () => {
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "glm",
+      endpointId: "glm",
       name: "GLM",
       baseUrl: "https://official.example.com/v1",
       apiFormat: "openai",
@@ -302,7 +302,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
     });
@@ -315,7 +315,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    const res = await app.request("http://localhost/endpoints/7/discover-models?source=upstream");
 
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -327,9 +327,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
   });
 
   it("scopes discovered registered flags by requested clientFormat", async () => {
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "glm",
+      endpointId: "glm",
       name: "GLM",
       baseUrl: "https://official.example.com/v1",
       apiFormat: "openai",
@@ -337,16 +337,16 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       authConfig: JSON.stringify({}),
       enabled: true,
     });
-    mockFindAnyEnabledByProvider.mockResolvedValue({
+    mockFindAnyEnabledByEndpoint.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: null,
       encryptedKey: "encrypted",
     });
-    mockFindModelsByProviderId.mockResolvedValue([
+    mockFindModelsByEndpointId.mockResolvedValue([
       {
         id: 99,
-        providerId: 7,
+        endpointId: 7,
         clientFormat: "openai",
         modelId: "glm-5.2",
         name: "GLM 5.2 OpenAI",
@@ -369,7 +369,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     );
 
     const res = await app.request(
-      "http://localhost/providers/7/discover-models?clientFormat=anthropic",
+      "http://localhost/endpoints/7/discover-models?clientFormat=anthropic",
     );
     const json = (await res.json()) as {
       data: Array<{ modelId: string; registered: boolean }>;
@@ -391,7 +391,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
     });
@@ -404,26 +404,26 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       ),
     );
 
-    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    const res = await app.request("http://localhost/endpoints/7/discover-models?source=upstream");
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     // Should fall back to anthropic format: {base}/models
     expect(mockFetch.mock.calls[0][0]).toBe("https://friend-a.example.com/models");
   });
 
-  it("returns 400 when official discovery has no usable key", async () => {
-    mockFindAnyEnabledByProvider.mockResolvedValue(undefined);
+  it("returns 400 when official discovery has no usable credential", async () => {
+    mockFindAnyEnabledByEndpoint.mockResolvedValue(undefined);
 
-    const res = await app.request("http://localhost/providers/7/discover-models");
+    const res = await app.request("http://localhost/endpoints/7/discover-models");
     const json = (await res.json()) as { error: string };
 
     expect(res.status).toBe(400);
-    expect(json.error).toContain("No API key configured");
+    expect(json.error).toContain("No credential configured");
     expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when no upstream candidate has a usable key", async () => {
+  it("returns 400 when no upstream candidate has a usable credential", async () => {
     mockResolveUpstreamCandidates.mockResolvedValue([
       {
         id: 11,
@@ -434,7 +434,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       },
       {
         id: null,
-        upstreamId: "legacy",
+        upstreamId: "default-anthropic",
         name: "Anthropic Default",
         baseUrl: "https://api.anthropic.com",
         modelsEndpoint: null,
@@ -442,11 +442,11 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockFindAnyEnabledByUpstream.mockResolvedValue(undefined);
 
-    const res = await app.request("http://localhost/providers/7/discover-models?source=upstream");
+    const res = await app.request("http://localhost/endpoints/7/discover-models?source=upstream");
     const json = (await res.json()) as { error: string };
 
     expect(res.status).toBe(400);
-    expect(json.error).toContain("No API key configured");
+    expect(json.error).toContain("No credential configured");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -454,7 +454,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockFindAllModels.mockResolvedValue([
       {
         id: 42,
-        providerId: null,
+        endpointId: null,
         clientFormat: "openai",
         modelId: "gpt-4o",
         name: "GPT-4o",
@@ -481,11 +481,11 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     expect(json.data[0]).toMatchObject({ id: 42, enabled: false, routes: [] });
   });
 
-  it("batch create links existing models to the new provider", async () => {
+  it("batch create links existing models to the new endpoint", async () => {
     mockFindModelsByIds.mockResolvedValue([
       {
         id: 99,
-        providerId: 3,
+        endpointId: 3,
         clientFormat: "anthropic",
         modelId: "gpt-4o",
         name: "GPT-4o",
@@ -502,7 +502,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     ]);
     mockBatchCreateRoutes.mockResolvedValue([{ id: 1 }]);
 
-    const res = await app.request("http://localhost/providers/7/models/batch", {
+    const res = await app.request("http://localhost/endpoints/7/models/batch", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -513,7 +513,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
 
     expect(res.status).toBe(201);
     expect(mockBatchCreateModels).toHaveBeenCalledWith([]);
-    expect(mockBatchCreateRoutes).toHaveBeenCalledWith([{ modelId: 99, providerId: 7 }]);
+    expect(mockBatchCreateRoutes).toHaveBeenCalledWith([{ modelId: 99, endpointId: 7 }]);
     expect(json.data).toMatchObject({ created: 0, linked: 1 });
   });
 
@@ -521,11 +521,11 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     mockUpdateRouteForModel.mockResolvedValue({
       id: 7,
       modelId: 42,
-      providerId: 7,
+      endpointId: 7,
       priority: 200,
       weight: 1,
       enabled: true,
-      providerModelId: null,
+      endpointModelId: null,
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     });
@@ -540,10 +540,10 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     expect(mockUpdateRouteForModel).toHaveBeenCalledWith(42, 7, { priority: 200 });
   });
 
-  it("allows an Anthropic model route to an OpenAI-format provider", async () => {
+  it("allows an Anthropic model route to an OpenAI-format endpoint", async () => {
     mockFindModelById.mockResolvedValue({
       id: 42,
-      providerId: 7,
+      endpointId: 7,
       clientFormat: "anthropic",
       modelId: "claude-sonnet-4",
       name: "Claude Sonnet 4",
@@ -557,9 +557,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     });
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "openai",
+      endpointId: "openai",
       name: "OpenAI",
       baseUrl: "https://api.openai.com/v1",
       apiFormat: "openai",
@@ -571,17 +571,17 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     const res = await app.request("http://localhost/models/42/routes", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ providerId: 7 }),
+      body: JSON.stringify({ endpointId: 7 }),
     });
 
     expect(res.status).toBe(201);
-    expect(mockCreateRoute).toHaveBeenCalledWith({ modelId: 42, providerId: 7 });
+    expect(mockCreateRoute).toHaveBeenCalledWith({ modelId: 42, endpointId: 7 });
   });
 
-  it("rejects an Anthropic model route to an unsupported provider format", async () => {
+  it("rejects an Anthropic model route to an unsupported endpoint format", async () => {
     mockFindModelById.mockResolvedValue({
       id: 42,
-      providerId: 7,
+      endpointId: 7,
       clientFormat: "anthropic",
       modelId: "claude-sonnet-4",
       name: "Claude Sonnet 4",
@@ -595,9 +595,9 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     });
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "google",
+      endpointId: "google",
       name: "Google AI",
       baseUrl: "https://generativelanguage.googleapis.com/v1beta",
       apiFormat: "gemini",
@@ -609,7 +609,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
     const res = await app.request("http://localhost/models/42/routes", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ providerId: 7 }),
+      body: JSON.stringify({ endpointId: 7 }),
     });
     const json = (await res.json()) as { error: string };
 
@@ -620,7 +620,7 @@ describe("admin ai model discovery with upstream-scoped keys", () => {
   it("rejects changing a model to a client format where the same model id already exists", async () => {
     mockFindModelByModelId.mockResolvedValue({
       id: 99,
-      providerId: 8,
+      endpointId: 8,
       clientFormat: "anthropic",
       modelId: "gpt-4o",
       name: "GPT-4o Anthropic",

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AiProvider } from "@/server/db";
+import type { AiEndpoint } from "@/server/db";
 
-const mockFindEnabledByProviderId = vi.fn();
+const mockFindEnabledByEndpointId = vi.fn();
 const mockFindByUpstreamId = vi.fn();
 
 vi.mock("@/server/repos", () => ({
   aiUpstreamAssignmentRepo: {
-    findEnabledByProviderId: (...args: unknown[]) => mockFindEnabledByProviderId(...args),
+    findEnabledByEndpointId: (...args: unknown[]) => mockFindEnabledByEndpointId(...args),
     findByUpstreamId: (...args: unknown[]) => mockFindByUpstreamId(...args),
   },
 }));
@@ -26,30 +26,31 @@ const { clearUpstreamCache, resolveUpstreamCandidates } =
 describe("upstream routing", () => {
   beforeEach(() => {
     clearUpstreamCache();
-    mockFindEnabledByProviderId.mockReset();
+    mockFindEnabledByEndpointId.mockReset();
     mockFindByUpstreamId.mockReset();
   });
 
-  it("builds the official upstream target from provider concurrency config", async () => {
-    mockFindEnabledByProviderId.mockResolvedValue([]);
+  it("builds the official upstream target from endpoint concurrency config", async () => {
+    mockFindEnabledByEndpointId.mockResolvedValue([]);
 
-    const provider = {
+    const endpoint = {
       id: 7,
-      providerId: "glm",
+      endpointId: "glm",
       name: "GLM",
       baseUrl: "https://open.bigmodel.cn/api/paas/v4",
       officialConcurrencyLimit: 2,
       officialQueueTimeoutMs: 45_000,
       upstreamRoutingStrategy: "priority",
-    } as unknown as AiProvider;
+    } as unknown as AiEndpoint;
 
-    const targets = await resolveUpstreamCandidates(provider);
+    const targets = await resolveUpstreamCandidates(endpoint);
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
       id: null,
-      upstreamId: "legacy",
-      concurrencyScopeKey: "provider:7:official",
+      upstreamId: "official",
+      concurrencyScopeKey: "endpoint:7:official",
+      name: "GLM Official",
       concurrencyLimit: 2,
       queueTimeoutMs: 45_000,
       kind: "official",

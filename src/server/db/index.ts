@@ -74,14 +74,16 @@ export const webhookDeliveries = s.webhookDeliveries;
 export const withdrawOrders = s.withdrawOrders;
 export const keyProviders = s.keyProviders;
 export const keyProviderTransactions = s.keyProviderTransactions;
-export const aiProviders = s.aiProviders;
+export const aiSuppliers = s.aiSuppliers;
+export const aiEndpoints = s.aiEndpoints;
 export const aiUpstreams = s.aiUpstreams;
 export const aiUpstreamAssignments = s.aiUpstreamAssignments;
 export const aiUpstreamModelMappings = s.aiUpstreamModelMappings;
 export const aiModels = s.aiModels;
 export const aiModelRoutes = s.aiModelRoutes;
 export const aiModelGrayUsers = s.aiModelGrayUsers;
-export const aiKeys = s.aiKeys;
+export const aiCredentials = s.aiCredentials;
+export const aiEndpointCredentials = s.aiEndpointCredentials;
 export const aiGuardrailConfigs = s.aiGuardrailConfigs;
 export const aiUsageLogs = s.aiUsageLogs;
 export const relayConsumerKeys = s.relayConsumerKeys;
@@ -92,11 +94,13 @@ export const relayConsumerKeyBlacklist = s.relayConsumerKeyBlacklist;
 export type {
   Admin,
   AiGuardrailConfig,
-  AiKey,
+  AiCredential,
+  AiEndpoint,
+  AiEndpointCredential,
   AiModel,
   AiModelGrayUser,
   AiModelRoute,
-  AiProvider,
+  AiSupplier,
   AiUpstream,
   AiUpstreamAssignment,
   AiUpstreamModelMapping,
@@ -112,11 +116,13 @@ export type {
   KeyProviderTransaction,
   NewAdmin,
   NewAiGuardrailConfig,
-  NewAiKey,
+  NewAiCredential,
+  NewAiEndpoint,
+  NewAiEndpointCredential,
   NewAiModel,
   NewAiModelGrayUser,
   NewAiModelRoute,
-  NewAiProvider,
+  NewAiSupplier,
   NewAiUpstream,
   NewAiUpstreamAssignment,
   NewAiUpstreamModelMapping,

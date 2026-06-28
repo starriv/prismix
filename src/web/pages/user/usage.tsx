@@ -13,13 +13,13 @@ import { DailyTrendChart, ModelDistributionChart } from "@/web/pages/ai-usage/ch
 import { StatCard } from "@/web/pages/ai-usage/helpers";
 
 import { formatUserTokens } from "./table-helpers";
-import { buildUserUsageModelColumns, buildUserUsageProviderColumns } from "./usage-columns";
+import { buildUserUsageEndpointColumns, buildUserUsageModelColumns } from "./usage-columns";
 
 export default function UserUsagePage() {
   const { t } = useTranslation();
   const { data: summary, isLoading: summaryLoading } = useUserUsageSummary();
   const { data: daily = [], isLoading: dailyLoading } = useUserUsageDaily(30);
-  const providerColumns = useMemo(() => buildUserUsageProviderColumns(t), [t]);
+  const endpointColumns = useMemo(() => buildUserUsageEndpointColumns(t), [t]);
   const modelColumns = useMemo(() => buildUserUsageModelColumns(t), [t]);
 
   return (
@@ -106,16 +106,16 @@ export default function UserUsagePage() {
           </Card>
         </div>
 
-        {/* By Provider */}
-        {summary && summary.byProvider.length > 0 && (
+        {/* By Endpoint */}
+        {summary && summary.byEndpoint.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("ai-usage.by-provider.title")}</CardTitle>
+              <CardTitle className="text-sm">{t("ai-usage.by-endpoint.title")}</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
-                columns={providerColumns}
-                data={summary.byProvider}
+                columns={endpointColumns}
+                data={summary.byEndpoint}
                 emptyText={t("ai-usage.recent.empty")}
                 tableClassName="min-w-[720px]"
               />

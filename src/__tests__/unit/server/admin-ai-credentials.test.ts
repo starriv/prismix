@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFindKeyById = vi.fn();
+const mockFindEndpointCredentialById = vi.fn();
 const mockUpdateLastUsed = vi.fn();
-const mockFindProviderById = vi.fn();
+const mockFindEndpointById = vi.fn();
 const mockFindUpstreamById = vi.fn();
-const mockFindProviderUpstreamAssignment = vi.fn();
-const mockFindEnabledModelsByProviderId = vi.fn();
+const mockFindEndpointUpstreamAssignment = vi.fn();
+const mockFindEnabledModelsByEndpointId = vi.fn();
 const mockFetch = vi.fn();
 
 vi.stubGlobal("fetch", mockFetch);
@@ -31,51 +31,51 @@ vi.mock("@/server/lib/logger", () => ({
   },
 }));
 
-vi.mock("@/server/ai/lib/key-balancer", () => ({
-  invalidateKeyPool: vi.fn(),
+vi.mock("@/server/ai/lib/credential-balancer", () => ({
+  invalidateCredentialPool: vi.fn(),
 }));
 
 vi.mock("@/server/repos", () => ({
-  aiKeyRepo: {
+  aiEndpointCredentialRepo: {
     findAll: vi.fn().mockResolvedValue([]),
-    findById: (...args: unknown[]) => mockFindKeyById(...args),
+    findById: (...args: unknown[]) => mockFindEndpointCredentialById(...args),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
     updateLastUsed: (...args: unknown[]) => mockUpdateLastUsed(...args),
   },
   aiModelRepo: {
-    findEnabledByProviderId: (...args: unknown[]) => mockFindEnabledModelsByProviderId(...args),
+    findEnabledByEndpointId: (...args: unknown[]) => mockFindEnabledModelsByEndpointId(...args),
   },
-  aiProviderRepo: {
-    findById: (...args: unknown[]) => mockFindProviderById(...args),
+  aiEndpointRepo: {
+    findById: (...args: unknown[]) => mockFindEndpointById(...args),
   },
   aiUpstreamRepo: {
     findById: (...args: unknown[]) => mockFindUpstreamById(...args),
   },
   aiUpstreamAssignmentRepo: {
-    findByProviderAndUpstreamId: (...args: unknown[]) =>
-      mockFindProviderUpstreamAssignment(...args),
+    findByEndpointAndUpstreamId: (...args: unknown[]) =>
+      mockFindEndpointUpstreamAssignment(...args),
   },
 }));
 
-const { default: router } = await import("@/server/ai/routes/admin-ai-keys");
+const { default: router } = await import("@/server/ai/routes/admin-ai-credentials");
 
 const app = new Hono();
 app.route("/", router);
 
-describe("admin ai key connectivity test", () => {
+describe("admin ai credential connectivity test", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFindKeyById.mockResolvedValue({
+    mockFindEndpointCredentialById.mockResolvedValue({
       id: 17,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: null,
       encryptedKey: "encrypted",
     });
-    mockFindProviderById.mockResolvedValue({
+    mockFindEndpointById.mockResolvedValue({
       id: 7,
-      providerId: "deepseek-anthropic",
+      endpointId: "deepseek-anthropic",
       name: "DeepSeek Anthropic",
       baseUrl: "https://api.deepseek.com/anthropic",
       apiFormat: "anthropic",
@@ -84,12 +84,12 @@ describe("admin ai key connectivity test", () => {
       enabled: true,
     });
     mockFindUpstreamById.mockResolvedValue(null);
-    mockFindProviderUpstreamAssignment.mockResolvedValue(null);
-    mockFindEnabledModelsByProviderId.mockResolvedValue([]);
+    mockFindEndpointUpstreamAssignment.mockResolvedValue(null);
+    mockFindEnabledModelsByEndpointId.mockResolvedValue([]);
     mockUpdateLastUsed.mockResolvedValue(undefined);
   });
 
-  it("uses the apiFormat-aware models endpoint for Anthropic-compatible providers", async () => {
+  it("uses the apiFormat-aware models endpoint for Anthropic-compatible endpoints", async () => {
     mockFetch.mockResolvedValue(
       new Response(JSON.stringify({ data: [] }), {
         status: 200,
@@ -97,7 +97,9 @@ describe("admin ai key connectivity test", () => {
       }),
     );
 
-    const res = await app.request("http://localhost/keys/17/test", { method: "POST" });
+    const res = await app.request("http://localhost/endpoint-credentials/17/test", {
+      method: "POST",
+    });
     const json = (await res.json()) as { data: { success: boolean; status: number } };
 
     expect(res.status).toBe(200);
@@ -112,9 +114,9 @@ describe("admin ai key connectivity test", () => {
   });
 
   it("falls back to a minimal Anthropic messages request when models endpoint is unavailable", async () => {
-    mockFindProviderById.mockResolvedValueOnce({
+    mockFindEndpointById.mockResolvedValueOnce({
       id: 7,
-      providerId: "anthropic",
+      endpointId: "anthropic",
       name: "Anthropic",
       baseUrl: "https://api.anthropic.com",
       apiFormat: "anthropic",
@@ -131,7 +133,9 @@ describe("admin ai key connectivity test", () => {
         }),
       );
 
-    const res = await app.request("http://localhost/keys/17/test", { method: "POST" });
+    const res = await app.request("http://localhost/endpoint-credentials/17/test", {
+      method: "POST",
+    });
     const json = (await res.json()) as { data: { success: boolean; status: number } };
 
     expect(res.status).toBe(200);
@@ -155,7 +159,7 @@ describe("admin ai key connectivity test", () => {
   });
 
   it("uses the configured model for Anthropic-compatible message probes", async () => {
-    mockFindEnabledModelsByProviderId.mockResolvedValueOnce([
+    mockFindEnabledModelsByEndpointId.mockResolvedValueOnce([
       {
         modelId: "deepseek-reasoner",
         clientFormat: "anthropic",
@@ -172,7 +176,9 @@ describe("admin ai key connectivity test", () => {
         }),
       );
 
-    const res = await app.request("http://localhost/keys/17/test", { method: "POST" });
+    const res = await app.request("http://localhost/endpoint-credentials/17/test", {
+      method: "POST",
+    });
     const json = (await res.json()) as { data: { success: boolean; status: number } };
 
     expect(res.status).toBe(200);

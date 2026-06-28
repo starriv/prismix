@@ -7,7 +7,7 @@
  * Caching: Redis (24h TTL) → in-memory Map.
  * The catalog is NOT a runtime dependency — relay/billing reads prices from DB.
  * It is used at two ingestion points only:
- *   1. seed-providers.ts   — enrich default prices for new providers
+ *   1. seed-endpoints.ts   — enrich default prices for new endpoints
  *   2. admin-ai.ts         — enrich discover-models response
  */
 import { type CacheStore, createCacheStore } from "@/server/cache";

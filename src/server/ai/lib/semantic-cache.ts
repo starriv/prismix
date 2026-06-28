@@ -22,7 +22,7 @@ export interface SemanticCacheKeyInput {
   model: string;
   /** Full normalized request body or serialized upstream body. */
   requestBody: unknown;
-  providerId?: string | null;
+  endpointId?: string | null;
   upstreamId?: number | null;
   upstreamBaseUrl?: string | null;
 }

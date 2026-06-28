@@ -38,10 +38,10 @@ vi.mock("@/server/ai/lib/model-mapping-cache", () => ({
   resolveModelMapping: (...args: unknown[]) => mockResolveModelMapping(...args),
 }));
 
-vi.mock("@/server/ai/lib/key-balancer", () => ({
-  pickKey: (...args: unknown[]) => mockPickKey(...args),
-  markKeyFailure: vi.fn(),
-  markKeySuccess: vi.fn(),
+vi.mock("@/server/ai/lib/credential-balancer", () => ({
+  pickEndpointCredential: (...args: unknown[]) => mockPickKey(...args),
+  markCredentialFailure: vi.fn(),
+  markCredentialSuccess: vi.fn(),
 }));
 
 vi.mock("@/server/lib/crypto", () => ({
@@ -81,15 +81,15 @@ describe("admin relay passthrough upstream routing", () => {
     mockFindEnabledByModelId.mockResolvedValue({
       model: {
         id: 101,
-        providerId: 7,
+        endpointId: 7,
         modelId: "claude-sonnet-4",
         inputPrice: "3",
         outputPrice: "15",
         enabled: true,
       },
-      provider: {
+      endpoint: {
         id: 7,
-        providerId: "anthropic",
+        endpointId: "anthropic",
         name: "Anthropic",
         baseUrl: "https://api.anthropic.com",
         apiFormat: "anthropic",
@@ -112,7 +112,7 @@ describe("admin relay passthrough upstream routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "friend-key",
@@ -147,7 +147,7 @@ describe("admin relay passthrough upstream routing", () => {
     ]);
     mockPickKey.mockResolvedValue({
       id: 123,
-      providerId: 7,
+      endpointId: 7,
       upstreamId: 11,
       encryptedKey: "encrypted",
       name: "friend-key",
@@ -190,14 +190,14 @@ describe("admin relay passthrough upstream routing", () => {
     mockPickKey
       .mockResolvedValueOnce({
         id: 123,
-        providerId: 7,
+        endpointId: 7,
         upstreamId: 11,
         encryptedKey: "encrypted-1",
         name: "friend-key",
       })
       .mockResolvedValueOnce({
         id: 456,
-        providerId: 7,
+        endpointId: 7,
         upstreamId: null,
         encryptedKey: "encrypted-2",
         name: "official-key",

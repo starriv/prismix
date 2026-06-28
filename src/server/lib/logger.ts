@@ -91,5 +91,5 @@ export const log = {
   event: child("event"),
   webhook: child("webhook"),
   pricing: child("pricing"),
-  supplier: child("supplier"),
+  endpoint: child("endpoint"),
 };

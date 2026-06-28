@@ -1,7 +1,7 @@
 /**
  * AI management routes — catalog, usage, settings + sub-router mounting.
  *
- * All AI providers, models, and keys are system-level.
+ * AI suppliers, endpoints, models, and credentials are system-level.
  * Mounted at /api/admin/ai (adminAuthMiddleware applied via parent).
  */
 import { Hono } from "hono";
@@ -10,9 +10,8 @@ import { ok } from "@/server/lib/response";
 import { parseIntParam, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
-  aiKeyRepo,
+  aiEndpointCredentialRepo,
   aiModelRepo,
-  aiProviderRepo,
   aiUsageLogRepo,
   settingsRepo,
   userRepo,
@@ -20,9 +19,9 @@ import {
 
 import { safeParseJsonArray } from "../lib/safe-json";
 import { globalMarkupCache } from "../middleware/consumer-key-auth";
-import adminAiKeys from "./admin-ai-keys";
+import adminAiCredentials from "./admin-ai-credentials";
+import adminAiEndpoints from "./admin-ai-endpoints";
 import adminAiModels from "./admin-ai-models";
-import adminAiProviders from "./admin-ai-providers";
 import adminAiUpstreams from "./admin-ai-upstreams";
 
 const adminAi = new Hono();
@@ -41,36 +40,34 @@ async function resolveUserIdParam(
 
 // ── Mount sub-routers ──────────────────────────────────────────────────
 
-adminAi.route("/", adminAiProviders);
+adminAi.route("/", adminAiEndpoints);
 adminAi.route("/", adminAiUpstreams);
 adminAi.route("/", adminAiModels);
-adminAi.route("/", adminAiKeys);
+adminAi.route("/", adminAiCredentials);
 
 // ── Catalog ─────────────────────────────────────────────────────────────
 
 adminAi.get("/catalog", async (c) => {
   getAdminSession(c);
-  const providers = await aiProviderRepo.findAllActive();
-  const keys = await aiKeyRepo.findAll();
-  const enabledKeyProviderIds = new Set(keys.filter((k) => k.enabled).map((k) => k.providerId));
+  const rows = await aiModelRepo.findAllEnabled();
+  const endpointCredentials = await aiEndpointCredentialRepo.findAll();
+  const enabledEndpointIds = new Set(
+    endpointCredentials
+      .filter((credential) => credential.enabled && credential.credentialEnabled)
+      .map((credential) => credential.endpointId),
+  );
 
-  const catalog = [];
-  for (const provider of providers) {
-    const models = await aiModelRepo.findEnabledByProviderId(provider.id);
-    for (const model of models) {
-      catalog.push({
-        modelId: model.modelId,
-        name: model.name,
-        provider: provider.providerId,
-        providerName: provider.name,
-        capabilities: safeParseJsonArray(model.capabilities, "capabilities"),
-        inputPrice: model.inputPrice,
-        outputPrice: model.outputPrice,
-        contextWindow: model.contextWindow,
-        hasKey: enabledKeyProviderIds.has(provider.id),
-      });
-    }
-  }
+  const catalog = rows.map(({ model, endpoint }) => ({
+    modelId: model.modelId,
+    name: model.name,
+    endpoint: endpoint.endpointId,
+    endpointName: endpoint.name,
+    capabilities: safeParseJsonArray(model.capabilities, "capabilities"),
+    inputPrice: model.inputPrice,
+    outputPrice: model.outputPrice,
+    contextWindow: model.contextWindow,
+    hasCredential: enabledEndpointIds.has(endpoint.id),
+  }));
 
   return ok(c, catalog);
 });
@@ -94,7 +91,7 @@ adminAi.get("/usage/recent", async (c) => {
   const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
   const modelId = c.req.query("modelId") || undefined;
-  const providerId = c.req.query("providerId") || undefined;
+  const endpointId = c.req.query("endpointId") || undefined;
   const statusCode = parseIntParam(c.req.query("statusCode")) ?? undefined;
   const rawStatusClass = c.req.query("statusClass");
   const statusClass =
@@ -107,7 +104,7 @@ adminAi.get("/usage/recent", async (c) => {
     consumerKeyId,
     userId,
     modelId,
-    providerId,
+    endpointId,
     statusCode,
     statusClass,
     requestId,

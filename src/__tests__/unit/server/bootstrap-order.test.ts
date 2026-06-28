@@ -116,8 +116,8 @@ vi.mock("@/server/jobs/refresh-litellm-pricing", () => ({
   closeLiteLLMPricingJob: vi.fn(async () => {}),
 }));
 
-vi.mock("@/server/jobs/check-supplier-health", () => ({
-  initSupplierHealthCheckJob: vi.fn(async () => track("initSupplierHealthCheckJob")),
+vi.mock("@/server/jobs/check-endpoint-health", () => ({
+  initEndpointHealthCheckJob: vi.fn(async () => track("initEndpointHealthCheckJob")),
 }));
 
 vi.mock("@/server/jobs/cleanup-ai-usage-logs", () => ({
@@ -165,11 +165,11 @@ describe("bootstrap initialization order", () => {
     expect(callOrder.indexOf("initAiWriteHandlers")).toBeGreaterThanOrEqual(0);
   });
 
-  it("initSupplierHealthCheckJob runs during bootstrap", async () => {
+  it("initEndpointHealthCheckJob runs during bootstrap", async () => {
     const { bootstrap } = await import("@/server/lib/bootstrap");
     await bootstrap();
 
-    const supplierHealthIdx = callOrder.indexOf("initSupplierHealthCheckJob");
+    const supplierHealthIdx = callOrder.indexOf("initEndpointHealthCheckJob");
     expect(supplierHealthIdx).toBeGreaterThanOrEqual(0);
   });
 
@@ -197,7 +197,7 @@ describe("bootstrap initialization order", () => {
     expect(callOrder).not.toContain("initLiteLLMPricingJob");
     expect(callOrder).not.toContain("initTopupExpiryJob");
     expect(callOrder).not.toContain("initWebhookRetryJob");
-    expect(callOrder).not.toContain("initSupplierHealthCheckJob");
+    expect(callOrder).not.toContain("initEndpointHealthCheckJob");
     expect(callOrder).not.toContain("initLimitedFreeModelExpiryJob");
   });
 
@@ -214,7 +214,7 @@ describe("bootstrap initialization order", () => {
     expect(callOrder).toContain("initTopupExpiryJob");
     expect(callOrder).toContain("initWebhookRetryJob");
     expect(callOrder).toContain("initDepositScanQueue");
-    expect(callOrder).toContain("initSupplierHealthCheckJob");
+    expect(callOrder).toContain("initEndpointHealthCheckJob");
     expect(callOrder).toContain("initLimitedFreeModelExpiryJob");
 
     expect(callOrder).not.toContain("initJwtSecret");

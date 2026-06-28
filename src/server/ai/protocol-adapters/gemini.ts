@@ -16,7 +16,7 @@ import type {
   BuildUrlOptions,
   OpenAIChatBody,
   OpenAIChatResponse,
-  ProviderAdapter,
+  ProtocolAdapter,
   TokenUsage,
 } from "./types";
 
@@ -65,7 +65,7 @@ function toGeminiRole(role: string): string {
 
 // ── Adapter ──────────────────────────────────────────────────────────
 
-export const geminiAdapter: ProviderAdapter = {
+export const geminiAdapter: ProtocolAdapter = {
   format: "gemini",
 
   buildUrl(baseUrl: string, opts: BuildUrlOptions): string {

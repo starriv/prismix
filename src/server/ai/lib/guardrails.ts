@@ -8,7 +8,7 @@
  */
 import { match } from "ts-pattern";
 
-import type { OpenAIChatMessage } from "../providers/types";
+import type { OpenAIChatMessage } from "../protocol-adapters/types";
 
 // ── Types ────────────────────────────────────────────────────────────
 

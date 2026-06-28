@@ -374,8 +374,8 @@ function UpstreamCard({
             value={String(upstream.assignmentCount)}
           />
           <UpstreamCardMetric
-            label={t("ai-upstreams.th.keys")}
-            value={`${upstream.enabledKeys}/${upstream.totalKeys}`}
+            label={t("ai-upstreams.th.credentials")}
+            value={`${upstream.enabledCredentials}/${upstream.totalCredentials}`}
           />
           <UpstreamCardMetric
             label={t("ai-upstreams.th.requests")}
@@ -492,7 +492,7 @@ function UpstreamDetail({
       {
         accessorKey: "providerName",
         cell: ({ row }) => (
-          <DataTableText className="font-medium">{row.original.providerName}</DataTableText>
+          <DataTableText className="font-medium">{row.original.endpointName}</DataTableText>
         ),
         header: t("ai-upstreams.detail.provider-name"),
         meta: { headerClassName: "w-[36%]" },
@@ -658,9 +658,9 @@ function UpstreamDetail({
               </div>
             </div>
             <div>
-              <span className="text-muted-foreground">{t("ai-upstreams.detail.keys")}</span>
+              <span className="text-muted-foreground">{t("ai-upstreams.detail.credentials")}</span>
               <p className="mt-0.5 font-mono">
-                {upstream.enabledKeys}/{upstream.totalKeys}
+                {upstream.enabledCredentials}/{upstream.totalCredentials}
               </p>
             </div>
             <div>
@@ -719,7 +719,7 @@ function UpstreamDetail({
       {/* ── Health Trend Chart ── */}
       <UpstreamHealthChart data={hourly} />
 
-      {/* ── Provider Assignments ── */}
+      {/* ── Endpoint Assignments ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">{t("ai-upstreams.detail.assignments-title")}</CardTitle>

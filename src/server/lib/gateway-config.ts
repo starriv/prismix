@@ -36,7 +36,7 @@ export interface TimeoutConfig {
 }
 
 export interface UpstreamFetchTimeoutOverride {
-  providerId?: string;
+  endpointId?: string;
   modelId?: string;
   upstreamFetchMs: number;
 }
@@ -121,7 +121,7 @@ const DEFAULT_TIMEOUTS: TimeoutConfig = {
   upstreamFetchMs: 120_000, // 120s — extended thinking models need 60-120s for first token
   streamIdleMs: 5 * 60 * 1000,
   streamMaxDurationMs: 30 * 60 * 1000,
-  upstreamFetchOverrides: [{ providerId: "deepseek", upstreamFetchMs: 600_000 }],
+  upstreamFetchOverrides: [{ endpointId: "deepseek", upstreamFetchMs: 600_000 }],
 };
 
 const DEFAULT_QUEUE: QueueConfig = {
@@ -229,11 +229,11 @@ function resolveUpstreamFetchOverrides(
   const normalized: UpstreamFetchTimeoutOverride[] = [];
 
   for (const override of overrides) {
-    const providerId = normalizeOverrideKey(override.providerId);
+    const endpointId = normalizeOverrideKey(override.endpointId);
     const modelId = normalizeOverrideKey(override.modelId);
     const upstreamFetchMs = override.upstreamFetchMs;
     if (
-      !(providerId || modelId) ||
+      !(endpointId || modelId) ||
       typeof upstreamFetchMs !== "number" ||
       !Number.isFinite(upstreamFetchMs) ||
       upstreamFetchMs <= 0
@@ -241,7 +241,7 @@ function resolveUpstreamFetchOverrides(
       continue;
     }
 
-    normalized.push({ providerId, modelId, upstreamFetchMs });
+    normalized.push({ endpointId, modelId, upstreamFetchMs });
   }
 
   if (normalized.length < overrides.length) {
@@ -265,18 +265,18 @@ function normalizeOverrideKey(value: string | undefined): string | undefined {
  */
 export function resolveUpstreamFetchTimeoutMs(
   config: TimeoutConfig,
-  match: { providerId?: string | null; modelId?: string | null },
+  match: { endpointId?: string | null; modelId?: string | null },
 ): number {
-  const providerId = match.providerId ?? undefined;
+  const endpointId = match.endpointId ?? undefined;
   const modelId = match.modelId ?? undefined;
   const matches = config.upstreamFetchOverrides
     .map((item) => {
-      const providerMatches = !item.providerId || item.providerId === providerId;
+      const endpointMatches = !item.endpointId || item.endpointId === endpointId;
       const modelMatches = !item.modelId || item.modelId === modelId;
-      if (!providerMatches || !modelMatches) return null;
+      if (!endpointMatches || !modelMatches) return null;
       return {
         item,
-        specificity: (item.providerId ? 1 : 0) + (item.modelId ? 1 : 0),
+        specificity: (item.endpointId ? 1 : 0) + (item.modelId ? 1 : 0),
       };
     })
     .filter((item): item is { item: UpstreamFetchTimeoutOverride; specificity: number } =>

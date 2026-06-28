@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import { uniq } from "lodash-es";
 
-import { invalidateKeyPool } from "@/server/ai";
+import { invalidateCredentialPool } from "@/server/ai";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
@@ -23,8 +23,9 @@ import {
   parsePaginationOffset,
 } from "@/server/lib/validate";
 import {
-  aiKeyRepo,
-  aiProviderRepo,
+  aiCredentialRepo,
+  aiEndpointCredentialRepo,
+  aiEndpointRepo,
   aiUpstreamRepo,
   aiUsageLogRepo,
   keyProviderRepo,
@@ -39,14 +40,14 @@ async function buildProviderSummary(id: number) {
   if (!provider) return null;
 
   const [ownerStats, usageTotals, revenueShare] = await Promise.all([
-    aiKeyRepo.ownerStats(id),
+    aiCredentialRepo.ownerStats(id),
     aiUsageLogRepo.totalsByOwnerId(id),
     keyProviderTransactionRepo.totalRevenueShareByProviderId(id),
   ]);
 
   return {
     ...provider,
-    keyCount: ownerStats.totalKeys,
+    credentialCount: ownerStats.totalCredentials,
     latestCallAt: ownerStats.latestCallAt,
     totals: {
       requests: usageTotals.requests,
@@ -67,39 +68,57 @@ async function buildProviderKeySummaries(
     offset?: number;
   },
 ) {
-  const ownedKeys = await aiKeyRepo.findByOwnerId(id, opts);
-  const keyIds = ownedKeys.map((k) => k.id);
-  const providerIds = uniq(ownedKeys.map((k) => k.providerId));
-  const upstreamIds = uniq(ownedKeys.flatMap((key) => (key.upstreamId ? [key.upstreamId] : [])));
+  const ownedCredentials = await aiCredentialRepo.findByOwnerId(id, opts);
+  const credentialIds = ownedCredentials.map((credential) => credential.id);
+  const endpointCredentials = await aiEndpointCredentialRepo.findByOwnerId(id);
+  const endpointIds = uniq(endpointCredentials.map((credential) => credential.endpointId));
+  const upstreamIds = uniq(
+    endpointCredentials.flatMap((credential) =>
+      credential.upstreamId ? [credential.upstreamId] : [],
+    ),
+  );
 
-  const [usageByKey, revenueShareByKey, aiProviders, upstreams] = await Promise.all([
-    aiUsageLogRepo.summaryByOwnerAndAiKeyIds(id, keyIds),
-    keyProviderTransactionRepo.summarizeRevenueShareByProviderAndKeyIds(id, keyIds),
-    aiProviderRepo.findByIds(providerIds),
+  const [usageByCredential, revenueShareByCredential, endpoints, upstreams] = await Promise.all([
+    aiUsageLogRepo.summaryByOwnerAndCredentialIds(id, credentialIds),
+    keyProviderTransactionRepo.summarizeRevenueShareByProviderAndCredentialIds(id, credentialIds),
+    aiEndpointRepo.findByIds(endpointIds),
     aiUpstreamRepo.findByIds(upstreamIds),
   ]);
 
-  const usageMap = new Map(usageByKey.map((row) => [row.keyId, row]));
-  const providerNameMap = new Map(aiProviders.map((provider) => [provider.id, provider.name]));
+  const usageMap = new Map(usageByCredential.map((row) => [row.credentialId, row]));
+  const endpointNameMap = new Map(endpoints.map((endpoint) => [endpoint.id, endpoint.name]));
   const upstreamNameMap = new Map(upstreams.map((upstream) => [upstream.id, upstream.name]));
+  const assignmentsByCredentialId = new Map(
+    ownedCredentials.map((credential) => [
+      credential.id,
+      endpointCredentials.filter((assignment) => assignment.credentialId === credential.id),
+    ]),
+  );
 
-  return ownedKeys.map((key) => {
-    const usage = usageMap.get(key.id);
+  return ownedCredentials.map((credential) => {
+    const usage = usageMap.get(credential.id);
     const estimatedCost = usage?.estimatedCost ?? "0";
     const upstreamCost = usage?.upstreamCost ?? "0";
-    const revenueShare = revenueShareByKey.get(key.id) ?? "0";
+    const revenueShare = revenueShareByCredential.get(credential.id) ?? "0";
+    const assignments = assignmentsByCredentialId.get(credential.id) ?? [];
 
     return {
-      keyId: key.id,
-      keyName: key.name,
-      keyPrefix: key.keyPrefix,
-      providerId: key.providerId,
-      providerName: providerNameMap.get(key.providerId) ?? null,
-      upstreamId: key.upstreamId ?? null,
-      upstreamName: key.upstreamId ? (upstreamNameMap.get(key.upstreamId) ?? null) : null,
-      enabled: key.enabled,
-      weight: key.weight,
-      lastUsedAt: key.lastUsedAt,
+      credentialId: credential.id,
+      credentialName: credential.name,
+      keyPrefix: credential.keyPrefix,
+      enabled: credential.enabled,
+      lastUsedAt: credential.lastUsedAt,
+      assignments: assignments.map((assignment) => ({
+        endpointCredentialId: assignment.id,
+        endpointId: assignment.endpointId,
+        endpointName: endpointNameMap.get(assignment.endpointId) ?? null,
+        upstreamId: assignment.upstreamId ?? null,
+        upstreamName: assignment.upstreamId
+          ? (upstreamNameMap.get(assignment.upstreamId) ?? null)
+          : null,
+        enabled: assignment.enabled,
+        weight: assignment.weight,
+      })),
       requests: usage?.requests ?? 0,
       inputTokens: usage?.inputTokens ?? 0,
       outputTokens: usage?.outputTokens ?? 0,
@@ -116,18 +135,21 @@ async function buildProviderKeySummaries(
 keyProvidersRouter.get("/", async (c) => {
   const providers = await keyProviderRepo.findAll();
 
-  // Enrich with key count per provider
-  const allKeys = await aiKeyRepo.findAll();
-  const keyCountByOwner = new Map<number, number>();
-  for (const key of allKeys) {
-    if (key.ownerId) {
-      keyCountByOwner.set(key.ownerId, (keyCountByOwner.get(key.ownerId) ?? 0) + 1);
+  // Enrich with credential count per provider
+  const allCredentials = await aiCredentialRepo.findAll();
+  const credentialCountByOwner = new Map<number, number>();
+  for (const credential of allCredentials) {
+    if (credential.ownerId) {
+      credentialCountByOwner.set(
+        credential.ownerId,
+        (credentialCountByOwner.get(credential.ownerId) ?? 0) + 1,
+      );
     }
   }
 
   const enriched = providers.map((p) => ({
     ...p,
-    keyCount: keyCountByOwner.get(p.id) ?? 0,
+    credentialCount: credentialCountByOwner.get(p.id) ?? 0,
   }));
 
   return ok(c, enriched);
@@ -158,7 +180,7 @@ keyProvidersRouter.get("/:id/summary", async (c) => {
   return ok(c, summary);
 });
 
-keyProvidersRouter.get("/:id/keys", async (c) => {
+keyProvidersRouter.get("/:id/credentials", async (c) => {
   const id = parseIntParam(c.req.param("id"));
   if (!id) return c.json({ error: "Invalid ID" }, 400);
   const limit = parsePaginationLimit(c.req.query("limit"));
@@ -216,22 +238,22 @@ keyProvidersRouter.put("/:id", async (c) => {
 
   const updated = await keyProviderRepo.update(id, parsed.data);
 
-  // Cascade status change to owned keys
+  // Cascade status change to owned credentials
   const newStatus = parsed.data.status;
   if (newStatus && newStatus !== existing.status) {
     const enabled = newStatus === "active";
-    const affectedKeys = await aiKeyRepo.setEnabledByOwnerId(id, enabled);
+    const affectedCredentials = await aiCredentialRepo.setEnabledByOwnerId(id, enabled);
+    const affectedAssignments = await aiEndpointCredentialRepo.findByOwnerId(id);
 
-    // Invalidate key pools for all affected providers
-    const providerIds = uniq(affectedKeys.map((k) => k.providerId));
-    for (const pid of providerIds) {
-      invalidateKeyPool(pid);
-      emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: pid });
+    const endpointIds = uniq(affectedAssignments.map((assignment) => assignment.endpointId));
+    for (const endpointId of endpointIds) {
+      invalidateCredentialPool(endpointId);
+      emit(DOMAIN_EVENT_TYPES.AI_CREDENTIAL_POOL_INVALIDATED, null, { endpointId });
     }
 
     log.admin.info(
-      { providerId: id, newStatus, keysAffected: affectedKeys.length },
-      "Key provider status changed — cascaded to owned keys",
+      { providerId: id, newStatus, credentialsAffected: affectedCredentials.length },
+      "Key provider status changed — cascaded to owned credentials",
     );
   }
 
@@ -248,20 +270,21 @@ keyProvidersRouter.delete("/:id", async (c) => {
   const existing = await keyProviderRepo.findById(id);
   if (!existing) return c.json({ error: "Key provider not found" }, 404);
 
-  // Delete all owned keys, then delete the provider
-  const deletedKeys = await aiKeyRepo.deleteByOwnerId(id);
-  const providerIds = uniq(deletedKeys.map((k) => k.providerId));
+  // Delete all owned credentials, then delete the provider
+  const affectedAssignments = await aiEndpointCredentialRepo.findByOwnerId(id);
+  const deletedCredentials = await aiCredentialRepo.deleteByOwnerId(id);
+  const endpointIds = uniq(affectedAssignments.map((assignment) => assignment.endpointId));
 
   await keyProviderRepo.delete(id);
 
-  for (const pid of providerIds) {
-    invalidateKeyPool(pid);
-    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: pid });
+  for (const endpointId of endpointIds) {
+    invalidateCredentialPool(endpointId);
+    emit(DOMAIN_EVENT_TYPES.AI_CREDENTIAL_POOL_INVALIDATED, null, { endpointId });
   }
 
   log.admin.info(
-    { providerId: id, name: existing.name, keysDeleted: deletedKeys.length },
-    "Key provider deleted — owned keys removed",
+    { providerId: id, name: existing.name, credentialsDeleted: deletedCredentials.length },
+    "Key provider deleted — owned credentials removed",
   );
   return ok(c, { success: true });
 });

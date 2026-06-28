@@ -17,15 +17,15 @@ import { ok } from "@/server/lib/response";
 import { parseBody, parsePaginationLimit } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
-  aiKeyRepo,
-  aiProviderRepo,
+  aiEndpointCredentialRepo,
+  aiEndpointRepo,
   aiUpstreamAssignmentRepo,
   aiUpstreamModelMappingRepo,
   aiUpstreamRepo,
   aiUsageLogRepo,
 } from "@/server/repos";
 
-import { invalidateKeyPool } from "../lib/key-balancer";
+import { invalidateCredentialPool } from "../lib/credential-balancer";
 import { invalidateModelMappingCache } from "../lib/model-mapping-cache";
 import { invalidateUpstreamCacheForUpstream } from "../lib/upstream-routing";
 import { formatUpstream } from "./admin-ai-helpers";
@@ -68,14 +68,14 @@ router.get("/upstreams/overview", async (c) => {
   const upstreamIds = upstreams.map((u) => u.id);
 
   const assignmentCounts = await aiUpstreamAssignmentRepo.countByUpstreamIds(upstreamIds);
-  const keyCounts = await aiKeyRepo.countByUpstreamIds(upstreamIds);
-  const keyCountMap = new Map(keyCounts.map((row) => [row.upstreamId, row]));
+  const credentialCounts = await aiEndpointCredentialRepo.countByUpstreamIds(upstreamIds);
+  const credentialCountMap = new Map(credentialCounts.map((row) => [row.upstreamId, row]));
   const usageRows = await aiUsageLogRepo.upstreamOverview(hours);
   const usageMap = new Map(usageRows.map((row) => [row.upstreamId, row]));
   const latestMap = await aiUsageLogRepo.findLatestByUpstreamIds(upstreamIds);
 
   const items = upstreams.map((upstream) => {
-    const keyStat = keyCountMap.get(upstream.id);
+    const credentialStat = credentialCountMap.get(upstream.id);
     const usage = usageMap.get(upstream.id);
     const latest = latestMap.get(upstream.id);
     const totalErrors = (usage?.clientErrors24h ?? 0) + (usage?.serverErrors24h ?? 0);
@@ -91,7 +91,7 @@ router.get("/upstreams/overview", async (c) => {
       healthStatus = "disabled";
     } else if (upstream.autoDisabled || upstream.healthStatus === "down") {
       healthStatus = "down";
-    } else if ((keyStat?.enabledKeys ?? 0) === 0) {
+    } else if ((credentialStat?.enabledCredentials ?? 0) === 0) {
       healthStatus = "no-key";
     } else if (upstream.healthStatus === "healthy" || upstream.healthStatus === "degraded") {
       healthStatus = upstream.healthStatus;
@@ -115,8 +115,8 @@ router.get("/upstreams/overview", async (c) => {
       enabled: upstream.enabled,
       autoDisabled: upstream.autoDisabled,
       assignmentCount: assignmentCounts.get(upstream.id) ?? 0,
-      totalKeys: keyStat?.totalKeys ?? 0,
-      enabledKeys: keyStat?.enabledKeys ?? 0,
+      totalCredentials: credentialStat?.totalCredentials ?? 0,
+      enabledCredentials: credentialStat?.enabledCredentials ?? 0,
       requests24h: usage?.requests24h ?? 0,
       clientErrors24h: usage?.clientErrors24h ?? 0,
       serverErrors24h: usage?.serverErrors24h ?? 0,
@@ -156,16 +156,16 @@ router.get("/upstreams/:id", async (c) => {
   if (!upstream) return c.json({ error: "Upstream not found" }, 404);
 
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(id);
-  const providers = await aiProviderRepo.findAll();
-  const providerMap = new Map(providers.map((p) => [p.id, p]));
+  const endpoints = await aiEndpointRepo.findAll();
+  const endpointMap = new Map(endpoints.map((endpoint) => [endpoint.id, endpoint]));
 
   const enrichedAssignments = assignments.map((a) => {
-    const provider = providerMap.get(a.providerId);
+    const endpoint = endpointMap.get(a.endpointId);
     return {
       id: a.id,
-      providerId: a.providerId,
-      providerName: provider?.name ?? "Unknown",
-      providerSlug: provider?.providerId ?? null,
+      endpointId: a.endpointId,
+      endpointName: endpoint?.name ?? "Unknown",
+      endpointSlug: endpoint?.endpointId ?? null,
       priority: a.priority,
       weight: a.weight,
       enabled: a.enabled,
@@ -200,13 +200,16 @@ router.put("/upstreams/:id", async (c) => {
 
   const updated = await aiUpstreamRepo.update(id, updates);
 
-  // Invalidate all providers assigned to this upstream
+  // Invalidate all endpoints assigned to this upstream
   await invalidateUpstreamCacheForUpstream(id);
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(id);
   for (const a of assignments) {
-    invalidateKeyPool(a.providerId);
-    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: a.providerId });
-    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: a.providerId });
+    invalidateCredentialPool(a.endpointId, id);
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { endpointId: a.endpointId });
+    emit(DOMAIN_EVENT_TYPES.AI_CREDENTIAL_POOL_INVALIDATED, null, {
+      endpointId: a.endpointId,
+      upstreamId: id,
+    });
   }
 
   return ok(c, formatUpstream(updated!));
@@ -220,13 +223,16 @@ router.delete("/upstreams/:id", async (c) => {
   const existing = await aiUpstreamRepo.findById(id);
   if (!existing) return c.json({ error: "Upstream not found" }, 404);
 
-  // Invalidate caches before delete (cascade removes assignments + keys SET NULL)
+  // Invalidate caches before delete (cascade removes assignments + endpoint credential upstream refs SET NULL)
   await invalidateUpstreamCacheForUpstream(id);
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(id);
   for (const a of assignments) {
-    invalidateKeyPool(a.providerId);
-    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { providerId: a.providerId });
-    emit(DOMAIN_EVENT_TYPES.AI_KEY_POOL_INVALIDATED, null, { providerId: a.providerId });
+    invalidateCredentialPool(a.endpointId, id);
+    emit(DOMAIN_EVENT_TYPES.AI_UPSTREAM_CACHE_INVALIDATED, null, { endpointId: a.endpointId });
+    emit(DOMAIN_EVENT_TYPES.AI_CREDENTIAL_POOL_INVALIDATED, null, {
+      endpointId: a.endpointId,
+      upstreamId: id,
+    });
   }
 
   await aiUpstreamModelMappingRepo.deleteByUpstreamId(id);

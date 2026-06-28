@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OpenAIChatBody, OpenAIChatResponse } from "@/server/ai/providers/types";
+import type { OpenAIChatBody, OpenAIChatResponse } from "@/server/ai/protocol-adapters/types";
 import type { Announcement } from "@/server/db";
 import {
   type AnnouncementNoticePayload,

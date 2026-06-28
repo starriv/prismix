@@ -58,8 +58,8 @@ const baseBill = {
   usage: { inputTokens: 1000, outputTokens: 1000, totalTokens: 2000 },
   latencyMs: 123,
   consumer,
-  keyId: 7,
-  providerId: "openai",
+  endpointCredentialId: 7,
+  endpointId: "openai",
   modelId: "gpt-4o",
   inputPrice: "1000",
   outputPrice: "1000",
@@ -128,7 +128,7 @@ describe("consumer billing limits", () => {
     expect(log.gateway.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 100,
-        keyId: 7,
+        endpointCredentialId: 7,
         modelId: "gpt-4o",
         requestId: "req-1",
       }),

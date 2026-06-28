@@ -5,16 +5,16 @@
  * Everything outside `src/server/ai/` imports from this barrel.
  */
 
-// ── Key balancer ───────────────────────────────────────────────────────
+// ── Credential balancer ────────────────────────────────────────────────
 
-export { invalidateKeyPool } from "./lib/key-balancer";
+export { invalidateCredentialPool } from "./lib/credential-balancer";
 
 // ── Routes ──────────────────────────────────────────────────────────────
 
 export { default as adminAiRouter } from "./routes/admin-ai";
-export { default as adminAiProvidersRouter } from "./routes/admin-ai-providers";
+export { default as adminAiEndpointsRouter } from "./routes/admin-ai-endpoints";
 export { default as adminAiModelsRouter } from "./routes/admin-ai-models";
-export { default as adminAiKeysRouter } from "./routes/admin-ai-keys";
+export { default as adminAiCredentialsRouter } from "./routes/admin-ai-credentials";
 export { default as adminAiUpstreamsRouter } from "./routes/admin-ai-upstreams";
 export { default as aiRelayRouter } from "./routes/relay";
 export { default as aiMcpRouter } from "./routes/mcp";

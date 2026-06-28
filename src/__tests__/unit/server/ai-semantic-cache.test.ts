@@ -56,7 +56,7 @@ describe("buildCacheKey", () => {
   const keyInput = (overrides: Record<string, unknown> = {}) => ({
     scope: "consumer:1",
     model: "gpt-4o",
-    providerId: "openai",
+    endpointId: "openai",
     upstreamId: 10,
     requestBody: {
       model: "gpt-4o",
@@ -115,6 +115,18 @@ describe("buildCacheKey", () => {
   it("produces different keys for different scopes", () => {
     expect(buildCacheKey(keyInput({ scope: "consumer:1" }))).not.toBe(
       buildCacheKey(keyInput({ scope: "consumer:2" })),
+    );
+  });
+
+  it("produces different keys for different endpointId", () => {
+    expect(buildCacheKey(keyInput({ endpointId: "openai" }))).not.toBe(
+      buildCacheKey(keyInput({ endpointId: "anthropic" })),
+    );
+  });
+
+  it("produces different keys for different upstreamId", () => {
+    expect(buildCacheKey(keyInput({ upstreamId: 10 }))).not.toBe(
+      buildCacheKey(keyInput({ upstreamId: 20 })),
     );
   });
 

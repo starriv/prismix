@@ -11,7 +11,7 @@ import { enqueueJob } from "@/server/lib/write-queue";
 import { payAgentRepo, payAgentTransactionRepo } from "@/server/repos";
 import { gt, removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
-import type { TokenUsage } from "../providers/types";
+import type { TokenUsage } from "../protocol-adapters/types";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -29,8 +29,9 @@ export interface BillConsumerParams {
   usage: TokenUsage | null;
   latencyMs: number;
   consumer: ConsumerBillingContext;
-  keyId: number;
-  providerId: string;
+  endpointCredentialId: number;
+  supplierId?: string | null;
+  endpointId: string;
   modelId: string;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -215,8 +216,9 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
       {
         agentId: p.consumer.agentId,
         consumerKeyId: p.consumer.consumerId,
-        keyId: p.keyId,
-        providerId: p.providerId,
+        endpointCredentialId: p.endpointCredentialId,
+        supplierId: p.supplierId ?? null,
+        endpointId: p.endpointId,
         modelId: p.modelId,
         upstreamId: p.upstreamId,
         upstreamName: p.upstreamName,
@@ -254,7 +256,7 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
         requestId: p.requestId,
         upstreamCost: removeTailingZero(upstreamCost, 6),
         markupPercent: p.consumer.markupPercent,
-        aiKeyId: p.keyId,
+        endpointCredentialId: p.endpointCredentialId,
       } as Record<string, unknown>);
     } else {
       log.gateway.warn(
@@ -277,10 +279,11 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
 
   // Log usage
   enqueueJob("ai-usage-log", {
-    keyId: p.keyId,
+    endpointCredentialId: p.endpointCredentialId,
     consumerKeyId: p.consumer.consumerId,
     userId: p.consumer.userId,
-    providerId: p.providerId,
+    supplierId: p.supplierId ?? null,
+    endpointId: p.endpointId,
     modelId: p.modelId,
     upstreamId: p.upstreamId ?? null,
     upstreamName: p.upstreamName ?? null,
@@ -299,7 +302,7 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
     error: p.error ?? null,
   } as Record<string, unknown>);
   enqueueJob("consumer-key-touch", { consumerId: p.consumer.consumerId });
-  enqueueJob("ai-key-touch", { keyId: p.keyId, keyType: "admin" });
+  enqueueJob("ai-endpoint-credential-touch", { endpointCredentialId: p.endpointCredentialId });
 
   // Request/response body logging (opt-in)
   if (p.requestBody) {

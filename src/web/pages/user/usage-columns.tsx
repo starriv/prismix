@@ -6,17 +6,17 @@ import { dataTableMeta, DataTableText } from "@/web/components/data-table";
 
 import { UserCountText, UserCurrencyText, UserTokenText } from "./table-helpers";
 
-type AiUsageByProviderRow = AiUsageSummary["byProvider"][number];
+type AiUsageByEndpointRow = AiUsageSummary["byEndpoint"][number];
 type AiUsageByModelRow = AiUsageSummary["byModel"][number];
 
-export function buildUserUsageProviderColumns(t: TFunction): ColumnDef<AiUsageByProviderRow>[] {
+export function buildUserUsageEndpointColumns(t: TFunction): ColumnDef<AiUsageByEndpointRow>[] {
   return [
     {
-      accessorKey: "providerId",
+      accessorKey: "endpointId",
       cell: ({ row }) => (
-        <DataTableText className="font-medium">{row.original.providerId}</DataTableText>
+        <DataTableText className="font-medium">{row.original.endpointId}</DataTableText>
       ),
-      header: t("ai-usage.th.provider"),
+      header: t("ai-usage.th.endpoint"),
       meta: {
         headerClassName: "w-[24%]",
       },
@@ -72,11 +72,11 @@ export function buildUserUsageProviderColumns(t: TFunction): ColumnDef<AiUsageBy
 export function buildUserUsageModelColumns(t: TFunction): ColumnDef<AiUsageByModelRow>[] {
   return [
     {
-      accessorKey: "providerId",
+      accessorKey: "endpointId",
       cell: ({ row }) => (
-        <DataTableText className="font-medium">{row.original.providerId}</DataTableText>
+        <DataTableText className="font-medium">{row.original.endpointId}</DataTableText>
       ),
-      header: t("ai-usage.th.provider"),
+      header: t("ai-usage.th.endpoint"),
       meta: {
         headerClassName: "w-[16%]",
       },

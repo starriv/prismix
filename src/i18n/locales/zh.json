@@ -51,9 +51,11 @@
       "delete": "删除",
       "copy": "复制",
       "edit": "编辑",
+      "retry": "重试",
       "back": "返回"
     },
     "no-results": "无搜索结果",
+    "loading": "加载中…",
     "copied": "已复制",
     "wallet": {
       "wrong-network": "网络错误"
@@ -115,7 +117,7 @@
     "fiat-configs": "收款方式",
     "webhooks": "Webhooks",
     "ai-gateway": "AI 网关",
-    "ai-providers": "模型供应商",
+    "ai-endpoints": "AI 端点",
     "ai-models": "模型",
     "ai-relay": "AI 端点",
     "ai-usage": "用量",
@@ -421,8 +423,8 @@
         "ms-hint": "单位：毫秒",
         "btn-add-override": "添加覆盖",
         "overrides": "上游请求覆盖",
-        "overrides-desc": "按 provider 或网关模型为首包较慢的上游设置更长等待时间。仅填模型会匹配所有 provider。",
-        "provider-id": "Provider ID",
+        "overrides-desc": "按端点或网关模型为首包较慢的上游设置更长等待时间。仅填模型会匹配所有端点。",
+        "provider-id": "端点 ID",
         "model-id": "模型 ID",
         "override-ms": "覆盖值 (ms)",
         "remove-override": "删除覆盖"
@@ -483,7 +485,10 @@
         "never-used": "暂无调用",
         "by-key": "按 Key 明细",
         "chart-title": "各 Key 成本与分润对比",
-        "no-keys": "暂无分配给此合作方的 Key。"
+        "no-keys": "暂无分配给此合作方的 Key。",
+        "reconciliation": "对账",
+        "open-report": "打开报告",
+        "txn-key": "Key：{{name}} (#{{id}})"
       },
       "report": {
         "title": "{{name}} 报告",
@@ -1067,7 +1072,7 @@
       "topup": "充值",
       "tx": "交易",
       "alert": "告警",
-      "supplier": "供应商",
+      "ai": "AI",
       "system": "系统"
     },
     "event": {
@@ -1081,8 +1086,8 @@
       "alert-upstream-timeout": "上游超时",
       "alert-error-spike": "错误激增",
       "alert-resource-down": "资源宕机",
-      "supplier-disabled": "供应商自动禁用",
-      "supplier-reenabled": "供应商自动恢复",
+      "endpoint-disabled": "端点自动禁用",
+      "endpoint-reenabled": "端点自动恢复",
       "system-announcement": "系统公告"
     },
     "event-desc": {
@@ -1096,8 +1101,8 @@
       "alert-upstream-timeout": "上游服务请求超时。",
       "alert-error-spike": "错误量超过预期阈值。",
       "alert-resource-down": "被监控资源不可用。",
-      "supplier-disabled": "供应商健康检查失败后被自动禁用。",
-      "supplier-reenabled": "供应商恢复后被自动启用。",
+      "endpoint-disabled": "端点健康检查失败后被自动禁用。",
+      "endpoint-reenabled": "端点恢复后被自动启用。",
       "system-announcement": "系统公告已发布。"
     },
     "toast": {
@@ -1230,7 +1235,8 @@
       "ai-title-2": "一个端点，接入多家模型供应商",
       "ai-tagline": "统一接入 · 智能路由 · 用量计费",
       "ai-desc": "专门适配 Claude Code，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
-      "cta-primary": "开始接入"
+      "cta-primary": "开始接入",
+      "cta-secondary": "阅读文档"
     },
     "hero-chat": {
       "q1": "用 3 条总结 Q4 业绩",
@@ -2299,20 +2305,20 @@
       "payment_not_received": "未收到匹配的付款"
     }
   },
-  "ai-providers": {
-    "title": "模型供应商",
-    "desc": "管理你的模型供应商连接",
-    "empty": "暂未配置模型供应商",
+  "ai-endpoints": {
+    "title": "AI 端点",
+    "desc": "管理真实供应商下可调用的 AI 端点",
+    "empty": "暂未配置 AI 端点",
     "card": {
       "upstreams": "{{count}} 个上游",
       "no-upstreams": "官方上游",
       "loading": "加载中…",
       "unavailable": "上游信息不可用",
-      "open-provider": "打开 {{name}}"
+      "open-endpoint": "打开 {{name}}"
     },
     "btn": {
-      "new": "添加模型供应商",
-      "create": "创建模型供应商",
+      "new": "添加端点",
+      "create": "创建端点",
       "assign-upstream": "分配上游"
     },
     "th": {
@@ -2325,19 +2331,21 @@
       "weighted-random": "加权随机"
     },
     "form": {
-      "provider-id": "模型供应商 ID",
-      "provider-id-ph": "输入模型供应商 ID",
+      "supplier": "供应商",
+      "supplier-ph": "选择供应商",
+      "endpoint-id": "端点 ID",
+      "endpoint-id-ph": "输入端点 ID",
       "name": "名称",
-      "name-ph": "输入模型供应商名称",
+      "name-ph": "输入端点名称",
       "base-url": "基础 URL",
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API 格式",
       "auth-type": "认证类型",
       "upstream-routing-strategy": "上游调度策略",
-      "upstream-routing-strategy-hint": "决定 provider 下多个 upstream 的默认选择顺序。",
+      "upstream-routing-strategy-hint": "决定端点下多个 upstream 的默认选择顺序。",
       "official-concurrency-limit": "官方上游并发上限",
       "official-concurrency-limit-ph": "留空表示不限制",
-      "official-concurrency-limit-desc": "同一时间最多向模型供应商官方 Base URL 发送的请求数。",
+      "official-concurrency-limit-desc": "同一时间最多向端点官方 Base URL 发送的请求数。",
       "official-queue-timeout": "官方上游排队超时 (ms)",
       "official-queue-timeout-desc": "官方上游达到并发上限时，请求等待并发槽的最长时间。",
       "sigv4-region": "AWS 区域",
@@ -2351,23 +2359,23 @@
       "cloudflare-client-id-hint": "作为 CF-Access-Client-Id 发送的服务令牌 Client ID"
     },
     "dialog": {
-      "add-title": "添加模型供应商",
-      "edit-title": "编辑模型供应商",
-      "delete-title": "删除模型供应商",
-      "delete-body": "删除「{{name}}」？所有关联的模型和密钥也会被删除。",
+      "add-title": "添加端点",
+      "edit-title": "编辑端点",
+      "delete-title": "删除端点",
+      "delete-body": "删除「{{name}}」？所有关联的模型和凭证也会被删除。",
       "assign-upstream-title": "分配上游",
       "edit-upstream-title": "编辑分配",
       "delete-upstream-title": "移除上游",
-      "delete-upstream-body": "从此模型供应商移除上游「{{name}}」？绑定到该上游的所有密钥也会被一并删除。"
+      "delete-upstream-body": "从此端点移除上游「{{name}}」？绑定到该上游的所有凭证也会被一并删除。"
     },
     "upstreams": {
       "section-title": "上游",
-      "desc": "为同一个模型供应商配置多个执行入口，并设置调度优先级或权重。",
+      "desc": "为同一个端点配置多个执行入口，并设置调度优先级或权重。",
       "empty": "暂无已分配上游。",
       "official-title": "官方上游",
       "official-id": "official",
-      "official-default-desc": "当前使用模型供应商 Base URL 作为默认执行入口。",
-      "official-fallback-desc": "额外上游不可用时回退到模型供应商 Base URL。",
+      "official-default-desc": "当前使用端点 Base URL 作为默认执行入口。",
+      "official-fallback-desc": "额外上游不可用时回退到端点 Base URL。",
       "unlimited": "不限制",
       "route-role": "调度角色",
       "default-route": "默认入口",
@@ -2386,7 +2394,7 @@
       "form": {
         "upstream": "上游",
         "upstream-ph": "选择上游",
-        "no-available": "所有上游均已分配至此模型供应商。",
+        "no-available": "所有上游均已分配至此端点。",
         "priority": "优先级",
         "weight": "权重",
         "enabled": "启用"
@@ -2398,29 +2406,29 @@
         "custom": "自定义"
       }
     },
-    "keys": {
-      "section-title": "密钥池",
-      "desc": "按上游分组的 API 密钥。每个池内的密钥按模型供应商策略进行负载均衡。",
-      "empty": "此池暂无密钥",
+    "credentials": {
+      "section-title": "凭证池",
+      "desc": "按上游分组的 API 凭证。每个池内的凭证按端点策略进行负载均衡。",
+      "empty": "此池暂无凭证",
       "official-bucket": "官方",
-      "official-hint": "兜底池 — 使用模型供应商 Base URL（优先级 1000）",
+      "official-hint": "兜底池 — 使用端点 Base URL（优先级 1000）",
       "count": "{{enabled}}/{{total}} 启用",
       "next": "下一个轮到",
-      "add": "添加密钥",
+      "add": "添加凭证",
       "weight-hint": "权重 — 值越大分配的流量越多",
       "weight-down": "降低权重",
       "weight-up": "增加权重",
       "strategy": {
-        "label": "密钥均衡",
+        "label": "凭证均衡",
         "round-robin": "轮询",
         "random": "随机"
       },
       "form": {
-        "name": "密钥名称",
-        "name-ph": "输入密钥名称",
+        "name": "凭证名称",
+        "name-ph": "输入凭证名称",
         "api-key": "API 密钥",
         "api-key-ph": "sk-...",
-        "api-key-hint": "您的密钥将被加密存储",
+        "api-key-hint": "您的凭证将被加密存储",
         "cloudflare-client-secret": "CF Access Client Secret",
         "cloudflare-client-secret-ph": "输入 Cloudflare Access Client Secret",
         "cloudflare-client-secret-hint": "将被加密存储，并作为 CF-Access-Client-Secret 发送",
@@ -2430,20 +2438,20 @@
         "owner": "密钥合作方（可选）",
         "owner-ph": "选择密钥合作方",
         "owner-none": "平台自有（无合作方）",
-        "owner-hint": "将此密钥分配给第三方密钥合作方以启用分润"
+        "owner-hint": "将此凭证分配给第三方密钥合作方以启用分润"
       },
       "dialog": {
-        "add-title": "添加密钥到 {{upstream}}",
-        "delete-title": "删除 API 密钥",
-        "delete-body": "删除密钥「{{name}}」？此操作不可撤销。"
+        "add-title": "添加凭证到 {{upstream}}",
+        "delete-title": "删除 API 凭证",
+        "delete-body": "删除凭证「{{name}}」？此操作不可撤销。"
       },
       "toast": {
-        "created": "API 密钥已创建",
-        "updated": "API 密钥已更新",
-        "deleted": "API 密钥已删除",
-        "create-error": "创建 API 密钥失败",
-        "update-error": "更新 API 密钥失败",
-        "delete-error": "删除 API 密钥失败",
+        "created": "API 凭证已创建",
+        "updated": "API 凭证已更新",
+        "deleted": "API 凭证已删除",
+        "create-error": "创建 API 凭证失败",
+        "update-error": "更新 API 凭证失败",
+        "delete-error": "删除 API 凭证失败",
         "test-ok": "连接成功 ({{ms}}ms)",
         "test-error": "连接失败"
       },
@@ -2453,12 +2461,12 @@
       "never": "从未使用"
     },
     "toast": {
-      "created": "模型供应商已创建",
-      "updated": "模型供应商已更新",
-      "deleted": "模型供应商已删除",
-      "create-error": "创建模型供应商失败",
-      "update-error": "更新模型供应商失败",
-      "delete-error": "删除模型供应商失败",
+      "created": "端点已创建",
+      "updated": "端点已更新",
+      "deleted": "端点已删除",
+      "create-error": "创建端点失败",
+      "update-error": "更新端点失败",
+      "delete-error": "删除端点失败",
       "upstream-assigned": "上游已分配",
       "upstream-updated": "分配已更新",
       "upstream-deleted": "上游已移除",
@@ -2469,10 +2477,10 @@
   },
   "ai-models": {
     "title": "AI 模型",
-    "desc": "管理模型目录与模型供应商路由",
+    "desc": "管理模型目录与端点路由",
     "empty": "暂无已配置的模型",
     "card-title": "模型目录",
-    "no-providers": "暂无已配置的模型供应商",
+    "no-endpoints": "暂无已配置的模型端点",
     "btn": {
       "new": "添加模型",
       "create": "创建模型",
@@ -2483,7 +2491,7 @@
       "routes": "路由"
     },
     "filter": {
-      "all-providers": "所有模型供应商",
+      "all-endpoints": "所有端点",
       "no-routes": "无路由",
       "all-status": "全部状态",
       "enabled": "已启用",
@@ -2514,8 +2522,8 @@
       "input-price": "输入价格 (/1M tokens)",
       "output-price": "输出价格 (/1M tokens)",
       "price-ph": "0.00",
-      "provider": "模型供应商",
-      "provider-ph": "选择模型供应商以发现模型",
+      "endpoint": "端点",
+      "endpoint-ph": "选择端点以发现模型",
       "capabilities": "能力",
       "capabilities-ph": "chat, vision, tools, streaming",
       "limited-free-until": "限时免费到期时间",
@@ -2529,9 +2537,9 @@
       "enabled": "启用"
     },
     "discover": {
-      "toggle": "从模型供应商发现模型",
-      "loading": "正在从模型供应商拉取模型…",
-      "no-key": "此模型供应商尚未配置 API 密钥，请先添加密钥以启用模型发现。",
+      "toggle": "从端点发现模型",
+      "loading": "正在从端点拉取模型…",
+      "no-key": "此端点尚未配置凭证，请先添加凭证以启用模型发现。",
       "models": "模型",
       "select-all": "全选",
       "select-none": "取消全选",
@@ -2570,28 +2578,28 @@
       "delete-error": "删除模型失败"
     },
     "routes": {
-      "title": "模型供应商路由",
-      "desc": "配置哪些模型供应商提供此模型。优先级数值越小越先尝试。",
-      "empty": "暂无路由配置。添加模型供应商路由以启用此模型。",
+      "title": "端点路由",
+      "desc": "配置哪些端点提供此模型。优先级数值越小越先尝试。",
+      "empty": "暂无路由配置。添加端点路由以启用此模型。",
       "btn": {
         "add": "添加路由",
         "routes": "路由"
       },
       "th": {
         "priority": "优先级",
-        "provider": "模型供应商",
-        "provider-model-id": "上游模型",
+        "endpoint": "端点",
+        "endpoint-model-id": "上游模型",
         "weight": "权重"
       },
       "form": {
-        "provider-ph": "选择模型供应商",
-        "provider-model-id-hint": "留空则使用模型自身的 ID",
+        "endpoint-ph": "选择端点",
+        "endpoint-model-id-hint": "留空则使用模型自身的 ID",
         "priority-hint": "数值越小优先级越高（优先尝试）"
       },
       "dialog": {
-        "add-title": "添加模型供应商路由",
+        "add-title": "添加端点路由",
         "delete-title": "移除路由",
-        "delete-body": "移除到 {{provider}} 的路由？此模型将不再通过该模型供应商提供服务。"
+        "delete-body": "移除到 {{provider}} 的路由？此模型将不再通过该端点提供服务。"
       },
       "toast": {
         "created": "路由已添加",
@@ -2609,7 +2617,7 @@
     "desc": "您账户可用的模型及定价",
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
-    "no-providers": "暂无已配置的模型供应商",
+    "no-endpoints": "暂无已配置的模型端点",
     "tag": {
       "limited-free": "限时免费",
       "limited-free-until": "限时免费至 {{time}}"
@@ -2630,7 +2638,7 @@
     "desc": "分离 OpenAI 与 Anthropic Base URL，共享路由、计费和用量追踪",
     "intro": {
       "title": "什么是 AI 端点？",
-      "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个端点有自己的模型目录，底层共享模型供应商路由、计费和用量追踪。",
+      "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个端点有自己的模型目录，底层共享端点路由、计费和用量追踪。",
       "benefits": "按协议分离 URL | 按 Key 计费与限速 | 原生 SDK 兼容"
     },
     "endpoint": {
@@ -2640,11 +2648,11 @@
       "hint-after": "。OpenAI SDK 使用 OpenAI URL；Claude Code 使用 Anthropic URL，客户端会自动追加 /v1。"
     },
     "providers": {
-      "title": "提供商状态",
+      "title": "端点状态",
       "manage-keys": "管理密钥",
       "ready": "就绪",
       "no-key": "未配置",
-      "empty": "暂无可用提供商"
+      "empty": "暂无可用端点"
     },
     "toast": {
       "copied": "已复制到剪贴板"
@@ -2661,8 +2669,8 @@
       "est-cost": "预估费用",
       "error-rate": "错误率"
     },
-    "by-provider": {
-      "title": "按提供商"
+    "by-endpoint": {
+      "title": "按端点"
     },
     "by-model": {
       "title": "按模型"
@@ -2674,7 +2682,7 @@
       "collapse": "收起"
     },
     "th": {
-      "provider": "提供商",
+      "endpoint": "端点",
       "model": "模型",
       "upstream": "上游",
       "requests": "请求数",
@@ -2720,7 +2728,7 @@
     "th": {
       "request-id": "请求 ID",
       "model": "模型",
-      "provider": "提供商",
+      "endpoint": "端点",
       "upstream": "上游",
       "tokens": "Token 数",
       "cost": "费用",
@@ -2740,7 +2748,7 @@
       "overview": "概览",
       "request-id": "请求 ID",
       "model": "模型",
-      "provider": "提供商",
+      "endpoint": "端点",
       "upstream": "上游",
       "upstream-url": "上游地址",
       "consumer-key": "消费者密钥",
@@ -2793,7 +2801,7 @@
       "upstream": "上游",
       "kind": "类型",
       "status": "状态",
-      "keys": "密钥",
+      "credentials": "凭证",
       "requests": "24h 请求",
       "error-rate": "24h 错误率",
       "latency": "24h 平均延迟",
@@ -2814,7 +2822,7 @@
       "create-title": "创建上游",
       "edit-title": "编辑上游",
       "delete-title": "删除上游",
-      "delete-body": "该上游及其所有 Provider 分配将被移除。绑定到该上游的密钥将回退到 Provider 的默认 URL。"
+      "delete-body": "该上游及其所有端点分配将被移除。绑定到该上游的凭证将回退到端点默认 URL。"
     },
     "form": {
       "upstream-id": "上游 ID",
@@ -2826,7 +2834,7 @@
       "kind": "类型",
       "models-endpoint": "模型列表端点",
       "models-endpoint-ph": "https://proxy.example.com/v1/models",
-      "models-endpoint-desc": "自定义模型发现 URL，留空则根据模型供应商格式自动检测。",
+      "models-endpoint-desc": "自定义模型发现 URL，留空则根据端点格式自动检测。",
       "concurrency-limit": "并发上限",
       "concurrency-limit-ph": "留空表示不限制",
       "concurrency-limit-desc": "同一时间最多向该上游发送的请求数。",
@@ -2850,14 +2858,14 @@
       "info": "基本信息",
       "metrics": "24h 指标",
       "assignments": "分配数",
-      "assignments-title": "关联模型供应商",
-      "assignments-empty": "暂无模型供应商使用此上游",
+      "assignments-title": "关联端点",
+      "assignments-empty": "暂无端点使用此上游",
       "upstream-id": "上游 ID",
       "base-url": "Base URL",
       "kind": "类型",
       "health": "健康状态",
       "enabled": "启用",
-      "keys": "密钥",
+      "credentials": "凭证",
       "concurrency-limit": "并发",
       "queue-timeout": "排队超时",
       "tokens-24h": "24h Token",
@@ -2868,7 +2876,7 @@
       "last-checked": "最近检测",
       "consecutive-failures": "连续失败",
       "last-error": "最近错误",
-      "provider-name": "模型供应商",
+      "provider-name": "端点",
       "priority": "优先级",
       "weight": "权重",
       "recent-title": "最近请求",

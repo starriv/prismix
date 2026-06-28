@@ -1,4 +1,4 @@
-import type { AiProvider } from "@/server/db";
+import type { AiEndpoint } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { weightedShuffle } from "@/server/lib/weighted-shuffle";
 import { aiUpstreamAssignmentRepo, type AssignmentWithUpstream } from "@/server/repos";
@@ -35,21 +35,21 @@ export const MAX_UPSTREAM_ATTEMPTS = 5;
 const upstreamCache = new Map<number, CachedUpstreams>();
 
 /**
- * Invalidate upstream cache for a provider.
+ * Invalidate upstream cache for an endpoint.
  * Call after assignment CRUD operations.
  */
-export function invalidateUpstreamCache(providerId: number): void {
-  upstreamCache.delete(providerId);
+export function invalidateUpstreamCache(endpointId: number): void {
+  upstreamCache.delete(endpointId);
 }
 
 /**
- * Invalidate upstream cache for all providers assigned to a global upstream.
+ * Invalidate upstream cache for all endpoints assigned to a global upstream.
  * Call after global upstream update/delete.
  */
 export async function invalidateUpstreamCacheForUpstream(upstreamId: number): Promise<void> {
   const assignments = await aiUpstreamAssignmentRepo.findByUpstreamId(upstreamId);
   for (const assignment of assignments) {
-    upstreamCache.delete(assignment.providerId);
+    upstreamCache.delete(assignment.endpointId);
   }
 }
 
@@ -62,7 +62,7 @@ export function clearUpstreamCache(): void {
 
 // ── Target builders ─────────────────────────────────────────────────
 
-function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): UpstreamTarget {
+function toTarget(assignment: AssignmentWithUpstream): UpstreamTarget {
   return {
     id: assignment.upstream.id,
     upstreamId: assignment.upstream.upstreamId,
@@ -79,17 +79,17 @@ function toTarget(provider: AiProvider, assignment: AssignmentWithUpstream): Ups
   };
 }
 
-function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): UpstreamTarget {
+function toOfficialTarget(endpoint: AiEndpoint, priorityFallback = 1000): UpstreamTarget {
   return {
     id: null,
-    upstreamId: "legacy",
-    concurrencyScopeKey: `provider:${provider.id}:official`,
-    name: `${provider.name} Default`,
-    baseUrl: provider.baseUrl,
+    upstreamId: "official",
+    concurrencyScopeKey: `endpoint:${endpoint.id}:official`,
+    name: `${endpoint.name} Official`,
+    baseUrl: endpoint.baseUrl,
     kind: "official",
     modelsEndpoint: null,
-    concurrencyLimit: provider.officialConcurrencyLimit ?? null,
-    queueTimeoutMs: provider.officialQueueTimeoutMs,
+    concurrencyLimit: endpoint.officialConcurrencyLimit ?? null,
+    queueTimeoutMs: endpoint.officialQueueTimeoutMs,
     priority: priorityFallback,
     weight: 1,
     isLegacy: true,
@@ -98,9 +98,9 @@ function toLegacyTarget(provider: AiProvider, priorityFallback = 1000): Upstream
 
 // ── Public API ──────────────────────────────────────────────────────
 
-export async function resolveUpstreamCandidates(provider: AiProvider): Promise<UpstreamTarget[]> {
+export async function resolveUpstreamCandidates(endpoint: AiEndpoint): Promise<UpstreamTarget[]> {
   const now = Date.now();
-  const cached = upstreamCache.get(provider.id);
+  const cached = upstreamCache.get(endpoint.id);
 
   let targets: UpstreamTarget[];
 
@@ -108,24 +108,24 @@ export async function resolveUpstreamCandidates(provider: AiProvider): Promise<U
     // Clone so weighted-random shuffle doesn't mutate cache
     targets = [...cached.targets];
   } else {
-    const assignments = await aiUpstreamAssignmentRepo.findEnabledByProviderId(provider.id);
-    const built = assignments.map((a) => toTarget(provider, a));
+    const assignments = await aiUpstreamAssignmentRepo.findEnabledByEndpointId(endpoint.id);
+    const built = assignments.map(toTarget);
 
-    // Always include legacy target if no explicit upstreams exist,
-    // so the relay still attempts provider.baseUrl and produces a clear error.
+    // Always include the official target if no explicit upstreams exist,
+    // so the relay still attempts endpoint.baseUrl and produces a clear error.
     if (built.length === 0) {
-      built.push(toLegacyTarget(provider));
-    } else if (provider.baseUrl) {
-      built.push(toLegacyTarget(provider));
+      built.push(toOfficialTarget(endpoint));
+    } else if (endpoint.baseUrl) {
+      built.push(toOfficialTarget(endpoint));
     }
 
-    upstreamCache.set(provider.id, { targets: built, loadedAt: now });
+    upstreamCache.set(endpoint.id, { targets: built, loadedAt: now });
     targets = [...built];
   }
 
   if (targets.length === 0) {
     log.gateway.warn(
-      { providerId: provider.providerId },
+      { endpointId: endpoint.endpointId },
       "No upstream candidates available (no upstreams configured and no baseUrl)",
     );
     return [];
@@ -133,7 +133,7 @@ export async function resolveUpstreamCandidates(provider: AiProvider): Promise<U
 
   if (targets.length <= 1) return targets;
 
-  if (provider.upstreamRoutingStrategy === "weighted-random") {
+  if (endpoint.upstreamRoutingStrategy === "weighted-random") {
     return weightedShuffle(targets, (t) => t.weight);
   }
 

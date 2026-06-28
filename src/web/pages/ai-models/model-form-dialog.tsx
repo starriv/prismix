@@ -10,8 +10,8 @@ import { z } from "zod";
 
 import { useAdminUsers } from "@/web/api/admin-hooks";
 import {
-  useAiKeys,
-  useAiProviders,
+  useAiEndpointCredentials,
+  useAiEndpoints,
   useBatchCreateAiModels,
   useCreateAiModel,
   useDiscoverModels,
@@ -40,7 +40,7 @@ import {
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
-import { MultiSelect } from "@/web/components/ui/multi-select";
+import { MultiSelect, type MultiSelectOption } from "@/web/components/ui/multi-select";
 import {
   Select,
   SelectContent,
@@ -68,7 +68,7 @@ const modelFormSchema = z.object({
 type ModelFormValues = z.infer<typeof modelFormSchema>;
 type ClientFormat = ModelFormValues["clientFormat"];
 
-function defaultClientFormatForProvider(apiFormat?: string): ClientFormat {
+function defaultClientFormatForEndpoint(apiFormat?: string): ClientFormat {
   return apiFormat === "anthropic" ? "anthropic" : "openai";
 }
 
@@ -93,44 +93,60 @@ function isZeroPriceValue(value: string): boolean {
   return Number.isFinite(parsed) && parsed === 0;
 }
 
+type GrayUserOptionSource = {
+  id: number;
+  name: string;
+  email?: string | null;
+  uuid?: string | null;
+};
+
+function toGrayUserOption(user: GrayUserOptionSource): MultiSelectOption {
+  return {
+    value: String(user.id),
+    label: `#${user.id} ${user.name}${
+      user.email ? ` · ${user.email}` : user.uuid ? ` · ${user.uuid}` : ""
+    }`,
+  };
+}
+
 // ── Dialog ───────────────────────────────────────────────────────────
 
 export function ModelFormDialog({
   open,
   onOpenChange,
-  providerId: initialProviderId,
+  endpointId: initialEndpointId,
   model,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  providerId?: number | null;
+  endpointId?: number | null;
   model?: AiModel | null;
 }) {
   const { t } = useTranslation();
   const createModel = useCreateAiModel();
   const batchCreate = useBatchCreateAiModels();
   const updateModel = useUpdateAiModel();
-  const { data: keys = [] } = useAiKeys();
-  const { data: providers = [] } = useAiProviders();
+  const { data: endpoints = [] } = useAiEndpoints();
   const isEdit = !!model;
 
-  // Provider selection — use prop if provided, otherwise user picks
-  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(
-    initialProviderId ?? null,
+  // Endpoint selection — use prop if provided, otherwise user picks
+  const [selectedEndpointId, setSelectedEndpointId] = useState<number | null>(
+    initialEndpointId ?? null,
   );
-  const providerId = initialProviderId ?? selectedProviderId;
+  const endpointId = initialEndpointId ?? selectedEndpointId;
+  const { data: keys = [] } = useAiEndpointCredentials(endpointId ?? 0);
 
-  const enabledProviders = useMemo(() => providers.filter((p) => p.enabled), [providers]);
+  const enabledEndpoints = useMemo(() => endpoints.filter((p) => p.enabled), [endpoints]);
 
-  const selectedProvider = useMemo(
-    () => providers.find((p) => p.id === providerId) ?? null,
-    [providers, providerId],
+  const selectedEndpoint = useMemo(
+    () => endpoints.find((p) => p.id === endpointId) ?? null,
+    [endpoints, endpointId],
   );
-  const initialProvider = useMemo(
-    () => (initialProviderId ? (providers.find((p) => p.id === initialProviderId) ?? null) : null),
-    [providers, initialProviderId],
+  const initialEndpoint = useMemo(
+    () => (initialEndpointId ? (endpoints.find((p) => p.id === initialEndpointId) ?? null) : null),
+    [endpoints, initialEndpointId],
   );
-  const hasUpstreams = (selectedProvider?.upstreamCount ?? 0) > 0;
+  const hasUpstreams = (selectedEndpoint?.upstreamCount ?? 0) > 0;
 
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
@@ -160,12 +176,15 @@ export function ModelFormDialog({
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
   const [batchCreating, setBatchCreating] = useState(false);
   const [grayUserSearch, setGrayUserSearch] = useState("");
+  const [grayUserOptionCache, setGrayUserOptionCache] = useState<Record<string, MultiSelectOption>>(
+    {},
+  );
   const {
     data: discovered,
     error: discoverError,
     isFetching: discovering,
     refetch: fetchModels,
-  } = useDiscoverModels(providerId ?? 0, discoverSource, clientFormat);
+  } = useDiscoverModels(endpointId ?? 0, discoverSource, clientFormat);
 
   const availableModels = useMemo(
     () => discovered?.filter((m) => !m.registered) ?? [],
@@ -177,23 +196,46 @@ export function ModelFormDialog({
     name: grayUserQuery && !grayUserQuery.includes("@") ? grayUserQuery : undefined,
     email: grayUserQuery.includes("@") ? grayUserQuery : undefined,
   });
-  const grayUserOptions = useMemo(() => {
-    const byId = new Map<
-      number,
-      { id: number; name: string; email?: string | null; uuid?: string | null }
-    >();
-    for (const user of model?.grayUsers ?? []) byId.set(user.id, user);
-    for (const user of grayUsersData?.items ?? []) byId.set(user.id, user);
+  const grayUserOptionsFromData = useMemo(() => {
+    const byId = new Map<string, MultiSelectOption>();
+    for (const user of model?.grayUsers ?? []) {
+      const option = toGrayUserOption(user);
+      byId.set(option.value, option);
+    }
+    for (const user of grayUsersData?.items ?? []) {
+      const option = toGrayUserOption(user);
+      byId.set(option.value, option);
+    }
 
-    return [...byId.values()].map((user) => ({
-      value: String(user.id),
-      label: `#${user.id} ${user.name}${user.email ? ` · ${user.email}` : user.uuid ? ` · ${user.uuid}` : ""}`,
-    }));
+    return [...byId.values()];
   }, [grayUsersData?.items, model?.grayUsers]);
+  const grayUserOptions = useMemo(() => {
+    const byId = new Map(
+      Object.values(grayUserOptionCache).map((option) => [option.value, option]),
+    );
+    for (const option of grayUserOptionsFromData) byId.set(option.value, option);
+    return [...byId.values()];
+  }, [grayUserOptionCache, grayUserOptionsFromData]);
 
   // Track previous discovered ref to auto-select only on fresh discovery
   const prevDiscoveredRef = useRef(discovered);
   const didResetForOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (grayUserOptionsFromData.length === 0) return;
+
+    setGrayUserOptionCache((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const option of grayUserOptionsFromData) {
+        if (prev[option.value]?.label !== option.label) {
+          next[option.value] = option;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [grayUserOptionsFromData]);
 
   useEffect(() => {
     if (discovered && discovered !== prevDiscoveredRef.current) {
@@ -228,9 +270,18 @@ export function ModelFormDialog({
         grayUserIds: (model.grayUserIds ?? model.grayUsers.map((user) => user.id)).map(String),
         enabled: model.enabled,
       });
+      setGrayUserSearch("");
+      setGrayUserOptionCache(
+        Object.fromEntries(
+          (model.grayUsers ?? []).map((user) => {
+            const option = toGrayUserOption(user);
+            return [option.value, option];
+          }),
+        ),
+      );
     } else if (open) {
       form.reset({
-        clientFormat: defaultClientFormatForProvider(initialProvider?.apiFormat),
+        clientFormat: defaultClientFormatForEndpoint(initialEndpoint?.apiFormat),
         modelId: "",
         name: "",
         contextWindow: null,
@@ -245,16 +296,17 @@ export function ModelFormDialog({
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
       setDiscoverSource("official");
-      setSelectedProviderId(initialProviderId ?? null);
+      setSelectedEndpointId(initialEndpointId ?? null);
       setGrayUserSearch("");
+      setGrayUserOptionCache({});
     }
-  }, [open, model, form, initialProviderId, initialProvider?.apiFormat]);
+  }, [open, model, form, initialEndpointId, initialEndpoint?.apiFormat]);
 
   useEffect(() => {
-    if (open && !isEdit && selectedProvider) {
-      form.setValue("clientFormat", defaultClientFormatForProvider(selectedProvider.apiFormat));
+    if (open && !isEdit && selectedEndpoint) {
+      form.setValue("clientFormat", defaultClientFormatForEndpoint(selectedEndpoint.apiFormat));
     }
-  }, [open, isEdit, selectedProvider, form]);
+  }, [open, isEdit, selectedEndpoint, form]);
 
   useEffect(() => {
     if (!limitedFreeEnabled && form.getValues("limitedFreeUntil")) {
@@ -264,24 +316,24 @@ export function ModelFormDialog({
 
   // Trigger discover when provider or source changes (and discover is enabled)
   useEffect(() => {
-    if (open && !isEdit && discoverEnabled && providerId && providerId > 0) {
+    if (open && !isEdit && discoverEnabled && endpointId && endpointId > 0) {
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
       fetchModels();
     }
-  }, [open, isEdit, discoverEnabled, providerId, discoverSource, clientFormat, fetchModels]);
+  }, [open, isEdit, discoverEnabled, endpointId, discoverSource, clientFormat, fetchModels]);
 
   const handleToggleDiscover = useCallback(
     (checked: boolean) => {
       setDiscoverEnabled(checked);
-      if (checked && providerId && providerId > 0) fetchModels();
+      if (checked && endpointId && endpointId > 0) fetchModels();
     },
-    [fetchModels, providerId],
+    [fetchModels, endpointId],
   );
 
-  const handleProviderChange = useCallback((value: string) => {
+  const handleEndpointChange = useCallback((value: string) => {
     const pid = Number(value);
-    setSelectedProviderId(pid);
+    setSelectedEndpointId(pid);
     setSelectedModels(new Set());
     prevDiscoveredRef.current = undefined;
   }, []);
@@ -309,10 +361,10 @@ export function ModelFormDialog({
     setSelectedModels(new Set());
   }, []);
 
-  const hasKey = providerId
+  const hasKey = endpointId
     ? keys.some(
         (k) =>
-          k.providerId === providerId &&
+          k.endpointId === endpointId &&
           k.enabled &&
           (discoverSource === "official" ? k.upstreamId == null : k.upstreamId != null),
       )
@@ -320,11 +372,11 @@ export function ModelFormDialog({
   const noKey =
     discoverError instanceof Error || (!discovering && !discovered && discoverEnabled && !hasKey);
   const isBatchMode = !isEdit && discoverEnabled && availableModels.length > 0;
-  const needsProvider = !isEdit && !providerId;
+  const needsEndpoint = !isEdit && !endpointId;
 
   // Batch create — single API call
   const handleBatchCreate = useCallback(async () => {
-    if (!providerId) return;
+    if (!endpointId) return;
     const fallbackCaps = form
       .getValues("capabilities")
       .split(",")
@@ -352,7 +404,7 @@ export function ModelFormDialog({
 
     setBatchCreating(true);
     try {
-      const result = await batchCreate.mutateAsync({ providerId, models });
+      const result = await batchCreate.mutateAsync({ endpointId, models });
       toast.success(t("ai-models.toast.batch-created", { count: result.linked ?? result.created }));
       onOpenChange(false);
     } catch (err) {
@@ -360,7 +412,7 @@ export function ModelFormDialog({
     } finally {
       setBatchCreating(false);
     }
-  }, [selectedModels, availableModels, form, batchCreate, providerId, t, onOpenChange]);
+  }, [selectedModels, availableModels, form, batchCreate, endpointId, t, onOpenChange]);
 
   // Single create/edit
   const handleSubmit = form.handleSubmit(async (data) => {
@@ -387,9 +439,9 @@ export function ModelFormDialog({
         });
         toast.success(t("ai-models.toast.updated"));
       } else {
-        if (!providerId) return;
+        if (!endpointId) return;
         await createModel.mutateAsync({
-          providerId,
+          endpointId,
           ...rest,
           capabilities,
           grayUserIds,
@@ -414,19 +466,19 @@ export function ModelFormDialog({
         <Form {...form}>
           <form onSubmit={isBatchMode ? (e) => e.preventDefault() : handleSubmit}>
             <DialogBody className="space-y-4">
-              {/* Provider selector (when no providerId prop) */}
-              {!isEdit && !initialProviderId && (
+              {/* Endpoint selector (when no endpointId prop) */}
+              {!isEdit && !initialEndpointId && (
                 <div className="space-y-2">
-                  <Label>{t("ai-models.form.provider")}</Label>
+                  <Label>{t("ai-models.form.endpoint")}</Label>
                   <Select
-                    value={selectedProviderId ? String(selectedProviderId) : ""}
-                    onValueChange={handleProviderChange}
+                    value={selectedEndpointId ? String(selectedEndpointId) : ""}
+                    onValueChange={handleEndpointChange}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("ai-models.form.provider-ph")} />
+                      <SelectValue placeholder={t("ai-models.form.endpoint-ph")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {enabledProviders.map((p) => (
+                      {enabledEndpoints.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
                           <div className="flex items-center gap-2">
                             {p.iconUrl ? (
@@ -452,7 +504,7 @@ export function ModelFormDialog({
                 </div>
               )}
 
-              {!needsProvider && (
+              {!needsEndpoint && (
                 <FormField
                   control={form.control}
                   name="clientFormat"
@@ -476,8 +528,8 @@ export function ModelFormDialog({
                 />
               )}
 
-              {/* Discover toggle — only show when provider is selected */}
-              {!isEdit && providerId && (
+              {/* Discover toggle — only show when endpoint is selected */}
+              {!isEdit && endpointId && (
                 <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
                   <span className="text-sm font-medium">{t("ai-models.discover.toggle")}</span>
                   <div className="flex items-center gap-2">
@@ -502,7 +554,7 @@ export function ModelFormDialog({
               )}
 
               {/* No key warning */}
-              {!isEdit && providerId && discoverEnabled && noKey && (
+              {!isEdit && endpointId && discoverEnabled && noKey && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
                   <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                   <p className="text-xs text-muted-foreground">{t("ai-models.discover.no-key")}</p>
@@ -510,7 +562,7 @@ export function ModelFormDialog({
               )}
 
               {/* Loading */}
-              {!isEdit && providerId && discoverEnabled && discovering && (
+              {!isEdit && endpointId && discoverEnabled && discovering && (
                 <div className="flex items-center gap-2 py-2">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">
@@ -554,7 +606,7 @@ export function ModelFormDialog({
               )}
 
               {/* Single mode fields */}
-              {!isBatchMode && !needsProvider && (
+              {!isBatchMode && !needsEndpoint && (
                 <>
                   <FormField
                     control={form.control}
@@ -590,7 +642,7 @@ export function ModelFormDialog({
               )}
 
               {/* Shared: pricing + capabilities (hide when no provider selected yet) */}
-              {!needsProvider && (
+              {!needsEndpoint && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
@@ -695,18 +747,15 @@ export function ModelFormDialog({
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>{t("ai-models.form.gray-users")}</FormLabel>
-                              <Input
-                                value={grayUserSearch}
-                                onChange={(e) => setGrayUserSearch(e.target.value)}
-                                placeholder={t("ai-models.form.gray-users-search-ph")}
-                                className="mb-2"
-                              />
                               <FormControl>
                                 <MultiSelect
                                   options={grayUserOptions}
                                   value={field.value}
                                   onValueChange={field.onChange}
-                                  placeholder={t("ai-models.form.gray-users-ph")}
+                                  placeholder={t("ai-models.form.gray-users-search-ph")}
+                                  searchValue={grayUserSearch}
+                                  onSearchChange={setGrayUserSearch}
+                                  searchPlaceholder={t("ai-models.form.gray-users-search-ph")}
                                   loading={grayUsersLoading}
                                   maxDisplay={4}
                                 />
@@ -737,7 +786,7 @@ export function ModelFormDialog({
               ) : (
                 <Button
                   type="submit"
-                  disabled={needsProvider || createModel.isPending || updateModel.isPending}
+                  disabled={needsEndpoint || createModel.isPending || updateModel.isPending}
                 >
                   {isEdit ? t("common.btn.save") : t("ai-models.btn.create")}
                 </Button>

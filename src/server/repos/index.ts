@@ -1,10 +1,13 @@
-export { aiKeyRepo } from "./ai-key-repo";
+export { aiCredentialRepo } from "./ai-credential-repo";
+export { aiEndpointCredentialRepo } from "./ai-endpoint-credential-repo";
+export type { EndpointCredential } from "./ai-endpoint-credential-repo";
+export { aiEndpointRepo } from "./ai-endpoint-repo";
 export { aiModelGrayUserRepo } from "./ai-model-gray-user-repo";
 export type { AiModelGrayUserSummary } from "./ai-model-gray-user-repo";
 export { aiModelRepo } from "./ai-model-repo";
 export { aiModelRouteRepo } from "./ai-model-route-repo";
-export type { EnabledRouteResult, RouteWithProvider } from "./ai-model-route-repo";
-export { aiProviderRepo } from "./ai-provider-repo";
+export type { EnabledRouteResult, RouteWithEndpoint } from "./ai-model-route-repo";
+export { aiSupplierRepo } from "./ai-supplier-repo";
 export { aiUpstreamRepo } from "./ai-upstream-repo";
 export { aiUpstreamAssignmentRepo } from "./ai-upstream-assignment-repo";
 export { aiUpstreamModelMappingRepo } from "./ai-upstream-model-mapping-repo";

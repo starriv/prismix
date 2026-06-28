@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../providers/types";
+import type { TokenUsage } from "../protocol-adapters/types";
 
 function numericField(obj: Record<string, unknown>, key: string): number | undefined {
   const value = obj[key];

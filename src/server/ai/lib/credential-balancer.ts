@@ -1,26 +1,16 @@
 /**
- * In-memory key pool balancer — weighted round-robin for AI keys.
+ * In-memory credential assignment pool — weighted round-robin per endpoint.
  *
- * Solves the async write-queue race condition where DB-based LRU (`last_used_at`)
- * can't keep up with rapid sequential requests. The balancer maintains an in-memory
- * counter per provider pool and rotates keys synchronously.
- *
- * Two strategies:
- *   - round-robin (default): deterministic weighted rotation via smooth weighted round-robin
- *   - random: probabilistic weighted selection
- *
- * The pool is lazily initialized from DB on first access, invalidated on key CRUD,
- * and refreshed after a short TTL so direct DB repairs or missed invalidation events
- * cannot leave a running process pinned to a stale empty key pool.
+ * The relay authenticates through endpoint credentials because the same model can
+ * be served by multiple protocol endpoints with different auth formats.
  */
-import type { AiKey } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { aiKeyRepo, aiProviderRepo } from "@/server/repos";
+import { aiEndpointCredentialRepo, aiEndpointRepo, type EndpointCredential } from "@/server/repos";
 
 // ── Types ────────────────────────────────────────────────────────────
 
 interface PoolEntry {
-  key: AiKey;
+  credential: EndpointCredential;
   weight: number;
   currentWeight: number; // for smooth weighted round-robin (SWRR)
 }
@@ -32,7 +22,7 @@ interface Pool {
   loadedAt: number;
 }
 
-interface KeyHealth {
+interface CredentialHealth {
   consecutiveFailures: number;
   totalFailures: number;
   totalSuccesses: number;
@@ -44,10 +34,12 @@ export type BalancerStrategy = "round-robin" | "random";
 
 // ── State ────────────────────────────────────────────────────────────
 
-/** Pool cache: "providerId" → Pool */
+/** Pool cache: "endpointId:upstreamId|official" → Pool */
 const pools = new Map<string, Pool>();
 const pendingLoads = new Map<string, Promise<Pool>>();
-const keyHealth = new Map<number, KeyHealth>();
+const credentialHealth = new Map<number, CredentialHealth>();
+const credentialKeyHealth = new Map<number, CredentialHealth>();
+const credentialIdByAssignment = new Map<number, number>();
 let poolCacheVersion = 0;
 
 const BASE_PENALTY_MS = 30_000;
@@ -57,14 +49,14 @@ const MIN_POOL_TTL_MS = 1_000;
 const MAX_POOL_TTL_MS = 5 * 60 * 1000;
 
 function readPoolTtlMs(): number {
-  const raw = process.env.AI_KEY_POOL_CACHE_TTL_MS;
+  const raw = process.env.AI_CREDENTIAL_POOL_CACHE_TTL_MS ?? process.env.AI_KEY_POOL_CACHE_TTL_MS;
   if (!raw) return DEFAULT_POOL_TTL_MS;
 
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     log.pricing.warn(
       { value: raw, fallbackMs: DEFAULT_POOL_TTL_MS },
-      "Invalid AI key pool cache TTL; using default",
+      "Invalid AI credential pool cache TTL; using default",
     );
     return DEFAULT_POOL_TTL_MS;
   }
@@ -74,12 +66,12 @@ function readPoolTtlMs(): number {
 
 const POOL_TTL_MS = readPoolTtlMs();
 
-function poolKey(providerId: number, upstreamId: number | null): string {
-  return `${providerId}:${upstreamId ?? "legacy"}`;
+function poolKey(endpointId: number, upstreamId: number | null): string {
+  return `${endpointId}:${upstreamId ?? "official"}`;
 }
 
-function getKeyHealthState(keyId: number): KeyHealth {
-  let state = keyHealth.get(keyId);
+function getOrCreateHealth(id: number, map: Map<number, CredentialHealth>): CredentialHealth {
+  let state = map.get(id);
   if (!state) {
     state = {
       consecutiveFailures: 0,
@@ -88,36 +80,49 @@ function getKeyHealthState(keyId: number): KeyHealth {
       lastFailureAt: null,
       penaltyUntil: 0,
     };
-    keyHealth.set(keyId, state);
+    map.set(id, state);
   }
   return state;
 }
 
+function getCredentialHealthState(endpointCredentialId: number): CredentialHealth {
+  return getOrCreateHealth(endpointCredentialId, credentialHealth);
+}
+
 function getEffectiveWeight(entry: PoolEntry, now = Date.now()): number {
-  const health = keyHealth.get(entry.key.id);
-  if (!health || health.penaltyUntil <= now) return entry.weight;
-  return Math.max(1, Math.floor(entry.weight / (health.consecutiveFailures + 1)));
+  const assignmentHealth = credentialHealth.get(entry.credential.id);
+  const keyHealth = credentialKeyHealth.get(entry.credential.credentialId);
+  const assignmentPenalty = assignmentHealth?.penaltyUntil ?? 0;
+  const keyPenalty = keyHealth?.penaltyUntil ?? 0;
+  const penaltyUntil = Math.max(assignmentPenalty, keyPenalty);
+  if (penaltyUntil <= now) return entry.weight;
+  const assignmentFailures = assignmentHealth?.consecutiveFailures ?? 0;
+  const keyFailures = keyHealth?.consecutiveFailures ?? 0;
+  const effectiveFailures = Math.max(assignmentFailures, keyFailures);
+  return Math.max(1, Math.floor(entry.weight / (effectiveFailures + 1)));
 }
 
 // ── Pool loading ─────────────────────────────────────────────────────
 
-async function loadPool(providerId: number, upstreamId: number | null): Promise<Pool> {
-  // Load provider strategy
-  const config = await aiProviderRepo.findBalancerConfig(providerId);
+async function loadPool(endpointId: number, upstreamId: number | null): Promise<Pool> {
+  const config = await aiEndpointRepo.findBalancerConfig(endpointId);
   const strategy = (
     config?.loadBalanceStrategy === "random" ? "random" : "round-robin"
   ) as BalancerStrategy;
 
   const rows =
     upstreamId == null
-      ? await aiKeyRepo.findEnabledByProvider(providerId)
-      : await aiKeyRepo.findEnabledByUpstream(providerId, upstreamId);
+      ? await aiEndpointCredentialRepo.findEnabledByEndpoint(endpointId)
+      : await aiEndpointCredentialRepo.findEnabledByUpstream(endpointId, upstreamId);
 
-  const entries: PoolEntry[] = rows.map((r) => ({
-    key: r,
-    weight: r.weight,
-    currentWeight: 0,
-  }));
+  const entries: PoolEntry[] = rows.map((r) => {
+    credentialIdByAssignment.set(r.id, r.credentialId);
+    return {
+      credential: r,
+      weight: r.weight,
+      currentWeight: 0,
+    };
+  });
 
   const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0);
 
@@ -126,14 +131,14 @@ async function loadPool(providerId: number, upstreamId: number | null): Promise<
 
 async function refreshPool(
   pk: string,
-  providerId: number,
+  endpointId: number,
   upstreamId: number | null,
 ): Promise<Pool> {
   const pending = pendingLoads.get(pk);
   if (pending) return pending;
 
   const loadVersion = poolCacheVersion;
-  const nextLoad = loadPool(providerId, upstreamId)
+  const nextLoad = loadPool(endpointId, upstreamId)
     .then((pool) => {
       if (loadVersion === poolCacheVersion) {
         pools.set(pk, pool);
@@ -148,12 +153,12 @@ async function refreshPool(
   return nextLoad;
 }
 
-async function getPool(providerId: number, upstreamId: number | null): Promise<Pool> {
-  const pk = poolKey(providerId, upstreamId);
+async function getPool(endpointId: number, upstreamId: number | null): Promise<Pool> {
+  const pk = poolKey(endpointId, upstreamId);
   let pool = pools.get(pk);
   const expired = pool ? Date.now() - pool.loadedAt >= POOL_TTL_MS : false;
   if (!pool || expired) {
-    pool = await refreshPool(pk, providerId, upstreamId);
+    pool = await refreshPool(pk, endpointId, upstreamId);
   }
   return pool;
 }
@@ -170,9 +175,9 @@ async function getPool(providerId: number, upstreamId: number | null): Promise<P
  *
  * Produces an even distribution proportional to weights with minimal clustering.
  */
-function selectRoundRobin(pool: Pool): AiKey | undefined {
+function selectRoundRobin(pool: Pool): EndpointCredential | undefined {
   if (pool.entries.length === 0) return undefined;
-  if (pool.entries.length === 1) return pool.entries[0].key;
+  if (pool.entries.length === 1) return pool.entries[0].credential;
 
   let best: PoolEntry | null = null;
   let totalEffectiveWeight = 0;
@@ -189,15 +194,15 @@ function selectRoundRobin(pool: Pool): AiKey | undefined {
 
   if (!best) return undefined;
   best.currentWeight -= totalEffectiveWeight || pool.totalWeight;
-  return best.key;
+  return best.credential;
 }
 
 /**
  * Weighted random — probabilistic selection proportional to weights.
  */
-function selectRandom(pool: Pool): AiKey | undefined {
+function selectRandom(pool: Pool): EndpointCredential | undefined {
   if (pool.entries.length === 0) return undefined;
-  if (pool.entries.length === 1) return pool.entries[0].key;
+  if (pool.entries.length === 1) return pool.entries[0].credential;
 
   const now = Date.now();
   const weightedEntries = pool.entries.map((entry) => ({
@@ -209,58 +214,59 @@ function selectRandom(pool: Pool): AiKey | undefined {
   let cumulative = 0;
   for (const item of weightedEntries) {
     cumulative += item.effectiveWeight;
-    if (rand < cumulative) return item.entry.key;
+    if (rand < cumulative) return item.entry.credential;
   }
-  return pool.entries[pool.entries.length - 1].key;
+  return pool.entries[pool.entries.length - 1].credential;
 }
 
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Pick the next key from a provider pool.
- * Strategy is read from the provider's `loadBalanceStrategy` column.
- * Returns undefined if no enabled keys with weight > 0 exist.
+ * Pick the next credential assignment from an endpoint pool.
+ * Strategy is read from the endpoint's `loadBalanceStrategy` column.
  */
-export async function pickKey(
-  providerId: number,
+export async function pickEndpointCredential(
+  endpointId: number,
   upstreamId: number | null = null,
-): Promise<AiKey | undefined> {
-  const pool = await getPool(providerId, upstreamId);
+): Promise<EndpointCredential | undefined> {
+  const pool = await getPool(endpointId, upstreamId);
 
   if (pool.entries.length === 0) return undefined;
 
-  const key = pool.strategy === "random" ? selectRandom(pool) : selectRoundRobin(pool);
+  const credential = pool.strategy === "random" ? selectRandom(pool) : selectRoundRobin(pool);
 
-  if (key) {
-    const health = keyHealth.get(key.id);
+  if (credential) {
+    const health = credentialHealth.get(credential.id);
     log.pricing.debug(
       {
-        keyId: key.id,
-        keyName: key.name,
+        endpointCredentialId: credential.id,
+        credentialId: credential.credentialId,
+        credentialName: credential.credentialName,
+        endpointId,
+        upstreamId,
         strategy: pool.strategy,
         poolSize: pool.entries.length,
         consecutiveFailures: health?.consecutiveFailures ?? 0,
         penaltyUntil: health?.penaltyUntil ?? 0,
       },
-      "Key selected from pool",
+      "Endpoint credential selected from pool",
     );
   }
 
-  return key;
+  return credential;
 }
 
 /**
- * Invalidate a specific provider pool (call after key CRUD).
- * Next `pickKey` call will reload from DB.
+ * Invalidate a specific endpoint credential pool.
  */
-export function invalidateKeyPool(providerId: number, upstreamId?: number | null): void {
+export function invalidateCredentialPool(endpointId: number, upstreamId?: number | null): void {
   poolCacheVersion++;
   if (upstreamId !== undefined) {
-    pools.delete(poolKey(providerId, upstreamId));
+    pools.delete(poolKey(endpointId, upstreamId));
     return;
   }
   for (const key of pools.keys()) {
-    if (key.startsWith(`${providerId}:`)) pools.delete(key);
+    if (key.startsWith(`${endpointId}:`)) pools.delete(key);
   }
 }
 
@@ -271,37 +277,56 @@ export function clearAllPools(): void {
   poolCacheVersion++;
   pools.clear();
   pendingLoads.clear();
-  keyHealth.clear();
+  credentialHealth.clear();
+  credentialKeyHealth.clear();
+  credentialIdByAssignment.clear();
 }
 
 /**
  * Get pool info for display (UI shows pool size + next key indicator).
  */
 export async function getPoolInfo(
-  providerId: number,
+  endpointId: number,
   upstreamId: number | null = null,
-): Promise<{ size: number; totalWeight: number; keyIds: number[]; penalizedKeyIds: number[] }> {
-  const pool = await getPool(providerId, upstreamId);
-  const now = Date.now();
+): Promise<{
+  size: number;
+  totalWeight: number;
+  endpointCredentialIds: number[];
+  penalizedEndpointCredentialIds: number[];
+}> {
+  const pool = await getPool(endpointId, upstreamId);
   return {
     size: pool.entries.length,
     totalWeight: pool.totalWeight,
-    keyIds: pool.entries.map((e) => e.key.id),
-    penalizedKeyIds: pool.entries
-      .filter((e) => (keyHealth.get(e.key.id)?.penaltyUntil ?? 0) > now)
-      .map((e) => e.key.id),
+    endpointCredentialIds: pool.entries.map((e) => e.credential.id),
+    penalizedEndpointCredentialIds: pool.entries
+      .filter((e) => {
+        const now = Date.now();
+        const assignmentPenalty = credentialHealth.get(e.credential.id)?.penaltyUntil ?? 0;
+        const keyPenalty = credentialKeyHealth.get(e.credential.credentialId)?.penaltyUntil ?? 0;
+        return Math.max(assignmentPenalty, keyPenalty) > now;
+      })
+      .map((e) => e.credential.id),
   };
 }
 
-export function markKeySuccess(keyId: number): void {
-  const state = getKeyHealthState(keyId);
+export function markCredentialSuccess(endpointCredentialId: number): void {
+  const state = getCredentialHealthState(endpointCredentialId);
   state.totalSuccesses++;
   state.consecutiveFailures = 0;
   state.penaltyUntil = 0;
+
+  const credentialId = credentialIdByAssignment.get(endpointCredentialId);
+  if (credentialId !== undefined) {
+    const keyState = getOrCreateHealth(credentialId, credentialKeyHealth);
+    keyState.totalSuccesses++;
+    keyState.consecutiveFailures = 0;
+    keyState.penaltyUntil = 0;
+  }
 }
 
-export function markKeyFailure(keyId: number): void {
-  const state = getKeyHealthState(keyId);
+export function markCredentialFailure(endpointCredentialId: number): void {
+  const state = getCredentialHealthState(endpointCredentialId);
   state.totalFailures++;
   state.consecutiveFailures++;
   state.lastFailureAt = Date.now();
@@ -310,10 +335,23 @@ export function markKeyFailure(keyId: number): void {
     MAX_PENALTY_MS,
   );
   state.penaltyUntil = Date.now() + penaltyMs;
+
+  const credentialId = credentialIdByAssignment.get(endpointCredentialId);
+  if (credentialId !== undefined) {
+    const keyState = getOrCreateHealth(credentialId, credentialKeyHealth);
+    keyState.totalFailures++;
+    keyState.consecutiveFailures++;
+    keyState.lastFailureAt = Date.now();
+    const keyPenaltyMs = Math.min(
+      BASE_PENALTY_MS * 2 ** (keyState.consecutiveFailures - 1),
+      MAX_PENALTY_MS,
+    );
+    keyState.penaltyUntil = Date.now() + keyPenaltyMs;
+  }
 }
 
-export function getKeyHealthSnapshot(keyId: number): KeyHealth | null {
-  const state = keyHealth.get(keyId);
+export function getCredentialHealthSnapshot(endpointCredentialId: number): CredentialHealth | null {
+  const state = credentialHealth.get(endpointCredentialId);
   return state
     ? {
         consecutiveFailures: state.consecutiveFailures,

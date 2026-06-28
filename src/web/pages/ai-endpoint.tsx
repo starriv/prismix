@@ -5,7 +5,7 @@ import { Copy, Info, Key, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import type { HealthStatus } from "@/web/api/health-status";
-import { useAiProvidersOverview } from "@/web/api/hooks";
+import { useAiEndpointsOverview } from "@/web/api/hooks";
 import { EndpointUrlList } from "@/web/components/dashboard/endpoint-url-list";
 import { Header } from "@/web/components/dashboard/header";
 import { HealthBadge } from "@/web/components/health/health-badge";
@@ -17,7 +17,7 @@ import { Skeleton } from "@/web/components/ui/skeleton";
 
 export default function AiRelayPage() {
   const { t } = useTranslation();
-  const { data: overview, isLoading } = useAiProvidersOverview(24, 30_000);
+  const { data: overview, isLoading } = useAiEndpointsOverview(24, 30_000);
 
   const openAiBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/openai/v1`, []);
   const anthropicBaseUrl = useMemo(() => `${window.location.origin}/api/gateway/ai/anthropic`, []);
@@ -89,13 +89,13 @@ export default function AiRelayPage() {
           </CardContent>
         </Card>
 
-        {/* Provider Status */}
+        {/* Endpoint Status */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">{t("ai-relay.providers.title")}</CardTitle>
               <Button variant="outline" size="sm" asChild>
-                <LocaleLink to="/admin/ai-providers">
+                <LocaleLink to="/admin/ai-endpoints">
                   <Key className="mr-1 h-3.5 w-3.5" />
                   {t("ai-relay.providers.manage-keys")}
                 </LocaleLink>
@@ -109,13 +109,13 @@ export default function AiRelayPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
-            ) : (overview?.providers ?? []).length === 0 ? (
+            ) : (overview?.endpoints ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-3">
                 {t("ai-relay.providers.empty")}
               </p>
             ) : (
               <div className="grid gap-2">
-                {overview?.providers.map((p) => {
+                {overview?.endpoints.map((p) => {
                   const status: HealthStatus = p.healthStatus;
                   return (
                     <div

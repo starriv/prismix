@@ -11,7 +11,7 @@ import {
   useDeleteAiModelRoute,
   useUpdateAiModelRoute,
 } from "@/web/api/hooks";
-import type { AiModel, AiModelRoute, AiProvider } from "@/web/api/schemas";
+import type { AiEndpoint, AiModel, AiModelRoute } from "@/web/api/schemas";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -37,7 +37,7 @@ import { Switch } from "@/web/components/ui/switch";
 
 type ClientFormat = "openai" | "anthropic";
 
-function canProviderServeClientFormat(clientFormat: ClientFormat, apiFormat: string): boolean {
+function canEndpointServeClientFormat(clientFormat: ClientFormat, apiFormat: string): boolean {
   if (clientFormat === "openai") return true;
   return ["anthropic", "openai", "azure-openai"].includes(apiFormat);
 }
@@ -46,12 +46,12 @@ export function ModelRoutesSheet({
   open,
   onOpenChange,
   model,
-  providers,
+  endpoints,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   model: AiModel;
-  providers: AiProvider[];
+  endpoints: AiEndpoint[];
 }) {
   const { t } = useTranslation();
   const { data: routes = [], isLoading } = useAiModelRoutes(model.id);
@@ -59,15 +59,15 @@ export function ModelRoutesSheet({
   const [deleteTarget, setDeleteTarget] = useState<AiModelRoute | null>(null);
   const deleteRoute = useDeleteAiModelRoute();
 
-  const availableProviders = useMemo(() => {
-    const routedIds = new Set(routes.map((r) => r.providerId));
-    return providers.filter(
+  const availableEndpoints = useMemo(() => {
+    const routedIds = new Set(routes.map((r) => r.endpointId));
+    return endpoints.filter(
       (p) =>
         p.enabled &&
         !routedIds.has(p.id) &&
-        canProviderServeClientFormat(model.clientFormat, p.apiFormat),
+        canEndpointServeClientFormat(model.clientFormat, p.apiFormat),
     );
-  }, [model.clientFormat, providers, routes]);
+  }, [model.clientFormat, endpoints, routes]);
 
   const sortedRoutes = useMemo(() => sortBy(routes, "priority"), [routes]);
 
@@ -107,7 +107,7 @@ export function ModelRoutesSheet({
                     <Button
                       size="sm"
                       onClick={() => setAddOpen(true)}
-                      disabled={availableProviders.length === 0}
+                      disabled={availableEndpoints.length === 0}
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       {t("ai-models.routes.btn.add")}
@@ -144,7 +144,7 @@ export function ModelRoutesSheet({
         onOpenChange={setAddOpen}
         modelId={model.id}
         modelSlug={model.modelId}
-        providers={availableProviders}
+        endpoints={availableEndpoints}
       />
 
       <Dialog
@@ -160,7 +160,7 @@ export function ModelRoutesSheet({
           <DialogBody>
             <p className="text-sm text-muted-foreground">
               {t("ai-models.routes.dialog.delete-body", {
-                provider: deleteTarget?.providerName ?? "",
+                provider: deleteTarget?.endpointName ?? "",
               })}
             </p>
           </DialogBody>
@@ -231,8 +231,8 @@ function RouteCard({
       else payload.weight = val;
     } else if (editingField === "modelId") {
       const val = trimmed || null;
-      if (val === (route.providerModelId ?? "")) unchanged = true;
-      else payload.providerModelId = val;
+      if (val === (route.endpointModelId ?? "")) unchanged = true;
+      else payload.endpointModelId = val;
     }
 
     if (unchanged) {
@@ -271,16 +271,16 @@ function RouteCard({
     }
   }, [updateRoute, modelId, route.id, route.enabled, t]);
 
-  const upstreamDisplay = route.providerModelId ?? modelSlug;
-  const isDefault = !route.providerModelId;
+  const upstreamDisplay = route.endpointModelId ?? modelSlug;
+  const isDefault = !route.endpointModelId;
 
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-2">
-      {/* Row 1: Provider header */}
+      {/* Row 1: Endpoint header */}
       <div className="flex items-center gap-2">
-        {route.providerIconUrl ? (
+        {route.endpointIconUrl ? (
           <img
-            src={route.providerIconUrl}
+            src={route.endpointIconUrl}
             alt=""
             className="h-8 w-8 rounded-md object-contain"
             width={32}
@@ -292,7 +292,7 @@ function RouteCard({
           </div>
         )}
         <span className="text-sm font-medium truncate">
-          {route.providerName ?? `Provider #${route.providerId}`}
+          {route.endpointName ?? `Endpoint #${route.endpointId}`}
         </span>
         {route.apiFormat && (
           <Badge variant="secondary" className="text-xs shrink-0">
@@ -343,15 +343,15 @@ function RouteCard({
 
       {/* Row 3: Upstream Model */}
       <EditableField
-        label={t("ai-models.routes.th.provider-model-id")}
-        value={route.providerModelId ?? ""}
+        label={t("ai-models.routes.th.endpoint-model-id")}
+        value={route.endpointModelId ?? ""}
         displayValue={
           isDefault
             ? t("ai-models.routes.inline.default-model", { modelId: modelSlug })
             : upstreamDisplay
         }
         editing={editingField === "modelId"}
-        onStartEdit={() => startEdit("modelId", route.providerModelId ?? "")}
+        onStartEdit={() => startEdit("modelId", route.endpointModelId ?? "")}
         draft={draft}
         onDraftChange={setDraft}
         onKeyDown={handleKeyDown}
@@ -441,39 +441,39 @@ function AddRouteDialog({
   onOpenChange,
   modelId,
   modelSlug,
-  providers,
+  endpoints,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   modelId: number;
   modelSlug: string;
-  providers: AiProvider[];
+  endpoints: AiEndpoint[];
 }) {
   const { t } = useTranslation();
   const createRoute = useCreateAiModelRoute();
-  const [providerId, setProviderId] = useState<string>("");
-  const [providerModelId, setProviderModelId] = useState("");
+  const [endpointId, setEndpointId] = useState<string>("");
+  const [endpointModelId, setEndpointModelId] = useState("");
   const [priority, setPriority] = useState("100");
 
   const handleSubmit = useCallback(async () => {
-    const pid = Number(providerId);
+    const pid = Number(endpointId);
     if (!pid) return;
     try {
       await createRoute.mutateAsync({
         modelId,
-        providerId: pid,
-        providerModelId: providerModelId || undefined,
+        endpointId: pid,
+        endpointModelId: endpointModelId || undefined,
         priority: Number(priority) || 100,
       });
       toast.success(t("ai-models.routes.toast.created"));
       onOpenChange(false);
-      setProviderId("");
-      setProviderModelId("");
+      setEndpointId("");
+      setEndpointModelId("");
       setPriority("100");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("ai-models.toast.create-error"));
     }
-  }, [providerId, providerModelId, priority, modelId, createRoute, t, onOpenChange]);
+  }, [endpointId, endpointModelId, priority, modelId, createRoute, t, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -483,13 +483,13 @@ function AddRouteDialog({
         </DialogHeader>
         <DialogBody className="space-y-4">
           <div className="space-y-2">
-            <Label>{t("ai-models.routes.th.provider")}</Label>
-            <Select value={providerId} onValueChange={setProviderId}>
+            <Label>{t("ai-models.routes.th.endpoint")}</Label>
+            <Select value={endpointId} onValueChange={setEndpointId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("ai-models.routes.form.provider-ph")} />
+                <SelectValue placeholder={t("ai-models.routes.form.endpoint-ph")} />
               </SelectTrigger>
               <SelectContent>
-                {providers.map((p) => (
+                {endpoints.map((p) => (
                   <SelectItem key={p.id} value={String(p.id)}>
                     <div className="flex items-center gap-2">
                       {p.iconUrl ? (
@@ -515,14 +515,14 @@ function AddRouteDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("ai-models.routes.th.provider-model-id")}</Label>
+            <Label>{t("ai-models.routes.th.endpoint-model-id")}</Label>
             <Input
               placeholder={modelSlug}
-              value={providerModelId}
-              onChange={(e) => setProviderModelId(e.target.value)}
+              value={endpointModelId}
+              onChange={(e) => setEndpointModelId(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              {t("ai-models.routes.form.provider-model-id-hint")}
+              {t("ai-models.routes.form.endpoint-model-id-hint")}
             </p>
           </div>
 
@@ -544,7 +544,7 @@ function AddRouteDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.btn.cancel")}
           </Button>
-          <Button onClick={handleSubmit} disabled={!providerId || createRoute.isPending}>
+          <Button onClick={handleSubmit} disabled={!endpointId || createRoute.isPending}>
             {t("ai-models.routes.btn.add")}
           </Button>
         </DialogFooter>

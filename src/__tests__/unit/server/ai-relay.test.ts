@@ -1,13 +1,13 @@
 /**
  * AI Relay — Phase 1.0 unit tests.
  *
- * Tests: OpenAI adapter, provider auth builder, relay body schema.
+ * Tests: OpenAI adapter, endpoint auth builder, relay body schema.
  */
 import { describe, expect, it } from "vitest";
 
-import { buildProviderAuth } from "@/server/ai/lib/provider-auth";
+import { buildEndpointAuth } from "@/server/ai/lib/endpoint-auth";
 import { extractPassthroughHeaders } from "@/server/ai/lib/request-helpers";
-import { openaiAdapter } from "@/server/ai/providers/openai";
+import { openaiAdapter } from "@/server/ai/protocol-adapters/openai";
 import { isUnsupportedStreamingCandidate } from "@/server/ai/routes/relay";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 
@@ -195,23 +195,23 @@ describe("openai adapter", () => {
   });
 });
 
-// ── Provider Auth ───────────────────────────────────────────────────────
+// ── Endpoint Auth ───────────────────────────────────────────────────────
 
-describe("buildProviderAuth", () => {
+describe("buildEndpointAuth", () => {
   const baseUrl = "https://api.example.com/v1/chat/completions";
   const plainKey = "sk-test-key-123";
 
   it("builds bearer auth headers", () => {
-    const provider = { authType: "bearer", authConfig: "{}", apiFormat: "openai" };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const endpoint = { authType: "bearer", authConfig: "{}", apiFormat: "openai" };
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers.Authorization).toBe(`Bearer ${plainKey}`);
     expect(result.url).toBe(baseUrl);
   });
 
   it("builds api-key auth with default header name", () => {
-    const provider = { authType: "api-key", authConfig: "{}", apiFormat: "openai" };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const endpoint = { authType: "api-key", authConfig: "{}", apiFormat: "openai" };
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers["x-api-key"]).toBe(plainKey);
     expect(result.headers.Authorization).toBeUndefined();
@@ -219,23 +219,23 @@ describe("buildProviderAuth", () => {
   });
 
   it("builds api-key auth with custom header name", () => {
-    const provider = {
+    const endpoint = {
       authType: "api-key",
       authConfig: JSON.stringify({ headerName: "X-Custom-Key" }),
       apiFormat: "openai",
     };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers["X-Custom-Key"]).toBe(plainKey);
   });
 
   it("builds Cloudflare Access service-token headers", () => {
-    const provider = {
+    const endpoint = {
       authType: "cloudflare",
       authConfig: JSON.stringify({ clientId: "service-token.access" }),
       apiFormat: "openai",
     };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers["CF-Access-Client-Id"]).toBe("service-token.access");
     expect(result.headers["CF-Access-Client-Secret"]).toBe(plainKey);
@@ -244,12 +244,12 @@ describe("buildProviderAuth", () => {
   });
 
   it("adds anthropic-version header for anthropic format", () => {
-    const provider = {
+    const endpoint = {
       authType: "api-key",
       authConfig: JSON.stringify({ headerName: "x-api-key" }),
       apiFormat: "anthropic",
     };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers["x-api-key"]).toBe(plainKey);
     expect(result.headers["anthropic-version"]).toBe("2023-06-01");
@@ -258,8 +258,8 @@ describe("buildProviderAuth", () => {
   it("builds gemini auth with query param", () => {
     const url =
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-    const provider = { authType: "bearer", authConfig: "{}", apiFormat: "gemini" };
-    const result = buildProviderAuth(provider, plainKey, url);
+    const endpoint = { authType: "bearer", authConfig: "{}", apiFormat: "gemini" };
+    const result = buildEndpointAuth(endpoint, plainKey, url);
 
     expect(result.headers.Authorization).toBeUndefined();
     expect(result.url).toContain(`?key=${plainKey}`);
@@ -267,15 +267,15 @@ describe("buildProviderAuth", () => {
 
   it("appends query param with & when URL already has params", () => {
     const url = "https://example.com/api?foo=bar";
-    const provider = { authType: "bearer", authConfig: "{}", apiFormat: "gemini" };
-    const result = buildProviderAuth(provider, plainKey, url);
+    const endpoint = { authType: "bearer", authConfig: "{}", apiFormat: "gemini" };
+    const result = buildEndpointAuth(endpoint, plainKey, url);
 
     expect(result.url).toBe(`https://example.com/api?foo=bar&key=${plainKey}`);
   });
 
   it("handles unknown auth type gracefully", () => {
-    const provider = { authType: "unknown", authConfig: "{}", apiFormat: "openai" };
-    const result = buildProviderAuth(provider, plainKey, baseUrl);
+    const endpoint = { authType: "unknown", authConfig: "{}", apiFormat: "openai" };
+    const result = buildEndpointAuth(endpoint, plainKey, baseUrl);
 
     expect(result.headers.Authorization).toBeUndefined();
     expect(result.url).toBe(baseUrl);

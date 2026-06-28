@@ -33,31 +33,32 @@ export const keyProviderTransactionRepo = {
     );
   },
 
-  async summarizeRevenueShareByProviderAndKeyIds(
+  async summarizeRevenueShareByProviderAndCredentialIds(
     providerId: number,
-    keyIds: number[],
+    credentialIds: number[],
   ): Promise<Map<number, string>> {
-    if (keyIds.length === 0) return new Map();
+    if (credentialIds.length === 0) return new Map();
 
-    const rows = await queryAll<{ keyId: number | null; totalRevenueShare: string | null }>(
+    const rows = await queryAll<{ credentialId: number | null; totalRevenueShare: string | null }>(
       db
         .select({
-          keyId: keyProviderTransactions.keyId,
+          credentialId: keyProviderTransactions.credentialId,
           totalRevenueShare: sql<string>`COALESCE(SUM(CAST(${keyProviderTransactions.amount} AS NUMERIC)), 0)::text`,
         })
         .from(keyProviderTransactions)
         .where(
-          sql`${keyProviderTransactions.providerId} = ${providerId} AND ${keyProviderTransactions.type} = 'revenue_share' AND ${inArray(keyProviderTransactions.keyId, keyIds)}`,
+          sql`${keyProviderTransactions.providerId} = ${providerId} AND ${keyProviderTransactions.type} = 'revenue_share' AND ${inArray(keyProviderTransactions.credentialId, credentialIds)}`,
         )
-        .groupBy(keyProviderTransactions.keyId),
+        .groupBy(keyProviderTransactions.credentialId),
     );
 
     return new Map(
       rows
         .filter(
-          (row): row is { keyId: number; totalRevenueShare: string | null } => row.keyId != null,
+          (row): row is { credentialId: number; totalRevenueShare: string | null } =>
+            row.credentialId != null,
         )
-        .map((row) => [row.keyId, row.totalRevenueShare ?? "0"]),
+        .map((row) => [row.credentialId, row.totalRevenueShare ?? "0"]),
     );
   },
 

@@ -120,7 +120,7 @@ describe("admin notification config routes", () => {
       "topup",
       "tx",
       "alert",
-      "supplier",
+      "ai",
       "system",
     ]);
     expect(json.data.groups[0]).toMatchObject({

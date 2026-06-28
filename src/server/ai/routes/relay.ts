@@ -1,12 +1,12 @@
 /**
- * AI Relay route — proxies OpenAI-compatible chat completion requests to upstream providers.
+ * AI Relay route — proxies OpenAI-compatible chat completion requests to upstream endpoints.
  *
  * Mounted at /api/admin/ai/relay (adminAuthMiddleware applied via parent).
  * Supports: non-streaming + SSE streaming, model fallback chain, cost tracking.
  */
 import { type Context, Hono } from "hono";
 
-import type { AiModel, AiProvider } from "@/server/db";
+import type { AiEndpoint, AiModel } from "@/server/db";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
 import {
@@ -25,11 +25,15 @@ import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/r
 import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import { buildAccessLogErrorMessage, enqueueAiAccessLog } from "../lib/access-log";
+import {
+  markCredentialFailure,
+  markCredentialSuccess,
+  pickEndpointCredential,
+} from "../lib/credential-balancer";
+import { buildEndpointAuth } from "../lib/endpoint-auth";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
-import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
-import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { notifyResourceDown, type ResourceDownAlertInput } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
@@ -49,17 +53,17 @@ import {
   type UpstreamConcurrencyLease,
 } from "../lib/upstream-concurrency";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
-import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
-import { getAdapter } from "../providers/registry";
-import type { OpenAIChatBody, ProviderAdapter } from "../providers/types";
+import { BEDROCK_STREAMING_SUPPORTED } from "../protocol-adapters/bedrock";
+import { getAdapter } from "../protocol-adapters/registry";
+import type { OpenAIChatBody, ProtocolAdapter } from "../protocol-adapters/types";
 
-const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
+const AI_CREDENTIAL_DOMAIN_TAG = "ai-merchant-key";
 
 const relay = new Hono();
 
 interface RelayErrorExtras {
-  keyId?: number | null;
-  providerId?: string | null;
+  endpointCredentialId?: number | null;
+  endpointId?: string | null;
   modelId?: string | null;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -80,8 +84,8 @@ function respondWithRelayError(
   enqueueAiAccessLog({
     requestId,
     statusCode,
-    keyId: extras?.keyId ?? null,
-    providerId: extras?.providerId ?? null,
+    endpointCredentialId: extras?.endpointCredentialId ?? null,
+    endpointId: extras?.endpointId ?? null,
     modelId: extras?.modelId ?? null,
     upstreamId: extras?.upstreamId ?? null,
     upstreamName: extras?.upstreamName ?? null,
@@ -107,7 +111,7 @@ relay.get("/v1/models", async (c) => {
     id: r.model.modelId,
     object: "model" as const,
     created: Math.floor(new Date(r.model.createdAt).getTime() / 1000),
-    owned_by: r.provider.providerId,
+    owned_by: r.endpoint.endpointId,
   }));
   return c.json({ object: "list", data });
 });
@@ -163,23 +167,23 @@ relay.post("/v1/chat/completions", async (c) => {
 
   for (const candidate of candidates) {
     if (totalAttempts >= MAX_UPSTREAM_ATTEMPTS) break;
-    if (isUnsupportedStreamingCandidate(body.stream, candidate.provider.apiFormat)) {
+    if (isUnsupportedStreamingCandidate(body.stream, candidate.endpoint.apiFormat)) {
       log.gateway.info(
-        { provider: candidate.provider.providerId, model: candidate.model.modelId, requestId },
+        { endpoint: candidate.endpoint.endpointId, model: candidate.model.modelId, requestId },
         "Skipping unsupported Bedrock streaming fallback candidate",
       );
       continue;
     }
 
     // Pre-compute transformed body for this candidate (needed for SigV4 signing)
-    // Inject stream_options at route level so OpenAI-compatible providers return usage in SSE chunks.
+    // Inject stream_options at route level so OpenAI-compatible upstreams return usage in SSE chunks.
     const candidateBody = {
       ...body,
-      model: candidate.providerModelId,
+      model: candidate.endpointModelId,
       ...(body.stream ? { stream_options: { include_usage: true } } : {}),
     } as unknown as OpenAIChatBody;
     // Get adapter early to transform body before auth
-    const adapter = getAdapter(candidate.provider.apiFormat);
+    const adapter = getAdapter(candidate.endpoint.apiFormat);
     if (!adapter) continue;
     const transformedBody = adapter.transformRequest(candidateBody);
     const serializedBody = JSON.stringify(transformedBody);
@@ -201,8 +205,8 @@ relay.post("/v1/chat/completions", async (c) => {
       const passthroughHeaders = extractPassthroughHeaders(c);
 
       const meta: StreamRelayMeta = {
-        keyId: keyMeta.keyId,
-        providerId: candidate.provider.providerId,
+        endpointCredentialId: keyMeta.endpointCredentialId,
+        endpointId: candidate.endpoint.endpointId,
         modelId: candidate.model.modelId,
         requestId,
         start,
@@ -216,7 +220,7 @@ relay.post("/v1/chat/completions", async (c) => {
         const cacheKey = buildCacheKey({
           scope: "admin",
           model: candidate.model.modelId,
-          providerId: candidate.provider.providerId,
+          endpointId: candidate.endpoint.endpointId,
           upstreamId: keyMeta.upstreamId,
           upstreamBaseUrl: keyMeta.upstreamBaseUrl,
           requestBody: attemptBody,
@@ -235,7 +239,7 @@ relay.post("/v1/chat/completions", async (c) => {
           concurrencyLimit: keyMeta.concurrencyLimit,
           queueTimeoutMs: keyMeta.queueTimeoutMs,
           requestId,
-          providerId: candidate.provider.providerId,
+          endpointId: candidate.endpoint.endpointId,
           modelId: candidate.model.modelId,
         });
       } catch (err) {
@@ -248,7 +252,7 @@ relay.post("/v1/chat/completions", async (c) => {
         let releaseInFinally = true;
         try {
           const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
-            providerId: candidate.provider.providerId,
+            endpointId: candidate.endpoint.endpointId,
             modelId: candidate.model.modelId,
           });
           const upstreamRes = await fetchUpstream(
@@ -256,7 +260,7 @@ relay.post("/v1/chat/completions", async (c) => {
             { ...authHeaders, ...passthroughHeaders },
             attemptBody,
             upstreamFetchMs,
-            { provider: candidate.provider.providerId, route: "chat" },
+            { endpoint: candidate.endpoint.endpointId, route: "chat" },
           );
           if (upstreamRes.ok) {
             const streamConcurrencyLease = concurrencyLease;
@@ -279,14 +283,14 @@ relay.post("/v1/chat/completions", async (c) => {
             );
           }
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-            markKeyFailure(keyMeta.keyId);
+            markCredentialFailure(keyMeta.endpointCredentialId);
             const errBody = await upstreamRes.text().catch(() => "");
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             lastResourceDownAlert = {
               route: "admin-chat",
               requestId,
-              providerId: candidate.provider.providerId,
-              providerName: candidate.provider.name,
+              endpointId: candidate.endpoint.endpointId,
+              endpointName: candidate.endpoint.name,
               modelId: candidate.model.modelId,
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
@@ -304,8 +308,8 @@ relay.post("/v1/chat/completions", async (c) => {
             upstreamRes.status,
             { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
             {
-              keyId: keyMeta.keyId,
-              providerId: candidate.provider.providerId,
+              endpointCredentialId: keyMeta.endpointCredentialId,
+              endpointId: candidate.endpoint.endpointId,
               modelId: candidate.model.modelId,
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
@@ -314,13 +318,13 @@ relay.post("/v1/chat/completions", async (c) => {
             },
           );
         } catch (err) {
-          markKeyFailure(keyMeta.keyId);
+          markCredentialFailure(keyMeta.endpointCredentialId);
           lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
           lastResourceDownAlert = {
             route: "admin-chat",
             requestId,
-            providerId: candidate.provider.providerId,
-            providerName: candidate.provider.name,
+            endpointId: candidate.endpoint.endpointId,
+            endpointName: candidate.endpoint.name,
             modelId: candidate.model.modelId,
             upstreamId: keyMeta.upstreamId,
             upstreamName: keyMeta.upstreamName,
@@ -345,17 +349,17 @@ relay.post("/v1/chat/completions", async (c) => {
             signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
           });
           gatewayUpstreamDuration.observe(
-            { provider: candidate.provider.providerId, route: "chat", phase: "response" },
+            { endpoint: candidate.endpoint.endpointId, route: "chat", phase: "response" },
             (Date.now() - fetchStart) / 1000,
           );
         } catch (err) {
-          markKeyFailure(keyMeta.keyId);
+          markCredentialFailure(keyMeta.endpointCredentialId);
           lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
           lastResourceDownAlert = {
             route: "admin-chat",
             requestId,
-            providerId: candidate.provider.providerId,
-            providerName: candidate.provider.name,
+            endpointId: candidate.endpoint.endpointId,
+            endpointName: candidate.endpoint.name,
             modelId: candidate.model.modelId,
             upstreamId: keyMeta.upstreamId,
             upstreamName: keyMeta.upstreamName,
@@ -369,13 +373,13 @@ relay.post("/v1/chat/completions", async (c) => {
         if (!upstreamRes.ok) {
           const errBody = await upstreamRes.text().catch(() => "");
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-            markKeyFailure(keyMeta.keyId);
+            markCredentialFailure(keyMeta.endpointCredentialId);
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             lastResourceDownAlert = {
               route: "admin-chat",
               requestId,
-              providerId: candidate.provider.providerId,
-              providerName: candidate.provider.name,
+              endpointId: candidate.endpoint.endpointId,
+              endpointName: candidate.endpoint.name,
               modelId: candidate.model.modelId,
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
@@ -392,8 +396,8 @@ relay.post("/v1/chat/completions", async (c) => {
             upstreamRes.status,
             { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
             {
-              keyId: keyMeta.keyId,
-              providerId: candidate.provider.providerId,
+              endpointCredentialId: keyMeta.endpointCredentialId,
+              endpointId: candidate.endpoint.endpointId,
               modelId: candidate.model.modelId,
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
@@ -415,8 +419,8 @@ relay.post("/v1/chat/completions", async (c) => {
             502,
             { error: "Failed to parse upstream response" },
             {
-              keyId: keyMeta.keyId,
-              providerId: candidate.provider.providerId,
+              endpointCredentialId: keyMeta.endpointCredentialId,
+              endpointId: candidate.endpoint.endpointId,
               modelId: candidate.model.modelId,
               upstreamId: keyMeta.upstreamId,
               upstreamName: keyMeta.upstreamName,
@@ -428,12 +432,12 @@ relay.post("/v1/chat/completions", async (c) => {
 
         const transformed = adapter.transformResponse(responseBody);
         const usage = adapter.extractUsage(responseBody);
-        markKeySuccess(keyMeta.keyId);
+        markCredentialSuccess(keyMeta.endpointCredentialId);
 
         const cost = calculateCost(usage, candidate.model);
         enqueueJob("ai-usage-log", {
-          keyId: keyMeta.keyId,
-          providerId: candidate.provider.providerId,
+          endpointCredentialId: keyMeta.endpointCredentialId,
+          endpointId: candidate.endpoint.endpointId,
           modelId: candidate.model.modelId,
           upstreamId: keyMeta.upstreamId,
           upstreamName: keyMeta.upstreamName,
@@ -461,15 +465,14 @@ relay.post("/v1/chat/completions", async (c) => {
           } as Record<string, unknown>);
         }
 
-        enqueueJob("ai-key-touch", {
-          keyId: keyMeta.keyId,
-          keyType: "admin",
+        enqueueJob("ai-endpoint-credential-touch", {
+          endpointCredentialId: keyMeta.endpointCredentialId,
         });
 
         const cacheKey = buildCacheKey({
           scope: "admin",
           model: candidate.model.modelId,
-          providerId: candidate.provider.providerId,
+          endpointId: candidate.endpoint.endpointId,
           upstreamId: keyMeta.upstreamId,
           upstreamBaseUrl: keyMeta.upstreamBaseUrl,
           requestBody: attemptBody,
@@ -478,13 +481,13 @@ relay.post("/v1/chat/completions", async (c) => {
 
         return c.json(transformed);
       } catch (err) {
-        markKeyFailure(keyMeta.keyId);
+        markCredentialFailure(keyMeta.endpointCredentialId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
         lastResourceDownAlert = {
           route: "admin-chat",
           requestId,
-          providerId: candidate.provider.providerId,
-          providerName: candidate.provider.name,
+          endpointId: candidate.endpoint.endpointId,
+          endpointName: candidate.endpoint.name,
           modelId: candidate.model.modelId,
           upstreamId: keyMeta.upstreamId,
           upstreamName: keyMeta.upstreamName,
@@ -510,7 +513,7 @@ relay.post("/v1/chat/completions", async (c) => {
     lastError?.status || 502,
     { error: "All models failed", detail: lastError?.message ?? "No suitable key found" },
     {
-      providerId: candidates[0]?.provider.providerId ?? null,
+      endpointId: candidates[0]?.endpoint.endpointId ?? null,
       modelId: candidates[0]?.model.modelId ?? body.model,
     },
   );
@@ -519,7 +522,7 @@ relay.post("/v1/chat/completions", async (c) => {
 // ── ALL /v1/* — Generic passthrough proxy (must be LAST) ────────────
 //
 // Catch-all for any /v1/* endpoint not matched above (e.g. /v1/messages,
-// /v1/embeddings). Forwards request as-is to the upstream provider.
+// /v1/embeddings). Forwards request as-is to the upstream endpoint.
 // Registered last so specific handlers (/v1/models, /v1/chat/completions)
 // take priority.
 
@@ -561,21 +564,21 @@ relay.all("/v1/*", async (c) => {
     });
   }
 
-  const { provider } = result;
+  const { endpoint } = result;
 
-  if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+  if (body.stream === true && endpoint.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
     return respondWithRelayError(
       c,
       requestId,
       start,
       400,
       { error: "Bedrock streaming is not supported yet" },
-      { providerId: provider.providerId, modelId },
+      { endpointId: endpoint.endpointId, modelId },
     );
   }
 
   interface ResolvedPassthroughAttempt {
-    keyId: number;
+    endpointCredentialId: number;
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
@@ -590,12 +593,12 @@ relay.all("/v1/*", async (c) => {
   const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
   const serializedBody = JSON.stringify(body);
 
-  for (const upstream of await resolveUpstreamCandidates(provider)) {
-    const key = await pickKey(provider.id, upstream.id);
-    if (!key) continue;
+  for (const upstream of await resolveUpstreamCandidates(endpoint)) {
+    const credential = await pickEndpointCredential(endpoint.id, upstream.id);
+    if (!credential) continue;
 
     try {
-      const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+      const plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
       const mappedModelId = await resolveModelMapping(upstream.id, modelId);
       const effectiveBody =
         mappedModelId === modelId
@@ -603,14 +606,14 @@ relay.all("/v1/*", async (c) => {
           : JSON.stringify({ ...body, model: mappedModelId });
       const base = upstream.baseUrl.replace(/\/+$/, "");
       const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
-      const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-        provider,
+      const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(
+        endpoint,
         plainKey,
         upstreamUrl,
         effectiveBody,
       );
       resolvedAttempts.push({
-        keyId: key.id,
+        endpointCredentialId: credential.id,
         authHeaders,
         finalUrl,
         upstreamId: upstream.id,
@@ -632,8 +635,8 @@ relay.all("/v1/*", async (c) => {
       requestId,
       start,
       403,
-      { error: "No API key configured for this provider" },
-      { providerId: provider.providerId, modelId },
+      { error: "No endpoint credential configured for this endpoint" },
+      { endpointId: endpoint.endpointId, modelId },
     );
   }
 
@@ -646,8 +649,8 @@ relay.all("/v1/*", async (c) => {
     selected = resolvedAttempts[idx];
 
     const meta: StreamRelayMeta = {
-      keyId: selected.keyId,
-      providerId: provider.providerId,
+      endpointCredentialId: selected.endpointCredentialId,
+      endpointId: endpoint.endpointId,
       modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -668,7 +671,7 @@ relay.all("/v1/*", async (c) => {
         concurrencyLimit: selected.concurrencyLimit,
         queueTimeoutMs: selected.queueTimeoutMs,
         requestId,
-        providerId: provider.providerId,
+        endpointId: endpoint.endpointId,
         modelId,
       });
     } catch (err) {
@@ -689,14 +692,14 @@ relay.all("/v1/*", async (c) => {
         signal: AbortSignal.timeout(
           isStreaming
             ? resolveUpstreamFetchTimeoutMs(timeouts, {
-                providerId: provider.providerId,
+                endpointId: endpoint.endpointId,
                 modelId,
               })
             : timeouts.streamMaxDurationMs,
         ),
       });
       gatewayUpstreamDuration.observe(
-        { provider: provider.providerId, route: "passthrough", phase: "response" },
+        { endpoint: endpoint.endpointId, route: "passthrough", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
 
@@ -709,7 +712,7 @@ relay.all("/v1/*", async (c) => {
       }
 
       if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
-        markKeyFailure(selected.keyId);
+        markCredentialFailure(selected.endpointCredentialId);
         const errBody = await upstreamRes.text().catch(() => "");
         lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
         continue;
@@ -726,14 +729,14 @@ relay.all("/v1/*", async (c) => {
       }
 
       if (upstreamRes.ok) {
-        markKeySuccess(selected.keyId);
+        markCredentialSuccess(selected.endpointCredentialId);
       } else if (upstreamRes.status === 429 || upstreamRes.status >= 500) {
-        markKeyFailure(selected.keyId);
+        markCredentialFailure(selected.endpointCredentialId);
       }
 
       enqueueJob("ai-usage-log", {
-        keyId: selected.keyId,
-        providerId: provider.providerId,
+        endpointCredentialId: selected.endpointCredentialId,
+        endpointId: endpoint.endpointId,
         modelId,
         upstreamId: selected.upstreamId,
         upstreamName: selected.upstreamName,
@@ -762,7 +765,9 @@ relay.all("/v1/*", async (c) => {
           createdAt: new Date().toISOString(),
         } as Record<string, unknown>);
       }
-      enqueueJob("ai-key-touch", { keyId: selected.keyId, keyType: "admin" });
+      enqueueJob("ai-endpoint-credential-touch", {
+        endpointCredentialId: selected.endpointCredentialId,
+      });
 
       const resHeaders = new Headers();
       upstreamRes.headers.forEach((v, k) => {
@@ -780,7 +785,7 @@ relay.all("/v1/*", async (c) => {
       if (!releaseInFinally) {
         await releaseUpstreamSlot(concurrencyLease).catch(() => {});
       }
-      markKeyFailure(selected.keyId);
+      markCredentialFailure(selected.endpointCredentialId);
       lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
     } finally {
       if (releaseInFinally) await releaseUpstreamSlot(concurrencyLease);
@@ -791,8 +796,8 @@ relay.all("/v1/*", async (c) => {
     notifyResourceDown({
       route: "admin-passthrough",
       requestId,
-      providerId: provider.providerId,
-      providerName: provider.name,
+      endpointId: endpoint.endpointId,
+      endpointName: endpoint.name,
       modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -809,8 +814,8 @@ relay.all("/v1/*", async (c) => {
     lastError?.status || 502,
     { error: "All upstream candidates failed", detail: lastError?.message ?? "Unknown error" },
     {
-      keyId: selected.keyId,
-      providerId: provider.providerId,
+      endpointCredentialId: selected.endpointCredentialId,
+      endpointId: endpoint.endpointId,
       modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -826,13 +831,13 @@ export default relay;
 
 interface Candidate {
   model: AiModel;
-  provider: AiProvider;
-  /** Actual model slug sent to the upstream provider (may differ from model.modelId). */
-  providerModelId: string;
+  endpoint: AiEndpoint;
+  /** Actual model slug sent to the upstream endpoint (may differ from model.modelId). */
+  endpointModelId: string;
 }
 
 interface KeyMeta {
-  keyId: number;
+  endpointCredentialId: number;
   upstreamId: number | null;
   concurrencyScopeKey: string;
   upstreamName: string;
@@ -842,7 +847,7 @@ interface KeyMeta {
 }
 
 interface ResolvedCandidate {
-  adapter: ProviderAdapter;
+  adapter: ProtocolAdapter;
   finalUrl: string;
   authHeaders: Record<string, string>;
   keyMeta: KeyMeta;
@@ -851,7 +856,7 @@ interface ResolvedCandidate {
 }
 
 /**
- * Build candidate list via model routes: each route maps a model to a provider.
+ * Build candidate list via model routes: each route maps a model to an endpoint.
  * Routes are sorted by priority ASC (from repo). After route-level candidates,
  * cross-model fallbacks (fallbackModelIds) are appended — each resolved through
  * their own routes.
@@ -868,8 +873,8 @@ async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
     (primaryModel.weight ?? 1) > 0
       ? routes.map((r) => ({
           model: r.model,
-          provider: r.provider,
-          providerModelId: r.route.providerModelId ?? r.model.modelId,
+          endpoint: r.endpoint,
+          endpointModelId: r.route.endpointModelId ?? r.model.modelId,
         }))
       : [];
   const fallbackGroups: Array<{ model: AiModel; candidates: Candidate[] }> = [];
@@ -894,8 +899,8 @@ async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
         model: fallbackModel,
         candidates: fbRoutes.map((fbr) => ({
           model: fbr.model,
-          provider: fbr.provider,
-          providerModelId: fbr.route.providerModelId ?? fbr.model.modelId,
+          endpoint: fbr.endpoint,
+          endpointModelId: fbr.route.endpointModelId ?? fbr.model.modelId,
         })),
       });
     }
@@ -912,37 +917,40 @@ async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
 /** Resolve key, auth headers, and URL for a candidate model. */
 async function resolveCandidate(
   candidate: Candidate,
-  adapter: ProviderAdapter,
+  adapter: ProtocolAdapter,
   stream: boolean,
   defaultSerializedBody: string,
   candidateBody: OpenAIChatBody,
 ): Promise<ResolvedCandidate[]> {
-  const { provider } = candidate;
-  const upstreams = await resolveUpstreamCandidates(provider);
+  const { endpoint } = candidate;
+  const upstreams = await resolveUpstreamCandidates(endpoint);
   const resolved: ResolvedCandidate[] = [];
 
   for (const upstream of upstreams) {
-    const key = await pickKey(provider.id, upstream.id);
-    if (!key) continue;
+    const credential = await pickEndpointCredential(endpoint.id, upstream.id);
+    if (!credential) continue;
 
     let plainKey: string;
     try {
-      plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
+      plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
     } catch (err) {
-      log.gateway.error({ err, keyId: key.id }, "Failed to decrypt AI key");
+      log.gateway.error(
+        { err, endpointCredentialId: credential.id },
+        "Failed to decrypt AI credential",
+      );
       continue;
     }
 
-    const mappedModelId = await resolveModelMapping(upstream.id, candidate.providerModelId);
-    const needsRemap = mappedModelId !== candidate.providerModelId;
+    const mappedModelId = await resolveModelMapping(upstream.id, candidate.endpointModelId);
+    const needsRemap = mappedModelId !== candidate.endpointModelId;
 
     const effectiveBody = needsRemap
       ? JSON.stringify(adapter.transformRequest({ ...candidateBody, model: mappedModelId }))
       : defaultSerializedBody;
 
     const upstreamUrl = adapter.buildUrl(upstream.baseUrl, { model: mappedModelId, stream });
-    const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-      provider,
+    const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(
+      endpoint,
       plainKey,
       upstreamUrl,
       effectiveBody,
@@ -953,7 +961,7 @@ async function resolveCandidate(
       finalUrl,
       authHeaders,
       keyMeta: {
-        keyId: key.id,
+        endpointCredentialId: credential.id,
         upstreamId: upstream.id,
         concurrencyScopeKey: upstream.concurrencyScopeKey,
         upstreamName: upstream.name,

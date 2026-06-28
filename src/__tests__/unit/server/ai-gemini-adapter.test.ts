@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { geminiAdapter } from "@/server/ai/providers/gemini";
+import { geminiAdapter } from "@/server/ai/protocol-adapters/gemini";
 
 // ── buildUrl ────────────────────────────────────────────────────────────
 

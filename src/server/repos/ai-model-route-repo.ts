@@ -1,16 +1,17 @@
 /**
  * AI Model Route repository — CRUD for `ai_model_routes` junction table.
- * Routes link models to providers with priority-based failover.
+ * Routes link models to endpoints with priority-based failover.
  */
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import {
+  type AiEndpoint,
+  aiEndpoints,
   type AiModel,
   type AiModelRoute,
   aiModelRoutes,
   aiModels,
-  type AiProvider,
-  aiProviders,
+  aiSuppliers,
   db,
   exec,
   execWithChanges,
@@ -22,22 +23,22 @@ import {
 
 import type { ClientFormat } from "../ai/lib/client-format";
 
-export interface RouteWithProvider {
+export interface RouteWithEndpoint {
   route: AiModelRoute;
-  provider: AiProvider;
+  endpoint: AiEndpoint;
 }
 
 export interface EnabledRouteResult {
   route: AiModelRoute;
   model: AiModel;
-  provider: AiProvider;
+  endpoint: AiEndpoint;
 }
 
 export const aiModelRouteRepo = {
   /**
-   * Find all enabled routes for a model slug, joining providers.
+   * Find all enabled routes for a model slug, joining endpoints.
    * Sorted by priority ASC (lower = tried first), then weight DESC.
-   * Used by relay logic for multi-provider failover.
+   * Used by relay logic for multi-endpoint failover.
    */
   async findEnabledRoutesByModelId(
     modelId: string,
@@ -45,18 +46,20 @@ export const aiModelRouteRepo = {
   ): Promise<EnabledRouteResult[]> {
     return queryAll<EnabledRouteResult>(
       db
-        .select({ route: aiModelRoutes, model: aiModels, provider: aiProviders })
+        .select({ route: aiModelRoutes, model: aiModels, endpoint: aiEndpoints })
         .from(aiModelRoutes)
         .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
-        .innerJoin(aiProviders, eq(aiModelRoutes.providerId, aiProviders.id))
+        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
+        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
         .where(
           and(
             eq(aiModels.modelId, modelId),
             eq(aiModels.clientFormat, clientFormat),
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
-            eq(aiProviders.enabled, true),
-            eq(aiProviders.autoDisabled, false),
+            eq(aiEndpoints.enabled, true),
+            eq(aiEndpoints.autoDisabled, false),
+            eq(aiSuppliers.enabled, true),
           ),
         )
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
@@ -64,34 +67,34 @@ export const aiModelRouteRepo = {
   },
 
   /** Find all routes for a model (by model PK) — for admin UI. */
-  async findByModelPk(modelPk: number): Promise<RouteWithProvider[]> {
-    return queryAll<RouteWithProvider>(
+  async findByModelPk(modelPk: number): Promise<RouteWithEndpoint[]> {
+    return queryAll<RouteWithEndpoint>(
       db
-        .select({ route: aiModelRoutes, provider: aiProviders })
+        .select({ route: aiModelRoutes, endpoint: aiEndpoints })
         .from(aiModelRoutes)
-        .innerJoin(aiProviders, eq(aiModelRoutes.providerId, aiProviders.id))
+        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
         .where(eq(aiModelRoutes.modelId, modelPk))
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
     );
   },
 
-  /** Find all routes for a provider — for provider detail counts. */
-  async findByProviderId(providerId: number): Promise<AiModelRoute[]> {
+  /** Find all routes for an endpoint — for endpoint detail counts. */
+  async findByEndpointId(endpointId: number): Promise<AiModelRoute[]> {
     return queryAll(
-      db.select().from(aiModelRoutes).where(eq(aiModelRoutes.providerId, providerId)),
+      db.select().from(aiModelRoutes).where(eq(aiModelRoutes.endpointId, endpointId)),
     );
   },
 
-  /** Check if a route exists for this model+provider pair. */
-  async findByModelAndProvider(
+  /** Check if a route exists for this model+endpoint pair. */
+  async findByModelAndEndpoint(
     modelPk: number,
-    providerId: number,
+    endpointId: number,
   ): Promise<AiModelRoute | undefined> {
     return queryOne(
       db
         .select()
         .from(aiModelRoutes)
-        .where(and(eq(aiModelRoutes.modelId, modelPk), eq(aiModelRoutes.providerId, providerId))),
+        .where(and(eq(aiModelRoutes.modelId, modelPk), eq(aiModelRoutes.endpointId, endpointId))),
     );
   },
 

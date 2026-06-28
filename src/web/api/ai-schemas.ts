@@ -3,12 +3,26 @@ import { z } from "zod";
 const healthCheckStatusSchema = z.enum(["unknown", "healthy", "degraded", "down"]);
 const nullableDateSchema = z.string().or(z.number()).nullable().optional();
 
-// ── AI Providers ────────────────────────────────────────────────
+// ── AI Suppliers / Endpoints ────────────────────────────────────
 
-export const aiProviderSchema = z.object({
+export const aiSupplierSchema = z.object({
   id: z.number(),
-  providerId: z.string(),
+  supplierId: z.string(),
   name: z.string(),
+  iconUrl: z.string().nullable().optional(),
+  enabled: z.coerce.boolean(),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiSupplier = z.infer<typeof aiSupplierSchema>;
+
+export const aiEndpointSchema = z.object({
+  id: z.number(),
+  supplierId: z.number(),
+  supplierSlug: z.string().optional(),
+  supplierName: z.string().optional(),
+  name: z.string(),
+  endpointId: z.string(),
   baseUrl: z.string(),
   apiFormat: z.string(),
   authType: z.string(),
@@ -30,7 +44,7 @@ export const aiProviderSchema = z.object({
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
-export type AiProvider = z.infer<typeof aiProviderSchema>;
+export type AiEndpoint = z.infer<typeof aiEndpointSchema>;
 
 // ── AI Upstreams (global) ──────────────────────────────────────
 
@@ -59,7 +73,7 @@ export type AiUpstream = z.infer<typeof aiUpstreamSchema>;
 
 export const aiUpstreamAssignmentSchema = z.object({
   id: z.number(),
-  providerId: z.number(),
+  endpointId: z.number(),
   upstream: aiUpstreamSchema,
   priority: z.number(),
   weight: z.number(),
@@ -81,8 +95,8 @@ export const aiUpstreamOverviewItemSchema = z.object({
   enabled: z.coerce.boolean(),
   autoDisabled: z.coerce.boolean().optional().default(false),
   assignmentCount: z.number(),
-  totalKeys: z.number(),
-  enabledKeys: z.number(),
+  totalCredentials: z.number(),
+  enabledCredentials: z.number(),
   requests24h: z.number(),
   clientErrors24h: z.number(),
   serverErrors24h: z.number(),
@@ -111,11 +125,14 @@ export const aiUpstreamsOverviewSchema = z.object({
 });
 export type AiUpstreamsOverview = z.infer<typeof aiUpstreamsOverviewSchema>;
 
-// ── AI Providers Overview (health + usage aggregation) ────────
+// ── AI Endpoints Overview (health + usage aggregation) ─────────
 
-export const aiProviderOverviewItemSchema = z.object({
+export const aiEndpointOverviewItemSchema = z.object({
   id: z.number(),
-  providerId: z.string(),
+  supplierId: z.number(),
+  supplierSlug: z.string(),
+  supplierName: z.string(),
+  endpointId: z.string(),
   name: z.string(),
   baseUrl: z.string(),
   apiFormat: z.string(),
@@ -126,8 +143,8 @@ export const aiProviderOverviewItemSchema = z.object({
   enabled: z.coerce.boolean(),
   autoDisabled: z.coerce.boolean().optional().default(false),
   upstreamCount: z.number(),
-  totalKeys: z.number(),
-  enabledKeys: z.number(),
+  totalCredentials: z.number(),
+  enabledCredentials: z.number(),
   requests24h: z.number(),
   clientErrors24h: z.number(),
   serverErrors24h: z.number(),
@@ -142,18 +159,18 @@ export const aiProviderOverviewItemSchema = z.object({
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
-export type AiProviderOverviewItem = z.infer<typeof aiProviderOverviewItemSchema>;
+export type AiEndpointOverviewItem = z.infer<typeof aiEndpointOverviewItemSchema>;
 
-export const aiProvidersOverviewSchema = z.object({
+export const aiEndpointsOverviewSchema = z.object({
   totals: z.object({
-    totalProviders: z.number(),
-    enabledProviders: z.number(),
-    activeProviders24h: z.number(),
-    degradedProviders30m: z.number(),
+    totalEndpoints: z.number(),
+    enabledEndpoints: z.number(),
+    activeEndpoints24h: z.number(),
+    degradedEndpoints30m: z.number(),
   }),
-  providers: z.array(aiProviderOverviewItemSchema),
+  endpoints: z.array(aiEndpointOverviewItemSchema),
 });
-export type AiProvidersOverview = z.infer<typeof aiProvidersOverviewSchema>;
+export type AiEndpointsOverview = z.infer<typeof aiEndpointsOverviewSchema>;
 
 // ── AI Upstream Hourly (time-series for chart) ─────────────────
 
@@ -166,13 +183,13 @@ export const aiUpstreamHourlyRowSchema = z.object({
 });
 export type AiUpstreamHourlyRow = z.infer<typeof aiUpstreamHourlyRowSchema>;
 
-// ── AI Upstream Detail (single upstream + provider assignments) ───
+// ── AI Upstream Detail (single upstream + endpoint assignments) ───
 
 export const aiUpstreamDetailAssignmentSchema = z.object({
   id: z.number(),
-  providerId: z.number(),
-  providerName: z.string(),
-  providerSlug: z.string().nullable(),
+  endpointId: z.number(),
+  endpointName: z.string(),
+  endpointSlug: z.string().nullable(),
   priority: z.number(),
   weight: z.number(),
   enabled: z.coerce.boolean(),
@@ -197,11 +214,11 @@ export type AiUpstreamDetail = z.infer<typeof aiUpstreamDetailSchema>;
 
 export const aiModelRouteSchema = z.object({
   id: z.number(),
-  providerId: z.number(),
-  providerName: z.string().optional(),
-  providerIconUrl: z.string().nullable().optional(),
+  endpointId: z.number(),
+  endpointName: z.string().optional(),
+  endpointIconUrl: z.string().nullable().optional(),
   apiFormat: z.string().optional(),
-  providerModelId: z.string().nullable().optional(),
+  endpointModelId: z.string().nullable().optional(),
   priority: z.number(),
   weight: z.number(),
   enabled: z.coerce.boolean(),
@@ -222,7 +239,6 @@ export type AiModelGrayUser = z.infer<typeof aiModelGrayUserSchema>;
 
 export const aiModelSchema = z.object({
   id: z.number(),
-  providerId: z.number().nullable().optional(), // legacy — nullable
   clientFormat: z.enum(["openai", "anthropic"]).default("openai"),
   modelId: z.string(),
   name: z.string(),
@@ -242,18 +258,35 @@ export const aiModelSchema = z.object({
 });
 export type AiModel = z.infer<typeof aiModelSchema>;
 
-// ── AI Keys ────────────────────────────────────────────────────
+// ── AI Credentials ──────────────────────────────────────────────
 
-export const aiKeySchema = z.object({
+export const aiCredentialSchema = z.object({
   id: z.number(),
-  providerId: z.number(),
-  upstreamId: z.number().nullable().optional(),
+  supplierId: z.number(),
   ownerId: z.number().nullable().optional(),
   name: z.string(),
   keyPrefix: z.string(),
+  enabled: z.coerce.boolean(),
+  supplierName: z.string().optional(),
+  ownerName: z.string().nullable().optional(),
+  lastUsedAt: z.string().or(z.number()).nullable().optional(),
+  createdAt: z.string().or(z.number()),
+  updatedAt: z.string().or(z.number()),
+});
+export type AiCredential = z.infer<typeof aiCredentialSchema>;
+
+export const aiEndpointCredentialSchema = z.object({
+  id: z.number(),
+  endpointId: z.number(),
+  credentialId: z.number(),
+  upstreamId: z.number().nullable().optional(),
+  ownerId: z.number().nullable().optional(),
+  name: z.string(),
+  credentialName: z.string().optional(),
+  keyPrefix: z.string(),
   weight: z.number().optional().default(1),
   enabled: z.coerce.boolean(),
-  providerName: z.string().optional(),
+  endpointName: z.string().optional(),
   ownerName: z.string().nullable().optional(),
   upstreamName: z.string().nullable().optional(),
   upstreamSlug: z.string().nullable().optional(),
@@ -261,25 +294,20 @@ export const aiKeySchema = z.object({
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
 });
-export type AiKey = z.infer<typeof aiKeySchema>;
+export type AiEndpointCredential = z.infer<typeof aiEndpointCredentialSchema>;
 
-/** @deprecated Use `aiKeySchema` / `AiKey` instead */
-export const aiMerchantKeySchema = aiKeySchema;
-/** @deprecated Use `AiKey` instead */
-export type AiMerchantKey = AiKey;
-
-export const testAiKeyResultSchema = z.object({
+export const testAiEndpointCredentialResultSchema = z.object({
   success: z.boolean(),
   latencyMs: z.number().optional(),
   status: z.number().optional(),
   error: z.string().optional(),
 });
-export type TestAiKeyResult = z.infer<typeof testAiKeyResultSchema>;
+export type TestAiEndpointCredentialResult = z.infer<typeof testAiEndpointCredentialResultSchema>;
 
 // ── AI Usage ────────────────────────────────────────────────────────
 
 const aiUsageBreakdownSchema = z.object({
-  providerId: z.string(),
+  endpointId: z.string(),
   requests: z.number(),
   inputTokens: z.number(),
   outputTokens: z.number(),
@@ -295,7 +323,7 @@ export const aiUsageSummarySchema = z.object({
   totalEstimatedCost: z.number(),
   errorCount: z.number(),
   errorRate: z.number(),
-  byProvider: z.array(aiUsageBreakdownSchema),
+  byEndpoint: z.array(aiUsageBreakdownSchema),
   byModel: z.array(aiUsageBreakdownSchema.extend({ modelId: z.string() })),
 });
 export type AiUsageSummary = z.infer<typeof aiUsageSummarySchema>;
@@ -330,9 +358,12 @@ export type AiErrorDaily = z.infer<typeof aiErrorDailySchema>;
 
 export const aiUsageRecordSchema = z.object({
   id: z.number(),
-  keyId: z.number().nullable(),
+  endpointCredentialId: z.number().nullable(),
+  credentialId: z.number().nullable().optional(),
+  credentialOwnerId: z.number().nullable().optional(),
   consumerKeyId: z.number().nullable().optional(),
-  providerId: z.string().nullable(),
+  supplierId: z.string().nullable().optional(),
+  endpointId: z.string().nullable(),
   modelId: z.string().nullable(),
   upstreamId: z.number().nullable().optional(),
   upstreamName: z.string().nullable().optional(),
@@ -452,7 +483,7 @@ export const timeoutConfigSchema = z.object({
   streamMaxDurationMs: z.number().int().positive(),
   upstreamFetchOverrides: z.array(
     z.object({
-      providerId: z.string().optional(),
+      endpointId: z.string().optional(),
       modelId: z.string().optional(),
       upstreamFetchMs: z.number().int().positive(),
     }),

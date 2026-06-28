@@ -1,8 +1,8 @@
 /**
- * Provider Adapter types — defines the contract for AI provider format adapters.
+ * Protocol Adapter types — defines the contract for AI request/response format adapters.
  *
  * Each adapter handles request/response format conversion between the
- * OpenAI-compatible relay input and the provider's native API format.
+ * OpenAI-compatible relay input and the upstream protocol format.
  */
 
 // ── Token usage ──────────────────────────────────────────────────────
@@ -58,23 +58,23 @@ export interface OpenAIChatResponse {
   [key: string]: unknown;
 }
 
-// ── Provider Adapter interface ───────────────────────────────────────
+// ── Protocol Adapter interface ───────────────────────────────────────
 
-export interface ProviderAdapter {
-  /** Provider API format identifier (e.g., "openai", "anthropic", "gemini"). */
+export interface ProtocolAdapter {
+  /** Endpoint API format identifier (e.g., "openai", "anthropic", "gemini"). */
   readonly format: string;
 
-  /** Transform OpenAI-compatible request body to provider native format. */
+  /** Transform OpenAI-compatible request body to the upstream protocol format. */
   transformRequest(body: OpenAIChatBody): unknown;
 
-  /** Transform provider native response to OpenAI-compatible format. */
+  /** Transform upstream protocol response to OpenAI-compatible format. */
   transformResponse(body: unknown): OpenAIChatResponse;
 
   /** Extract token usage from a non-streaming response body. */
   extractUsage(body: unknown): TokenUsage | null;
 
   /**
-   * Transform a single SSE event data line from provider format to OpenAI format.
+   * Transform a single SSE event data line from upstream protocol format to OpenAI format.
    * Return null to skip (not forward) this event.
    */
   transformStreamEvent(eventData: string): string | null;
@@ -85,7 +85,7 @@ export interface ProviderAdapter {
   /** Check if an SSE event data line signals end of stream. */
   isStreamDone(eventData: string): boolean;
 
-  /** Build the upstream request URL from the provider's base URL. */
+  /** Build the upstream request URL from the endpoint/upstream base URL. */
   buildUrl(baseUrl: string, opts: BuildUrlOptions): string;
 }
 

@@ -1,7 +1,7 @@
 import { initBlockchainConfig } from "@/blockchain/config";
 import { initAiAdapters, initAiWriteHandlers } from "@/server/ai/init";
 import { initDb } from "@/server/db";
-import { initSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
+import { initEndpointHealthCheckJob } from "@/server/jobs/check-endpoint-health";
 import { initAiUsageLogCleanupJob } from "@/server/jobs/cleanup-ai-usage-logs";
 import { initLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
 import { initLiteLLMPricingJob } from "@/server/jobs/refresh-litellm-pricing";
@@ -175,7 +175,7 @@ export async function bootstrapWorker() {
   await initTopupExpiryJob();
   initWebhookRetryJob();
   await initDepositScanQueue();
-  await initSupplierHealthCheckJob();
+  await initEndpointHealthCheckJob();
   await initLimitedFreeModelExpiryJob();
   await initAiUsageLogCleanupJob();
 }
@@ -197,7 +197,7 @@ export async function bootstrapAll() {
   await initTopupExpiryJob();
   initWebhookRetryJob();
   await initDepositScanQueue();
-  await initSupplierHealthCheckJob();
+  await initEndpointHealthCheckJob();
   await initLimitedFreeModelExpiryJob();
   await initAiUsageLogCleanupJob();
 }

@@ -6,30 +6,30 @@ export function isClientFormat(value: string): value is ClientFormat {
   return (CLIENT_FORMATS as readonly string[]).includes(value);
 }
 
-export function defaultClientFormatForProvider(apiFormat: string): ClientFormat {
+export function defaultClientFormatForEndpoint(apiFormat: string): ClientFormat {
   return apiFormat === "anthropic" ? "anthropic" : "openai";
 }
 
-export function isNativePassthroughProvider(
+export function isNativePassthroughEndpoint(
   clientFormat: ClientFormat,
-  providerApiFormat: string,
+  endpointApiFormat: string,
 ): boolean {
-  if (clientFormat === "anthropic") return providerApiFormat === "anthropic";
-  return providerApiFormat === "openai" || providerApiFormat === "azure-openai";
+  if (clientFormat === "anthropic") return endpointApiFormat === "anthropic";
+  return endpointApiFormat === "openai" || endpointApiFormat === "azure-openai";
 }
 
-export function canAttachProviderToClientFormat(
+export function canAttachEndpointToClientFormat(
   clientFormat: ClientFormat,
-  providerApiFormat: string,
+  endpointApiFormat: string,
 ): boolean {
-  return canServeClientFormat(clientFormat, providerApiFormat);
+  return canServeClientFormat(clientFormat, endpointApiFormat);
 }
 
 export function canServeClientFormat(
   clientFormat: ClientFormat,
-  providerApiFormat: string,
+  endpointApiFormat: string,
 ): boolean {
   // OpenAI chat/completions can still use adapters for Anthropic, Gemini, and Bedrock sources.
   if (clientFormat === "openai") return true;
-  return ["anthropic", "openai", "azure-openai"].includes(providerApiFormat);
+  return ["anthropic", "openai", "azure-openai"].includes(endpointApiFormat);
 }

@@ -16,7 +16,7 @@
  */
 import { anthropicAdapter } from "./anthropic";
 import { openaiAdapter } from "./openai";
-import type { BuildUrlOptions, OpenAIChatBody, ProviderAdapter, TokenUsage } from "./types";
+import type { BuildUrlOptions, OpenAIChatBody, ProtocolAdapter, TokenUsage } from "./types";
 
 export const BEDROCK_STREAMING_SUPPORTED = false;
 
@@ -114,7 +114,7 @@ export function ensureInferenceProfile(modelId: string, baseUrl: string): string
 
 // ── Adapter ─────────────────────────────────────────────────────────
 
-export const bedrockAdapter: ProviderAdapter = {
+export const bedrockAdapter: ProtocolAdapter = {
   format: "bedrock",
 
   buildUrl(baseUrl: string, opts: BuildUrlOptions): string {
@@ -129,7 +129,7 @@ export const bedrockAdapter: ProviderAdapter = {
     return delegate.transformRequest(body);
   },
 
-  transformResponse(body: unknown): ReturnType<ProviderAdapter["transformResponse"]> {
+  transformResponse(body: unknown): ReturnType<ProtocolAdapter["transformResponse"]> {
     const delegate = isAnthropicResponse(body) ? anthropicAdapter : openaiAdapter;
     return delegate.transformResponse(body);
   },

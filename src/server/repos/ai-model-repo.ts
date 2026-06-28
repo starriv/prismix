@@ -4,9 +4,9 @@
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import {
+  type AiEndpoint,
   type AiModel,
   aiModels,
-  type AiProvider,
   db,
   exec,
   execWithChanges,
@@ -20,17 +20,17 @@ import type { ClientFormat } from "../ai/lib/client-format";
 import { aiModelRouteRepo } from "./ai-model-route-repo";
 
 export const aiModelRepo = {
-  /** Find models that have a route to this provider. */
-  async findByProviderId(providerId: number): Promise<AiModel[]> {
-    const routes = await aiModelRouteRepo.findByProviderId(providerId);
+  /** Find models that have a route to this endpoint. */
+  async findByEndpointId(endpointId: number): Promise<AiModel[]> {
+    const routes = await aiModelRouteRepo.findByEndpointId(endpointId);
     if (routes.length === 0) return [];
     const modelPks = [...new Set(routes.map((r) => r.modelId))];
     return queryAll(db.select().from(aiModels).where(inArray(aiModels.id, modelPks)));
   },
 
-  /** Find enabled models that have a route to this provider. */
-  async findEnabledByProviderId(providerId: number): Promise<AiModel[]> {
-    const models = await this.findByProviderId(providerId);
+  /** Find enabled models that have a route to this endpoint. */
+  async findEnabledByEndpointId(endpointId: number): Promise<AiModel[]> {
+    const models = await this.findByEndpointId(endpointId);
     return models.filter((m) => m.enabled);
   },
 
@@ -65,21 +65,21 @@ export const aiModelRepo = {
 
   /**
    * Find an enabled model by model_id slug via route-based lookup.
-   * Returns the first (highest-priority) route's provider for backward compat.
+   * Returns the first (highest-priority) route's endpoint.
    */
   async findEnabledByModelId(
     modelId: string,
     clientFormat: ClientFormat = "openai",
-  ): Promise<{ model: AiModel; provider: AiProvider } | undefined> {
+  ): Promise<{ model: AiModel; endpoint: AiEndpoint } | undefined> {
     const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, clientFormat);
     if (routes.length === 0) return undefined;
-    return { model: routes[0].model, provider: routes[0].provider };
+    return { model: routes[0].model, endpoint: routes[0].endpoint };
   },
 
   /** All enabled models (for /v1/models catalog), deduplicated by modelId. */
   async findAllEnabled(
     clientFormat?: ClientFormat,
-  ): Promise<Array<{ model: AiModel; provider: AiProvider }>> {
+  ): Promise<Array<{ model: AiModel; endpoint: AiEndpoint }>> {
     const where = clientFormat
       ? and(eq(aiModels.enabled, true), eq(aiModels.clientFormat, clientFormat))
       : eq(aiModels.enabled, true);
@@ -87,14 +87,14 @@ export const aiModelRepo = {
       db.select().from(aiModels).where(where).orderBy(aiModels.id),
     );
 
-    const results: Array<{ model: AiModel; provider: AiProvider }> = [];
+    const results: Array<{ model: AiModel; endpoint: AiEndpoint }> = [];
     for (const m of allModels) {
       const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(
         m.modelId,
         m.clientFormat as ClientFormat,
       );
       if (routes.length > 0) {
-        results.push({ model: m, provider: routes[0].provider });
+        results.push({ model: m, endpoint: routes[0].endpoint });
       }
     }
     return results;

@@ -11,7 +11,7 @@ import {
   extractStreamUsageUniversal,
   splitSSEFrames,
 } from "@/server/ai/lib/stream-proxy";
-import { openaiAdapter } from "@/server/ai/providers/openai";
+import { openaiAdapter } from "@/server/ai/protocol-adapters/openai";
 
 // Mock write-queue to avoid transitive DB/Redis initialization
 vi.mock("@/server/lib/write-queue", () => ({

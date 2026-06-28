@@ -17,7 +17,7 @@ import { Button } from "@/web/components/ui/button";
 import { formatTokens, StatusBadge } from "./helpers";
 
 type KeyMap = Record<number, RelayKeyOption | undefined>;
-type ProviderRow = AiUsageSummary["byProvider"][number];
+type EndpointRow = AiUsageSummary["byEndpoint"][number];
 type ModelRow = AiUsageSummary["byModel"][number];
 
 export function buildAiUsageByKeyColumns({
@@ -137,14 +137,14 @@ export function buildAiUsageByKeyColumns({
   ];
 }
 
-export function buildAiUsageProviderColumns(t: TFunction): ColumnDef<ProviderRow>[] {
+export function buildAiUsageEndpointColumns(t: TFunction): ColumnDef<EndpointRow>[] {
   return [
     {
-      accessorKey: "providerId",
+      accessorKey: "endpointId",
       cell: ({ row }) => (
-        <DataTableText className="font-medium">{row.original.providerId}</DataTableText>
+        <DataTableText className="font-medium">{row.original.endpointId}</DataTableText>
       ),
-      header: t("ai-usage.th.provider"),
+      header: t("ai-usage.th.endpoint"),
       meta: { headerClassName: "w-[24%]" },
     },
     {
@@ -204,11 +204,11 @@ export function buildAiUsageProviderColumns(t: TFunction): ColumnDef<ProviderRow
 export function buildAiUsageModelColumns(t: TFunction): ColumnDef<ModelRow>[] {
   return [
     {
-      accessorKey: "providerId",
+      accessorKey: "endpointId",
       cell: ({ row }) => (
-        <DataTableText className="font-medium">{row.original.providerId}</DataTableText>
+        <DataTableText className="font-medium">{row.original.endpointId}</DataTableText>
       ),
-      header: t("ai-usage.th.provider"),
+      header: t("ai-usage.th.endpoint"),
       meta: { headerClassName: "w-[16%]" },
     },
     {

@@ -95,8 +95,12 @@ describe("write queue", () => {
     expect(batch.enqueue).toHaveBeenCalledWith("ai-usage-log", { requestId: "x" }, undefined);
     expect(main.enqueue).not.toHaveBeenCalled();
 
-    enqueueJob("ai-key-touch", { keyId: 1 });
-    expect(main.enqueue).toHaveBeenCalledWith("ai-key-touch", { keyId: 1 }, undefined);
+    enqueueJob("ai-endpoint-credential-touch", { endpointCredentialId: 1 });
+    expect(main.enqueue).toHaveBeenCalledWith(
+      "ai-endpoint-credential-touch",
+      { endpointCredentialId: 1 },
+      undefined,
+    );
 
     await closeWriteQueue();
   });

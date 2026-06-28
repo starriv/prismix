@@ -81,14 +81,14 @@ VALUES (
 )
 ON CONFLICT (key) DO NOTHING;
 
--- ── AI Provider catalog ──────────────────────────────────────────────
--- Default provider templates seeded into global_settings as JSON.
--- Admin seeds these providers into the ai_providers table on first setup.
+-- ── AI Endpoint catalog ──────────────────────────────────────────────
+-- Default endpoint templates seeded into global_settings as JSON.
+-- Admin seeds these suppliers and endpoints on first setup.
 -- Models are NOT seeded — admin configures them via discover-models UI.
 INSERT INTO global_settings (key, value, updated_at, created_at)
 VALUES (
-  'ai_provider_catalog',
-  '[{"providerId":"openai","name":"OpenAI","baseUrl":"https://api.openai.com/v1","apiFormat":"openai","authType":"bearer"},{"providerId":"anthropic","name":"Anthropic","baseUrl":"https://api.anthropic.com/v1","apiFormat":"anthropic","authType":"api-key","authConfig":{"headerName":"x-api-key"}},{"providerId":"google","name":"Google AI","baseUrl":"https://generativelanguage.googleapis.com/v1beta","apiFormat":"gemini","authType":"bearer"},{"providerId":"deepseek","name":"DeepSeek","baseUrl":"https://api.deepseek.com","apiFormat":"openai","authType":"bearer"},{"providerId":"groq","name":"Groq","baseUrl":"https://api.groq.com/openai/v1","apiFormat":"openai","authType":"bearer"},{"providerId":"bedrock","name":"AWS Bedrock","baseUrl":"https://bedrock-runtime.us-east-1.amazonaws.com","apiFormat":"bedrock","authType":"sigv4","authConfig":{"region":"us-east-1","service":"bedrock","accessKeyId":""}}]',
+  'ai_endpoint_catalog',
+  '[{"supplierId":"openai","supplierName":"OpenAI","endpointId":"openai","name":"OpenAI","baseUrl":"https://api.openai.com/v1","apiFormat":"openai","authType":"bearer"},{"supplierId":"anthropic","supplierName":"Anthropic","endpointId":"anthropic","name":"Anthropic","baseUrl":"https://api.anthropic.com/v1","apiFormat":"anthropic","authType":"api-key","authConfig":{"headerName":"x-api-key"}},{"supplierId":"google","supplierName":"Google AI","endpointId":"google","name":"Google AI","baseUrl":"https://generativelanguage.googleapis.com/v1beta","apiFormat":"gemini","authType":"bearer"},{"supplierId":"deepseek","supplierName":"DeepSeek","endpointId":"deepseek-openai","name":"DeepSeek OpenAI","baseUrl":"https://api.deepseek.com","apiFormat":"openai","authType":"bearer"},{"supplierId":"groq","supplierName":"Groq","endpointId":"groq-openai","name":"Groq OpenAI","baseUrl":"https://api.groq.com/openai/v1","apiFormat":"openai","authType":"bearer"},{"supplierId":"bedrock","supplierName":"AWS Bedrock","endpointId":"bedrock-us-east-1","name":"AWS Bedrock us-east-1","baseUrl":"https://bedrock-runtime.us-east-1.amazonaws.com","apiFormat":"bedrock","authType":"sigv4","authConfig":{"region":"us-east-1","service":"bedrock","accessKeyId":""}}]',
   NOW(),
   NOW()
 )

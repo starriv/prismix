@@ -40,9 +40,9 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
       },
     },
     {
-      accessorKey: "providerId",
-      cell: ({ row }) => <DataTableText>{row.original.providerId ?? "—"}</DataTableText>,
-      header: t("ai-logs.th.provider"),
+      accessorKey: "endpointId",
+      cell: ({ row }) => <DataTableText>{row.original.endpointId ?? "—"}</DataTableText>,
+      header: t("ai-logs.th.endpoint"),
       meta: {
         headerClassName: "w-[10%]",
         ...dataTableMeta.hiddenOnMobile,

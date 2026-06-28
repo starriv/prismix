@@ -62,7 +62,9 @@ export default function UserLogsPage() {
   const { data: modelCatalog } = useUserModels();
   const modelOptions = useMemo(() => {
     if (!modelCatalog) return [];
-    return sortBy(modelCatalog.providers.flatMap((p) => p.models.map((m) => m.modelId)));
+    return sortBy(
+      modelCatalog.endpoints.flatMap((endpoint) => endpoint.models.map((m) => m.modelId)),
+    );
   }, [modelCatalog]);
 
   const [selected, setSelected] = useState<AiUsageRecord | null>(null);

@@ -1,8 +1,8 @@
 /**
- * OpenAI adapter — passthrough for all OpenAI-compatible providers.
+ * OpenAI adapter — passthrough for all OpenAI-compatible upstreams.
  *
  * Covers: OpenAI, DeepSeek, Groq, Zhipu GLM, Mistral, Together, Ollama, etc.
- * These providers accept the OpenAI chat completions format natively, so
+ * These upstreams accept the OpenAI chat completions format natively, so
  * transformRequest/transformResponse are identity functions.
  */
 import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
@@ -10,7 +10,7 @@ import type {
   BuildUrlOptions,
   OpenAIChatBody,
   OpenAIChatResponse,
-  ProviderAdapter,
+  ProtocolAdapter,
   TokenUsage,
 } from "./types";
 
@@ -24,7 +24,7 @@ function usesMaxCompletionTokens(model: string): boolean {
   return /^(?:gpt-5|o[134])(?:[.-]|$)/.test(model);
 }
 
-export const openaiAdapter: ProviderAdapter = {
+export const openaiAdapter: ProtocolAdapter = {
   format: "openai",
 
   transformRequest(body: OpenAIChatBody): unknown {
@@ -34,7 +34,7 @@ export const openaiAdapter: ProviderAdapter = {
       normalized = { ...rest, max_completion_tokens: max_tokens };
     }
 
-    // Inject stream_options so OpenAI-compatible providers include usage in SSE chunks
+    // Inject stream_options so OpenAI-compatible upstreams include usage in SSE chunks.
     if (normalized.stream) {
       return { ...normalized, stream_options: { include_usage: true } };
     }

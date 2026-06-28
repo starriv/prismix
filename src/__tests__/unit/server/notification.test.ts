@@ -29,8 +29,8 @@ const ALL_EVENTS = [
   "alert.upstream-timeout",
   "alert.error-spike",
   "alert.resource-down",
-  "supplier.disabled",
-  "supplier.reenabled",
+  "endpoint.disabled",
+  "endpoint.reenabled",
   "system.announcement",
 ];
 
@@ -49,7 +49,7 @@ const EVENT_GROUPS = [
       "alert.resource-down",
     ],
   },
-  { key: "supplier", events: ["supplier.disabled", "supplier.reenabled"] },
+  { key: "ai", events: ["endpoint.disabled", "endpoint.reenabled"] },
   { key: "system", events: ["system.announcement"] },
 ];
 
@@ -554,15 +554,12 @@ describe("event system — RFC event consistency", () => {
 
   it("event groups have correct keys", () => {
     const groupKeys = EVENT_GROUPS.map((g) => g.key);
-    expect(groupKeys).toEqual(["topup", "tx", "alert", "supplier", "system"]);
+    expect(groupKeys).toEqual(["topup", "tx", "alert", "ai", "system"]);
   });
 
-  it("each group contains only events with its prefix", () => {
-    for (const group of EVENT_GROUPS) {
-      for (const event of group.events) {
-        expect(event.startsWith(`${group.key}.`)).toBe(true);
-      }
-    }
+  it("groups AI endpoint lifecycle events under the AI notification group", () => {
+    const aiGroup = EVENT_GROUPS.find((group) => group.key === "ai");
+    expect(aiGroup?.events).toEqual(["endpoint.disabled", "endpoint.reenabled"]);
   });
 
   it("server notification consumer handles all fixture events", async () => {

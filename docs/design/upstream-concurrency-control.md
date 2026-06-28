@@ -44,8 +44,8 @@ Protect a configured upstream target by limiting in-flight relay requests per st
 - When active count reaches the limit, later requests wait up to `queueTimeoutMs`.
 - A released slot lets a waiting request proceed without sending extra concurrent upstream fetches.
 - Stream completion, stream timeout, upstream fetch error, non-stream response, and early returns release the lease.
-- Queue timeout causes fallback to another candidate when available, without calling `markKeyFailure`.
-- Admin UI can set and inspect the limit for both global upstreams and provider official upstreams.
+- Queue timeout causes fallback to another candidate when available, without calling `markCredentialFailure`.
+- Admin UI can set and inspect the limit for both global upstreams and endpoint official upstreams.
 
 ## Notes
 

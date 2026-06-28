@@ -1,7 +1,7 @@
 import type { ClientFormat } from "@/server/ai/lib/client-format";
 import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import type { StreamInitialEvent } from "@/server/ai/lib/stream-proxy";
-import type { OpenAIChatBody, OpenAIChatResponse } from "@/server/ai/providers/types";
+import type { OpenAIChatBody, OpenAIChatResponse } from "@/server/ai/protocol-adapters/types";
 import type { Announcement } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { announcementDeliveryRepo, announcementRepo } from "@/server/repos";

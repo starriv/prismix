@@ -5,7 +5,7 @@ import { closeRequestLogStore } from "@/server/ai/log-store";
 import { closeCacheStores } from "@/server/cache";
 import { closeDb } from "@/server/db";
 import { closeEventBus } from "@/server/events";
-import { closeSupplierHealthCheckJob } from "@/server/jobs/check-supplier-health";
+import { closeEndpointHealthCheckJob } from "@/server/jobs/check-endpoint-health";
 import { closeAiUsageLogCleanupJob } from "@/server/jobs/cleanup-ai-usage-logs";
 import { closeLimitedFreeModelExpiryJob } from "@/server/jobs/expire-limited-free-models";
 import { closeTopupExpiryJob } from "@/server/jobs/expire-topup-orders";
@@ -74,7 +74,7 @@ async function shutdown(signal: string) {
   stopWebhookRetryJob();
 
   await closeDepositScanQueue();
-  await closeSupplierHealthCheckJob();
+  await closeEndpointHealthCheckJob();
   await closeLimitedFreeModelExpiryJob();
   await closeAiUsageLogCleanupJob();
 

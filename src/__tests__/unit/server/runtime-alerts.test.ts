@@ -30,7 +30,7 @@ describe("runtime resource-down alerts", () => {
     notifyResourceDown({
       route: "consumer-chat",
       requestId: "req_123",
-      providerId: "openai",
+      endpointId: "openai",
       modelId: "gpt-4o",
       upstreamId: 10,
       upstreamName: "Proxy A",
@@ -47,7 +47,7 @@ describe("runtime resource-down alerts", () => {
         body: expect.stringContaining("All upstream candidates failed"),
         route: "consumer-chat",
         requestId: "req_123",
-        providerId: "openai",
+        endpointId: "openai",
         modelId: "gpt-4o",
         upstreamId: 10,
         upstreamName: "Proxy A",
@@ -60,7 +60,7 @@ describe("runtime resource-down alerts", () => {
     const alert = {
       route: "admin-passthrough" as const,
       requestId: "req_123",
-      providerId: "openai",
+      endpointId: "openai",
       modelId: "gpt-4o",
       upstreamId: 10,
       upstreamName: "Proxy A",

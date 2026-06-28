@@ -18,8 +18,8 @@ import {
 } from "drizzle-orm";
 
 import {
+  aiEndpoints,
   aiModels,
-  aiProviders,
   type AiUsageLog,
   aiUsageLogs,
   db,
@@ -38,8 +38,8 @@ export interface AiUsageSummary {
   totalEstimatedCost: number;
   errorCount: number;
   errorRate: number;
-  byProvider: Array<{
-    providerId: string;
+  byEndpoint: Array<{
+    endpointId: string;
     requests: number;
     inputTokens: number;
     outputTokens: number;
@@ -47,7 +47,7 @@ export interface AiUsageSummary {
     estimatedCost: number;
   }>;
   byModel: Array<{
-    providerId: string;
+    endpointId: string;
     modelId: string;
     requests: number;
     inputTokens: number;
@@ -91,8 +91,18 @@ export interface ErrorDailyRow {
   totalErrors: number;
 }
 
-export interface AiKeyUsageSummaryRow {
-  keyId: number;
+export interface EndpointCredentialUsageSummaryRow {
+  endpointCredentialId: number;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: string;
+  upstreamCost: string;
+}
+
+export interface CredentialUsageSummaryRow {
+  credentialId: number;
   requests: number;
   inputTokens: number;
   outputTokens: number;
@@ -136,10 +146,10 @@ export interface UpstreamUsageOverviewRow {
   recentTotalErrors: number;
 }
 
-export interface ProviderUsageOverviewRow {
-  providerId: string;
-  providerName: string | null;
-  providerBaseUrl: string | null;
+export interface EndpointUsageOverviewRow {
+  endpointId: string;
+  endpointName: string | null;
+  endpointBaseUrl: string | null;
   requests24h: number;
   clientErrors24h: number;
   serverErrors24h: number;
@@ -260,10 +270,10 @@ interface UsageFilters {
   consumerKeyId?: number;
   userId?: number;
   ownerId?: number;
-  keyId?: number;
+  endpointCredentialId?: number;
   upstreamId?: number;
   modelId?: string;
-  providerId?: string;
+  endpointId?: string;
   statusCode?: number;
   statusClass?: "4xx" | "5xx";
   requestId?: string;
@@ -272,9 +282,9 @@ interface UsageFilters {
 }
 
 /**
- * Filter condition that excludes logs whose denormalized provider/model slug
- * no longer exists in the live `ai_providers` / `ai_models` tables (i.e. the
- * provider or model was hard-deleted). Logs with NULL providerId/modelId are
+ * Filter condition that excludes logs whose denormalized endpoint/model slug
+ * no longer exists in the live `ai_endpoints` / `ai_models` tables (i.e. the
+ * endpoint or model was hard-deleted). Logs with NULL endpointId/modelId are
  * kept (they represent missing attribution, not deleted entities).
  *
  * Uses EXISTS subqueries (not JOINs) to avoid row multiplication —
@@ -284,8 +294,8 @@ interface UsageFilters {
 function liveEntityFilter() {
   return and(
     or(
-      isNull(aiUsageLogs.providerId),
-      sql`EXISTS (SELECT 1 FROM ${aiProviders} WHERE ${aiProviders.providerId} = ${aiUsageLogs.providerId})`,
+      isNull(aiUsageLogs.endpointId),
+      sql`EXISTS (SELECT 1 FROM ${aiEndpoints} WHERE ${aiEndpoints.endpointId} = ${aiUsageLogs.endpointId})`,
     ),
     or(
       isNull(aiUsageLogs.modelId),
@@ -303,16 +313,16 @@ function buildConditions(filters: UsageFilters) {
     conditions.push(eq(aiUsageLogs.userId, filters.userId));
   }
   if (filters.ownerId != null) {
-    conditions.push(eq(aiUsageLogs.keyOwnerId, filters.ownerId));
+    conditions.push(eq(aiUsageLogs.credentialOwnerId, filters.ownerId));
   }
-  if (filters.keyId != null) {
-    conditions.push(eq(aiUsageLogs.keyId, filters.keyId));
+  if (filters.endpointCredentialId != null) {
+    conditions.push(eq(aiUsageLogs.endpointCredentialId, filters.endpointCredentialId));
   }
   if (filters.upstreamId != null) {
     conditions.push(eq(aiUsageLogs.upstreamId, filters.upstreamId));
   }
   if (filters.modelId) conditions.push(eq(aiUsageLogs.modelId, filters.modelId));
-  if (filters.providerId) conditions.push(eq(aiUsageLogs.providerId, filters.providerId));
+  if (filters.endpointId) conditions.push(eq(aiUsageLogs.endpointId, filters.endpointId));
   if (filters.statusClass === "4xx") {
     conditions.push(sql`(${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500)`);
   } else if (filters.statusClass === "5xx") {
@@ -446,13 +456,13 @@ export const aiUsageLogRepo = {
       }));
   },
 
-  async providerOverview(hours = 24): Promise<ProviderUsageOverviewRow[]> {
+  async endpointOverview(hours = 24): Promise<EndpointUsageOverviewRow[]> {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
     const recent30m = sql`NOW() - interval '30 minutes'`;
     const rows = await queryAll<{
-      providerId: string | null;
-      providerName: string | null;
-      providerBaseUrl: string | null;
+      endpointId: string | null;
+      endpointName: string | null;
+      endpointBaseUrl: string | null;
       requests24h: number;
       clientErrors24h: number;
       serverErrors24h: number;
@@ -465,11 +475,11 @@ export const aiUsageLogRepo = {
     }>(
       db
         .select({
-          providerId: aiUsageLogs.providerId,
-          // aiUsageLogs does not denormalize providerName / providerBaseUrl;
-          // surface null (route uses aiProviders row for name/baseUrl).
-          providerName: sql<string | null>`NULL`,
-          providerBaseUrl: sql<string | null>`NULL`,
+          endpointId: aiUsageLogs.endpointId,
+          // aiUsageLogs does not denormalize endpointName / endpointBaseUrl;
+          // surface null (route uses aiEndpoints row for name/baseUrl).
+          endpointName: sql<string | null>`NULL`,
+          endpointBaseUrl: sql<string | null>`NULL`,
           requests24h: count(),
           clientErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 THEN 1 ELSE 0 END)`,
           serverErrors24h: sql<number>`SUM(CASE WHEN ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 THEN 1 ELSE 0 END)`,
@@ -481,16 +491,16 @@ export const aiUsageLogRepo = {
           recentTotalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${recent30m})`,
         })
         .from(aiUsageLogs)
-        .where(and(isNotNull(aiUsageLogs.providerId), gte(aiUsageLogs.createdAt, since)))
-        .groupBy(aiUsageLogs.providerId),
+        .where(and(isNotNull(aiUsageLogs.endpointId), gte(aiUsageLogs.createdAt, since)))
+        .groupBy(aiUsageLogs.endpointId),
     );
 
     return rows
-      .filter((row): row is typeof row & { providerId: string } => row.providerId != null)
+      .filter((row): row is typeof row & { endpointId: string } => row.endpointId != null)
       .map((row) => ({
-        providerId: row.providerId,
-        providerName: row.providerName ?? null,
-        providerBaseUrl: row.providerBaseUrl ?? null,
+        endpointId: row.endpointId,
+        endpointName: row.endpointName ?? null,
+        endpointBaseUrl: row.endpointBaseUrl ?? null,
         requests24h: Number(row.requests24h ?? 0),
         clientErrors24h: Number(row.clientErrors24h ?? 0),
         serverErrors24h: Number(row.serverErrors24h ?? 0),
@@ -503,14 +513,14 @@ export const aiUsageLogRepo = {
       }));
   },
 
-  async summaryByOwnerAndAiKeyIds(
+  async summaryByOwnerAndEndpointCredentialIds(
     ownerId: number,
-    keyIds: number[],
-  ): Promise<AiKeyUsageSummaryRow[]> {
-    if (keyIds.length === 0) return [];
+    endpointCredentialIds: number[],
+  ): Promise<EndpointCredentialUsageSummaryRow[]> {
+    if (endpointCredentialIds.length === 0) return [];
 
     const rows = await queryAll<{
-      keyId: number | null;
+      endpointCredentialId: number | null;
       requests: number;
       inputTokens: string | null;
       outputTokens: string | null;
@@ -520,7 +530,7 @@ export const aiUsageLogRepo = {
     }>(
       db
         .select({
-          keyId: aiUsageLogs.keyId,
+          endpointCredentialId: aiUsageLogs.endpointCredentialId,
           requests: count(),
           inputTokens: sum(aiUsageLogs.inputTokens),
           outputTokens: sum(aiUsageLogs.outputTokens),
@@ -529,14 +539,73 @@ export const aiUsageLogRepo = {
           upstreamCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.upstreamCost} AS NUMERIC)), 0)::text`,
         })
         .from(aiUsageLogs)
-        .where(and(eq(aiUsageLogs.keyOwnerId, ownerId), inArray(aiUsageLogs.keyId, keyIds)))
-        .groupBy(aiUsageLogs.keyId),
+        .where(
+          and(
+            eq(aiUsageLogs.credentialOwnerId, ownerId),
+            inArray(aiUsageLogs.endpointCredentialId, endpointCredentialIds),
+          ),
+        )
+        .groupBy(aiUsageLogs.endpointCredentialId),
     );
 
     return rows
-      .filter((row): row is NonNullable<typeof row> & { keyId: number } => row.keyId != null)
+      .filter(
+        (row): row is NonNullable<typeof row> & { endpointCredentialId: number } =>
+          row.endpointCredentialId != null,
+      )
       .map((row) => ({
-        keyId: row.keyId,
+        endpointCredentialId: row.endpointCredentialId,
+        requests: row.requests,
+        inputTokens: Number(row.inputTokens ?? 0),
+        outputTokens: Number(row.outputTokens ?? 0),
+        totalTokens: Number(row.totalTokens ?? 0),
+        estimatedCost: row.estimatedCost ?? "0",
+        upstreamCost: row.upstreamCost ?? "0",
+      }));
+  },
+
+  async summaryByOwnerAndCredentialIds(
+    ownerId: number,
+    credentialIds: number[],
+  ): Promise<CredentialUsageSummaryRow[]> {
+    if (credentialIds.length === 0) return [];
+
+    const rows = await queryAll<{
+      credentialId: number | null;
+      requests: number;
+      inputTokens: string | null;
+      outputTokens: string | null;
+      totalTokens: string | null;
+      estimatedCost: string | null;
+      upstreamCost: string | null;
+    }>(
+      db
+        .select({
+          credentialId: aiUsageLogs.credentialId,
+          requests: count(),
+          inputTokens: sum(aiUsageLogs.inputTokens),
+          outputTokens: sum(aiUsageLogs.outputTokens),
+          totalTokens: sum(aiUsageLogs.totalTokens),
+          estimatedCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)::text`,
+          upstreamCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.upstreamCost} AS NUMERIC)), 0)::text`,
+        })
+        .from(aiUsageLogs)
+        .where(
+          and(
+            eq(aiUsageLogs.credentialOwnerId, ownerId),
+            inArray(aiUsageLogs.credentialId, credentialIds),
+          ),
+        )
+        .groupBy(aiUsageLogs.credentialId),
+    );
+
+    return rows
+      .filter(
+        (row): row is NonNullable<typeof row> & { credentialId: number } =>
+          row.credentialId != null,
+      )
+      .map((row) => ({
+        credentialId: row.credentialId,
         requests: row.requests,
         inputTokens: Number(row.inputTokens ?? 0),
         outputTokens: Number(row.outputTokens ?? 0),
@@ -565,7 +634,7 @@ export const aiUsageLogRepo = {
           upstreamCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.upstreamCost} AS NUMERIC)), 0)::text`,
         })
         .from(aiUsageLogs)
-        .where(eq(aiUsageLogs.keyOwnerId, ownerId)),
+        .where(eq(aiUsageLogs.credentialOwnerId, ownerId)),
     );
 
     return {
@@ -613,8 +682,8 @@ export const aiUsageLogRepo = {
     const totalEstimatedCost = Number(totalsRow?.totalCost ?? 0);
     const errorCount = Number(totalsRow?.errorCount ?? 0);
 
-    const byProvider = await queryAll<{
-      providerId: string | null;
+    const byEndpoint = await queryAll<{
+      endpointId: string | null;
       requests: number;
       inputTokens: string | null;
       outputTokens: string | null;
@@ -622,7 +691,7 @@ export const aiUsageLogRepo = {
     }>(
       db
         .select({
-          providerId: aiUsageLogs.providerId,
+          endpointId: aiUsageLogs.endpointId,
           requests: count(),
           inputTokens: sum(aiUsageLogs.inputTokens),
           outputTokens: sum(aiUsageLogs.outputTokens),
@@ -630,12 +699,12 @@ export const aiUsageLogRepo = {
         })
         .from(aiUsageLogs)
         .where(breakdownWhere)
-        .groupBy(aiUsageLogs.providerId)
+        .groupBy(aiUsageLogs.endpointId)
         .orderBy(sql`count(*) desc`),
     );
 
     const byModel = await queryAll<{
-      providerId: string | null;
+      endpointId: string | null;
       modelId: string | null;
       requests: number;
       inputTokens: string | null;
@@ -644,7 +713,7 @@ export const aiUsageLogRepo = {
     }>(
       db
         .select({
-          providerId: aiUsageLogs.providerId,
+          endpointId: aiUsageLogs.endpointId,
           modelId: aiUsageLogs.modelId,
           requests: count(),
           inputTokens: sum(aiUsageLogs.inputTokens),
@@ -653,7 +722,7 @@ export const aiUsageLogRepo = {
         })
         .from(aiUsageLogs)
         .where(breakdownWhere)
-        .groupBy(aiUsageLogs.providerId, aiUsageLogs.modelId)
+        .groupBy(aiUsageLogs.endpointId, aiUsageLogs.modelId)
         .orderBy(sql`count(*) desc`),
     );
 
@@ -665,8 +734,8 @@ export const aiUsageLogRepo = {
       totalEstimatedCost,
       errorCount,
       errorRate: totalRequests > 0 ? errorCount / totalRequests : 0,
-      byProvider: byProvider.map((r) => ({
-        providerId: r.providerId ?? "",
+      byEndpoint: byEndpoint.map((r) => ({
+        endpointId: r.endpointId ?? "",
         requests: r.requests,
         inputTokens: Number(r.inputTokens ?? 0),
         outputTokens: Number(r.outputTokens ?? 0),
@@ -674,7 +743,7 @@ export const aiUsageLogRepo = {
         estimatedCost: Number(r.cost ?? 0),
       })),
       byModel: byModel.map((r) => ({
-        providerId: r.providerId ?? "",
+        endpointId: r.endpointId ?? "",
         modelId: r.modelId ?? "",
         requests: r.requests,
         inputTokens: Number(r.inputTokens ?? 0),

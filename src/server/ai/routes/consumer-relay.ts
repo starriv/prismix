@@ -43,10 +43,15 @@ import { billConsumer, checkConsumerSpendingLimits } from "../lib/billing";
 import {
   canServeClientFormat,
   type ClientFormat,
-  isNativePassthroughProvider,
+  isNativePassthroughEndpoint,
 } from "../lib/client-format";
+import {
+  markCredentialFailure,
+  markCredentialSuccess,
+  pickEndpointCredential,
+} from "../lib/credential-balancer";
+import { buildEndpointAuth } from "../lib/endpoint-auth";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
-import { markKeyFailure, markKeySuccess, pickKey } from "../lib/key-balancer";
 import {
   canConsumerAccessModel,
   filterModelsForConsumer,
@@ -54,7 +59,6 @@ import {
 } from "../lib/model-access";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
-import { buildProviderAuth } from "../lib/provider-auth";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { notifyResourceDown } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules } from "../lib/safe-json";
@@ -77,18 +81,18 @@ import {
 } from "../lib/upstream-concurrency";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { type ConsumerSession, getConsumerSession } from "../middleware/consumer-key-auth";
-import { BEDROCK_STREAMING_SUPPORTED } from "../providers/bedrock";
-import { getAdapter } from "../providers/registry";
-import type { OpenAIChatBody, OpenAIChatResponse, TokenUsage } from "../providers/types";
+import { BEDROCK_STREAMING_SUPPORTED } from "../protocol-adapters/bedrock";
+import { getAdapter } from "../protocol-adapters/registry";
+import type { OpenAIChatBody, OpenAIChatResponse, TokenUsage } from "../protocol-adapters/types";
 
-const AI_KEY_DOMAIN_TAG = "ai-merchant-key";
+const AI_CREDENTIAL_DOMAIN_TAG = "ai-merchant-key";
 
 const consumerOpenAiRelay = new Hono();
 const consumerAnthropicRelay = new Hono();
 
 interface ConsumerErrorExtras {
-  keyId?: number | null;
-  providerId?: string | null;
+  endpointCredentialId?: number | null;
+  endpointId?: string | null;
   modelId?: string | null;
   upstreamId?: number | null;
   upstreamName?: string | null;
@@ -112,10 +116,10 @@ function respondWithConsumerError(
   enqueueAiAccessLog({
     requestId,
     statusCode,
-    keyId: extras?.keyId ?? null,
+    endpointCredentialId: extras?.endpointCredentialId ?? null,
     consumerKeyId: consumer.consumerId,
     userId: consumer.userId,
-    providerId: extras?.providerId ?? null,
+    endpointId: extras?.endpointId ?? null,
     modelId: extras?.modelId ?? null,
     upstreamId: extras?.upstreamId ?? null,
     upstreamName: extras?.upstreamName ?? null,
@@ -295,7 +299,7 @@ async function handleOpenAiModelsRoute(c: Context): Promise<Response> {
       id: r.model.modelId,
       object: "model" as const,
       created: Math.floor(new Date(r.model.createdAt).getTime() / 1000),
-      owned_by: r.provider.providerId,
+      owned_by: r.endpoint.endpointId,
     }));
     return c.json({ object: "list", data });
   } catch (err) {
@@ -522,9 +526,9 @@ async function handleAnthropicCountTokens(
     );
   }
 
-  const hasCompatibleRoute = routes.some(({ provider }) => {
-    if (!canServeClientFormat("anthropic", provider.apiFormat)) return false;
-    return Boolean(getAdapter(provider.apiFormat));
+  const hasCompatibleRoute = routes.some(({ endpoint }) => {
+    if (!canServeClientFormat("anthropic", endpoint.apiFormat)) return false;
+    return Boolean(getAdapter(endpoint.apiFormat));
   });
   if (!hasCompatibleRoute) {
     return respondWithModelAnnouncementError(
@@ -533,7 +537,7 @@ async function handleAnthropicCountTokens(
       requestId,
       start,
       403,
-      { error: "No compatible provider route configured for this model" },
+      { error: "No compatible endpoint route configured for this model" },
       body.model,
       "no_route",
     );
@@ -647,7 +651,7 @@ async function handleCanonicalChatCompletions(
     );
   }
 
-  // -- 6. Resolve key across all routes (multi-provider failover) --
+  // -- 6. Resolve key across all routes (multi-endpoint failover) --
   const model = routes[0].model;
   const isFreeModel = lte(model.inputPrice, "0") && lte(model.outputPrice, "0");
   if (!isFreeModel && lte(consumer.agentBalance, "0")) {
@@ -665,14 +669,14 @@ async function handleCanonicalChatCompletions(
   }
 
   interface ResolvedUpstream {
-    keyId: number;
+    endpointCredentialId: number;
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
     concurrencyScopeKey: string;
     upstreamName: string;
     upstreamBaseUrl: string;
-    providerId: string;
+    endpointId: string;
     serializedBody: string;
     adapter: ReturnType<typeof getAdapter>;
     concurrencyLimit: number | null;
@@ -680,10 +684,10 @@ async function handleCanonicalChatCompletions(
   }
   const resolvedUpstreams: ResolvedUpstream[] = [];
   const routeDiagnostics: Array<{
-    providerId: string;
+    endpointId: string;
     apiFormat: string;
     routeId: number;
-    providerModelId: string;
+    endpointModelId: string;
     upstreamCandidates: number;
     missingKeys: number;
     authFailures: number;
@@ -691,15 +695,15 @@ async function handleCanonicalChatCompletions(
     skipped?: string;
   }> = [];
 
-  for (const { route, provider, model: routeModel } of routes) {
-    const providerModelId = route.providerModelId ?? routeModel.modelId;
+  for (const { route, endpoint, model: routeModel } of routes) {
+    const endpointModelId = route.endpointModelId ?? routeModel.modelId;
 
-    if (!canServeClientFormat(clientFormat, provider.apiFormat)) {
+    if (!canServeClientFormat(clientFormat, endpoint.apiFormat)) {
       routeDiagnostics.push({
-        providerId: provider.providerId,
-        apiFormat: provider.apiFormat,
+        endpointId: endpoint.endpointId,
+        apiFormat: endpoint.apiFormat,
         routeId: route.id,
-        providerModelId,
+        endpointModelId,
         upstreamCandidates: 0,
         missingKeys: 0,
         authFailures: 0,
@@ -709,12 +713,12 @@ async function handleCanonicalChatCompletions(
       continue;
     }
 
-    if (body.stream && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+    if (body.stream && endpoint.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
       routeDiagnostics.push({
-        providerId: provider.providerId,
-        apiFormat: provider.apiFormat,
+        endpointId: endpoint.endpointId,
+        apiFormat: endpoint.apiFormat,
         routeId: route.id,
-        providerModelId,
+        endpointModelId,
         upstreamCandidates: 0,
         missingKeys: 0,
         authFailures: 0,
@@ -724,13 +728,13 @@ async function handleCanonicalChatCompletions(
       continue; // skip unsupported streaming routes
     }
 
-    const adapter = getAdapter(provider.apiFormat);
+    const adapter = getAdapter(endpoint.apiFormat);
     if (!adapter) {
       routeDiagnostics.push({
-        providerId: provider.providerId,
-        apiFormat: provider.apiFormat,
+        endpointId: endpoint.endpointId,
+        apiFormat: endpoint.apiFormat,
         routeId: route.id,
-        providerModelId,
+        endpointModelId,
         upstreamCandidates: 0,
         missingKeys: 0,
         authFailures: 0,
@@ -742,18 +746,18 @@ async function handleCanonicalChatCompletions(
 
     const candidateBody = {
       ...body,
-      model: providerModelId,
+      model: endpointModelId,
       ...(body.stream ? { stream_options: { include_usage: true } } : {}),
     } as unknown as OpenAIChatBody;
     const transformedBody = adapter.transformRequest(candidateBody);
     const serializedBody = JSON.stringify(transformedBody);
 
-    const upstreamCandidates = await resolveUpstreamCandidates(provider);
+    const upstreamCandidates = await resolveUpstreamCandidates(endpoint);
     const diagnostics = {
-      providerId: provider.providerId,
-      apiFormat: provider.apiFormat,
+      endpointId: endpoint.endpointId,
+      apiFormat: endpoint.apiFormat,
       routeId: route.id,
-      providerModelId,
+      endpointModelId,
       upstreamCandidates: upstreamCandidates.length,
       missingKeys: 0,
       authFailures: 0,
@@ -762,15 +766,15 @@ async function handleCanonicalChatCompletions(
     routeDiagnostics.push(diagnostics);
 
     for (const upstream of upstreamCandidates) {
-      const key = await pickKey(provider.id, upstream.id);
-      if (!key) {
+      const credential = await pickEndpointCredential(endpoint.id, upstream.id);
+      if (!credential) {
         diagnostics.missingKeys++;
         continue;
       }
       try {
-        const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-        const mappedModelId = await resolveModelMapping(upstream.id, providerModelId);
-        const needsRemap = mappedModelId !== providerModelId;
+        const plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
+        const mappedModelId = await resolveModelMapping(upstream.id, endpointModelId);
+        const needsRemap = mappedModelId !== endpointModelId;
         const effectiveBody = needsRemap
           ? JSON.stringify(
               adapter.transformRequest({
@@ -784,21 +788,21 @@ async function handleCanonicalChatCompletions(
           model: mappedModelId,
           stream: !!body.stream,
         });
-        const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-          provider,
+        const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(
+          endpoint,
           plainKey,
           upstreamUrl,
           effectiveBody,
         );
         resolvedUpstreams.push({
-          keyId: key.id,
+          endpointCredentialId: credential.id,
           authHeaders,
           finalUrl,
           upstreamId: upstream.id,
           concurrencyScopeKey: upstream.concurrencyScopeKey,
           upstreamName: upstream.name,
           upstreamBaseUrl: upstream.baseUrl,
-          providerId: provider.providerId,
+          endpointId: endpoint.endpointId,
           serializedBody: effectiveBody,
           adapter,
           concurrencyLimit: upstream.concurrencyLimit,
@@ -814,7 +818,7 @@ async function handleCanonicalChatCompletions(
   if (resolvedUpstreams.length === 0) {
     log.gateway.warn(
       { requestId, modelId: model.modelId, clientFormat, routeDiagnostics },
-      "No API key configured for any provider route",
+      "No endpoint credential configured for any endpoint route",
     );
     return respondWithModelAnnouncementError(
       c,
@@ -822,7 +826,7 @@ async function handleCanonicalChatCompletions(
       requestId,
       start,
       403,
-      { error: "No API key configured for any provider route" },
+      { error: "No endpoint credential configured for any endpoint route" },
       model.modelId,
       "no_route",
       { modelId: model.modelId },
@@ -847,7 +851,11 @@ async function handleCanonicalChatCompletions(
         start,
         preflightLimit.statusCode,
         preflightLimit.body,
-        { keyId: selected.keyId, providerId: selected.providerId, modelId: model.modelId },
+        {
+          endpointCredentialId: selected.endpointCredentialId,
+          endpointId: selected.endpointId,
+          modelId: model.modelId,
+        },
       );
     }
   }
@@ -864,8 +872,8 @@ async function handleCanonicalChatCompletions(
 
     // Create fresh meta per iteration — shared reference would race with async stream callbacks
     const meta: StreamRelayMeta = {
-      keyId: selected.keyId,
-      providerId: selected.providerId,
+      endpointCredentialId: selected.endpointCredentialId,
+      endpointId: selected.endpointId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -881,7 +889,7 @@ async function handleCanonicalChatCompletions(
       ? buildCacheKey({
           scope: cacheScope,
           model: model.modelId,
-          providerId: selected.providerId,
+          endpointId: selected.endpointId,
           upstreamId: selected.upstreamId,
           upstreamBaseUrl: selected.upstreamBaseUrl,
           requestBody: selected.serializedBody,
@@ -909,7 +917,7 @@ async function handleCanonicalChatCompletions(
         concurrencyLimit: selected.concurrencyLimit,
         queueTimeoutMs: selected.queueTimeoutMs,
         requestId,
-        providerId: selected.providerId,
+        endpointId: selected.endpointId,
         modelId: model.modelId,
       });
     } catch (err) {
@@ -923,7 +931,7 @@ async function handleCanonicalChatCompletions(
       try {
         const streamingHeaders = { ...selected.authHeaders, ...passthroughHeaders };
         const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
-          providerId: selected.providerId,
+          endpointId: selected.endpointId,
           modelId: model.modelId,
         });
         const upstreamRes = await fetchUpstream(
@@ -932,13 +940,13 @@ async function handleCanonicalChatCompletions(
           selected.serializedBody,
           upstreamFetchMs,
           {
-            provider: selected.providerId,
+            endpoint: selected.endpointId,
             route: "chat",
           },
         );
         if (!upstreamRes.ok) {
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-            markKeyFailure(selected.keyId);
+            markCredentialFailure(selected.endpointCredentialId);
             const errBody = await upstreamRes.text().catch(() => "");
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             continue; // try next upstream
@@ -956,8 +964,8 @@ async function handleCanonicalChatCompletions(
               model.modelId,
               upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
               {
-                keyId: selected.keyId,
-                providerId: selected.providerId,
+                endpointCredentialId: selected.endpointCredentialId,
+                endpointId: selected.endpointId,
                 modelId: model.modelId,
                 upstreamId: selected.upstreamId,
                 upstreamName: selected.upstreamName,
@@ -974,8 +982,8 @@ async function handleCanonicalChatCompletions(
             upstreamRes.status,
             { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
             {
-              keyId: selected.keyId,
-              providerId: selected.providerId,
+              endpointCredentialId: selected.endpointCredentialId,
+              endpointId: selected.endpointId,
               modelId: model.modelId,
               upstreamId: selected.upstreamId,
               upstreamName: selected.upstreamName,
@@ -996,8 +1004,8 @@ async function handleCanonicalChatCompletions(
             usage,
             latencyMs,
             consumer,
-            keyId: billSelected.keyId,
-            providerId: billSelected.providerId,
+            endpointCredentialId: billSelected.endpointCredentialId,
+            endpointId: billSelected.endpointId,
             modelId: model.modelId,
             upstreamId: billSelected.upstreamId,
             upstreamName: billSelected.upstreamName,
@@ -1033,7 +1041,7 @@ async function handleCanonicalChatCompletions(
         if (!releaseInFinally) {
           await releaseUpstreamSlot(concurrencyLease).catch(() => {});
         }
-        markKeyFailure(selected.keyId);
+        markCredentialFailure(selected.endpointCredentialId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
         continue; // try next upstream
       } finally {
@@ -1057,18 +1065,18 @@ async function handleCanonicalChatCompletions(
           signal: AbortSignal.timeout(timeouts.streamMaxDurationMs),
         });
         gatewayUpstreamDuration.observe(
-          { provider: selected.providerId, route: "chat", phase: "response" },
+          { endpoint: selected.endpointId, route: "chat", phase: "response" },
           (Date.now() - fetchStart) / 1000,
         );
       } catch (err) {
-        markKeyFailure(selected.keyId);
+        markCredentialFailure(selected.endpointCredentialId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
         continue; // try next upstream
       }
 
       if (!upstreamRes.ok) {
         if (RETRYABLE_STATUS.has(upstreamRes.status)) {
-          markKeyFailure(selected.keyId);
+          markCredentialFailure(selected.endpointCredentialId);
           const errBody = await upstreamRes.text().catch(() => "");
           lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
           continue; // try next upstream
@@ -1086,8 +1094,8 @@ async function handleCanonicalChatCompletions(
             model.modelId,
             upstreamRes.status === 403 ? "not_allowed" : "not_found_or_disabled",
             {
-              keyId: selected.keyId,
-              providerId: selected.providerId,
+              endpointCredentialId: selected.endpointCredentialId,
+              endpointId: selected.endpointId,
               modelId: model.modelId,
               upstreamId: selected.upstreamId,
               upstreamName: selected.upstreamName,
@@ -1104,8 +1112,8 @@ async function handleCanonicalChatCompletions(
           upstreamRes.status,
           { error: `Upstream returned ${upstreamRes.status}`, detail: errBody.slice(0, 2000) },
           {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
+            endpointCredentialId: selected.endpointCredentialId,
+            endpointId: selected.endpointId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
@@ -1128,8 +1136,8 @@ async function handleCanonicalChatCompletions(
           502,
           { error: "Failed to parse upstream response" },
           {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
+            endpointCredentialId: selected.endpointCredentialId,
+            endpointId: selected.endpointId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
@@ -1145,15 +1153,15 @@ async function handleCanonicalChatCompletions(
         : canonicalResponse;
       const usage = selected.adapter!.extractUsage(responseBody);
       const latencyMs = Date.now() - start;
-      markKeySuccess(selected.keyId);
+      markCredentialSuccess(selected.endpointCredentialId);
 
       // -- 10. Debit consumer + log usage --
       const billing = await billConsumer({
         usage,
         latencyMs,
         consumer,
-        keyId: selected.keyId,
-        providerId: selected.providerId,
+        endpointCredentialId: selected.endpointCredentialId,
+        endpointId: selected.endpointId,
         modelId: model.modelId,
         upstreamId: selected.upstreamId,
         upstreamName: selected.upstreamName,
@@ -1175,8 +1183,8 @@ async function handleCanonicalChatCompletions(
           billing.statusCode,
           billing.body,
           {
-            keyId: selected.keyId,
-            providerId: selected.providerId,
+            endpointCredentialId: selected.endpointCredentialId,
+            endpointId: selected.endpointId,
             modelId: model.modelId,
             upstreamId: selected.upstreamId,
             upstreamName: selected.upstreamName,
@@ -1215,7 +1223,7 @@ async function handleCanonicalChatCompletions(
     notifyResourceDown({
       route: "consumer-chat",
       requestId,
-      providerId: selected.providerId,
+      endpointId: selected.endpointId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -1232,8 +1240,8 @@ async function handleCanonicalChatCompletions(
     lastError,
     model.modelId,
     {
-      keyId: selected.keyId,
-      providerId: selected.providerId,
+      endpointCredentialId: selected.endpointCredentialId,
+      endpointId: selected.endpointId,
       modelId: model.modelId,
       upstreamId: selected.upstreamId,
       upstreamName: selected.upstreamName,
@@ -1378,55 +1386,55 @@ async function handlePassthrough(
 
   // Resolve all upstream candidates for fallback retry
   interface ResolvedPtUpstream {
-    keyId: number;
+    endpointCredentialId: number;
     authHeaders: Record<string, string>;
     finalUrl: string;
     upstreamId: number | null;
     concurrencyScopeKey: string;
     upstreamName: string;
     upstreamBaseUrl: string;
-    providerId: string;
+    endpointId: string;
     serializedBody: string;
     concurrencyLimit: number | null;
     queueTimeoutMs: number;
   }
   const resolvedPtUpstreams: ResolvedPtUpstream[] = [];
 
-  for (const { route, provider, model: routeModel } of routes) {
-    if (!isNativePassthroughProvider(clientFormat, provider.apiFormat)) continue;
-    if (body.stream === true && provider.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
+  for (const { route, endpoint, model: routeModel } of routes) {
+    if (!isNativePassthroughEndpoint(clientFormat, endpoint.apiFormat)) continue;
+    if (body.stream === true && endpoint.apiFormat === "bedrock" && !BEDROCK_STREAMING_SUPPORTED) {
       continue;
     }
 
-    const providerModelId = route.providerModelId ?? routeModel.modelId;
+    const endpointModelId = route.endpointModelId ?? routeModel.modelId;
 
-    for (const upstream of await resolveUpstreamCandidates(provider)) {
-      const key = await pickKey(provider.id, upstream.id);
-      if (!key) continue;
+    for (const upstream of await resolveUpstreamCandidates(endpoint)) {
+      const credential = await pickEndpointCredential(endpoint.id, upstream.id);
+      if (!credential) continue;
       try {
-        const plainKey = decrypt(key.encryptedKey, AI_KEY_DOMAIN_TAG);
-        const mappedModelId = await resolveModelMapping(upstream.id, providerModelId);
+        const plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
+        const mappedModelId = await resolveModelMapping(upstream.id, endpointModelId);
         const effectiveBody =
-          mappedModelId === modelId && providerModelId === modelId
+          mappedModelId === modelId && endpointModelId === modelId
             ? serializedBody
             : JSON.stringify({ ...body, model: mappedModelId });
         const base = upstream.baseUrl.replace(/\/+$/, "");
         const upstreamUrl = base.endsWith("/v1") ? `${base}/${subPath}` : `${base}/v1/${subPath}`;
-        const { headers: authHeaders, url: finalUrl } = buildProviderAuth(
-          provider,
+        const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(
+          endpoint,
           plainKey,
           upstreamUrl,
           effectiveBody,
         );
         resolvedPtUpstreams.push({
-          keyId: key.id,
+          endpointCredentialId: credential.id,
           authHeaders,
           finalUrl,
           upstreamId: upstream.id,
           concurrencyScopeKey: upstream.concurrencyScopeKey,
           upstreamName: upstream.name,
           upstreamBaseUrl: upstream.baseUrl,
-          providerId: provider.providerId,
+          endpointId: endpoint.endpointId,
           serializedBody: effectiveBody,
           concurrencyLimit: upstream.concurrencyLimit,
           queueTimeoutMs: upstream.queueTimeoutMs,
@@ -1443,7 +1451,7 @@ async function handlePassthrough(
       requestId,
       start,
       403,
-      { error: "No compatible provider key configured for this model" },
+      { error: "No compatible endpoint key configured for this model" },
       modelId,
       "no_route",
       { modelId },
@@ -1466,15 +1474,15 @@ async function handlePassthrough(
   }
 
   // Resolve a CLI announcement for this consumer (best-effort text prelude).
-  // Passthrough forwards native provider SSE verbatim, so streaming injection is
+  // Passthrough forwards native endpoint SSE verbatim, so streaming injection is
   // format-gated by buildCliNoticeStreamEvents (OpenAI only — Anthropic native
   // streams cannot accept an isolated delta without corrupting the SDK state
   // machine). Non-streaming responses inject via injectCliNoticeIntoClientResponse.
   const cliNotice = await findCliAnnouncementNotice(consumer, requestId, body);
   const cliNoticeText = cliNotice ? formatCliAnnouncementText(cliNotice) : null;
 
-  // Forward provider-specific headers from the client (e.g. anthropic-version, anthropic-beta)
-  // Client headers take precedence over buildProviderAuth defaults
+  // Forward endpoint-specific headers from the client (e.g. anthropic-version, anthropic-beta)
+  // Client headers take precedence over buildEndpointAuth defaults
   const passthroughHeaders = extractPassthroughHeaders(c);
 
   const ptLogEnabled = await isRequestLoggingEnabled();
@@ -1487,8 +1495,8 @@ async function handlePassthrough(
     ptSelected = resolvedPtUpstreams[pIdx];
 
     const meta: StreamRelayMeta = {
-      keyId: ptSelected.keyId,
-      providerId: ptSelected.providerId,
+      endpointCredentialId: ptSelected.endpointCredentialId,
+      endpointId: ptSelected.endpointId,
       modelId,
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,
@@ -1509,7 +1517,7 @@ async function handlePassthrough(
         concurrencyLimit: ptSelected.concurrencyLimit,
         queueTimeoutMs: ptSelected.queueTimeoutMs,
         requestId,
-        providerId: ptSelected.providerId,
+        endpointId: ptSelected.endpointId,
         modelId,
       });
     } catch (err) {
@@ -1530,14 +1538,14 @@ async function handlePassthrough(
         signal: AbortSignal.timeout(
           isStreaming
             ? resolveUpstreamFetchTimeoutMs(timeouts, {
-                providerId: ptSelected.providerId,
+                endpointId: ptSelected.endpointId,
                 modelId,
               })
             : timeouts.streamMaxDurationMs,
         ),
       });
       gatewayUpstreamDuration.observe(
-        { provider: ptSelected.providerId, route: "passthrough", phase: "response" },
+        { endpoint: ptSelected.endpointId, route: "passthrough", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
 
@@ -1550,8 +1558,8 @@ async function handlePassthrough(
             usage,
             latencyMs,
             consumer,
-            keyId: billPt.keyId,
-            providerId: billPt.providerId,
+            endpointCredentialId: billPt.endpointCredentialId,
+            endpointId: billPt.endpointId,
             modelId,
             upstreamId: billPt.upstreamId,
             upstreamName: billPt.upstreamName,
@@ -1585,7 +1593,7 @@ async function handlePassthrough(
 
       // Retryable error — try next upstream
       if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
-        markKeyFailure(ptSelected.keyId);
+        markCredentialFailure(ptSelected.endpointCredentialId);
         const errBody = await upstreamRes.text().catch(() => "");
         ptLastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
         continue;
@@ -1603,17 +1611,17 @@ async function handlePassthrough(
       }
 
       if (upstreamRes.ok) {
-        markKeySuccess(ptSelected.keyId);
+        markCredentialSuccess(ptSelected.endpointCredentialId);
       } else {
-        markKeyFailure(ptSelected.keyId);
+        markCredentialFailure(ptSelected.endpointCredentialId);
       }
 
       const billing = await billConsumer({
         usage,
         latencyMs,
         consumer,
-        keyId: ptSelected.keyId,
-        providerId: ptSelected.providerId,
+        endpointCredentialId: ptSelected.endpointCredentialId,
+        endpointId: ptSelected.endpointId,
         modelId,
         upstreamId: ptSelected.upstreamId,
         upstreamName: ptSelected.upstreamName,
@@ -1641,8 +1649,8 @@ async function handlePassthrough(
           billing.statusCode,
           billing.body,
           {
-            keyId: ptSelected.keyId,
-            providerId: ptSelected.providerId,
+            endpointCredentialId: ptSelected.endpointCredentialId,
+            endpointId: ptSelected.endpointId,
             modelId,
             upstreamId: ptSelected.upstreamId,
             upstreamName: ptSelected.upstreamName,
@@ -1721,7 +1729,7 @@ async function handlePassthrough(
       if (!releaseInFinally) {
         await releaseUpstreamSlot(concurrencyLease).catch(() => {});
       }
-      markKeyFailure(ptSelected.keyId);
+      markCredentialFailure(ptSelected.endpointCredentialId);
       ptLastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
       continue;
     } finally {
@@ -1734,7 +1742,7 @@ async function handlePassthrough(
     notifyResourceDown({
       route: "consumer-passthrough",
       requestId,
-      providerId: ptSelected.providerId,
+      endpointId: ptSelected.endpointId,
       modelId,
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,
@@ -1751,8 +1759,8 @@ async function handlePassthrough(
     ptLastError,
     modelId,
     {
-      keyId: ptSelected.keyId,
-      providerId: ptSelected.providerId,
+      endpointCredentialId: ptSelected.endpointCredentialId,
+      endpointId: ptSelected.endpointId,
       modelId,
       upstreamId: ptSelected.upstreamId,
       upstreamName: ptSelected.upstreamName,

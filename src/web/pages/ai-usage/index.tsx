@@ -20,8 +20,8 @@ import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
 import {
   buildAiUsageByKeyColumns,
+  buildAiUsageEndpointColumns,
   buildAiUsageModelColumns,
-  buildAiUsageProviderColumns,
 } from "./columns";
 
 const AiUsageDetailPage = lazy(() => import("@/web/pages/ai-usage-detail"));
@@ -72,7 +72,7 @@ function AiUsageList() {
   // Build lookup map: consumerKeyId -> key info
   const keyMap = useMemo(() => keyBy(relayKeys, "id"), [relayKeys]);
   const byKeyColumns = useMemo(() => buildAiUsageByKeyColumns({ keyMap, t }), [keyMap, t]);
-  const byProviderColumns = useMemo(() => buildAiUsageProviderColumns(t), [t]);
+  const byEndpointColumns = useMemo(() => buildAiUsageEndpointColumns(t), [t]);
   const byModelColumns = useMemo(() => buildAiUsageModelColumns(t), [t]);
 
   return (
@@ -197,18 +197,18 @@ function AiUsageList() {
           )
         )}
 
-        {/* By Provider */}
-        {summary && summary.byProvider.length > 0 && (
+        {/* By Endpoint */}
+        {summary && summary.byEndpoint.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("ai-usage.by-provider.title")}</CardTitle>
+              <CardTitle className="text-sm">{t("ai-usage.by-endpoint.title")}</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
-                columns={byProviderColumns}
-                data={summary.byProvider}
+                columns={byEndpointColumns}
+                data={summary.byEndpoint}
                 emptyText={t("ai-usage.recent.empty")}
-                getRowId={(row) => row.providerId}
+                getRowId={(row) => row.endpointId}
                 loading={false}
                 showPagination={false}
                 tableClassName="min-w-[720px]"
@@ -228,7 +228,7 @@ function AiUsageList() {
                 columns={byModelColumns}
                 data={summary.byModel}
                 emptyText={t("ai-usage.recent.empty")}
-                getRowId={(row) => `${row.providerId}-${row.modelId}`}
+                getRowId={(row) => `${row.endpointId}-${row.modelId}`}
                 loading={false}
                 showPagination={false}
                 tableClassName="min-w-[860px]"

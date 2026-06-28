@@ -3,14 +3,14 @@
  *
  * Azure uses the same request/response format as OpenAI but with a different
  * URL pattern: /openai/deployments/{model}/chat/completions?api-version=...
- * Auth uses api-key header (configured via provider authConfig).
+ * Auth uses api-key header (configured via endpoint authConfig).
  */
 import { openaiAdapter } from "./openai";
-import type { BuildUrlOptions, ProviderAdapter } from "./types";
+import type { BuildUrlOptions, ProtocolAdapter } from "./types";
 
 const API_VERSION = "2024-02-01";
 
-export const azureOpenaiAdapter: ProviderAdapter = {
+export const azureOpenaiAdapter: ProtocolAdapter = {
   format: "azure-openai",
 
   buildUrl(baseUrl: string, opts: BuildUrlOptions): string {

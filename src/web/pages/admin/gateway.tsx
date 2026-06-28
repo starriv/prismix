@@ -399,7 +399,7 @@ function TimeoutTab({
     onUpdate({
       upstreamFetchOverrides: [
         ...timeouts.upstreamFetchOverrides,
-        { providerId: "deepseek", modelId: "", upstreamFetchMs: 600_000 },
+        { endpointId: "deepseek", modelId: "", upstreamFetchMs: 600_000 },
       ],
     });
   };
@@ -453,8 +453,8 @@ function TimeoutTab({
                 <div className="space-y-2">
                   <Label>{t("admin.gateway.timeout.provider-id")}</Label>
                   <Input
-                    value={override.providerId ?? ""}
-                    onChange={(e) => updateOverride(i, { providerId: e.target.value })}
+                    value={override.endpointId ?? ""}
+                    onChange={(e) => updateOverride(i, { endpointId: e.target.value })}
                     placeholder="deepseek"
                   />
                 </div>

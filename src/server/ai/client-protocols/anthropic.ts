@@ -1,7 +1,11 @@
 import crypto from "crypto";
 
 import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
-import type { OpenAIChatBody, OpenAIChatMessage, OpenAIChatResponse } from "../providers/types";
+import type {
+  OpenAIChatBody,
+  OpenAIChatMessage,
+  OpenAIChatResponse,
+} from "../protocol-adapters/types";
 import type {
   ClientProtocolAdapter,
   ClientProtocolRequestResult,

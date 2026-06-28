@@ -24,13 +24,13 @@ export function buildUserLogColumns(t: TFunction, language: string): ColumnDef<A
       },
     },
     {
-      accessorKey: "providerId",
-      cell: ({ row }) => <DataTableText>{row.original.providerId ?? "—"}</DataTableText>,
-      header: t("ai-logs.th.provider"),
+      accessorKey: "endpointId",
+      cell: ({ row }) => <DataTableText>{row.original.endpointId ?? "—"}</DataTableText>,
+      header: t("ai-logs.th.endpoint"),
       meta: {
         headerClassName: "w-[12%]",
         ...dataTableMeta.hiddenOnMobile,
-        visibilityLabel: t("ai-logs.th.provider"),
+        visibilityLabel: t("ai-logs.th.endpoint"),
       },
     },
     {

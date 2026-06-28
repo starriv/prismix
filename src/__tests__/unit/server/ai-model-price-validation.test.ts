@@ -28,6 +28,17 @@ describe("AI model price validation", () => {
       expect(result.success).toBe(true);
     });
 
+    it("accepts provider model ids with uppercase characters and null contextWindow", () => {
+      const result = createAiModelBody.safeParse({
+        modelId: "Qwen/Qwen3-32B",
+        name: "Qwen",
+        contextWindow: null,
+        inputPrice: "0",
+        outputPrice: "0",
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("rejects negative prices", () => {
       const result = createAiModelBody.safeParse({
         modelId: "evil-model",
@@ -97,6 +108,21 @@ describe("AI model price validation", () => {
           {
             modelId: "good-model",
             name: "Good",
+            inputPrice: "0",
+            outputPrice: "0.5",
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts null contextWindow in batch items", () => {
+      const result = batchCreateAiModelsBody.safeParse({
+        models: [
+          {
+            modelId: "Qwen/Qwen3-32B",
+            name: "Qwen",
+            contextWindow: null,
             inputPrice: "0",
             outputPrice: "0.5",
           },

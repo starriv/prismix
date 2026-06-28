@@ -14,9 +14,9 @@ import {
   returningOne,
 } from "@/server/db";
 
-import type { HealthPatch, ProviderHealthStatus } from "./ai-provider-repo";
+import type { EndpointHealthStatus, HealthPatch } from "./ai-endpoint-repo";
 
-export type { HealthPatch, ProviderHealthStatus };
+export type { EndpointHealthStatus, HealthPatch };
 
 export const aiUpstreamRepo = {
   async findAll(): Promise<AiUpstream[]> {

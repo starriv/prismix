@@ -51,9 +51,11 @@
       "delete": "Delete",
       "copy": "Copy",
       "edit": "Edit",
+      "retry": "Retry",
       "back": "Back"
     },
     "no-results": "No results found",
+    "loading": "Loading…",
     "copied": "Copied",
     "wallet": {
       "wrong-network": "Wrong Network"
@@ -115,7 +117,7 @@
     "fiat-configs": "Payment Methods",
     "webhooks": "Webhooks",
     "ai-gateway": "AI Gateway",
-    "ai-providers": "Providers",
+    "ai-endpoints": "AI Endpoints",
     "ai-models": "Models",
     "ai-relay": "AI Endpoints",
     "ai-usage": "Usage",
@@ -315,7 +317,7 @@
         "actions": "Actions"
       },
       "form": {
-        "name": "Key Name",
+        "name": "Credential Name",
         "name-ph": "e.g. Production Server",
         "expiration": "Expiration",
         "exp-never": "Never",
@@ -350,10 +352,10 @@
         "desc": "This will permanently delete this API key. This action cannot be undone."
       },
       "toast": {
-        "created": "API key created",
+        "created": "API credential created",
         "revoked": "API key revoked",
         "rotated": "API key secret rotated",
-        "deleted": "API key deleted",
+        "deleted": "API credential deleted",
         "copied": "Client ID copied"
       },
       "never-used": "Never",
@@ -421,8 +423,8 @@
         "ms-hint": "Time in milliseconds",
         "btn-add-override": "Add override",
         "overrides": "Upstream request overrides",
-        "overrides-desc": "Set a longer first-byte wait by provider or gateway model. Model-only entries match every provider.",
-        "provider-id": "Provider ID",
+        "overrides-desc": "Set a longer first-byte wait by endpoint or gateway model. Model-only entries match every endpoint.",
+        "provider-id": "Endpoint ID",
         "model-id": "Model ID",
         "override-ms": "Override (ms)",
         "remove-override": "Remove override"
@@ -483,7 +485,10 @@
         "never-used": "Never used",
         "by-key": "By key",
         "chart-title": "Cost vs revenue share by key",
-        "no-keys": "No keys assigned to this provider."
+        "no-keys": "No keys assigned to this endpoint.",
+        "reconciliation": "Reconciliation",
+        "open-report": "Open report",
+        "txn-key": "Key: {{name}} (#{{id}})"
       },
       "report": {
         "title": "{{name}} Report",
@@ -498,7 +503,7 @@
         "adjustment": "Adjustment"
       },
       "dialog": {
-        "delete-title": "Delete Provider",
+        "delete-title": "Delete Key Provider",
         "delete-body": "Delete \"{{name}}\"? All owned keys and revenue records will be permanently removed."
       },
       "toast": {
@@ -1067,7 +1072,7 @@
       "topup": "Top-up",
       "tx": "Transactions",
       "alert": "Alerts",
-      "supplier": "Suppliers",
+      "ai": "AI",
       "system": "System"
     },
     "event": {
@@ -1081,8 +1086,8 @@
       "alert-upstream-timeout": "Upstream timeout",
       "alert-error-spike": "Error rate spike",
       "alert-resource-down": "Resource down",
-      "supplier-disabled": "Supplier auto-disabled",
-      "supplier-reenabled": "Supplier auto-reenabled",
+      "endpoint-disabled": "Endpoint auto-disabled",
+      "endpoint-reenabled": "Endpoint auto-reenabled",
       "system-announcement": "System announcement"
     },
     "event-desc": {
@@ -1096,8 +1101,8 @@
       "alert-upstream-timeout": "An upstream service times out.",
       "alert-error-spike": "Error volume spikes above the expected threshold.",
       "alert-resource-down": "A monitored resource becomes unavailable.",
-      "supplier-disabled": "A supplier is automatically disabled after health checks fail.",
-      "supplier-reenabled": "A supplier is automatically reenabled after recovery.",
+      "endpoint-disabled": "An endpoint is automatically disabled after health checks fail.",
+      "endpoint-reenabled": "An endpoint is automatically reenabled after recovery.",
       "system-announcement": "A system announcement is published."
     },
     "toast": {
@@ -1230,7 +1235,8 @@
       "ai-title-2": "One Endpoint for Multiple Model Providers",
       "ai-tagline": "Unified Access · Smart Routing · Usage Billing",
       "ai-desc": "Tailored for Claude Code, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients. Includes upstream routing, failover, access control, and usage billing.",
-      "cta-primary": "Get Started"
+      "cta-primary": "Get Started",
+      "cta-secondary": "Read Docs"
     },
     "hero-chat": {
       "q1": "Summarize Q4 results in 3 bullet points",
@@ -2299,20 +2305,20 @@
       "payment_not_received": "No matching payment was received"
     }
   },
-  "ai-providers": {
-    "title": "AI Providers",
-    "desc": "Manage your AI provider connections",
-    "empty": "No providers configured yet",
+  "ai-endpoints": {
+    "title": "AI Endpoints",
+    "desc": "Manage callable AI endpoints under real suppliers",
+    "empty": "No endpoints configured yet",
     "card": {
       "upstreams": "{{count}} upstreams",
       "no-upstreams": "Official upstream",
       "loading": "Loading…",
       "unavailable": "Upstreams unavailable",
-      "open-provider": "Open {{name}}"
+      "open-endpoint": "Open {{name}}"
     },
     "btn": {
-      "new": "Add Provider",
-      "create": "Create Provider",
+      "new": "Add Endpoint",
+      "create": "Create Endpoint",
       "assign-upstream": "Assign Upstream"
     },
     "th": {
@@ -2325,19 +2331,21 @@
       "weighted-random": "Weighted Random"
     },
     "form": {
-      "provider-id": "Provider ID",
-      "provider-id-ph": "Enter provider ID",
+      "supplier": "Supplier",
+      "supplier-ph": "Select supplier",
+      "endpoint-id": "Endpoint ID",
+      "endpoint-id-ph": "Enter endpoint ID",
       "name": "Name",
-      "name-ph": "Enter provider name",
+      "name-ph": "Enter endpoint name",
       "base-url": "Base URL",
       "base-url-ph": "https://api.example.com/v1",
       "api-format": "API Format",
       "auth-type": "Auth Type",
       "upstream-routing-strategy": "Upstream Routing Strategy",
-      "upstream-routing-strategy-hint": "Controls how multiple upstreams under this provider are selected by default.",
+      "upstream-routing-strategy-hint": "Controls how multiple upstreams under this endpoint are selected by default.",
       "official-concurrency-limit": "Official Upstream Concurrency",
       "official-concurrency-limit-ph": "Leave empty for unlimited",
-      "official-concurrency-limit-desc": "Maximum in-flight requests sent to the provider official base URL at the same time.",
+      "official-concurrency-limit-desc": "Maximum in-flight requests sent to the endpoint official base URL at the same time.",
       "official-queue-timeout": "Official Queue Timeout (ms)",
       "official-queue-timeout-desc": "How long a request may wait for an official upstream slot when the limit is reached.",
       "sigv4-region": "AWS Region",
@@ -2351,23 +2359,23 @@
       "cloudflare-client-id-hint": "The service-token client ID sent as CF-Access-Client-Id"
     },
     "dialog": {
-      "add-title": "Add Provider",
-      "edit-title": "Edit Provider",
-      "delete-title": "Delete Provider",
-      "delete-body": "Delete \"{{name}}\"? All models and keys will also be deleted.",
+      "add-title": "Add Endpoint",
+      "edit-title": "Edit Endpoint",
+      "delete-title": "Delete Endpoint",
+      "delete-body": "Delete \"{{name}}\"? All models and credentials will also be deleted.",
       "assign-upstream-title": "Assign Upstream",
       "edit-upstream-title": "Edit Assignment",
       "delete-upstream-title": "Remove Upstream",
-      "delete-upstream-body": "Remove upstream \"{{name}}\" from this provider? All keys bound to this upstream will also be deleted."
+      "delete-upstream-body": "Remove upstream \"{{name}}\" from this endpoint? All credentials bound to this upstream will also be deleted."
     },
     "upstreams": {
       "section-title": "Upstreams",
-      "desc": "Configure additional execution endpoints for one provider and control their routing order or weights.",
+      "desc": "Configure additional execution endpoints for one endpoint and control their routing order or weights.",
       "empty": "No additional upstreams assigned.",
       "official-title": "Official Upstream",
       "official-id": "official",
-      "official-default-desc": "Currently uses the provider base URL as the default execution endpoint.",
-      "official-fallback-desc": "Falls back to the provider base URL when higher-priority upstreams are unavailable.",
+      "official-default-desc": "Currently uses the endpoint base URL as the default execution endpoint.",
+      "official-fallback-desc": "Falls back to the endpoint base URL when higher-priority upstreams are unavailable.",
       "unlimited": "Unlimited",
       "route-role": "Route Role",
       "default-route": "Default",
@@ -2386,7 +2394,7 @@
       "form": {
         "upstream": "Upstream",
         "upstream-ph": "Select an upstream",
-        "no-available": "All upstreams are already assigned to this provider.",
+        "no-available": "All upstreams are already assigned to this endpoint.",
         "priority": "Priority",
         "weight": "Weight",
         "enabled": "Enabled"
@@ -2398,29 +2406,29 @@
         "custom": "Custom"
       }
     },
-    "keys": {
-      "section-title": "Key Pools",
-      "desc": "API keys grouped by upstream. Keys in each pool are load-balanced according to the provider strategy.",
-      "empty": "No keys in this pool yet",
+    "credentials": {
+      "section-title": "Credential Pools",
+      "desc": "Credentials grouped by upstream. Credentials in each pool are load-balanced according to the endpoint strategy.",
+      "empty": "No credentials in this pool yet",
       "official-bucket": "Official",
-      "official-hint": "Fallback pool — uses the provider base URL (priority 1000)",
+      "official-hint": "Fallback pool — uses the endpoint base URL (priority 1000)",
       "count": "{{enabled}}/{{total}} active",
       "next": "Next in rotation",
-      "add": "Add Key",
+      "add": "Add Credential",
       "weight-hint": "Weight — higher value means more traffic share",
       "weight-down": "Decrease weight",
       "weight-up": "Increase weight",
       "strategy": {
-        "label": "Key Balancing",
+        "label": "Credential Balancing",
         "round-robin": "Round-robin",
         "random": "Random"
       },
       "form": {
-        "name": "Key Name",
-        "name-ph": "Give your key a name",
+        "name": "Credential Name",
+        "name-ph": "Give your credential a name",
         "api-key": "API Key",
         "api-key-ph": "sk-...",
-        "api-key-hint": "Your key will be encrypted and stored securely",
+        "api-key-hint": "Your credential will be encrypted and stored securely",
         "cloudflare-client-secret": "CF Access Client Secret",
         "cloudflare-client-secret-ph": "Enter your Cloudflare Access client secret",
         "cloudflare-client-secret-hint": "Stored encrypted and sent as CF-Access-Client-Secret",
@@ -2430,20 +2438,20 @@
         "owner": "Key Provider (optional)",
         "owner-ph": "Select a key provider",
         "owner-none": "Platform-owned (no provider)",
-        "owner-hint": "Assign this key to a third-party provider for revenue sharing"
+        "owner-hint": "Assign this credential to a third-party key provider for revenue sharing"
       },
       "dialog": {
-        "add-title": "Add Key to {{upstream}}",
-        "delete-title": "Delete API Key",
-        "delete-body": "Delete key \"{{name}}\"? This cannot be undone."
+        "add-title": "Add Credential to {{upstream}}",
+        "delete-title": "Delete API Credential",
+        "delete-body": "Delete credential \"{{name}}\"? This cannot be undone."
       },
       "toast": {
-        "created": "API key created",
-        "updated": "API key updated",
-        "deleted": "API key deleted",
-        "create-error": "Failed to create API key",
-        "update-error": "Failed to update API key",
-        "delete-error": "Failed to delete API key",
+        "created": "API credential created",
+        "updated": "API credential updated",
+        "deleted": "API credential deleted",
+        "create-error": "Failed to create API credential",
+        "update-error": "Failed to update API credential",
+        "delete-error": "Failed to delete API credential",
         "test-ok": "Connection successful ({{ms}}ms)",
         "test-error": "Connection failed"
       },
@@ -2453,12 +2461,12 @@
       "never": "Never"
     },
     "toast": {
-      "created": "Provider created",
-      "updated": "Provider updated",
-      "deleted": "Provider deleted",
-      "create-error": "Failed to create provider",
-      "update-error": "Failed to update provider",
-      "delete-error": "Failed to delete provider",
+      "created": "Endpoint created",
+      "updated": "Endpoint updated",
+      "deleted": "Endpoint deleted",
+      "create-error": "Failed to create endpoint",
+      "update-error": "Failed to update endpoint",
+      "delete-error": "Failed to delete endpoint",
       "upstream-assigned": "Upstream assigned",
       "upstream-updated": "Assignment updated",
       "upstream-deleted": "Upstream removed",
@@ -2469,10 +2477,10 @@
   },
   "ai-models": {
     "title": "AI Models",
-    "desc": "Manage model catalog and provider routes",
+    "desc": "Manage model catalog and endpoint routes",
     "empty": "No models configured",
     "card-title": "Model Catalog",
-    "no-providers": "No providers configured",
+    "no-endpoints": "No endpoints configured",
     "btn": {
       "new": "Add Model",
       "create": "Create Model",
@@ -2483,7 +2491,7 @@
       "routes": "Routes"
     },
     "filter": {
-      "all-providers": "All Providers",
+      "all-endpoints": "All Endpoints",
       "no-routes": "No Routes",
       "all-status": "All Status",
       "enabled": "Enabled",
@@ -2514,8 +2522,8 @@
       "input-price": "Input Price (/1M tokens)",
       "output-price": "Output Price (/1M tokens)",
       "price-ph": "0.00",
-      "provider": "Provider",
-      "provider-ph": "Select a provider to discover models",
+      "endpoint": "Endpoint",
+      "endpoint-ph": "Select an endpoint to discover models",
       "capabilities": "Capabilities",
       "capabilities-ph": "chat, vision, tools, streaming",
       "limited-free-until": "Limited-free expiry",
@@ -2529,9 +2537,9 @@
       "enabled": "Enabled"
     },
     "discover": {
-      "toggle": "Discover from provider",
-      "loading": "Fetching models from provider…",
-      "no-key": "No API key configured for this provider. Add a key first to discover models.",
+      "toggle": "Discover from endpoint",
+      "loading": "Fetching models from endpoint…",
+      "no-key": "No credential configured for this endpoint. Add a credential first to discover models.",
       "models": "Models",
       "select-all": "All",
       "select-none": "None",
@@ -2570,28 +2578,28 @@
       "delete-error": "Failed to delete model"
     },
     "routes": {
-      "title": "Provider Routes",
-      "desc": "Configure which providers serve this model. Lower priority = tried first.",
-      "empty": "No routes configured. Add a provider route to enable this model.",
+      "title": "Endpoint Routes",
+      "desc": "Configure which endpoints serve this model. Lower priority = tried first.",
+      "empty": "No routes configured. Add an endpoint route to enable this model.",
       "btn": {
         "add": "Add Route",
         "routes": "Routes"
       },
       "th": {
         "priority": "Priority",
-        "provider": "Provider",
-        "provider-model-id": "Upstream Model",
+        "endpoint": "Endpoint",
+        "endpoint-model-id": "Upstream Model",
         "weight": "Weight"
       },
       "form": {
-        "provider-ph": "Select a provider",
-        "provider-model-id-hint": "Leave empty to use the model's own ID",
+        "endpoint-ph": "Select an endpoint",
+        "endpoint-model-id-hint": "Leave empty to use the model's own ID",
         "priority-hint": "Lower value = higher priority (tried first)"
       },
       "dialog": {
-        "add-title": "Add Provider Route",
+        "add-title": "Add Endpoint Route",
         "delete-title": "Remove Route",
-        "delete-body": "Remove the route to {{provider}}? The model will no longer be served via this provider."
+        "delete-body": "Remove the route to {{provider}}? The model will no longer be served via this endpoint."
       },
       "toast": {
         "created": "Route added",
@@ -2609,7 +2617,7 @@
     "desc": "Available models and pricing for your account",
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
-    "no-providers": "No providers configured yet",
+    "no-endpoints": "No endpoints configured yet",
     "tag": {
       "limited-free": "Limited free",
       "limited-free-until": "Limited free until {{time}}"
@@ -2630,7 +2638,7 @@
     "desc": "Separate OpenAI and Anthropic base URLs with shared routing, billing, and usage tracking",
     "intro": {
       "title": "What are AI Endpoints?",
-      "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each endpoint has its own model catalog while sharing provider routing, billing, and usage tracking behind the scenes.",
+      "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each endpoint has its own model catalog while sharing endpoint routing, billing, and usage tracking behind the scenes.",
       "benefits": "Protocol-specific URLs | Per-key billing & rate limits | Native SDK compatibility"
     },
     "endpoint": {
@@ -2640,11 +2648,11 @@
       "hint-after": ". Use the OpenAI URL for OpenAI SDKs and the Anthropic URL for Claude Code; Anthropic clients append /v1 automatically."
     },
     "providers": {
-      "title": "Provider Status",
+      "title": "Endpoint Status",
       "manage-keys": "Manage Keys",
       "ready": "Ready",
       "no-key": "No Key",
-      "empty": "No providers available"
+      "empty": "No endpoints available"
     },
     "toast": {
       "copied": "Copied to clipboard"
@@ -2661,8 +2669,8 @@
       "est-cost": "Est. Cost",
       "error-rate": "Error Rate"
     },
-    "by-provider": {
-      "title": "By Provider"
+    "by-endpoint": {
+      "title": "By Endpoint"
     },
     "by-model": {
       "title": "By Model"
@@ -2674,7 +2682,7 @@
       "collapse": "Show less"
     },
     "th": {
-      "provider": "Provider",
+      "endpoint": "Endpoint",
       "model": "Model",
       "upstream": "Upstream",
       "requests": "Requests",
@@ -2720,7 +2728,7 @@
     "th": {
       "request-id": "Request ID",
       "model": "Model",
-      "provider": "Provider",
+      "endpoint": "Endpoint",
       "upstream": "Upstream",
       "tokens": "Tokens",
       "cost": "Cost",
@@ -2740,7 +2748,7 @@
       "overview": "Overview",
       "request-id": "Request ID",
       "model": "Model",
-      "provider": "Provider",
+      "endpoint": "Endpoint",
       "upstream": "Upstream",
       "upstream-url": "Upstream URL",
       "consumer-key": "Consumer Key",
@@ -2793,7 +2801,7 @@
       "upstream": "Upstream",
       "kind": "Kind",
       "status": "Status",
-      "keys": "Keys",
+      "credentials": "Credentials",
       "requests": "24h Requests",
       "error-rate": "24h Error Rate",
       "latency": "24h Avg Latency",
@@ -2814,7 +2822,7 @@
       "create-title": "Create Upstream",
       "edit-title": "Edit Upstream",
       "delete-title": "Delete Upstream",
-      "delete-body": "This upstream and all its provider assignments will be removed. Keys bound to it will fall back to the default provider URL."
+      "delete-body": "This upstream and all its endpoint assignments will be removed. Credentials bound to it will fall back to the default endpoint URL."
     },
     "form": {
       "upstream-id": "Upstream ID",
@@ -2826,7 +2834,7 @@
       "kind": "Kind",
       "models-endpoint": "Models Endpoint",
       "models-endpoint-ph": "https://proxy.example.com/v1/models",
-      "models-endpoint-desc": "Custom URL for model discovery. Leave empty to auto-detect from provider format.",
+      "models-endpoint-desc": "Custom URL for model discovery. Leave empty to auto-detect from endpoint format.",
       "concurrency-limit": "Concurrency Limit",
       "concurrency-limit-ph": "Leave empty for unlimited",
       "concurrency-limit-desc": "Maximum in-flight requests sent to this upstream at the same time.",
@@ -2850,14 +2858,14 @@
       "info": "Information",
       "metrics": "24h Metrics",
       "assignments": "Assignments",
-      "assignments-title": "Provider Assignments",
-      "assignments-empty": "No providers are using this upstream yet",
+      "assignments-title": "Endpoint Assignments",
+      "assignments-empty": "No endpoints are using this upstream yet",
       "upstream-id": "Upstream ID",
       "base-url": "Base URL",
       "kind": "Kind",
       "health": "Health",
       "enabled": "Enabled",
-      "keys": "Keys",
+      "credentials": "Credentials",
       "concurrency-limit": "Concurrency",
       "queue-timeout": "Queue Timeout",
       "tokens-24h": "24h Tokens",
@@ -2868,7 +2876,7 @@
       "last-checked": "Last Checked",
       "consecutive-failures": "Consecutive Failures",
       "last-error": "Last Error",
-      "provider-name": "Provider",
+      "provider-name": "Endpoint",
       "priority": "Priority",
       "weight": "Weight",
       "recent-title": "Recent Requests",
@@ -2918,7 +2926,7 @@
     "filter-prefix-ph": "Search by key prefix",
     "filter-uuid-ph": "Filter by user UUID",
     "form": {
-      "name": "Key Name",
+      "name": "Credential Name",
       "name-ph": "Enter key name",
       "initial-balance": "Initial Balance (USDC)",
       "initial-balance-ph": "0.00",
@@ -3041,15 +3049,15 @@
         }
       },
       "toast": {
-        "created": "API key created",
-        "create-error": "Failed to create API key",
+        "created": "API credential created",
+        "create-error": "Failed to create API credential",
         "copy-error": "Failed to copy API key",
         "enabled": "API key enabled",
         "enable-error": "Failed to enable API key",
         "disabled": "API key disabled",
         "disable-error": "Failed to disable API key",
-        "deleted": "API key deleted",
-        "delete-error": "Failed to delete API key"
+        "deleted": "API credential deleted",
+        "delete-error": "Failed to delete API credential"
       },
       "th": {
         "name": "Name",
