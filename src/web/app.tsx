@@ -53,6 +53,7 @@ const FiatConfigsPage = lazy(() => import("./pages/fiat-configs"));
 const NotificationsPage = lazy(() => import("./pages/notifications"));
 const WebhooksPage = lazy(() => import("./pages/webhooks"));
 const SettingsPage = lazy(() => import("./pages/settings"));
+const AiSuppliersPage = lazy(() => import("./pages/ai-suppliers"));
 const AiEndpointsPage = lazy(() => import("./pages/ai-endpoints"));
 const AiModelsPage = lazy(() => import("./pages/ai-models"));
 const AiRelayPage = lazy(() => import("./pages/ai-endpoint"));
@@ -159,6 +160,7 @@ export function App() {
                 <Route path="users" element={<AdminDashboardPage />} />
 
                 {/* AI Gateway */}
+                <Route path="ai-suppliers" element={<AiSuppliersPage />} />
                 <Route path="ai-endpoints" element={<AiEndpointsPage />} />
                 <Route path="ai-models" element={<AiModelsPage />} />
                 <Route path="ai-endpoint" element={<AiRelayPage />} />

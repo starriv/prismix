@@ -117,6 +117,7 @@
     "fiat-configs": "Payment Methods",
     "webhooks": "Webhooks",
     "ai-gateway": "AI Gateway",
+    "ai-suppliers": "Suppliers",
     "ai-endpoints": "AI Endpoints",
     "ai-models": "Models",
     "ai-relay": "Access Endpoints",
@@ -2303,6 +2304,52 @@
       "wrong_network": "Deposit was sent on the wrong network",
       "unsupported_token": "Unsupported token was deposited",
       "payment_not_received": "No matching payment was received"
+    }
+  },
+  "ai-suppliers": {
+    "title": "Suppliers",
+    "desc": "Manage real AI suppliers. Each supplier can own multiple AI endpoints with different protocols and auth formats.",
+    "empty": "No suppliers configured yet",
+    "none": "None",
+    "btn": {
+      "new": "Add Supplier",
+      "create": "Create Supplier"
+    },
+    "th": {
+      "supplier-id": "Supplier ID",
+      "icon-url": "Icon URL",
+      "enabled": "Enabled"
+    },
+    "form": {
+      "supplier-id": "Supplier ID",
+      "supplier-id-ph": "openai",
+      "supplier-id-hint": "Cannot be changed after creation. Use lowercase letters, numbers, and hyphens only.",
+      "name": "Name",
+      "name-ph": "OpenAI",
+      "icon-url": "Icon URL",
+      "icon-url-ph": "https://example.com/icon.png",
+      "enabled": "Enabled"
+    },
+    "valid": {
+      "supplier-id": "Use lowercase letters, numbers, and hyphens only"
+    },
+    "actions": {
+      "edit": "Edit {{name}}",
+      "delete": "Delete {{name}}"
+    },
+    "dialog": {
+      "create-title": "Add Supplier",
+      "edit-title": "Edit Supplier",
+      "delete-title": "Delete Supplier",
+      "delete-body": "Delete \"{{name}}\"? All AI endpoints, models, and credentials under it will also be deleted. Usually disabling the supplier is safer."
+    },
+    "toast": {
+      "created": "Supplier created",
+      "updated": "Supplier updated",
+      "deleted": "Supplier deleted",
+      "create-error": "Failed to create supplier",
+      "update-error": "Failed to update supplier",
+      "delete-error": "Failed to delete supplier"
     }
   },
   "ai-endpoints": {

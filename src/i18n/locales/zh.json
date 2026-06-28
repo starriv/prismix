@@ -117,6 +117,7 @@
     "fiat-configs": "收款方式",
     "webhooks": "Webhooks",
     "ai-gateway": "AI 网关",
+    "ai-suppliers": "供应商",
     "ai-endpoints": "AI 端点",
     "ai-models": "模型",
     "ai-relay": "接入端点",
@@ -2303,6 +2304,52 @@
       "wrong_network": "充值使用了错误的网络",
       "unsupported_token": "充值使用了不支持的代币",
       "payment_not_received": "未收到匹配的付款"
+    }
+  },
+  "ai-suppliers": {
+    "title": "供应商",
+    "desc": "管理真实 AI 供应商。每个供应商下面可以配置多个不同协议和认证格式的 AI 端点。",
+    "empty": "暂无供应商",
+    "none": "无",
+    "btn": {
+      "new": "添加供应商",
+      "create": "创建供应商"
+    },
+    "th": {
+      "supplier-id": "供应商 ID",
+      "icon-url": "图标 URL",
+      "enabled": "启用"
+    },
+    "form": {
+      "supplier-id": "供应商 ID",
+      "supplier-id-ph": "openai",
+      "supplier-id-hint": "创建后不可修改，只允许小写字母、数字和短横线。",
+      "name": "名称",
+      "name-ph": "OpenAI",
+      "icon-url": "图标 URL",
+      "icon-url-ph": "https://example.com/icon.png",
+      "enabled": "启用"
+    },
+    "valid": {
+      "supplier-id": "仅允许小写字母、数字和短横线"
+    },
+    "actions": {
+      "edit": "编辑 {{name}}",
+      "delete": "删除 {{name}}"
+    },
+    "dialog": {
+      "create-title": "添加供应商",
+      "edit-title": "编辑供应商",
+      "delete-title": "删除供应商",
+      "delete-body": "删除「{{name}}」？其下所有 AI 端点、模型和凭证会一并删除。通常请优先禁用供应商。"
+    },
+    "toast": {
+      "created": "供应商已创建",
+      "updated": "供应商已更新",
+      "deleted": "供应商已删除",
+      "create-error": "创建供应商失败",
+      "update-error": "更新供应商失败",
+      "delete-error": "删除供应商失败"
     }
   },
   "ai-endpoints": {
