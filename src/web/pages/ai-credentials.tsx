@@ -252,18 +252,16 @@ export default function AiCredentialsPage() {
 
   return (
     <div>
-      <Header
-        title={t("ai-credentials.title")}
-        description={t("ai-credentials.desc")}
-        actions={
+      <Header title={t("ai-credentials.title")} description={t("ai-credentials.desc")} />
+
+      <div className="space-y-4 p-4 md:p-8">
+        <div className="flex justify-end">
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
             {t("ai-credentials.add")}
           </Button>
-        }
-      />
+        </div>
 
-      <div className="space-y-4 p-4 md:p-8">
         <DataTable
           columns={columns}
           data={rows}
