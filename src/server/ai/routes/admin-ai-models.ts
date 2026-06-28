@@ -3,6 +3,7 @@
  * Mounted under /api/admin/ai (auth applied by parent).
  */
 import { Hono } from "hono";
+import { uniq } from "lodash-es";
 import { match } from "ts-pattern";
 
 import {
@@ -26,12 +27,6 @@ import {
 } from "@/server/repos";
 import { lte } from "@/shared/number";
 
-import {
-  canAttachEndpointToClientFormat,
-  type ClientFormat,
-  defaultClientFormatForEndpoint,
-  isClientFormat,
-} from "../lib/client-format";
 import { buildEndpointAuth } from "../lib/endpoint-auth";
 import { buildModelsUrl } from "../lib/endpoint-health";
 import { isCatalogReady, lookupPricing, refreshLiteLLMPricing } from "../lib/litellm-pricing";
@@ -97,11 +92,6 @@ router.get("/endpoints/:id/discover-models", async (c) => {
   if (source !== "official" && source !== "upstream") {
     return c.json({ error: "Invalid source — must be 'official' or 'upstream'" }, 400);
   }
-  const requestedClientFormat = c.req.query("clientFormat");
-  if (requestedClientFormat && !isClientFormat(requestedClientFormat)) {
-    return c.json({ error: "Invalid clientFormat" }, 400);
-  }
-
   const endpoint = await aiEndpointRepo.findById(id);
   if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
@@ -203,12 +193,8 @@ router.get("/endpoints/:id/discover-models", async (c) => {
 
     const models = rawModels;
 
-    const clientFormat =
-      requestedClientFormat ?? defaultClientFormatForEndpoint(endpoint.apiFormat);
     const existing = await aiModelRepo.findByEndpointId(id);
-    const existingIds = new Set(
-      existing.filter((e) => e.clientFormat === clientFormat).map((e) => e.modelId),
-    );
+    const existingIds = new Set(existing.map((e) => e.modelId));
 
     return ok(
       c,
@@ -235,14 +221,7 @@ router.post("/models", async (c) => {
 
   const parsed = await parseBody(c, createAiModelBody);
   if (!parsed.ok) return parsed.response;
-  const {
-    capabilities,
-    fallbackModelIds,
-    clientFormat: requestedClientFormat,
-    grayUserIds,
-    ...rest
-  } = parsed.data;
-  const clientFormat = requestedClientFormat ?? "openai";
+  const { capabilities, fallbackModelIds, grayUserIds, ...rest } = parsed.data;
   const limitedFreeError = validateLimitedFreeConfig(
     rest.inputPrice,
     rest.outputPrice,
@@ -251,17 +230,25 @@ router.post("/models", async (c) => {
   );
   if (limitedFreeError) return c.json({ error: limitedFreeError }, 400);
 
-  const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
+  const existing = await aiModelRepo.findByModelId(rest.modelId);
   if (existing) {
-    return c.json({ error: `Model "${rest.modelId}" already exists for ${clientFormat}` }, 409);
+    return c.json({ error: `Model "${rest.modelId}" already exists` }, 409);
   }
 
-  const created = await aiModelRepo.create({
-    ...rest,
-    clientFormat,
-    capabilities: JSON.stringify(capabilities ?? []),
-    fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
-  });
+  let created: Awaited<ReturnType<typeof aiModelRepo.create>>;
+  try {
+    created = await aiModelRepo.create({
+      ...rest,
+      capabilities: JSON.stringify(capabilities ?? []),
+      fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/23505|unique/i.test(msg)) {
+      return c.json({ error: `Model "${rest.modelId}" already exists` }, 409);
+    }
+    throw err;
+  }
 
   if (grayUserIds !== undefined) {
     try {
@@ -275,7 +262,7 @@ router.post("/models", async (c) => {
     }
   }
 
-  log.auth.info({ modelId: created.modelId, clientFormat }, "AI model created");
+  log.auth.info({ modelId: created.modelId }, "AI model created");
   return ok(c, await formatModelWithGrayUsers(created), 201);
 });
 
@@ -290,10 +277,19 @@ router.post("/endpoints/:id/models/batch", async (c) => {
 
   const parsed = await parseBody(c, batchCreateAiModelsBody);
   if (!parsed.ok) return parsed.response;
-  const defaultClientFormat = defaultClientFormatForEndpoint(endpoint.apiFormat);
 
-  const rows = parsed.data.models.map((m) => ({
-    clientFormat: m.clientFormat ?? defaultClientFormat,
+  const mergedByModelId = new Map<string, (typeof parsed.data.models)[number]>();
+  for (const m of parsed.data.models) {
+    const prev = mergedByModelId.get(m.modelId);
+    if (!prev) {
+      mergedByModelId.set(m.modelId, { ...m, grayUserIds: [...(m.grayUserIds ?? [])] });
+    } else if (m.grayUserIds?.length) {
+      prev.grayUserIds = uniq([...(prev.grayUserIds ?? []), ...m.grayUserIds]);
+    }
+  }
+  const models = [...mergedByModelId.values()];
+
+  const rows = models.map((m) => ({
     modelId: m.modelId,
     name: m.name,
     contextWindow: m.contextWindow ?? null,
@@ -305,17 +301,6 @@ router.post("/endpoints/:id/models/batch", async (c) => {
     grayReleaseEnabled: m.grayReleaseEnabled ?? false,
     enabled: m.enabled ?? true,
   }));
-  const incompatible = rows.find(
-    (row) => !canAttachEndpointToClientFormat(row.clientFormat, endpoint.apiFormat),
-  );
-  if (incompatible) {
-    return c.json(
-      {
-        error: `Supplier connection "${endpoint.name}" is not compatible with ${incompatible.clientFormat} models`,
-      },
-      400,
-    );
-  }
   const limitedFreeError = rows
     .map((row) => ({
       modelId: row.modelId,
@@ -328,49 +313,27 @@ router.post("/endpoints/:id/models/batch", async (c) => {
     return c.json({ error: `${limitedFreeError.modelId}: ${limitedFreeError.error}` }, 400);
   }
 
-  const modelIdsByFormat = new Map<string, string[]>();
-  for (const row of rows) {
-    modelIdsByFormat.set(row.clientFormat, [
-      ...(modelIdsByFormat.get(row.clientFormat) ?? []),
-      row.modelId,
-    ]);
-  }
-
-  const existing = (
-    await Promise.all(
-      [...modelIdsByFormat.entries()].map(([clientFormat, modelIds]) =>
-        aiModelRepo.findByModelIds(modelIds, clientFormat as typeof defaultClientFormat),
-      ),
-    )
-  ).flat();
-  const modelKey = (clientFormat: string, modelId: string) => `${clientFormat}:${modelId}`;
-  const existingByModelKey = new Map(
-    existing.map((model) => [modelKey(model.clientFormat, model.modelId), model]),
-  );
-  const rowsToCreate = rows.filter(
-    (row) => !existingByModelKey.has(modelKey(row.clientFormat, row.modelId)),
-  );
+  const existing = await aiModelRepo.findByModelIds(rows.map((row) => row.modelId));
+  const existingByModelId = new Map(existing.map((model) => [model.modelId, model]));
+  const rowsToCreate = rows.filter((row) => !existingByModelId.has(row.modelId));
   const created = await aiModelRepo.batchCreate(rowsToCreate);
-  const targetModelsByModelKey = new Map(existingByModelKey);
+  const targetModelsByModelId = new Map(existingByModelId);
 
   for (const model of created) {
-    targetModelsByModelKey.set(modelKey(model.clientFormat, model.modelId), model);
+    targetModelsByModelId.set(model.modelId, model);
   }
 
-  const routeTargets = parsed.data.models.flatMap((m) => {
-    const clientFormat = m.clientFormat ?? defaultClientFormat;
-    const model = targetModelsByModelKey.get(modelKey(clientFormat, m.modelId));
+  const routeTargets = models.flatMap((m) => {
+    const model = targetModelsByModelId.get(m.modelId);
     return model ? [model] : [];
   });
   const linked = await aiModelRouteRepo.batchCreate(
     routeTargets.map((model) => ({ modelId: model.id, endpointId })),
   );
 
-  // Wire gray users for newly created models
-  const grayUserRequests = parsed.data.models.flatMap((m) => {
+  const grayUserRequests = models.flatMap((m) => {
     if (!m.grayUserIds?.length) return [];
-    const clientFormat = m.clientFormat ?? defaultClientFormat;
-    const model = targetModelsByModelKey.get(modelKey(clientFormat, m.modelId));
+    const model = targetModelsByModelId.get(m.modelId);
     if (!model || !created.some((c) => c.id === model.id)) return [];
     return [{ modelId: model.id, userIds: m.grayUserIds! }];
   });
@@ -387,7 +350,13 @@ router.post("/endpoints/:id/models/batch", async (c) => {
   );
 
   log.auth.info(
-    { endpointId, requested: rows.length, created: created.length, linked: linked.length },
+    {
+      endpointId,
+      requested: parsed.data.models.length,
+      merged: models.length,
+      created: created.length,
+      linked: linked.length,
+    },
     "AI models batch created with routes",
   );
   return ok(
@@ -517,29 +486,6 @@ router.put("/models/:id", async (c) => {
     { requireFuture: rest.limitedFreeUntil !== undefined && rest.limitedFreeUntil !== null },
   );
   if (limitedFreeError) return c.json({ error: limitedFreeError }, 400);
-
-  if (rest.clientFormat && rest.clientFormat !== existing.clientFormat) {
-    const duplicate = await aiModelRepo.findByModelId(existing.modelId, rest.clientFormat);
-    if (duplicate && duplicate.id !== existing.id) {
-      return c.json(
-        { error: `Model "${existing.modelId}" already exists for ${rest.clientFormat}` },
-        409,
-      );
-    }
-
-    const routes = await aiModelRouteRepo.findByModelPk(existing.id);
-    const incompatible = routes.find(
-      ({ endpoint }) => !canAttachEndpointToClientFormat(rest.clientFormat!, endpoint.apiFormat),
-    );
-    if (incompatible) {
-      return c.json(
-        {
-          error: `Supplier connection "${incompatible.endpoint.name}" is not compatible with ${rest.clientFormat} models`,
-        },
-        400,
-      );
-    }
-  }
 
   const updates: Record<string, unknown> = { ...rest };
   if (capabilities !== undefined) updates.capabilities = JSON.stringify(capabilities);
@@ -675,15 +621,6 @@ router.post("/models/:id/routes", async (c) => {
 
   const endpoint = await aiEndpointRepo.findById(parsed.data.endpointId);
   if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
-
-  if (!canAttachEndpointToClientFormat(model.clientFormat as ClientFormat, endpoint.apiFormat)) {
-    return c.json(
-      {
-        error: `Supplier connection "${endpoint.name}" is not compatible with ${model.clientFormat} models`,
-      },
-      400,
-    );
-  }
 
   const existing = await aiModelRouteRepo.findByModelAndEndpoint(modelPk, endpoint.id);
   if (existing) return c.json({ error: "Route already exists for this supplier connection" }, 409);

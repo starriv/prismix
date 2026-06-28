@@ -71,10 +71,9 @@ async function findAnthropicProbeModelId(
   if (apiFormat !== "anthropic") return null;
 
   const models = await aiModelRepo.findEnabledByEndpointId(endpointId);
-  const anthropicModels = models.filter((model) => model.clientFormat === "anthropic");
   return (
-    anthropicModels.find((model) => hasChatCapability(model.capabilities))?.modelId ??
-    anthropicModels[0]?.modelId ??
+    models.find((model) => hasChatCapability(model.capabilities))?.modelId ??
+    models[0]?.modelId ??
     null
   );
 }
@@ -142,9 +141,6 @@ router.post("/credentials", async (c) => {
   }
 
   const keyHash = hashApiKey(apiKey);
-  const existing = await aiCredentialRepo.findByKeyHash(keyHash);
-  if (existing) return c.json({ error: "Credential already exists" }, 409);
-
   const encryptedKey = encrypt(apiKey, AI_CREDENTIAL_DOMAIN_TAG);
   const keyPrefix = apiKey.length > 8 ? `${apiKey.slice(0, 8)}...` : apiKey;
 
@@ -219,6 +215,15 @@ router.post("/endpoint-credentials", async (c) => {
 
   const target = await validateEndpointCredentialTarget(endpointId, credentialId, upstreamId);
   if (!target.ok) return c.json(target.response, 400);
+
+  const existing = await aiEndpointCredentialRepo.findByEndpointCredentialAndScope(
+    endpointId,
+    credentialId,
+    upstreamId ?? null,
+  );
+  if (existing) {
+    return c.json({ error: "Credential already assigned to this pool" }, 409);
+  }
 
   const created = await aiEndpointCredentialRepo.create({
     endpointId,

@@ -55,18 +55,29 @@ function withDatePart(base: Date, datePart: Date): Date {
   return next;
 }
 
-function withTimePart(base: Date, key: "hours" | "minutes", raw: string): Date | null {
-  const numeric = raw.replace(/\D/g, "").slice(0, 2);
-  if (!numeric) return null;
-  const value = Number(numeric);
-  if (key === "hours" && value > 23) return null;
-  if (key === "minutes" && value > 59) return null;
+function formatTimePart(value: number): string {
+  return String(value).padStart(2, "0");
+}
 
+function parseTimePart(key: "hours" | "minutes", raw: string): number | null {
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value)) return null;
+  if (key === "hours" && (value < 0 || value > 23)) return null;
+  if (key === "minutes" && (value < 0 || value > 59)) return null;
+  return value;
+}
+
+function withTimePart(base: Date, key: "hours" | "minutes", value: number): Date {
   const next = new Date(base);
   if (key === "hours") next.setHours(value);
   else next.setMinutes(value);
   next.setSeconds(0, 0);
   return next;
+}
+
+function sanitizeTimeInput(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 2);
 }
 
 function DateRangePicker({ value, onChange, placeholder, className }: DateRangePickerProps) {
@@ -150,28 +161,92 @@ function DateTimePicker({
   className,
   min,
 }: DateTimePickerProps) {
-  const { t } = useTranslation();
   const selected = parseLocalDateTime(value);
   const base = selected ?? min ?? new Date();
   const minDay = min ? startOfLocalDay(min) : undefined;
   const timeValue = selected ?? min ?? new Date();
+  const displayHours = formatTimePart(timeValue.getHours());
+  const displayMinutes = formatTimePart(timeValue.getMinutes());
+
+  return (
+    <DateTimePickerContent
+      key={`${value ?? ""}:${min?.getTime() ?? ""}:${displayHours}:${displayMinutes}`}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={className}
+      min={min}
+      selected={selected}
+      base={base}
+      minDay={minDay}
+      displayHours={displayHours}
+      displayMinutes={displayMinutes}
+    />
+  );
+}
+
+function DateTimePickerContent({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  className,
+  min,
+  selected,
+  base,
+  minDay,
+  displayHours,
+  displayMinutes,
+}: DateTimePickerProps & {
+  selected: Date | undefined;
+  base: Date;
+  minDay: Date | undefined;
+  displayHours: string;
+  displayMinutes: string;
+}) {
+  const { t } = useTranslation();
+  const [timeDraft, setTimeDraft] = useState({
+    hours: displayHours,
+    minutes: displayMinutes,
+  });
 
   function commit(date: Date) {
     onChange?.(formatLocalDateTime(date));
   }
 
+  function applyDraftTime(date: Date): Date {
+    let next = date;
+    const hours = parseTimePart("hours", timeDraft.hours);
+    const minutes = parseTimePart("minutes", timeDraft.minutes);
+    if (hours !== null) next = withTimePart(next, "hours", hours);
+    if (minutes !== null) next = withTimePart(next, "minutes", minutes);
+    return next;
+  }
+
   function handleSelect(date: Date | undefined) {
     if (!date) return;
-    commit(withDatePart(base, date));
+    commit(applyDraftTime(withDatePart(base, date)));
   }
 
   function handleTimeChange(key: "hours" | "minutes", raw: string) {
-    const next = withTimePart(base, key, raw);
-    if (next) commit(next);
+    setTimeDraft((current) => ({ ...current, [key]: sanitizeTimeInput(raw) }));
+  }
+
+  function handleTimeCommit(key: "hours" | "minutes") {
+    const fallback = key === "hours" ? displayHours : displayMinutes;
+    const value = parseTimePart(key, timeDraft[key]);
+    if (value === null) {
+      setTimeDraft((current) => ({ ...current, [key]: fallback }));
+      return;
+    }
+
+    setTimeDraft((current) => ({ ...current, [key]: formatTimePart(value) }));
+    commit(withTimePart(base, key, value));
   }
 
   return (
-    <Popover>
+    <Popover modal>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -203,9 +278,18 @@ function DateTimePicker({
                 className="h-8 w-16 text-center font-mono"
                 inputMode="numeric"
                 maxLength={2}
-                value={String(timeValue.getHours()).padStart(2, "0")}
+                pattern="[0-9]*"
+                type="text"
+                value={timeDraft.hours}
                 onFocus={(event) => event.currentTarget.select()}
                 onChange={(event) => handleTimeChange("hours", event.target.value)}
+                onBlur={() => handleTimeCommit("hours")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                }}
                 aria-label="Hour"
               />
             </div>
@@ -218,9 +302,18 @@ function DateTimePicker({
                 className="h-8 w-16 text-center font-mono"
                 inputMode="numeric"
                 maxLength={2}
-                value={String(timeValue.getMinutes()).padStart(2, "0")}
+                pattern="[0-9]*"
+                type="text"
+                value={timeDraft.minutes}
                 onFocus={(event) => event.currentTarget.select()}
                 onChange={(event) => handleTimeChange("minutes", event.target.value)}
+                onBlur={() => handleTimeCommit("minutes")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                }}
                 aria-label="Minute"
               />
             </div>

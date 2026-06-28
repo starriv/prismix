@@ -55,6 +55,7 @@ const WebhooksPage = lazy(() => import("./pages/webhooks"));
 const SettingsPage = lazy(() => import("./pages/settings"));
 const AiSuppliersPage = lazy(() => import("./pages/ai-suppliers"));
 const SupplierConnectionsPage = lazy(() => import("./pages/supplier-connections"));
+const AiCredentialsPage = lazy(() => import("./pages/ai-credentials"));
 const AiModelsPage = lazy(() => import("./pages/ai-models"));
 const AccessEndpointsPage = lazy(() => import("./pages/access-endpoints"));
 const AiUsagePage = lazy(() => import("./pages/ai-usage"));
@@ -162,6 +163,7 @@ export function App() {
                 {/* AI Gateway */}
                 <Route path="ai-suppliers" element={<AiSuppliersPage />} />
                 <Route path="supplier-connections" element={<SupplierConnectionsPage />} />
+                <Route path="ai-credentials" element={<AiCredentialsPage />} />
                 <Route path="ai-models" element={<AiModelsPage />} />
                 <Route path="access-endpoints" element={<AccessEndpointsPage />} />
                 <Route path="ai-usage" element={<AiUsagePage />} />

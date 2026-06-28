@@ -149,11 +149,10 @@ export const API_AI_MODELS_BATCH_DELETE = "/api/admin/ai/models/batch-delete";
 export const apiAiModelRoutes = (modelId: number) => `/api/admin/ai/models/${modelId}/routes`;
 export const apiAiModelRouteDetail = (modelId: number, routeId: number) =>
   `/api/admin/ai/models/${modelId}/routes/${routeId}`;
-export const apiAiDiscoverModels = (id: number, source?: string, clientFormat?: string) => {
+export const apiAiDiscoverModels = (id: number, source?: string) => {
   const base = `/api/admin/ai/endpoints/${id}/discover-models`;
   const params = new URLSearchParams();
   if (source) params.set("source", source);
-  if (clientFormat) params.set("clientFormat", clientFormat);
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 };

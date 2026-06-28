@@ -133,7 +133,6 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       Promise.resolve({
         id: 42,
         endpointId: 7,
-        clientFormat: data.clientFormat ?? "openai",
         modelId: "gpt-4o",
         name: data.name ?? "GPT-4o",
         contextWindow: 128000,
@@ -158,7 +157,6 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
     mockFindModelById.mockResolvedValue({
       id: 42,
       endpointId: 7,
-      clientFormat: "openai",
       modelId: "gpt-4o",
       name: "GPT-4o",
       contextWindow: 128000,
@@ -326,7 +324,7 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
     });
   });
 
-  it("scopes discovered registered flags by requested clientFormat", async () => {
+  it("marks discovered models registered by model id", async () => {
     mockFindEndpointById.mockResolvedValue({
       id: 7,
       endpointId: "glm",
@@ -347,7 +345,6 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       {
         id: 99,
         endpointId: 7,
-        clientFormat: "openai",
         modelId: "glm-5.2",
         name: "GLM 5.2 OpenAI",
         contextWindow: null,
@@ -368,15 +365,13 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       }),
     );
 
-    const res = await app.request(
-      "http://localhost/endpoints/7/discover-models?clientFormat=anthropic",
-    );
+    const res = await app.request("http://localhost/endpoints/7/discover-models");
     const json = (await res.json()) as {
       data: Array<{ modelId: string; registered: boolean }>;
     };
 
     expect(res.status).toBe(200);
-    expect(json.data[0]).toMatchObject({ modelId: "glm-5.2", registered: false });
+    expect(json.data[0]).toMatchObject({ modelId: "glm-5.2", registered: true });
   });
 
   it("falls back to apiFormat URL when modelsEndpoint is null", async () => {
@@ -455,7 +450,6 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       {
         id: 42,
         endpointId: null,
-        clientFormat: "openai",
         modelId: "gpt-4o",
         name: "GPT-4o",
         contextWindow: 128000,
@@ -486,7 +480,6 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       {
         id: 99,
         endpointId: 3,
-        clientFormat: "anthropic",
         modelId: "gpt-4o",
         name: "GPT-4o",
         contextWindow: 128000,
@@ -540,51 +533,12 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
     expect(mockUpdateRouteForModel).toHaveBeenCalledWith(42, 7, { priority: 200 });
   });
 
-  it("allows an Anthropic model route to an OpenAI-format endpoint", async () => {
+  it("allows a model route to any supplier connection format", async () => {
     mockFindModelById.mockResolvedValue({
       id: 42,
       endpointId: 7,
-      clientFormat: "anthropic",
-      modelId: "claude-sonnet-4",
-      name: "Claude Sonnet 4",
-      contextWindow: 200000,
-      inputPrice: "3",
-      outputPrice: "15",
-      capabilities: "[]",
-      fallbackModelIds: null,
-      weight: 1,
-      enabled: true,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-    });
-    mockFindEndpointById.mockResolvedValue({
-      id: 7,
-      endpointId: "openai",
-      name: "OpenAI",
-      baseUrl: "https://api.openai.com/v1",
-      apiFormat: "openai",
-      authType: "bearer",
-      authConfig: JSON.stringify({}),
-      enabled: true,
-    });
-
-    const res = await app.request("http://localhost/models/42/routes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ endpointId: 7 }),
-    });
-
-    expect(res.status).toBe(201);
-    expect(mockCreateRoute).toHaveBeenCalledWith({ modelId: 42, endpointId: 7 });
-  });
-
-  it("rejects an Anthropic model route to an unsupported endpoint format", async () => {
-    mockFindModelById.mockResolvedValue({
-      id: 42,
-      endpointId: 7,
-      clientFormat: "anthropic",
-      modelId: "claude-sonnet-4",
-      name: "Claude Sonnet 4",
+      modelId: "glm-5.2",
+      name: "GLM 5.2",
       contextWindow: 200000,
       inputPrice: "3",
       outputPrice: "15",
@@ -611,40 +565,9 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ endpointId: 7 }),
     });
-    const json = (await res.json()) as { error: string };
 
-    expect(res.status).toBe(400);
-    expect(json.error).toContain("not compatible with anthropic models");
-  });
-
-  it("rejects changing a model to a client format where the same model id already exists", async () => {
-    mockFindModelByModelId.mockResolvedValue({
-      id: 99,
-      endpointId: 8,
-      clientFormat: "anthropic",
-      modelId: "gpt-4o",
-      name: "GPT-4o Anthropic",
-      contextWindow: 128000,
-      inputPrice: "5",
-      outputPrice: "15",
-      capabilities: "[]",
-      fallbackModelIds: null,
-      weight: 1,
-      enabled: true,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-    });
-
-    const res = await app.request("http://localhost/models/42", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientFormat: "anthropic" }),
-    });
-    const json = (await res.json()) as { error: string };
-
-    expect(res.status).toBe(409);
-    expect(json.error).toContain('Model "gpt-4o" already exists for anthropic');
-    expect(mockUpdateModel).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(mockCreateRoute).toHaveBeenCalledWith({ modelId: 42, endpointId: 7 });
   });
 
   it("returns 404 when the nested route does not belong to the model", async () => {

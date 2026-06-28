@@ -84,6 +84,28 @@ export const aiEndpointCredentialRepo = {
     );
   },
 
+  async findByEndpointCredentialAndScope(
+    endpointId: number,
+    credentialId: number,
+    upstreamId: number | null | undefined,
+  ): Promise<EndpointCredential | undefined> {
+    return queryOne(
+      db
+        .select(endpointCredentialSelect)
+        .from(aiEndpointCredentials)
+        .innerJoin(aiCredentials, eq(aiEndpointCredentials.credentialId, aiCredentials.id))
+        .where(
+          and(
+            eq(aiEndpointCredentials.endpointId, endpointId),
+            eq(aiEndpointCredentials.credentialId, credentialId),
+            upstreamId == null
+              ? isNull(aiEndpointCredentials.upstreamId)
+              : eq(aiEndpointCredentials.upstreamId, upstreamId),
+          ),
+        ),
+    );
+  },
+
   async findById(id: number): Promise<EndpointCredential | undefined> {
     return queryOne(
       db

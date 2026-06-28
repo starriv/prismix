@@ -287,9 +287,8 @@ interface UsageFilters {
  * endpoint or model was hard-deleted). Logs with NULL endpointId/modelId are
  * kept (they represent missing attribution, not deleted entities).
  *
- * Uses EXISTS subqueries (not JOINs) to avoid row multiplication —
- * `ai_models.model_id` is only unique per `client_format`, so a JOIN would
- * duplicate logs when the same slug exists under multiple client formats.
+ * Uses EXISTS subqueries (not JOINs) so this remains a simple liveness filter
+ * rather than changing the grouping semantics of log queries.
  */
 function liveEntityFilter() {
   return and(
@@ -379,25 +378,23 @@ export const aiUsageLogRepo = {
   },
 
   /**
-   * Batch-fetch the most recent usage log per upstream (DISTINCT ON).
-   * Uses simple per-upstream queries for reliability across Drizzle execution paths.
-   * Upstream counts are expected to be small in admin usage, so this is acceptable.
+   * Batch-fetch the most recent usage log per upstream in a single DISTINCT ON query.
    */
   async findLatestByUpstreamIds(upstreamIds: number[]): Promise<Map<number, AiUsageLog>> {
     if (upstreamIds.length === 0) return new Map();
 
-    const map = new Map<number, AiUsageLog>();
-    const rows: Array<[number, AiUsageLog] | null> = await Promise.all(
-      upstreamIds.map(async (upstreamId) => {
-        const [latest] = await this.findAll(1, 0, { upstreamId });
-        return latest ? [upstreamId, latest] : null;
-      }),
+    const rows = await queryAll<AiUsageLog>(
+      db
+        .selectDistinctOn([aiUsageLogs.upstreamId])
+        .from(aiUsageLogs)
+        .where(inArray(aiUsageLogs.upstreamId, upstreamIds))
+        .orderBy(aiUsageLogs.upstreamId, desc(aiUsageLogs.createdAt)),
     );
 
+    const map = new Map<number, AiUsageLog>();
     for (const row of rows) {
-      if (row) map.set(row[0], row[1]);
+      if (row.upstreamId != null) map.set(row.upstreamId, normalizeUsageLogTimestamps(row));
     }
-
     return map;
   },
 

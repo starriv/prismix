@@ -511,7 +511,7 @@ async function handleAnthropicCountTokens(
   }
 
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, "anthropic"),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model),
   );
   if (routes.length === 0) {
     return respondWithModelAnnouncementError(
@@ -622,7 +622,7 @@ async function handleCanonicalChatCompletions(
 
   // -- 4. Resolve model via routes --
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model, clientFormat),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(body.model),
   );
   if (routes.length === 0) {
     return respondWithModelAnnouncementError(
@@ -1338,7 +1338,7 @@ async function handlePassthrough(
   }
 
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, clientFormat),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId),
   );
   if (routes.length === 0) {
     return respondWithModelAnnouncementError(

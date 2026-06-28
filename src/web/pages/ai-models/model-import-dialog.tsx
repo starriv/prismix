@@ -30,12 +30,7 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 
-type ClientFormat = "openai" | "anthropic";
 type DiscoverSource = "official" | "upstream";
-
-function defaultClientFormatForApiFormat(apiFormat?: string): ClientFormat {
-  return apiFormat === "anthropic" ? "anthropic" : "openai";
-}
 
 function supplierConnectionLabel(endpoint: { name: string; supplierName?: string }): string {
   return endpoint.supplierName ? `${endpoint.supplierName} / ${endpoint.name}` : endpoint.name;
@@ -51,7 +46,6 @@ export function ModelImportDialog({
   const { t } = useTranslation();
   const { data: endpoints = [] } = useAiEndpoints();
   const [endpointId, setEndpointId] = useState<number | null>(null);
-  const [clientFormat, setClientFormat] = useState<ClientFormat>("openai");
   const [source, setSource] = useState<DiscoverSource>("official");
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
   const [batchCreating, setBatchCreating] = useState(false);
@@ -69,7 +63,7 @@ export function ModelImportDialog({
     error: discoverError,
     isFetching: discovering,
     refetch: fetchModels,
-  } = useDiscoverModels(endpointId ?? 0, source, clientFormat);
+  } = useDiscoverModels(endpointId ?? 0, source);
 
   const availableModels = useMemo(
     () => discovered?.filter((model) => !model.registered) ?? [],
@@ -81,7 +75,6 @@ export function ModelImportDialog({
     if (!open) return;
     const first = enabledEndpoints[0];
     setEndpointId(first?.id ?? null);
-    setClientFormat(defaultClientFormatForApiFormat(first?.apiFormat));
     setSource("official");
     setSelectedModels(new Set());
     prevDiscoveredRef.current = undefined;
@@ -92,7 +85,7 @@ export function ModelImportDialog({
     setSelectedModels(new Set());
     prevDiscoveredRef.current = undefined;
     void fetchModels();
-  }, [clientFormat, endpointId, fetchModels, open, source]);
+  }, [endpointId, fetchModels, open, source]);
 
   useEffect(() => {
     if (discovered && discovered !== prevDiscoveredRef.current) {
@@ -116,7 +109,6 @@ export function ModelImportDialog({
     (value: string) => {
       const nextEndpoint = endpoints.find((endpoint) => endpoint.id === Number(value));
       setEndpointId(nextEndpoint?.id ?? null);
-      setClientFormat(defaultClientFormatForApiFormat(nextEndpoint?.apiFormat));
       setSource("official");
       setSelectedModels(new Set());
       prevDiscoveredRef.current = undefined;
@@ -147,7 +139,6 @@ export function ModelImportDialog({
       .map((modelId) => availableModels.find((model) => model.modelId === modelId))
       .filter(Boolean)
       .map((model) => ({
-        clientFormat,
         modelId: model!.modelId,
         name: model!.name,
         contextWindow: model!.contextWindow ?? null,
@@ -169,7 +160,7 @@ export function ModelImportDialog({
     } finally {
       setBatchCreating(false);
     }
-  }, [availableModels, batchCreate, clientFormat, endpointId, onOpenChange, selectedModels, t]);
+  }, [availableModels, batchCreate, endpointId, onOpenChange, selectedModels, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -213,43 +204,21 @@ export function ModelImportDialog({
             </Select>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t("ai-models.form.client-format")}</Label>
-              <Select
-                value={clientFormat}
-                onValueChange={(value) => setClientFormat(value as ClientFormat)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="anthropic">Anthropic</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("ai-models.import.source")}</Label>
-              <Select
-                value={source}
-                onValueChange={(value) => setSource(value as DiscoverSource)}
-                disabled={!hasUpstreams}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="official">
-                    {t("ai-models.discover.source-official")}
-                  </SelectItem>
-                  <SelectItem value="upstream">
-                    {t("ai-models.discover.source-upstream")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label>{t("ai-models.import.source")}</Label>
+            <Select
+              value={source}
+              onValueChange={(value) => setSource(value as DiscoverSource)}
+              disabled={!hasUpstreams}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="official">{t("ai-models.discover.source-official")}</SelectItem>
+                <SelectItem value="upstream">{t("ai-models.discover.source-upstream")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {noKey && endpointId && (

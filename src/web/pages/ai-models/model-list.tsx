@@ -272,16 +272,6 @@ export function ModelList({
         meta: { headerClassName: "w-[18%]" },
       },
       {
-        accessorKey: "clientFormat",
-        cell: ({ row }) => (
-          <DataTableBadge variant="outline" className="uppercase">
-            {row.original.clientFormat}
-          </DataTableBadge>
-        ),
-        header: t("ai-models.th.client-format"),
-        meta: { headerClassName: "w-[10%]" },
-      },
-      {
         accessorKey: "name",
         cell: ({ row }) => (
           <DataTableText className="font-medium">{row.original.name}</DataTableText>

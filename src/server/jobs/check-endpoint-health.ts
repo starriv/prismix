@@ -72,10 +72,9 @@ async function findAnthropicProbeModelId(endpoint: HealthCheckEndpoint): Promise
   if (endpoint.apiFormat !== "anthropic") return null;
 
   const models = await aiModelRepo.findEnabledByEndpointId(endpoint.id);
-  const anthropicModels = models.filter((model) => model.clientFormat === "anthropic");
   return (
-    anthropicModels.find((model) => hasChatCapability(model.capabilities))?.modelId ??
-    anthropicModels[0]?.modelId ??
+    models.find((model) => hasChatCapability(model.capabilities))?.modelId ??
+    models[0]?.modelId ??
     null
   );
 }

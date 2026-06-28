@@ -1,5 +1,11 @@
 /**
  * AI Credential repository — CRUD for real supplier API keys.
+ *
+ * NOTE: `keyHash` (SHA-256 of the raw API key) is computed on insert and stored
+ * for audit/forensics, but is NOT queried by application logic. Migration 0016
+ * dropped the global unique constraint to allow the same physical key under
+ * different owners/names. Per-endpoint binding is handled by
+ * `ai_endpoint_credentials`, which has its own composite unique indexes.
  */
 import { count, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -54,18 +60,6 @@ export const aiCredentialRepo = {
         .offset(opts?.offset ?? 0),
     );
   },
-
-  async findByKeyHash(keyHash: string): Promise<AiCredential | undefined> {
-    return queryOne(db.select().from(aiCredentials).where(eq(aiCredentials.keyHash, keyHash)));
-  },
-
-  // NOTE: `ai_credentials.key_hash` is GLOBALLY unique (pg.ts:774).
-  // Cross-supplier key reuse is intentionally not supported — the RFC's
-  // "shared credentials" goal is satisfied by the `ai_endpoint_credentials`
-  // join table, which lets ONE credential row attach to MANY endpoints
-  // under the SAME supplier. If cross-supplier reuse becomes a real
-  // requirement, drop the global unique constraint to a composite
-  // unique(supplier_id, key_hash) via a new migration.
 
   async create(data: NewAiCredential): Promise<AiCredential> {
     return returningOne(db.insert(aiCredentials).values(data));

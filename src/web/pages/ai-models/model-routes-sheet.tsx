@@ -35,13 +35,6 @@ import {
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
 import { Switch } from "@/web/components/ui/switch";
 
-type ClientFormat = "openai" | "anthropic";
-
-function canEndpointServeClientFormat(clientFormat: ClientFormat, apiFormat: string): boolean {
-  if (clientFormat === "openai") return true;
-  return ["anthropic", "openai", "azure-openai"].includes(apiFormat);
-}
-
 function supplierConnectionLabel(endpoint: Pick<AiEndpoint, "name" | "supplierName">): string {
   return endpoint.supplierName ? `${endpoint.supplierName} / ${endpoint.name}` : endpoint.name;
 }
@@ -65,13 +58,8 @@ export function ModelRoutesSheet({
 
   const availableEndpoints = useMemo(() => {
     const routedIds = new Set(routes.map((r) => r.endpointId));
-    return endpoints.filter(
-      (p) =>
-        p.enabled &&
-        !routedIds.has(p.id) &&
-        canEndpointServeClientFormat(model.clientFormat, p.apiFormat),
-    );
-  }, [model.clientFormat, endpoints, routes]);
+    return endpoints.filter((p) => p.enabled && !routedIds.has(p.id));
+  }, [endpoints, routes]);
 
   const sortedRoutes = useMemo(() => sortBy(routes, "priority"), [routes]);
 

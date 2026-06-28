@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import {
+  useAiCredentials,
   useAiEndpointAssignments,
   useAiEndpointCredentials,
   useCreateAiEndpointCredential,
@@ -50,6 +51,7 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/web/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 import { cn } from "@/web/shared/utils";
 
@@ -519,11 +521,39 @@ function BucketCard({
   );
 }
 
-const addCredentialToBucketSchema = z.object({
-  name: z.string().min(1, "common.valid.name-required"),
-  apiKey: z.string().min(1, "common.valid.required"),
-  ownerId: z.number().int().positive().nullable().optional(),
-});
+const addCredentialToBucketSchema = z
+  .object({
+    mode: z.enum(["existing", "new"]),
+    credentialId: z.number().int().positive().nullable().optional(),
+    name: z.string().optional(),
+    apiKey: z.string().optional(),
+    ownerId: z.number().int().positive().nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.mode === "existing" && !data.credentialId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "common.valid.required",
+        path: ["credentialId"],
+      });
+    }
+    if (data.mode === "new") {
+      if (!data.name?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "common.valid.name-required",
+          path: ["name"],
+        });
+      }
+      if (!data.apiKey?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "common.valid.required",
+          path: ["apiKey"],
+        });
+      }
+    }
+  });
 type AddCredentialToBucketValues = z.infer<typeof addCredentialToBucketSchema>;
 
 function AddCredentialToBucketDialog({
@@ -539,22 +569,49 @@ function AddCredentialToBucketDialog({
 }) {
   const { t } = useTranslation();
   const createCredential = useCreateAiEndpointCredential();
+  const { data: reusableCredentials = [] } = useAiCredentials();
   const { data: keyProviders = [] } = useKeyProviders();
   const activeKeyProviders = useMemo(
     () => keyProviders.filter((keyProvider) => keyProvider.status === "active"),
     [keyProviders],
   );
+  const availableCredentials = useMemo(() => {
+    const assignedCredentialIds = new Set(
+      bucket?.credentials.map((credential) => credential.credentialId),
+    );
+    return reusableCredentials.filter(
+      (credential) =>
+        credential.supplierId === endpoint.supplierId &&
+        credential.enabled &&
+        !assignedCredentialIds.has(credential.id),
+    );
+  }, [bucket?.credentials, endpoint.supplierId, reusableCredentials]);
   const isSigV4 = endpoint.authType === "sigv4";
   const isCloudflare = endpoint.authType === "cloudflare";
 
   const form = useForm<AddCredentialToBucketValues>({
     resolver: zodResolver(addCredentialToBucketSchema),
-    defaultValues: { name: "", apiKey: "", ownerId: null },
+    defaultValues: {
+      mode: "new",
+      credentialId: null,
+      name: "",
+      apiKey: "",
+      ownerId: null,
+    },
   });
+  const mode = useWatch({ control: form.control, name: "mode" });
 
   useEffect(() => {
-    if (open) form.reset({ name: "", apiKey: "", ownerId: null });
-  }, [open, form]);
+    if (!open) return;
+    const mode = availableCredentials.length > 0 ? "existing" : "new";
+    form.reset({
+      mode,
+      credentialId: availableCredentials[0]?.id ?? null,
+      name: "",
+      apiKey: "",
+      ownerId: null,
+    });
+  }, [availableCredentials, open, form]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     if (!bucket || !bucket.enabled) {
@@ -563,14 +620,32 @@ function AddCredentialToBucketDialog({
     }
 
     try {
-      await createCredential.mutateAsync({
-        endpointId: endpoint.id,
-        supplierId: endpoint.supplierId,
-        upstreamId: bucket.upstreamId ?? null,
-        name: data.name,
-        apiKey: data.apiKey,
-        ownerId: data.ownerId,
-      });
+      if (data.mode === "existing") {
+        const selectedCredential = availableCredentials.find(
+          (credential) => credential.id === data.credentialId,
+        );
+        if (!selectedCredential) {
+          toast.error(t("supplier-connections.credentials.toast.create-error"));
+          return;
+        }
+
+        await createCredential.mutateAsync({
+          endpointId: endpoint.id,
+          supplierId: endpoint.supplierId,
+          upstreamId: bucket.upstreamId ?? null,
+          credentialId: selectedCredential.id,
+          name: selectedCredential.name,
+        });
+      } else {
+        await createCredential.mutateAsync({
+          endpointId: endpoint.id,
+          supplierId: endpoint.supplierId,
+          upstreamId: bucket.upstreamId ?? null,
+          name: data.name!.trim(),
+          apiKey: data.apiKey!.trim(),
+          ownerId: data.ownerId,
+        });
+      }
       toast.success(t("supplier-connections.credentials.toast.created"));
       onOpenChange(false);
     } catch (err) {
@@ -595,92 +670,168 @@ function AddCredentialToBucketDialog({
         <Form {...form}>
           <form onSubmit={handleSubmit}>
             <DialogBody className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("supplier-connections.credentials.form.name")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t("supplier-connections.credentials.form.name-ph")}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="apiKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {isCloudflare
-                        ? t("supplier-connections.credentials.form.cloudflare-client-secret")
-                        : isSigV4
-                          ? t("supplier-connections.credentials.form.secret-access-key")
-                          : t("supplier-connections.credentials.form.api-key")}
-                    </FormLabel>
-                    <FormControl>
-                      <SecretInput
-                        placeholder={
-                          isCloudflare
-                            ? t("supplier-connections.credentials.form.cloudflare-client-secret-ph")
-                            : isSigV4
-                              ? t("supplier-connections.credentials.form.secret-access-key-ph")
-                              : t("supplier-connections.credentials.form.api-key-ph")
-                        }
-                        {...field}
-                      />
-                    </FormControl>
-                    <p className="text-[11px] text-muted-foreground">
-                      {isCloudflare
-                        ? t("supplier-connections.credentials.form.cloudflare-client-secret-hint")
-                        : isSigV4
-                          ? t("supplier-connections.credentials.form.secret-access-key-hint")
-                          : t("supplier-connections.credentials.form.api-key-hint")}
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {activeKeyProviders.length > 0 && (
-                <FormField
-                  control={form.control}
-                  name="ownerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("supplier-connections.credentials.form.owner")}</FormLabel>
-                      <Select
-                        value={field.value ? String(field.value) : "none"}
-                        onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={t("supplier-connections.credentials.form.owner-ph")}
+              <Tabs
+                value={mode}
+                onValueChange={(value) => {
+                  const mode = value as AddCredentialToBucketValues["mode"];
+                  form.setValue("mode", mode, { shouldValidate: true });
+                  if (mode === "existing") {
+                    form.setValue("credentialId", availableCredentials[0]?.id ?? null, {
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+              >
+                <TabsList>
+                  <TabsTrigger value="existing">
+                    <Key className="h-3.5 w-3.5" />
+                    {t("supplier-connections.credentials.form.use-existing")}
+                  </TabsTrigger>
+                  <TabsTrigger value="new">
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("supplier-connections.credentials.form.create-new")}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="existing" className="space-y-4 pt-2">
+                  <FormField
+                    control={form.control}
+                    name="credentialId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t("supplier-connections.credentials.form.existing-credential")}
+                        </FormLabel>
+                        <Select
+                          value={field.value ? String(field.value) : ""}
+                          onValueChange={(value) => field.onChange(Number(value))}
+                          disabled={availableCredentials.length === 0}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue
+                              placeholder={t(
+                                "supplier-connections.credentials.form.existing-credential-ph",
+                              )}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableCredentials.map((credential) => (
+                              <SelectItem key={credential.id} value={String(credential.id)}>
+                                {credential.name} - {credential.keyPrefix}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {availableCredentials.length === 0 && (
+                          <p className="text-[11px] text-muted-foreground">
+                            {t("supplier-connections.credentials.form.existing-empty")}
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+                <TabsContent value="new" className="space-y-4 pt-2">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("supplier-connections.credentials.form.name")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t("supplier-connections.credentials.form.name-ph")}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
                           />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            {t("supplier-connections.credentials.form.owner-none")}
-                          </SelectItem>
-                          {activeKeyProviders.map((keyProvider) => (
-                            <SelectItem key={keyProvider.id} value={String(keyProvider.id)}>
-                              {keyProvider.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground">
-                        {t("supplier-connections.credentials.form.owner-hint")}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="apiKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {isCloudflare
+                            ? t("supplier-connections.credentials.form.cloudflare-client-secret")
+                            : isSigV4
+                              ? t("supplier-connections.credentials.form.secret-access-key")
+                              : t("supplier-connections.credentials.form.api-key")}
+                        </FormLabel>
+                        <FormControl>
+                          <SecretInput
+                            placeholder={
+                              isCloudflare
+                                ? t(
+                                    "supplier-connections.credentials.form.cloudflare-client-secret-ph",
+                                  )
+                                : isSigV4
+                                  ? t("supplier-connections.credentials.form.secret-access-key-ph")
+                                  : t("supplier-connections.credentials.form.api-key-ph")
+                            }
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
+                          />
+                        </FormControl>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isCloudflare
+                            ? t(
+                                "supplier-connections.credentials.form.cloudflare-client-secret-hint",
+                              )
+                            : isSigV4
+                              ? t("supplier-connections.credentials.form.secret-access-key-hint")
+                              : t("supplier-connections.credentials.form.api-key-hint")}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {activeKeyProviders.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="ownerId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("supplier-connections.credentials.form.owner")}</FormLabel>
+                          <Select
+                            value={field.value ? String(field.value) : "none"}
+                            onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue
+                                placeholder={t("supplier-connections.credentials.form.owner-ph")}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                {t("supplier-connections.credentials.form.owner-none")}
+                              </SelectItem>
+                              {activeKeyProviders.map((keyProvider) => (
+                                <SelectItem key={keyProvider.id} value={String(keyProvider.id)}>
+                                  {keyProvider.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            {t("supplier-connections.credentials.form.owner-hint")}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
-              )}
+                </TabsContent>
+              </Tabs>
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

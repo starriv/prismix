@@ -25,6 +25,7 @@ import {
   API_AI_USAGE_SUMMARY,
   API_RELAY_KEY_OPTIONS,
   API_RELAY_KEYS,
+  apiAiCredentialDetail,
   apiAiDiscoverModels,
   apiAiEndpointCredentialDetail,
   apiAiEndpointCredentials,
@@ -482,6 +483,13 @@ export function useAiCredentials() {
   });
 }
 
+export function useAiEndpointCredentialsAll() {
+  return useQuery({
+    queryKey: queryKeys.aiEndpointCredentialsAll(),
+    queryFn: () => get(API_AI_ENDPOINT_CREDENTIALS, z.array(aiEndpointCredentialSchema)),
+  });
+}
+
 export function useAiEndpointCredentials(endpointId: number) {
   return useQuery({
     queryKey: queryKeys.aiEndpointCredentials(endpointId),
@@ -490,34 +498,110 @@ export function useAiEndpointCredentials(endpointId: number) {
   });
 }
 
+interface CreateAiCredentialBody {
+  supplierId: number;
+  name: string;
+  apiKey: string;
+  ownerId?: number | null;
+}
+
+export function useCreateAiCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateAiCredentialBody) =>
+      post(API_AI_CREDENTIALS, body, aiCredentialSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
+    },
+  });
+}
+
+export function useUpdateAiCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: number;
+      name?: string;
+      enabled?: boolean;
+      ownerId?: number | null;
+    }) => put(apiAiCredentialDetail(id), body, aiCredentialSchema),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
+    },
+  });
+}
+
+export function useDeleteAiCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => del(apiAiCredentialDetail(id), z.object({ success: z.boolean() })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsAll() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
+      qc.invalidateQueries({ queryKey: queryKeys.keyProviderRecentPrefix() });
+    },
+  });
+}
+
+type CreateAiEndpointCredentialBody = {
+  endpointId: number;
+  supplierId: number;
+  upstreamId?: number | null;
+  name: string;
+  ownerId?: number | null;
+  weight?: number;
+  enabled?: boolean;
+} & (
+  | {
+      apiKey: string;
+      credentialId?: never;
+    }
+  | {
+      credentialId: number;
+      apiKey?: never;
+    }
+);
+
 export function useCreateAiEndpointCredential() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: {
-      endpointId: number;
-      supplierId: number;
-      upstreamId?: number | null;
-      name: string;
-      apiKey: string;
-      ownerId?: number | null;
-      weight?: number;
-      enabled?: boolean;
-    }) => {
-      const credential = await post(
-        API_AI_CREDENTIALS,
-        {
-          supplierId: body.supplierId,
-          name: body.name,
-          apiKey: body.apiKey,
-          ownerId: body.ownerId,
-        },
-        aiCredentialSchema,
-      );
+    mutationFn: async (body: CreateAiEndpointCredentialBody) => {
+      const credentialId =
+        body.credentialId ??
+        (
+          await post(
+            API_AI_CREDENTIALS,
+            {
+              supplierId: body.supplierId,
+              name: body.name,
+              apiKey: body.apiKey,
+              ownerId: body.ownerId,
+            },
+            aiCredentialSchema,
+          )
+        ).id;
       return post(
         API_AI_ENDPOINT_CREDENTIALS,
         {
           endpointId: body.endpointId,
-          credentialId: credential.id,
+          credentialId,
           upstreamId: body.upstreamId,
           name: body.name,
           weight: body.weight,
@@ -529,6 +613,7 @@ export function useCreateAiEndpointCredential() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
       qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentials(vars.endpointId) });
+      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsAll() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviders() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderSummaryPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.keyProviderKeysPrefix() });
@@ -592,7 +677,6 @@ export function useTestAiEndpointCredential() {
 // ── AI Models ─────────────────────────────────────────────────────────
 
 interface CreateAiModelBody {
-  clientFormat?: "openai" | "anthropic";
   modelId: string;
   name: string;
   contextWindow?: number | null;
@@ -624,7 +708,6 @@ export function useBatchCreateAiModels() {
     }: {
       endpointId: number;
       models: Array<{
-        clientFormat?: "openai" | "anthropic";
         modelId: string;
         name: string;
         inputPrice?: string;
@@ -683,15 +766,10 @@ export function useBatchDeleteAiModels() {
   });
 }
 
-export function useDiscoverModels(
-  endpointId: number,
-  source: string = "official",
-  clientFormat?: "openai" | "anthropic",
-) {
+export function useDiscoverModels(endpointId: number, source: string = "official") {
   return useQuery({
-    queryKey: queryKeys.aiDiscoverModels(endpointId, source, clientFormat),
-    queryFn: () =>
-      get(apiAiDiscoverModels(endpointId, source, clientFormat), z.array(discoveredModelSchema)),
+    queryKey: queryKeys.aiDiscoverModels(endpointId, source),
+    queryFn: () => get(apiAiDiscoverModels(endpointId, source), z.array(discoveredModelSchema)),
     enabled: false,
   });
 }

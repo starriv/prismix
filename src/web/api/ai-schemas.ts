@@ -260,7 +260,6 @@ export type AiModelGrayUser = z.infer<typeof aiModelGrayUserSchema>;
 
 export const aiModelSchema = z.object({
   id: z.number(),
-  clientFormat: z.enum(["openai", "anthropic"]).default("openai"),
   modelId: z.string(),
   name: z.string(),
   contextWindow: z.number().nullable().optional(),

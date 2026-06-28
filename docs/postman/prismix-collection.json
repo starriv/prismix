@@ -584,7 +584,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/discover-models?source=official&clientFormat=openai",
+                  "raw": "{{baseUrl}}/admin/ai/endpoints/:id/discover-models?source=official",
                   "host": ["{{baseUrl}}"],
                   "path": ["admin", "ai", "endpoints", ":id", "discover-models"],
                   "variable": [
@@ -595,11 +595,6 @@
                       "key": "source",
                       "value": "official",
                       "description": "official = hit endpoint.baseUrl; upstream = hit a bound upstream's baseUrl (default: official)"
-                    },
-                    {
-                      "key": "clientFormat",
-                      "value": "openai",
-                      "description": "Filter discovered models by client format (optional)"
                     }
                   ]
                 },
@@ -613,7 +608,7 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"modelId\": \"gpt-4o\",\n  \"name\": \"GPT-4o\",\n  \"clientFormat\": \"openai\",\n  \"contextWindow\": 128000,\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"capabilities\": [\"chat\", \"vision\"],\n  \"enabled\": true\n}"
+                  "raw": "{\n  \"modelId\": \"gpt-4o\",\n  \"name\": \"GPT-4o\",\n  \"contextWindow\": 128000,\n  \"inputPrice\": \"2.5\",\n  \"outputPrice\": \"10\",\n  \"capabilities\": [\"chat\", \"vision\"],\n  \"enabled\": true\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/admin/ai/endpoints/:id/models",
@@ -623,7 +618,7 @@
                     { "key": "id", "value": "1", "description": "Endpoint internal numeric ID" }
                   ]
                 },
-                "description": "Register a new model under an endpoint. Auto-creates a route to this endpoint. If the model already exists, only adds a route. Prices are per million tokens. clientFormat defaults to the endpoint's native format."
+                "description": "Register a new model under an endpoint. Auto-creates a route to this endpoint. If the model already exists, only adds a route. Prices are per million tokens."
               }
             },
             {

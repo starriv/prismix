@@ -30,17 +30,9 @@ import {
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
 import { MultiSelect, type MultiSelectOption } from "@/web/components/ui/multi-select";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
 
 const modelFormSchema = z.object({
-  clientFormat: z.enum(["openai", "anthropic"]),
   modelId: z.string().min(1, "common.valid.required"),
   name: z.string().min(1, "common.valid.name-required"),
   contextWindow: z.number().int().positive().nullable().optional(),
@@ -55,7 +47,6 @@ const modelFormSchema = z.object({
 type ModelFormValues = z.infer<typeof modelFormSchema>;
 
 const EMPTY_MODEL_FORM: ModelFormValues = {
-  clientFormat: "openai",
   modelId: "",
   name: "",
   contextWindow: null,
@@ -107,7 +98,6 @@ function toGrayUserOption(user: GrayUserOptionSource): MultiSelectOption {
 
 function modelToFormValues(model: AiModel): ModelFormValues {
   return {
-    clientFormat: model.clientFormat,
     modelId: model.modelId,
     name: model.name,
     contextWindow: model.contextWindow ?? null,
@@ -235,28 +225,6 @@ export function ModelFormDialog({
         <Form {...form}>
           <form onSubmit={handleSubmit}>
             <DialogBody className="space-y-4">
-              <FormField
-                control={form.control}
-                name="clientFormat"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="modelId"

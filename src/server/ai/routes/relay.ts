@@ -863,7 +863,7 @@ interface ResolvedCandidate {
  */
 async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
   const routes = orderRoutesByPriorityAndWeight(
-    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId, "openai"),
+    await aiModelRouteRepo.findEnabledRoutesByModelId(modelId),
   );
   if (routes.length === 0) return [];
 
@@ -888,7 +888,7 @@ async function buildCandidateChain(modelId: string): Promise<Candidate[]> {
       seenFallbackIds.add(fbModelId);
 
       const fbRoutes = orderRoutesByPriorityAndWeight(
-        await aiModelRouteRepo.findEnabledRoutesByModelId(fbModelId, "openai"),
+        await aiModelRouteRepo.findEnabledRoutesByModelId(fbModelId),
       );
       if (fbRoutes.length === 0) continue;
 

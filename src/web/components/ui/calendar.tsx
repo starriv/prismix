@@ -16,18 +16,18 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row gap-2",
+        months: "relative flex flex-col sm:flex-row gap-2",
         month: "flex flex-col gap-4",
-        month_caption: "flex justify-center pt-1 relative items-center w-full",
+        month_caption: "flex h-9 justify-center pt-1 relative items-center w-full px-10",
         caption_label: "text-sm font-medium",
-        nav: "flex items-center gap-1",
+        nav: "pointer-events-none absolute inset-x-3 top-3 z-30 flex items-center justify-between",
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1",
+          "pointer-events-auto size-7 bg-popover p-0 opacity-70 hover:opacity-100",
         ),
         button_next: cn(
           buttonVariants({ variant: "outline" }),
-          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1",
+          "pointer-events-auto size-7 bg-popover p-0 opacity-70 hover:opacity-100",
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",

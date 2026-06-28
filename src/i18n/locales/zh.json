@@ -119,6 +119,7 @@
     "ai-gateway": "AI 网关",
     "ai-suppliers": "供应商",
     "supplier-connections": "供应商连接",
+    "ai-credentials": "AI 凭证",
     "ai-models": "模型",
     "access-endpoints": "接入端点",
     "ai-usage": "用量",
@@ -2344,6 +2345,14 @@
       "official-queue-timeout": "队列超时 (ms)",
       "enabled": "启用"
     },
+    "svgl": {
+      "open": "搜索 SVGL 图标",
+      "title": "SVGL 图标",
+      "search-ph": "搜索 logo",
+      "searching": "搜索中...",
+      "empty": "未找到 SVGL 图标",
+      "search-error": "SVGL 搜索暂不可用，请粘贴图标 URL 或稍后重试。"
+    },
     "valid": {
       "supplier-id": "仅允许小写字母、数字和短横线"
     },
@@ -2391,7 +2400,6 @@
     },
     "th": {
       "model-id": "模型 ID",
-      "client-format": "格式",
       "routes": "路由",
       "name": "名称",
       "input-price": "输入价格",
@@ -2405,7 +2413,6 @@
       "gray-release": "灰度"
     },
     "form": {
-      "client-format": "客户端格式",
       "model-id": "模型 ID",
       "model-id-ph": "model-name",
       "name": "名称",
@@ -3156,6 +3163,49 @@
       "desc": "查看钱包的充值、提现、支付和 AI 使用记录"
     }
   },
+  "ai-credentials": {
+    "title": "AI 凭证",
+    "desc": "集中管理真实供应商 API 密钥，并在多个连接器凭证池中复用。",
+    "add": "添加凭证",
+    "empty": "暂无 AI 凭证",
+    "platform": "平台自有",
+    "never": "从未使用",
+    "reference-count": "{{enabled}}/{{total}} 引用启用",
+    "toggle": "切换 {{name}}",
+    "delete": "删除 {{name}}",
+    "table": {
+      "credential": "凭证",
+      "supplier": "供应商",
+      "owner": "归属",
+      "references": "引用",
+      "last-used": "最近使用"
+    },
+    "form": {
+      "supplier": "供应商",
+      "supplier-ph": "选择供应商",
+      "name": "凭证名称",
+      "name-ph": "例如 Default",
+      "api-key": "API 密钥",
+      "api-key-ph": "sk-...",
+      "api-key-hint": "密钥会加密存储，保存后不会再明文展示。",
+      "owner": "密钥合作方（可选）",
+      "owner-ph": "选择密钥合作方",
+      "owner-none": "平台自有（无合作方）"
+    },
+    "dialog": {
+      "create-title": "添加 AI 凭证",
+      "delete-title": "删除 AI 凭证",
+      "delete-body": "删除凭证「{{name}}」？此操作也会移除 {{count}} 个连接器绑定，且不可撤销。"
+    },
+    "toast": {
+      "created": "AI 凭证已创建",
+      "updated": "AI 凭证已更新",
+      "deleted": "AI 凭证已删除",
+      "create-error": "创建 AI 凭证失败",
+      "update-error": "更新 AI 凭证失败",
+      "delete-error": "删除 AI 凭证失败"
+    }
+  },
   "supplier-connections": {
     "title": "供应商连接",
     "desc": "管理真实供应商下可调用的 API 连接、协议格式、认证方式和凭证池。",
@@ -3284,6 +3334,11 @@
         "random": "随机"
       },
       "form": {
+        "use-existing": "选择已有",
+        "create-new": "新建凭证",
+        "existing-credential": "已有凭证",
+        "existing-credential-ph": "选择一个已保存凭证",
+        "existing-empty": "此供应商没有可引用的可用凭证，请新建凭证。",
         "name": "凭证名称",
         "name-ph": "输入凭证名称",
         "api-key": "API 密钥",

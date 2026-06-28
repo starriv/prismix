@@ -670,7 +670,9 @@ export const aiUpstreamModelMappings = pgTable(
   "ai_upstream_model_mappings",
   {
     id: serial("id").primaryKey(),
-    upstreamId: integer("upstream_id").notNull(),
+    upstreamId: integer("upstream_id")
+      .notNull()
+      .references(() => aiUpstreams.id, { onDelete: "cascade" }),
     sourceModelId: text("source_model_id").notNull(),
     mappedModelId: text("mapped_model_id").notNull(),
     enabled: boolean("enabled").notNull().default(true),
@@ -691,8 +693,7 @@ export const aiModels = pgTable(
   "ai_models",
   {
     id: serial("id").primaryKey(),
-    clientFormat: text("client_format").notNull().default("openai"), // "openai" | "anthropic"
-    modelId: text("model_id").notNull(), // format-local slug: "gpt-4o", "claude-sonnet-4-20250514"
+    modelId: text("model_id").notNull(), // public model slug: "gpt-4o", "glm-5.2"
     name: text("name").notNull(), // display name
     contextWindow: integer("context_window"), // max tokens
     inputPrice: text("input_price").notNull().default("0"), // per 1M tokens
@@ -711,9 +712,8 @@ export const aiModels = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    unique().on(t.clientFormat, t.modelId),
+    unique().on(t.modelId),
     index("idx_ai_models_model_id").on(t.modelId),
-    index("idx_ai_models_client_format").on(t.clientFormat),
     index("idx_ai_models_limited_free_until").on(t.limitedFreeUntil),
   ],
 );
@@ -777,7 +777,7 @@ export const aiCredentials = pgTable(
     ownerId: integer("owner_id").references(() => keyProviders.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     encryptedKey: text("encrypted_key").notNull(),
-    keyHash: text("key_hash").notNull().unique(),
+    keyHash: text("key_hash").notNull(),
     keyPrefix: text("key_prefix").notNull(),
     enabled: boolean("enabled").notNull().default(true),
     lastUsedAt: timestamp("last_used_at"),

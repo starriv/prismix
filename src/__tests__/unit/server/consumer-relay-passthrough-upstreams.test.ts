@@ -170,7 +170,6 @@ describe("consumer relay Anthropic client protocol routing", () => {
         model: {
           id: 101,
           endpointId: 7,
-          clientFormat: "anthropic",
           modelId: "claude-sonnet-4",
           inputPrice: "3",
           outputPrice: "15",
@@ -314,7 +313,6 @@ describe("consumer relay Anthropic client protocol routing", () => {
         model: {
           id: 101,
           endpointId: 7,
-          clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",
@@ -388,7 +386,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
     };
 
     expect(res.status).toBe(200);
-    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm", "anthropic");
+    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm");
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch.mock.calls[0][0]).toBe("https://glm.example.com/v1/chat/completions");
     const upstreamBody = JSON.parse(String(mockFetch.mock.calls[0][1]?.body)) as {
@@ -427,7 +425,6 @@ describe("consumer relay Anthropic client protocol routing", () => {
         model: {
           id: 101,
           endpointId: 7,
-          clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",
@@ -459,7 +456,7 @@ describe("consumer relay Anthropic client protocol routing", () => {
 
     expect(res.status).toBe(200);
     expect(json.input_tokens).toBeGreaterThan(0);
-    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm", "anthropic");
+    expect(mockFindEnabledRoutesByModelId).toHaveBeenCalledWith("claude-glm");
     expect(mockResolveUpstreamCandidates).not.toHaveBeenCalled();
     expect(mockPickKey).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
@@ -481,7 +478,6 @@ describe("consumer relay Anthropic client protocol routing", () => {
         model: {
           id: 101,
           endpointId: 7,
-          clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "0",
           outputPrice: "0",
@@ -571,7 +567,6 @@ describe("consumer relay Anthropic client protocol routing", () => {
         model: {
           id: 101,
           endpointId: 7,
-          clientFormat: "anthropic",
           modelId: "claude-glm",
           inputPrice: "1",
           outputPrice: "2",

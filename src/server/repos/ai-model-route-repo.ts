@@ -21,7 +21,6 @@ import {
   returningOne,
 } from "@/server/db";
 
-import type { ClientFormat } from "../ai/lib/client-format";
 import type { EndpointWithSupplier } from "./ai-endpoint-repo";
 
 export interface RouteWithEndpoint {
@@ -48,10 +47,7 @@ export const aiModelRouteRepo = {
    * Sorted by priority ASC (lower = tried first), then weight DESC.
    * Used by relay logic for multi-endpoint failover.
    */
-  async findEnabledRoutesByModelId(
-    modelId: string,
-    clientFormat: ClientFormat = "openai",
-  ): Promise<EnabledRouteResult[]> {
+  async findEnabledRoutesByModelId(modelId: string): Promise<EnabledRouteResult[]> {
     const rows = await queryAll<EnabledRouteRow>(
       db
         .select({
@@ -77,7 +73,6 @@ export const aiModelRouteRepo = {
         .where(
           and(
             eq(aiModels.modelId, modelId),
-            eq(aiModels.clientFormat, clientFormat),
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
             eq(aiEndpoints.enabled, true),
@@ -95,7 +90,52 @@ export const aiModelRouteRepo = {
     }));
   },
 
-  /** Find all routes for a model (by model PK) — for admin UI. */
+  /**
+   * Find all enabled routes across ALL models in a single query.
+   * Same join + filters + ordering as findEnabledRoutesByModelId but without the modelId filter.
+   * Used by aiModelRepo.findAllEnabled to avoid N+1 per-model route lookups.
+   */
+  async findAllEnabledRoutes(): Promise<EnabledRouteResult[]> {
+    const rows = await queryAll<EnabledRouteRow>(
+      db
+        .select({
+          route: aiModelRoutes,
+          model: aiModels,
+          endpoint: aiEndpoints,
+          supplier: {
+            id: aiSuppliers.id,
+            supplierId: aiSuppliers.supplierId,
+            name: aiSuppliers.name,
+            iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
+            enabled: aiSuppliers.enabled,
+          },
+        })
+        .from(aiModelRoutes)
+        .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
+        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
+        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
+        .where(
+          and(
+            eq(aiModels.enabled, true),
+            eq(aiModelRoutes.enabled, true),
+            eq(aiEndpoints.enabled, true),
+            eq(aiEndpoints.autoDisabled, false),
+            eq(aiSuppliers.enabled, true),
+          ),
+        )
+        .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
+    );
+
+    return rows.map((row) => ({
+      route: row.route,
+      model: row.model,
+      endpoint: { ...row.endpoint, supplier: row.supplier },
+    }));
+  },
   async findByModelPk(modelPk: number): Promise<RouteWithEndpoint[]> {
     const rows = await queryAll<EnabledRouteRow>(
       db

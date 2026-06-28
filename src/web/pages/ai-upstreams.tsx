@@ -1248,7 +1248,7 @@ function UpstreamFormDialog({
                     <FormItem>
                       <FormLabel>{t("ai-upstreams.form.queue-timeout")}</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} step={1000} {...field} />
+                        <Input type="number" min={1} step={1} {...field} />
                       </FormControl>
                       <p className="text-muted-foreground text-xs">
                         {t("ai-upstreams.form.queue-timeout-desc")}

@@ -3,7 +3,6 @@
  */
 import { z } from "zod";
 
-import { CLIENT_FORMATS } from "@/server/ai/lib/client-format";
 import { PRICE_RE } from "@/shared/number";
 
 // ── SSRF-safe URL check ─────────────────────────────────────────────
@@ -201,7 +200,6 @@ export const batchCreateAiModelsBody = z.object({
   models: z
     .array(
       z.object({
-        clientFormat: z.enum(CLIENT_FORMATS).optional(),
         modelId: z.string().min(1).max(100),
         name: z.string().min(1).max(200),
         contextWindow: z.number().int().positive().nullable().optional(),
@@ -219,7 +217,6 @@ export const batchCreateAiModelsBody = z.object({
 });
 
 export const createAiModelBody = z.object({
-  clientFormat: z.enum(CLIENT_FORMATS).optional(),
   modelId: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   contextWindow: z.number().int().positive().nullable().optional(),
@@ -235,7 +232,6 @@ export const createAiModelBody = z.object({
 });
 
 export const updateAiModelBody = z.object({
-  clientFormat: z.enum(CLIENT_FORMATS).optional(),
   name: z.string().min(1).max(200).optional(),
   contextWindow: z.number().int().positive().nullable().optional(),
   inputPrice: z.string().min(1).regex(PRICE_RE, "Invalid price format").optional(),

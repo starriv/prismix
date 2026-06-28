@@ -113,6 +113,27 @@
       "when": 1782604800001,
       "tag": "0015_supplier_default_runtime_config",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782665391887,
+      "tag": "0016_allow_duplicate_ai_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782666316410,
+      "tag": "0017_remove_model_client_format",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782668399486,
+      "tag": "0018_add_upstream_model_mappings_fk",
+      "breakpoints": true
     }
   ]
 }

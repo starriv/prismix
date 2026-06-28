@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, ExternalLink, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -41,6 +41,8 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/web/components/ui/popover";
+import { ScrollArea } from "@/web/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -49,6 +51,7 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
+import { getSvglIconUrl, searchSvglIcons, type SvglIcon } from "@/web/shared/svgl-icons";
 
 import { BEDROCK_REGIONS } from "./supplier-connections/constants";
 
@@ -321,6 +324,9 @@ function SupplierFormDialog({
     defaultValues: EMPTY_SUPPLIER_FORM,
   });
   const watchedAuthType = useWatch({ control: form.control, name: "authType" });
+  const watchedSupplierId = useWatch({ control: form.control, name: "supplierId" });
+  const watchedName = useWatch({ control: form.control, name: "name" });
+  const svglSearchHint = watchedName?.trim() || watchedSupplierId?.trim() || "";
 
   useEffect(() => {
     if (!open) return;
@@ -451,7 +457,18 @@ function SupplierFormDialog({
                   <FormItem>
                     <FormLabel>{t("ai-suppliers.form.icon-url")}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t("ai-suppliers.form.icon-url-ph")} {...field} />
+                      <div className="flex gap-2">
+                        <Input
+                          className="min-w-0"
+                          placeholder={t("ai-suppliers.form.icon-url-ph")}
+                          {...field}
+                        />
+                        <SvglIconPicker
+                          searchHint={svglSearchHint}
+                          value={field.value}
+                          onSelect={field.onChange}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -586,7 +603,7 @@ function SupplierFormDialog({
                     <FormItem>
                       <FormLabel>{t("ai-suppliers.form.official-queue-timeout")}</FormLabel>
                       <FormControl>
-                        <Input min={1} step={1000} type="number" {...field} />
+                        <Input min={1} step={1} type="number" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -620,6 +637,164 @@ function SupplierFormDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function SvglIconPicker({
+  searchHint,
+  value,
+  onSelect,
+}: {
+  searchHint: string;
+  value: string;
+  onSelect: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [icons, setIcons] = useState<SvglIcon[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        setQuery(searchHint);
+      }
+      setOpen(nextOpen);
+    },
+    [searchHint],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setLoading(true);
+      setError(null);
+
+      searchSvglIcons(query, controller.signal)
+        .then(setIcons)
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return;
+
+          setIcons([]);
+          setError(
+            err instanceof Error
+              ? t("ai-suppliers.svgl.search-error")
+              : t("common.valid.unknown-error"),
+          );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [open, query, t]);
+
+  const svglUrl = useMemo(() => {
+    const url = new URL("https://svgl.app/");
+    const trimmed = query.trim() || searchHint.trim();
+    if (trimmed) url.searchParams.set("search", trimmed);
+    return url.toString();
+  }, [query, searchHint]);
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          aria-label={t("ai-suppliers.svgl.open")}
+          className="shrink-0"
+          type="button"
+          variant="outline"
+        >
+          <Search className="h-4 w-4" />
+          SVGL
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-3">
+        <div className="space-y-3">
+          <Input
+            autoFocus
+            placeholder={t("ai-suppliers.svgl.search-ph")}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="truncate text-xs text-muted-foreground">{t("ai-suppliers.svgl.title")}</p>
+            <Button asChild className="h-auto p-0 text-xs" size="xs" type="button" variant="link">
+              <a href={svglUrl} rel="noreferrer" target="_blank">
+                <ExternalLink className="h-3 w-3" />
+                svgl.app
+              </a>
+            </Button>
+          </div>
+          <div className="min-h-40">
+            {loading ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {t("ai-suppliers.svgl.searching")}
+              </div>
+            ) : error ? (
+              <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                {error}
+              </div>
+            ) : icons.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                {t("ai-suppliers.svgl.empty")}
+              </div>
+            ) : (
+              <ScrollArea className="h-64">
+                <div className="space-y-1 pr-3">
+                  {icons.map((icon) => {
+                    const iconUrl = getSvglIconUrl(icon);
+                    const selected = value === iconUrl;
+
+                    return (
+                      <button
+                        key={`${icon.title}:${iconUrl}`}
+                        className={
+                          selected
+                            ? "flex w-full items-center gap-3 rounded-md border border-primary bg-primary/5 p-2 text-left"
+                            : "flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left hover:bg-muted"
+                        }
+                        type="button"
+                        onClick={() => {
+                          onSelect(iconUrl);
+                          setOpen(false);
+                        }}
+                      >
+                        <img
+                          alt=""
+                          className="h-8 w-8 shrink-0 rounded-md border bg-background object-contain p-1"
+                          src={iconUrl}
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{icon.title}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {formatSvglCategory(icon.category)}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function formatSvglCategory(category: SvglIcon["category"]): string {
+  if (Array.isArray(category)) return category.join(", ");
+  return category ?? "SVGL";
 }
 
 function DeleteSupplierDialog({

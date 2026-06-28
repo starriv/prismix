@@ -119,6 +119,7 @@
     "ai-gateway": "AI Gateway",
     "ai-suppliers": "Suppliers",
     "supplier-connections": "Supplier Connections",
+    "ai-credentials": "AI Credentials",
     "ai-models": "Models",
     "access-endpoints": "Access Endpoints",
     "ai-usage": "Usage",
@@ -2344,6 +2345,14 @@
       "official-queue-timeout": "Queue Timeout (ms)",
       "enabled": "Enabled"
     },
+    "svgl": {
+      "open": "Search SVGL icons",
+      "title": "SVGL icons",
+      "search-ph": "Search logos",
+      "searching": "Searching...",
+      "empty": "No SVGL icons found",
+      "search-error": "SVGL search is unavailable. Paste an icon URL or try again later."
+    },
     "valid": {
       "supplier-id": "Use lowercase letters, numbers, and hyphens only"
     },
@@ -2391,7 +2400,6 @@
     },
     "th": {
       "model-id": "Model ID",
-      "client-format": "Format",
       "routes": "Routes",
       "name": "Name",
       "input-price": "Input Price",
@@ -2405,7 +2413,6 @@
       "gray-release": "Gray"
     },
     "form": {
-      "client-format": "Client format",
       "model-id": "Model ID",
       "model-id-ph": "model-name",
       "name": "Name",
@@ -3156,6 +3163,49 @@
       "desc": "View wallet deposits, withdrawals, payments, and AI usage history"
     }
   },
+  "ai-credentials": {
+    "title": "AI Credentials",
+    "desc": "Manage real supplier API keys centrally and reuse them across connector credential pools.",
+    "add": "Add Credential",
+    "empty": "No AI credentials yet",
+    "platform": "Platform-owned",
+    "never": "Never",
+    "reference-count": "{{enabled}}/{{total}} references active",
+    "toggle": "Toggle {{name}}",
+    "delete": "Delete {{name}}",
+    "table": {
+      "credential": "Credential",
+      "supplier": "Supplier",
+      "owner": "Owner",
+      "references": "References",
+      "last-used": "Last Used"
+    },
+    "form": {
+      "supplier": "Supplier",
+      "supplier-ph": "Select supplier",
+      "name": "Credential Name",
+      "name-ph": "e.g. Default",
+      "api-key": "API Key",
+      "api-key-ph": "sk-...",
+      "api-key-hint": "The key is encrypted at rest and will not be shown again after saving.",
+      "owner": "Key Provider (optional)",
+      "owner-ph": "Select a key provider",
+      "owner-none": "Platform-owned (no provider)"
+    },
+    "dialog": {
+      "create-title": "Add AI Credential",
+      "delete-title": "Delete AI Credential",
+      "delete-body": "Delete credential \"{{name}}\"? This will also remove {{count}} connector bindings and cannot be undone."
+    },
+    "toast": {
+      "created": "AI credential created",
+      "updated": "AI credential updated",
+      "deleted": "AI credential deleted",
+      "create-error": "Failed to create AI credential",
+      "update-error": "Failed to update AI credential",
+      "delete-error": "Failed to delete AI credential"
+    }
+  },
   "supplier-connections": {
     "title": "Supplier Connections",
     "desc": "Manage callable API connections under real suppliers, including protocol format, auth mode, and credential pools.",
@@ -3284,6 +3334,11 @@
         "random": "Random"
       },
       "form": {
+        "use-existing": "Use Existing",
+        "create-new": "Create New",
+        "existing-credential": "Existing Credential",
+        "existing-credential-ph": "Select a saved credential",
+        "existing-empty": "No available reusable credential for this supplier. Create a new credential instead.",
         "name": "Credential Name",
         "name-ph": "Give your credential a name",
         "api-key": "API Key",
