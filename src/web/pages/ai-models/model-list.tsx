@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   AlertTriangle,
+  Download,
   Pencil,
   Plus,
   RefreshCw,
@@ -53,6 +54,7 @@ import { Switch } from "@/web/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
 
 import { ModelFormDialog } from "./model-form-dialog";
+import { ModelImportDialog } from "./model-import-dialog";
 import { SyncPricesDialog } from "./sync-prices-dialog";
 
 function isZeroPriceValue(value: string): boolean {
@@ -74,6 +76,10 @@ function formatDateTime(value: string | null | undefined, locale: string): strin
   if (!value) return "";
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleString(locale) : "";
+}
+
+function supplierConnectionLabel(endpoint: Pick<AiEndpoint, "name" | "supplierName">): string {
+  return endpoint.supplierName ? `${endpoint.supplierName} / ${endpoint.name}` : endpoint.name;
 }
 
 export function ModelList({
@@ -99,6 +105,7 @@ export function ModelList({
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [cleanZeroOpen, setCleanZeroOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [syncEndpointId, setSyncEndpointId] = useState(0);
 
   // Filters
@@ -455,11 +462,15 @@ export function ModelList({
                         ) : (
                           <Sparkles className="mr-2 h-4 w-4 text-muted-foreground" />
                         )}
-                        {p.name}
+                        {supplierConnectionLabel(p)}
                       </DropdownMenuItem>
                     ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Download className="h-4 w-4 mr-1" />
+                {t("ai-models.btn.import")}
+              </Button>
               <Button size="sm" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 {t("ai-models.btn.new")}
@@ -493,7 +504,7 @@ export function ModelList({
                         ) : (
                           <Sparkles className="h-4 w-4 text-muted-foreground" />
                         )}
-                        {p.name}
+                        {supplierConnectionLabel(p)}
                       </div>
                     </SelectItem>
                   ))}
@@ -553,7 +564,9 @@ export function ModelList({
         </CardContent>
       </Card>
 
-      <ModelFormDialog open={addOpen} onOpenChange={setAddOpen} />
+      <ModelFormDialog open={addOpen} onOpenChange={setAddOpen} onCreated={onManageRoutes} />
+
+      <ModelImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
       {syncEndpointId > 0 && (
         <SyncPricesDialog
@@ -684,7 +697,9 @@ function RoutesBadges({ routes }: { routes: NonNullable<AiModel["routes"]> }) {
           ) : (
             <Sparkles className="h-3 w-3" />
           )}
-          {r.endpointName ?? `#${r.endpointId}`}
+          {r.supplierName
+            ? `${r.supplierName} / ${r.endpointName ?? `#${r.endpointId}`}`
+            : (r.endpointName ?? `#${r.endpointId}`)}
         </Badge>
       ))}
       {routes.length > 3 && (

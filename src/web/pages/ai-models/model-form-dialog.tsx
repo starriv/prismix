@@ -1,26 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { uniq } from "lodash-es";
-import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAdminUsers } from "@/web/api/admin-hooks";
-import {
-  useAiEndpointCredentials,
-  useAiEndpoints,
-  useBatchCreateAiModels,
-  useCreateAiModel,
-  useDiscoverModels,
-  useUpdateAiModel,
-} from "@/web/api/hooks";
+import { useCreateAiModel, useUpdateAiModel } from "@/web/api/hooks";
 import type { AiModel } from "@/web/api/schemas";
-import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
-import { Checkbox } from "@/web/components/ui/checkbox";
 import { DateTimePicker } from "@/web/components/ui/date-picker";
 import {
   Dialog,
@@ -39,7 +29,6 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
-import { Label } from "@/web/components/ui/label";
 import { MultiSelect, type MultiSelectOption } from "@/web/components/ui/multi-select";
 import {
   Select,
@@ -49,8 +38,6 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
-
-// ── Form schema ──────────────────────────────────────────────────────
 
 const modelFormSchema = z.object({
   clientFormat: z.enum(["openai", "anthropic"]),
@@ -66,11 +53,20 @@ const modelFormSchema = z.object({
   enabled: z.boolean(),
 });
 type ModelFormValues = z.infer<typeof modelFormSchema>;
-type ClientFormat = ModelFormValues["clientFormat"];
 
-function defaultClientFormatForEndpoint(apiFormat?: string): ClientFormat {
-  return apiFormat === "anthropic" ? "anthropic" : "openai";
-}
+const EMPTY_MODEL_FORM: ModelFormValues = {
+  clientFormat: "openai",
+  modelId: "",
+  name: "",
+  contextWindow: null,
+  inputPrice: "0",
+  outputPrice: "0",
+  capabilities: "",
+  limitedFreeUntil: "",
+  grayReleaseEnabled: false,
+  grayUserIds: [],
+  enabled: true,
+};
 
 function toDatetimeLocalValue(value: string | number | Date | null | undefined): string {
   if (!value) return "";
@@ -109,94 +105,56 @@ function toGrayUserOption(user: GrayUserOptionSource): MultiSelectOption {
   };
 }
 
-// ── Dialog ───────────────────────────────────────────────────────────
+function modelToFormValues(model: AiModel): ModelFormValues {
+  return {
+    clientFormat: model.clientFormat,
+    modelId: model.modelId,
+    name: model.name,
+    contextWindow: model.contextWindow ?? null,
+    inputPrice: model.inputPrice,
+    outputPrice: model.outputPrice,
+    capabilities: model.capabilities.join(", "),
+    limitedFreeUntil: toDatetimeLocalValue(model.limitedFreeUntil),
+    grayReleaseEnabled: model.grayReleaseEnabled,
+    grayUserIds: (model.grayUserIds ?? model.grayUsers.map((user) => user.id)).map(String),
+    enabled: model.enabled,
+  };
+}
 
 export function ModelFormDialog({
   open,
   onOpenChange,
-  endpointId: initialEndpointId,
   model,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  endpointId?: number | null;
   model?: AiModel | null;
+  onCreated?: (model: AiModel) => void;
 }) {
   const { t } = useTranslation();
   const createModel = useCreateAiModel();
-  const batchCreate = useBatchCreateAiModels();
   const updateModel = useUpdateAiModel();
-  const { data: endpoints = [] } = useAiEndpoints();
   const isEdit = !!model;
-
-  // Endpoint selection — use prop if provided, otherwise user picks
-  const [selectedEndpointId, setSelectedEndpointId] = useState<number | null>(
-    initialEndpointId ?? null,
-  );
-  const endpointId = initialEndpointId ?? selectedEndpointId;
-  const { data: keys = [] } = useAiEndpointCredentials(endpointId ?? 0);
-
-  const enabledEndpoints = useMemo(() => endpoints.filter((p) => p.enabled), [endpoints]);
-
-  const selectedEndpoint = useMemo(
-    () => endpoints.find((p) => p.id === endpointId) ?? null,
-    [endpoints, endpointId],
-  );
-  const initialEndpoint = useMemo(
-    () => (initialEndpointId ? (endpoints.find((p) => p.id === initialEndpointId) ?? null) : null),
-    [endpoints, initialEndpointId],
-  );
-  const hasUpstreams = (selectedEndpoint?.upstreamCount ?? 0) > 0;
+  const [grayUserSearch, setGrayUserSearch] = useState("");
 
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
-    defaultValues: {
-      clientFormat: "openai",
-      modelId: "",
-      name: "",
-      contextWindow: null,
-      inputPrice: "0",
-      outputPrice: "0",
-      capabilities: "",
-      limitedFreeUntil: "",
-      grayReleaseEnabled: false,
-      grayUserIds: [],
-      enabled: true,
-    },
+    defaultValues: EMPTY_MODEL_FORM,
   });
-  const clientFormat = useWatch({ control: form.control, name: "clientFormat" });
   const inputPrice = useWatch({ control: form.control, name: "inputPrice" });
   const outputPrice = useWatch({ control: form.control, name: "outputPrice" });
   const grayReleaseEnabled = useWatch({ control: form.control, name: "grayReleaseEnabled" });
   const limitedFreeEnabled = isZeroPriceValue(inputPrice) && isZeroPriceValue(outputPrice);
 
-  // Discovery
-  const [discoverEnabled, setDiscoverEnabled] = useState(true);
-  const [discoverSource, setDiscoverSource] = useState<"official" | "upstream">("official");
-  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
-  const [batchCreating, setBatchCreating] = useState(false);
-  const [grayUserSearch, setGrayUserSearch] = useState("");
-  const [grayUserOptionCache, setGrayUserOptionCache] = useState<Record<string, MultiSelectOption>>(
-    {},
-  );
-  const {
-    data: discovered,
-    error: discoverError,
-    isFetching: discovering,
-    refetch: fetchModels,
-  } = useDiscoverModels(endpointId ?? 0, discoverSource, clientFormat);
-
-  const availableModels = useMemo(
-    () => discovered?.filter((m) => !m.registered) ?? [],
-    [discovered],
-  );
   const grayUserQuery = grayUserSearch.trim();
   const { data: grayUsersData, isFetching: grayUsersLoading } = useAdminUsers({
     page: 0,
     name: grayUserQuery && !grayUserQuery.includes("@") ? grayUserQuery : undefined,
     email: grayUserQuery.includes("@") ? grayUserQuery : undefined,
   });
-  const grayUserOptionsFromData = useMemo(() => {
+
+  const grayUserOptions = useMemo(() => {
     const byId = new Map<string, MultiSelectOption>();
     for (const user of model?.grayUsers ?? []) {
       const option = toGrayUserOption(user);
@@ -209,104 +167,16 @@ export function ModelFormDialog({
 
     return [...byId.values()];
   }, [grayUsersData?.items, model?.grayUsers]);
-  const grayUserOptions = useMemo(() => {
-    const byId = new Map(
-      Object.values(grayUserOptionCache).map((option) => [option.value, option]),
-    );
-    for (const option of grayUserOptionsFromData) byId.set(option.value, option);
-    return [...byId.values()];
-  }, [grayUserOptionCache, grayUserOptionsFromData]);
-
-  // Track previous discovered ref to auto-select only on fresh discovery
-  const prevDiscoveredRef = useRef(discovered);
-  const didResetForOpenRef = useRef(false);
 
   useEffect(() => {
-    if (grayUserOptionsFromData.length === 0) return;
+    if (!open) return;
 
-    setGrayUserOptionCache((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const option of grayUserOptionsFromData) {
-        if (prev[option.value]?.label !== option.label) {
-          next[option.value] = option;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [grayUserOptionsFromData]);
-
-  useEffect(() => {
-    if (discovered && discovered !== prevDiscoveredRef.current) {
-      const avail = discovered.filter((m) => !m.registered);
-      if (avail.length > 0) {
-        setSelectedModels(new Set(avail.map((m) => m.modelId)));
-      }
-      prevDiscoveredRef.current = discovered;
+    if (model) {
+      form.reset(modelToFormValues(model));
+    } else {
+      form.reset(EMPTY_MODEL_FORM);
     }
-  }, [discovered]);
-
-  useEffect(() => {
-    if (!open) {
-      didResetForOpenRef.current = false;
-      return;
-    }
-
-    if (didResetForOpenRef.current) return;
-    didResetForOpenRef.current = true;
-
-    if (open && model) {
-      form.reset({
-        clientFormat: model.clientFormat,
-        modelId: model.modelId,
-        name: model.name,
-        contextWindow: model.contextWindow ?? null,
-        inputPrice: model.inputPrice,
-        outputPrice: model.outputPrice,
-        capabilities: model.capabilities.join(", "),
-        limitedFreeUntil: toDatetimeLocalValue(model.limitedFreeUntil),
-        grayReleaseEnabled: model.grayReleaseEnabled,
-        grayUserIds: (model.grayUserIds ?? model.grayUsers.map((user) => user.id)).map(String),
-        enabled: model.enabled,
-      });
-      setGrayUserSearch("");
-      setGrayUserOptionCache(
-        Object.fromEntries(
-          (model.grayUsers ?? []).map((user) => {
-            const option = toGrayUserOption(user);
-            return [option.value, option];
-          }),
-        ),
-      );
-    } else if (open) {
-      form.reset({
-        clientFormat: defaultClientFormatForEndpoint(initialEndpoint?.apiFormat),
-        modelId: "",
-        name: "",
-        contextWindow: null,
-        inputPrice: "0",
-        outputPrice: "0",
-        capabilities: "",
-        limitedFreeUntil: "",
-        grayReleaseEnabled: false,
-        grayUserIds: [],
-        enabled: true,
-      });
-      setSelectedModels(new Set());
-      prevDiscoveredRef.current = undefined;
-      setDiscoverSource("official");
-      setSelectedEndpointId(initialEndpointId ?? null);
-      setGrayUserSearch("");
-      setGrayUserOptionCache({});
-    }
-  }, [open, model, form, initialEndpointId, initialEndpoint?.apiFormat]);
-
-  useEffect(() => {
-    if (open && !isEdit && selectedEndpoint) {
-      form.setValue("clientFormat", defaultClientFormatForEndpoint(selectedEndpoint.apiFormat));
-    }
-  }, [open, isEdit, selectedEndpoint, form]);
+  }, [form, model, open]);
 
   useEffect(() => {
     if (!limitedFreeEnabled && form.getValues("limitedFreeUntil")) {
@@ -314,107 +184,6 @@ export function ModelFormDialog({
     }
   }, [limitedFreeEnabled, form]);
 
-  // Trigger discover when provider or source changes (and discover is enabled)
-  useEffect(() => {
-    if (open && !isEdit && discoverEnabled && endpointId && endpointId > 0) {
-      setSelectedModels(new Set());
-      prevDiscoveredRef.current = undefined;
-      fetchModels();
-    }
-  }, [open, isEdit, discoverEnabled, endpointId, discoverSource, clientFormat, fetchModels]);
-
-  const handleToggleDiscover = useCallback(
-    (checked: boolean) => {
-      setDiscoverEnabled(checked);
-      if (checked && endpointId && endpointId > 0) fetchModels();
-    },
-    [fetchModels, endpointId],
-  );
-
-  const handleEndpointChange = useCallback((value: string) => {
-    const pid = Number(value);
-    setSelectedEndpointId(pid);
-    setSelectedModels(new Set());
-    prevDiscoveredRef.current = undefined;
-  }, []);
-
-  const handleSourceChange = useCallback((value: string) => {
-    setDiscoverSource(value as "official" | "upstream");
-    setSelectedModels(new Set());
-    prevDiscoveredRef.current = undefined;
-  }, []);
-
-  const handleToggleModel = useCallback((modelId: string) => {
-    setSelectedModels((prev) => {
-      const next = new Set(prev);
-      if (next.has(modelId)) next.delete(modelId);
-      else next.add(modelId);
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectedModels(new Set(availableModels.map((m) => m.modelId)));
-  }, [availableModels]);
-
-  const handleSelectNone = useCallback(() => {
-    setSelectedModels(new Set());
-  }, []);
-
-  const hasKey = endpointId
-    ? keys.some(
-        (k) =>
-          k.endpointId === endpointId &&
-          k.enabled &&
-          (discoverSource === "official" ? k.upstreamId == null : k.upstreamId != null),
-      )
-    : false;
-  const noKey =
-    discoverError instanceof Error || (!discovering && !discovered && discoverEnabled && !hasKey);
-  const isBatchMode = !isEdit && discoverEnabled && availableModels.length > 0;
-  const needsEndpoint = !isEdit && !endpointId;
-
-  // Batch create — single API call
-  const handleBatchCreate = useCallback(async () => {
-    if (!endpointId) return;
-    const fallbackCaps = form
-      .getValues("capabilities")
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    const fallbackInput = form.getValues("inputPrice");
-    const fallbackOutput = form.getValues("outputPrice");
-    const limitedFreeUntil = toLimitedFreeIso(form.getValues("limitedFreeUntil"));
-
-    const models = [...selectedModels]
-      .map((modelId) => availableModels.find((m) => m.modelId === modelId))
-      .filter(Boolean)
-      .map((m) => ({
-        clientFormat: form.getValues("clientFormat"),
-        modelId: m!.modelId,
-        name: m!.name,
-        inputPrice: m!.inputPrice ?? fallbackInput,
-        outputPrice: m!.outputPrice ?? fallbackOutput,
-        capabilities: m!.capabilities ?? fallbackCaps,
-        limitedFreeUntil,
-        enabled: true,
-      }));
-
-    if (models.length === 0) return;
-
-    setBatchCreating(true);
-    try {
-      const result = await batchCreate.mutateAsync({ endpointId, models });
-      toast.success(t("ai-models.toast.batch-created", { count: result.linked ?? result.created }));
-      onOpenChange(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("ai-models.toast.create-error"));
-    } finally {
-      setBatchCreating(false);
-    }
-  }, [selectedModels, availableModels, form, batchCreate, endpointId, t, onOpenChange]);
-
-  // Single create/edit
   const handleSubmit = form.handleSubmit(async (data) => {
     const {
       capabilities: capsRaw,
@@ -428,6 +197,7 @@ export function ModelFormDialog({
       .filter(Boolean);
     const grayUserIds = uniq(grayUserIdsRaw.map(Number).filter(Number.isInteger));
     const limitedFreeUntil = toLimitedFreeIso(limitedFreeRaw);
+
     try {
       if (isEdit) {
         await updateModel.mutateAsync({
@@ -439,15 +209,14 @@ export function ModelFormDialog({
         });
         toast.success(t("ai-models.toast.updated"));
       } else {
-        if (!endpointId) return;
-        await createModel.mutateAsync({
-          endpointId,
+        const created = await createModel.mutateAsync({
           ...rest,
           capabilities,
           grayUserIds,
           limitedFreeUntil,
         });
         toast.success(t("ai-models.toast.created"));
+        onCreated?.(created);
       }
       onOpenChange(false);
     } catch (err) {
@@ -464,333 +233,189 @@ export function ModelFormDialog({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={isBatchMode ? (e) => e.preventDefault() : handleSubmit}>
+          <form onSubmit={handleSubmit}>
             <DialogBody className="space-y-4">
-              {/* Endpoint selector (when no endpointId prop) */}
-              {!isEdit && !initialEndpointId && (
-                <div className="space-y-2">
-                  <Label>{t("ai-models.form.endpoint")}</Label>
-                  <Select
-                    value={selectedEndpointId ? String(selectedEndpointId) : ""}
-                    onValueChange={handleEndpointChange}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("ai-models.form.endpoint-ph")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {enabledEndpoints.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          <div className="flex items-center gap-2">
-                            {p.iconUrl ? (
-                              <img
-                                src={p.iconUrl}
-                                alt=""
-                                className="h-4 w-4 rounded-sm object-contain"
-                                width={16}
-                                height={16}
-                              />
-                            ) : (
-                              <Sparkles className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            {p.name}
-                            <Badge variant="outline" className="text-xs ml-1">
-                              {p.apiFormat}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <FormField
+                control={form.control}
+                name="clientFormat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="anthropic">Anthropic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              {!needsEndpoint && (
+              <FormField
+                control={form.control}
+                name="modelId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-models.form.model-id")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t("ai-models.form.model-id-ph")}
+                        {...field}
+                        disabled={isEdit}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-models.form.name")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("ai-models.form.name-ph")} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
-                  name="clientFormat"
+                  name="inputPrice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("ai-models.form.client-format")}</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="openai">OpenAI</SelectItem>
-                          <SelectItem value="anthropic">Anthropic</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>{t("ai-models.form.input-price")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t("ai-models.form.price-ph")} {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-
-              {/* Discover toggle — only show when endpoint is selected */}
-              {!isEdit && endpointId && (
-                <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                  <span className="text-sm font-medium">{t("ai-models.discover.toggle")}</span>
-                  <div className="flex items-center gap-2">
-                    {discoverEnabled && hasUpstreams && (
-                      <Select value={discoverSource} onValueChange={handleSourceChange}>
-                        <SelectTrigger className="h-7 w-[120px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="official">
-                            {t("ai-models.discover.source-official")}
-                          </SelectItem>
-                          <SelectItem value="upstream">
-                            {t("ai-models.discover.source-upstream")}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Switch checked={discoverEnabled} onCheckedChange={handleToggleDiscover} />
-                  </div>
-                </div>
-              )}
-
-              {/* No key warning */}
-              {!isEdit && endpointId && discoverEnabled && noKey && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
-                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground">{t("ai-models.discover.no-key")}</p>
-                </div>
-              )}
-
-              {/* Loading */}
-              {!isEdit && endpointId && discoverEnabled && discovering && (
-                <div className="flex items-center gap-2 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    {t("ai-models.discover.loading")}
-                  </span>
-                </div>
-              )}
-
-              {/* Batch mode: checkbox list */}
-              {isBatchMode && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      {t("ai-models.discover.models")} ({selectedModels.size}/
-                      {availableModels.length})
-                    </span>
-                    <div className="flex gap-2">
-                      <Button type="button" variant="ghost" size="sm" onClick={handleSelectAll}>
-                        {t("ai-models.discover.select-all")}
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={handleSelectNone}>
-                        {t("ai-models.discover.select-none")}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="max-h-[200px] overflow-y-auto space-y-1 rounded-lg border p-2">
-                    {availableModels.map((m) => (
-                      <label
-                        key={m.modelId}
-                        className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={selectedModels.has(m.modelId)}
-                          onCheckedChange={() => handleToggleModel(m.modelId)}
-                        />
-                        <span className="font-mono text-xs truncate">{m.modelId}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Single mode fields */}
-              {!isBatchMode && !needsEndpoint && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="modelId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("ai-models.form.model-id")}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t("ai-models.form.model-id-ph")}
-                            {...field}
-                            disabled={isEdit}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("ai-models.form.name")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={t("ai-models.form.name-ph")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-
-              {/* Shared: pricing + capabilities (hide when no provider selected yet) */}
-              {!needsEndpoint && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="inputPrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("ai-models.form.input-price")}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t("ai-models.form.price-ph")} {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="outputPrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("ai-models.form.output-price")}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t("ai-models.form.price-ph")} {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="limitedFreeUntil"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("ai-models.form.limited-free-until")}</FormLabel>
-                        <FormControl>
-                          <DateTimePicker
-                            disabled={!limitedFreeEnabled}
-                            placeholder={t("ai-models.form.limited-free-ph")}
-                            min={new Date()}
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">
-                          {limitedFreeEnabled
-                            ? t("ai-models.form.limited-free-hint")
-                            : t("ai-models.form.limited-free-disabled-hint")}
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="capabilities"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("ai-models.form.capabilities")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={t("ai-models.form.capabilities-ph")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {!isBatchMode && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="enabled"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                            <FormLabel>{t("ai-models.form.enabled")}</FormLabel>
-                            <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="grayReleaseEnabled"
-                        render={({ field }) => (
-                          <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                            <FormLabel>{t("ai-models.form.gray-release")}</FormLabel>
-                            <FormControl>
-                              <Switch checked={field.value} onCheckedChange={field.onChange} />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      {grayReleaseEnabled && (
-                        <FormField
-                          control={form.control}
-                          name="grayUserIds"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("ai-models.form.gray-users")}</FormLabel>
-                              <FormControl>
-                                <MultiSelect
-                                  options={grayUserOptions}
-                                  value={field.value}
-                                  onValueChange={field.onChange}
-                                  placeholder={t("ai-models.form.gray-users-search-ph")}
-                                  searchValue={grayUserSearch}
-                                  onSearchChange={setGrayUserSearch}
-                                  searchPlaceholder={t("ai-models.form.gray-users-search-ph")}
-                                  loading={grayUsersLoading}
-                                  maxDisplay={4}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-                    </>
+                <FormField
+                  control={form.control}
+                  name="outputPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-models.form.output-price")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t("ai-models.form.price-ph")} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </>
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="limitedFreeUntil"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-models.form.limited-free-until")}</FormLabel>
+                    <FormControl>
+                      <DateTimePicker
+                        disabled={!limitedFreeEnabled}
+                        placeholder={t("ai-models.form.limited-free-ph")}
+                        min={new Date()}
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      {limitedFreeEnabled
+                        ? t("ai-models.form.limited-free-hint")
+                        : t("ai-models.form.limited-free-disabled-hint")}
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="capabilities"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("ai-models.form.capabilities")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t("ai-models.form.capabilities-ph")} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="enabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel>{t("ai-models.form.enabled")}</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="grayReleaseEnabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel>{t("ai-models.form.gray-release")}</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {grayReleaseEnabled && (
+                <FormField
+                  control={form.control}
+                  name="grayUserIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("ai-models.form.gray-users")}</FormLabel>
+                      <FormControl>
+                        <MultiSelect
+                          options={grayUserOptions}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          placeholder={t("ai-models.form.gray-users-search-ph")}
+                          searchValue={grayUserSearch}
+                          onSearchChange={setGrayUserSearch}
+                          searchPlaceholder={t("ai-models.form.gray-users-search-ph")}
+                          loading={grayUsersLoading}
+                          maxDisplay={4}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
             </DialogBody>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.btn.cancel")}
               </Button>
-              {isBatchMode ? (
-                <Button
-                  type="button"
-                  onClick={handleBatchCreate}
-                  disabled={selectedModels.size === 0 || batchCreating}
-                >
-                  {batchCreating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                  {t("ai-models.btn.add-selected", { count: selectedModels.size })}
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={needsEndpoint || createModel.isPending || updateModel.isPending}
-                >
-                  {isEdit ? t("common.btn.save") : t("ai-models.btn.create")}
-                </Button>
-              )}
+              <Button type="submit" disabled={createModel.isPending || updateModel.isPending}>
+                {isEdit ? t("common.btn.save") : t("ai-models.btn.create")}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

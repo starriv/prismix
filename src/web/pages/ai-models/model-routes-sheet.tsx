@@ -42,6 +42,10 @@ function canEndpointServeClientFormat(clientFormat: ClientFormat, apiFormat: str
   return ["anthropic", "openai", "azure-openai"].includes(apiFormat);
 }
 
+function supplierConnectionLabel(endpoint: Pick<AiEndpoint, "name" | "supplierName">): string {
+  return endpoint.supplierName ? `${endpoint.supplierName} / ${endpoint.name}` : endpoint.name;
+}
+
 export function ModelRoutesSheet({
   open,
   onOpenChange,
@@ -292,8 +296,15 @@ function RouteCard({
           </div>
         )}
         <span className="text-sm font-medium truncate">
-          {route.endpointName ?? `Endpoint #${route.endpointId}`}
+          {route.supplierName
+            ? `${route.supplierName} / ${route.endpointName ?? `#${route.endpointId}`}`
+            : (route.endpointName ?? `Connection #${route.endpointId}`)}
         </span>
+        {route.endpointSlug && (
+          <Badge variant="outline" className="text-xs shrink-0 font-mono">
+            {route.endpointSlug}
+          </Badge>
+        )}
         {route.apiFormat && (
           <Badge variant="secondary" className="text-xs shrink-0">
             {route.apiFormat}
@@ -454,6 +465,7 @@ function AddRouteDialog({
   const [endpointId, setEndpointId] = useState<string>("");
   const [endpointModelId, setEndpointModelId] = useState("");
   const [priority, setPriority] = useState("100");
+  const [weight, setWeight] = useState("1");
 
   const handleSubmit = useCallback(async () => {
     const pid = Number(endpointId);
@@ -462,18 +474,20 @@ function AddRouteDialog({
       await createRoute.mutateAsync({
         modelId,
         endpointId: pid,
-        endpointModelId: endpointModelId || undefined,
+        endpointModelId: endpointModelId.trim() || undefined,
         priority: Number(priority) || 100,
+        weight: Number(weight) || 1,
       });
       toast.success(t("ai-models.routes.toast.created"));
       onOpenChange(false);
       setEndpointId("");
       setEndpointModelId("");
       setPriority("100");
+      setWeight("1");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("ai-models.toast.create-error"));
     }
-  }, [endpointId, endpointModelId, priority, modelId, createRoute, t, onOpenChange]);
+  }, [endpointId, endpointModelId, priority, weight, modelId, createRoute, t, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -503,7 +517,7 @@ function AddRouteDialog({
                       ) : (
                         <Sparkles className="h-4 w-4 text-muted-foreground" />
                       )}
-                      {p.name}
+                      <span className="min-w-0 truncate">{supplierConnectionLabel(p)}</span>
                       <Badge variant="outline" className="text-xs ml-1">
                         {p.apiFormat}
                       </Badge>
@@ -538,6 +552,17 @@ function AddRouteDialog({
             <p className="text-xs text-muted-foreground">
               {t("ai-models.routes.form.priority-hint")}
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("ai-models.routes.th.weight")}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+            />
           </div>
         </DialogBody>
         <DialogFooter>

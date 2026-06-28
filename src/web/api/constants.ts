@@ -137,7 +137,6 @@ export const apiAiUpstreamModelMappings = (id: number) =>
   `/api/admin/ai/upstreams/${id}/model-mappings`;
 export const apiAiUpstreamModelMapping = (upstreamId: number, mappingId: number) =>
   `/api/admin/ai/upstreams/${upstreamId}/model-mappings/${mappingId}`;
-export const apiAiEndpointModels = (id: number) => `/api/admin/ai/endpoints/${id}/models`;
 export const apiAiEndpointModelsBatch = (id: number) =>
   `/api/admin/ai/endpoints/${id}/models/batch`;
 export const apiAiSyncPricesPreview = (id: number) =>

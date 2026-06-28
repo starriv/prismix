@@ -2,6 +2,15 @@ import { z } from "zod";
 
 const healthCheckStatusSchema = z.enum(["unknown", "healthy", "degraded", "down"]);
 const nullableDateSchema = z.string().or(z.number()).nullable().optional();
+const connectorConfigModeSchema = z.enum(["inherit", "override"]);
+const effectiveRuntimeConfigSchema = z.object({
+  authMode: connectorConfigModeSchema,
+  authType: z.string(),
+  authConfig: z.record(z.string(), z.unknown()),
+  concurrencyMode: connectorConfigModeSchema,
+  officialConcurrencyLimit: z.number().nullable().optional(),
+  officialQueueTimeoutMs: z.number().optional().default(30_000),
+});
 
 // ── AI Suppliers / Endpoints ────────────────────────────────────
 
@@ -10,6 +19,10 @@ export const aiSupplierSchema = z.object({
   supplierId: z.string(),
   name: z.string(),
   iconUrl: z.string().nullable().optional(),
+  authType: z.string().optional().default("bearer"),
+  authConfig: z.record(z.string(), z.unknown()).optional().default({}),
+  officialConcurrencyLimit: z.number().nullable().optional(),
+  officialQueueTimeoutMs: z.number().optional().default(30_000),
   enabled: z.coerce.boolean(),
   createdAt: z.string().or(z.number()),
   updatedAt: z.string().or(z.number()),
@@ -25,13 +38,16 @@ export const aiEndpointSchema = z.object({
   endpointId: z.string(),
   baseUrl: z.string(),
   apiFormat: z.string(),
+  authMode: connectorConfigModeSchema.optional().default("inherit"),
   authType: z.string(),
   authConfig: z.record(z.string(), z.unknown()),
   enabled: z.coerce.boolean(),
   loadBalanceStrategy: z.string().optional().default("round-robin"),
   upstreamRoutingStrategy: z.string().optional().default("priority"),
+  concurrencyMode: connectorConfigModeSchema.optional().default("inherit"),
   officialConcurrencyLimit: z.number().nullable().optional(),
   officialQueueTimeoutMs: z.number().optional().default(30_000),
+  effectiveRuntimeConfig: effectiveRuntimeConfigSchema.optional(),
   iconUrl: z.string().nullable().optional(),
   healthStatus: healthCheckStatusSchema.optional().default("unknown"),
   lastCheckedAt: nullableDateSchema,
@@ -136,8 +152,10 @@ export const aiEndpointOverviewItemSchema = z.object({
   name: z.string(),
   baseUrl: z.string(),
   apiFormat: z.string(),
+  authMode: connectorConfigModeSchema.optional().default("inherit"),
   authType: z.string(),
   iconUrl: z.string().nullable().optional(),
+  concurrencyMode: connectorConfigModeSchema.optional().default("inherit"),
   officialConcurrencyLimit: z.number().nullable().optional(),
   officialQueueTimeoutMs: z.number().optional().default(30_000),
   enabled: z.coerce.boolean(),
@@ -216,7 +234,10 @@ export const aiModelRouteSchema = z.object({
   id: z.number(),
   endpointId: z.number(),
   endpointName: z.string().optional(),
+  endpointSlug: z.string().optional(),
   endpointIconUrl: z.string().nullable().optional(),
+  supplierName: z.string().optional(),
+  supplierSlug: z.string().optional(),
   apiFormat: z.string().optional(),
   endpointModelId: z.string().nullable().optional(),
   priority: z.number(),

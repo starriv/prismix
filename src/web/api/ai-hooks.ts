@@ -30,7 +30,6 @@ import {
   apiAiEndpointCredentials,
   apiAiEndpointCredentialTest,
   apiAiEndpointDetail,
-  apiAiEndpointModels,
   apiAiEndpointModelsBatch,
   apiAiEndpointUpstreamAssignment,
   apiAiEndpointUpstreams,
@@ -308,6 +307,10 @@ interface CreateAiSupplierBody {
   supplierId: string;
   name: string;
   iconUrl?: string;
+  authType?: string;
+  authConfig?: Record<string, unknown>;
+  officialConcurrencyLimit?: number | null;
+  officialQueueTimeoutMs?: number;
   enabled?: boolean;
 }
 
@@ -351,9 +354,11 @@ interface CreateAiEndpointBody {
   name: string;
   baseUrl: string;
   apiFormat: string;
-  authType: string;
+  authMode?: "inherit" | "override";
+  authType?: string;
   enabled?: boolean;
   upstreamRoutingStrategy?: string;
+  concurrencyMode?: "inherit" | "override";
   officialConcurrencyLimit?: number | null;
   officialQueueTimeoutMs?: number;
   authConfig?: Record<string, unknown>;
@@ -577,7 +582,7 @@ export function useTestAiEndpointCredential() {
   return useMutation({
     mutationFn: (id: number) =>
       post(apiAiEndpointCredentialTest(id), {}, testAiEndpointCredentialResultSchema),
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, _id) => {
       qc.invalidateQueries({ queryKey: queryKeys.aiEndpointCredentialsPrefix() });
       qc.invalidateQueries({ queryKey: queryKeys.aiCredentials() });
     },
@@ -585,14 +590,6 @@ export function useTestAiEndpointCredential() {
 }
 
 // ── AI Models ─────────────────────────────────────────────────────────
-
-export function useAiModels(endpointId: number) {
-  return useQuery({
-    queryKey: queryKeys.aiEndpointModels(endpointId),
-    queryFn: () => get(apiAiEndpointModels(endpointId), z.array(aiModelSchema)),
-    enabled: endpointId > 0,
-  });
-}
 
 interface CreateAiModelBody {
   clientFormat?: "openai" | "anthropic";
@@ -611,10 +608,8 @@ interface CreateAiModelBody {
 export function useCreateAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ endpointId, ...body }: { endpointId: number } & CreateAiModelBody) =>
-      post(apiAiEndpointModels(endpointId), body, aiModelSchema),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
+    mutationFn: (body: CreateAiModelBody) => post(API_AI_MODELS, body, aiModelSchema),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -649,8 +644,7 @@ export function useBatchCreateAiModels() {
           models: z.array(aiModelSchema),
         }),
       ),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -659,16 +653,9 @@ export function useBatchCreateAiModels() {
 export function useUpdateAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      endpointId: _endpointId,
-      ...body
-    }: { id: number; endpointId?: number | null } & Partial<CreateAiModelBody>) =>
+    mutationFn: ({ id, ...body }: { id: number } & Partial<CreateAiModelBody>) =>
       put(apiAiModelDetail(id), body, aiModelSchema),
-    onSuccess: (_data, vars) => {
-      if (vars.endpointId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
-      }
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -677,12 +664,9 @@ export function useUpdateAiModel() {
 export function useDeleteAiModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, endpointId: _endpointId }: { id: number; endpointId?: number | null }) =>
+    mutationFn: ({ id }: { id: number }) =>
       del(apiAiModelDetail(id), z.object({ success: z.boolean() })),
-    onSuccess: (_data, vars) => {
-      if (vars.endpointId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
-      }
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -691,12 +675,9 @@ export function useDeleteAiModel() {
 export function useBatchDeleteAiModels() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, endpointId: _endpointId }: { ids: number[]; endpointId?: number | null }) =>
+    mutationFn: ({ ids }: { ids: number[] }) =>
       post(API_AI_MODELS_BATCH_DELETE, { ids }, z.object({ deleted: z.number() })),
-    onSuccess: (_data, vars) => {
-      if (vars.endpointId) {
-        qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
-      }
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });
@@ -727,8 +708,7 @@ export function useApplySyncPrices() {
   return useMutation({
     mutationFn: ({ endpointId, modelIds }: { endpointId: number; modelIds: number[] }) =>
       post(apiAiSyncPricesApply(endpointId), { modelIds }, z.object({ synced: z.number() })),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.aiEndpointModels(vars.endpointId) });
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.aiModels() });
     },
   });

@@ -490,11 +490,11 @@ function UpstreamDetail({
   const assignmentColumns = useMemo<ColumnDef<AiUpstreamDetailAssignment>[]>(
     () => [
       {
-        accessorKey: "providerName",
+        accessorKey: "endpointName",
         cell: ({ row }) => (
           <DataTableText className="font-medium">{row.original.endpointName}</DataTableText>
         ),
-        header: t("ai-upstreams.detail.provider-name"),
+        header: t("ai-upstreams.detail.connection-name"),
         meta: { headerClassName: "w-[36%]" },
       },
       {
