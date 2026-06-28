@@ -22,16 +22,24 @@ import {
 } from "@/server/db";
 
 import type { ClientFormat } from "../ai/lib/client-format";
+import type { EndpointWithSupplier } from "./ai-endpoint-repo";
 
 export interface RouteWithEndpoint {
   route: AiModelRoute;
-  endpoint: AiEndpoint;
+  endpoint: EndpointWithSupplier;
 }
 
 export interface EnabledRouteResult {
   route: AiModelRoute;
   model: AiModel;
+  endpoint: EndpointWithSupplier;
+}
+
+interface EnabledRouteRow {
+  route: AiModelRoute;
+  model: AiModel;
   endpoint: AiEndpoint;
+  supplier: EndpointWithSupplier["supplier"];
 }
 
 export const aiModelRouteRepo = {
@@ -44,9 +52,24 @@ export const aiModelRouteRepo = {
     modelId: string,
     clientFormat: ClientFormat = "openai",
   ): Promise<EnabledRouteResult[]> {
-    return queryAll<EnabledRouteResult>(
+    const rows = await queryAll<EnabledRouteRow>(
       db
-        .select({ route: aiModelRoutes, model: aiModels, endpoint: aiEndpoints })
+        .select({
+          route: aiModelRoutes,
+          model: aiModels,
+          endpoint: aiEndpoints,
+          supplier: {
+            id: aiSuppliers.id,
+            supplierId: aiSuppliers.supplierId,
+            name: aiSuppliers.name,
+            iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
+            enabled: aiSuppliers.enabled,
+          },
+        })
         .from(aiModelRoutes)
         .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
         .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
@@ -64,18 +87,46 @@ export const aiModelRouteRepo = {
         )
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
     );
+
+    return rows.map((row) => ({
+      route: row.route,
+      model: row.model,
+      endpoint: { ...row.endpoint, supplier: row.supplier },
+    }));
   },
 
   /** Find all routes for a model (by model PK) — for admin UI. */
   async findByModelPk(modelPk: number): Promise<RouteWithEndpoint[]> {
-    return queryAll<RouteWithEndpoint>(
+    const rows = await queryAll<EnabledRouteRow>(
       db
-        .select({ route: aiModelRoutes, endpoint: aiEndpoints })
+        .select({
+          route: aiModelRoutes,
+          model: aiModels,
+          endpoint: aiEndpoints,
+          supplier: {
+            id: aiSuppliers.id,
+            supplierId: aiSuppliers.supplierId,
+            name: aiSuppliers.name,
+            iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
+            enabled: aiSuppliers.enabled,
+          },
+        })
         .from(aiModelRoutes)
+        .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
         .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
+        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
         .where(eq(aiModelRoutes.modelId, modelPk))
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
     );
+
+    return rows.map((row) => ({
+      route: row.route,
+      endpoint: { ...row.endpoint, supplier: row.supplier },
+    }));
   },
 
   /** Find all routes for an endpoint — for endpoint detail counts. */

@@ -37,6 +37,17 @@ const safeUrlSchema = z
   .max(500)
   .refine(isSafeUpstreamUrl, "URL must not point to private or internal network addresses");
 
+const aiAuthTypeSchema = z.enum(["bearer", "api-key", "sigv4", "cloudflare"]);
+const aiAuthConfigSchema = z.record(z.string(), z.unknown());
+const connectorConfigModeSchema = z.enum(["inherit", "override"]);
+const officialConcurrencyLimitSchema = z.number().int().positive().nullable().optional();
+const officialQueueTimeoutMsSchema = z
+  .number()
+  .int()
+  .positive()
+  .max(30 * 60 * 1000)
+  .optional();
+
 // ── AI: Suppliers ─────────────────────────────────────────────────────
 
 export const createAiSupplierBody = z.object({
@@ -47,12 +58,20 @@ export const createAiSupplierBody = z.object({
     .regex(/^[a-z0-9-]+$/, "Supplier ID must be lowercase alphanumeric with hyphens"),
   name: z.string().min(1).max(100),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
+  authType: aiAuthTypeSchema.optional(),
+  authConfig: aiAuthConfigSchema.optional(),
+  officialConcurrencyLimit: officialConcurrencyLimitSchema,
+  officialQueueTimeoutMs: officialQueueTimeoutMsSchema,
   enabled: z.boolean().optional(),
 });
 
 export const updateAiSupplierBody = z.object({
   name: z.string().min(1).max(100).optional(),
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
+  authType: aiAuthTypeSchema.optional(),
+  authConfig: aiAuthConfigSchema.optional(),
+  officialConcurrencyLimit: officialConcurrencyLimitSchema,
+  officialQueueTimeoutMs: officialQueueTimeoutMsSchema,
   enabled: z.boolean().optional(),
 });
 
@@ -68,17 +87,14 @@ export const createAiEndpointBody = z.object({
   name: z.string().min(1).max(100),
   baseUrl: z.string().url().max(500),
   apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
-  authType: z.enum(["bearer", "api-key", "sigv4", "cloudflare"]),
-  authConfig: z.record(z.string(), z.unknown()).optional(),
+  authMode: connectorConfigModeSchema.optional(),
+  authType: aiAuthTypeSchema.optional(),
+  authConfig: aiAuthConfigSchema.optional(),
   enabled: z.boolean().optional(),
   upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
-  officialConcurrencyLimit: z.number().int().positive().nullable().optional(),
-  officialQueueTimeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .max(30 * 60 * 1000)
-    .optional(),
+  concurrencyMode: connectorConfigModeSchema.optional(),
+  officialConcurrencyLimit: officialConcurrencyLimitSchema,
+  officialQueueTimeoutMs: officialQueueTimeoutMsSchema,
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 
@@ -87,18 +103,15 @@ export const updateAiEndpointBody = z.object({
   name: z.string().min(1).max(100).optional(),
   baseUrl: z.string().url().max(500).optional(),
   apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]).optional(),
-  authType: z.enum(["bearer", "api-key", "sigv4", "cloudflare"]).optional(),
-  authConfig: z.record(z.string(), z.unknown()).optional(),
+  authMode: connectorConfigModeSchema.optional(),
+  authType: aiAuthTypeSchema.optional(),
+  authConfig: aiAuthConfigSchema.optional(),
   enabled: z.boolean().optional(),
   loadBalanceStrategy: z.enum(["round-robin", "random"]).optional(),
   upstreamRoutingStrategy: z.enum(["priority", "weighted-random"]).optional(),
-  officialConcurrencyLimit: z.number().int().positive().nullable().optional(),
-  officialQueueTimeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .max(30 * 60 * 1000)
-    .optional(),
+  concurrencyMode: connectorConfigModeSchema.optional(),
+  officialConcurrencyLimit: officialConcurrencyLimitSchema,
+  officialQueueTimeoutMs: officialQueueTimeoutMsSchema,
   iconUrl: z.string().url().max(500).optional().or(z.literal("")),
 });
 

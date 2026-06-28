@@ -74,8 +74,8 @@ router.get("/endpoints/:id/models", async (c) => {
   const id = Number(c.req.param("id"));
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
-  const endpoint = await aiEndpointRepo.findById(id);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  const endpoint = await aiEndpointRepo.findWithSupplierById(id);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const models = await aiModelRepo.findByEndpointId(id);
   const grayUsersByModelId = await aiModelGrayUserRepo.findUsersByModelIds(models.map((m) => m.id));
@@ -103,7 +103,7 @@ router.get("/endpoints/:id/discover-models", async (c) => {
   }
 
   const endpoint = await aiEndpointRepo.findById(id);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   let credential: Awaited<ReturnType<typeof aiEndpointCredentialRepo.findAnyEnabledByUpstream>>;
   let baseUrl: string | null = null;
@@ -111,7 +111,7 @@ router.get("/endpoints/:id/discover-models", async (c) => {
 
   if (source === "official") {
     if (!endpoint.baseUrl) {
-      return c.json({ error: "Endpoint has no base URL configured" }, 400);
+      return c.json({ error: "Supplier connection has no base URL configured" }, 400);
     }
     baseUrl = endpoint.baseUrl;
     credential = await aiEndpointCredentialRepo.findAnyEnabledByEndpoint(id);
@@ -130,7 +130,10 @@ router.get("/endpoints/:id/discover-models", async (c) => {
   }
 
   if (!credential || !baseUrl) {
-    return c.json({ error: "No credential configured — add an endpoint credential first" }, 400);
+    return c.json(
+      { error: "No credential configured — add a supplier connection credential first" },
+      400,
+    );
   }
 
   let plainKey: string;
@@ -227,13 +230,8 @@ router.get("/endpoints/:id/discover-models", async (c) => {
   }
 });
 
-router.post("/endpoints/:id/models", async (c) => {
+router.post("/models", async (c) => {
   getAdminSession(c);
-  const endpointId = Number(c.req.param("id"));
-  if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
-
-  const endpoint = await aiEndpointRepo.findById(endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   const parsed = await parseBody(c, createAiModelBody);
   if (!parsed.ok) return parsed.response;
@@ -244,13 +242,7 @@ router.post("/endpoints/:id/models", async (c) => {
     grayUserIds,
     ...rest
   } = parsed.data;
-  const clientFormat = requestedClientFormat ?? defaultClientFormatForEndpoint(endpoint.apiFormat);
-  if (!canAttachEndpointToClientFormat(clientFormat, endpoint.apiFormat)) {
-    return c.json(
-      { error: `Endpoint "${endpoint.name}" is not compatible with ${clientFormat} models` },
-      400,
-    );
-  }
+  const clientFormat = requestedClientFormat ?? "openai";
   const limitedFreeError = validateLimitedFreeConfig(
     rest.inputPrice,
     rest.outputPrice,
@@ -261,26 +253,7 @@ router.post("/endpoints/:id/models", async (c) => {
 
   const existing = await aiModelRepo.findByModelId(rest.modelId, clientFormat);
   if (existing) {
-    // Model exists — just ensure a route to this endpoint exists
-    const route = await aiModelRouteRepo.findByModelAndEndpoint(existing.id, endpointId);
-    if (route) return c.json({ error: "Model already has a route to this endpoint" }, 409);
-    await aiModelRouteRepo.create({ modelId: existing.id, endpointId });
-    if (grayUserIds !== undefined) {
-      try {
-        await aiModelGrayUserRepo.replaceForModel(existing.id, grayUserIds);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/23503|foreign key/.test(msg)) {
-          return c.json(
-            { error: "One or more grayUserIds reference users that do not exist" },
-            400,
-          );
-        }
-        throw err;
-      }
-    }
-    log.auth.info({ modelId: existing.modelId, endpointId }, "AI model route added");
-    return ok(c, await formatModelWithGrayUsers(existing), 201);
+    return c.json({ error: `Model "${rest.modelId}" already exists for ${clientFormat}` }, 409);
   }
 
   const created = await aiModelRepo.create({
@@ -290,8 +263,6 @@ router.post("/endpoints/:id/models", async (c) => {
     fallbackModelIds: fallbackModelIds ? JSON.stringify(fallbackModelIds) : null,
   });
 
-  // Auto-create route to this endpoint
-  await aiModelRouteRepo.create({ modelId: created.id, endpointId });
   if (grayUserIds !== undefined) {
     try {
       await aiModelGrayUserRepo.replaceForModel(created.id, grayUserIds);
@@ -304,18 +275,18 @@ router.post("/endpoints/:id/models", async (c) => {
     }
   }
 
-  log.auth.info({ modelId: created.modelId, endpointId }, "AI model created with route");
+  log.auth.info({ modelId: created.modelId, clientFormat }, "AI model created");
   return ok(c, await formatModelWithGrayUsers(created), 201);
 });
 
-// POST /endpoints/:id/models/batch — batch create models (for discover-and-add)
+// POST /endpoints/:id/models/batch — import discovered models from a supplier connection
 router.post("/endpoints/:id/models/batch", async (c) => {
   getAdminSession(c);
   const endpointId = Number(c.req.param("id"));
   if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const parsed = await parseBody(c, batchCreateAiModelsBody);
   if (!parsed.ok) return parsed.response;
@@ -340,7 +311,7 @@ router.post("/endpoints/:id/models/batch", async (c) => {
   if (incompatible) {
     return c.json(
       {
-        error: `Endpoint "${endpoint.name}" is not compatible with ${incompatible.clientFormat} models`,
+        error: `Supplier connection "${endpoint.name}" is not compatible with ${incompatible.clientFormat} models`,
       },
       400,
     );
@@ -440,7 +411,7 @@ router.post("/endpoints/:id/models/sync-prices/preview", async (c) => {
   if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   if (!isCatalogReady()) await refreshLiteLLMPricing();
   if (!isCatalogReady()) return c.json({ error: "LiteLLM pricing catalog unavailable" }, 503);
@@ -479,7 +450,7 @@ router.post("/endpoints/:id/models/sync-prices/apply", async (c) => {
   if (Number.isNaN(endpointId)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const raw: unknown = await c.req.json();
   const modelIds =
@@ -563,7 +534,7 @@ router.put("/models/:id", async (c) => {
     if (incompatible) {
       return c.json(
         {
-          error: `Endpoint "${incompatible.endpoint.name}" is not compatible with ${rest.clientFormat} models`,
+          error: `Supplier connection "${incompatible.endpoint.name}" is not compatible with ${rest.clientFormat} models`,
         },
         400,
       );
@@ -641,7 +612,11 @@ router.get("/models", async (c) => {
           id: route.id,
           endpointId: route.endpointId,
           endpointName: endpoint.name,
+          endpointSlug: endpoint.endpointId,
           endpointIconUrl: endpoint.iconUrl,
+          supplierName: endpoint.supplier.name,
+          supplierSlug: endpoint.supplier.supplierId,
+          apiFormat: endpoint.apiFormat,
           endpointModelId: route.endpointModelId,
           priority: route.priority,
           weight: route.weight,
@@ -672,7 +647,10 @@ router.get("/models/:id/routes", async (c) => {
       modelId: route.modelId,
       endpointId: route.endpointId,
       endpointName: endpoint.name,
+      endpointSlug: endpoint.endpointId,
       endpointIconUrl: endpoint.iconUrl,
+      supplierName: endpoint.supplier.name,
+      supplierSlug: endpoint.supplier.supplierId,
       apiFormat: endpoint.apiFormat,
       endpointModelId: route.endpointModelId,
       priority: route.priority,
@@ -696,17 +674,19 @@ router.post("/models/:id/routes", async (c) => {
   if (!parsed.ok) return parsed.response;
 
   const endpoint = await aiEndpointRepo.findById(parsed.data.endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   if (!canAttachEndpointToClientFormat(model.clientFormat as ClientFormat, endpoint.apiFormat)) {
     return c.json(
-      { error: `Endpoint "${endpoint.name}" is not compatible with ${model.clientFormat} models` },
+      {
+        error: `Supplier connection "${endpoint.name}" is not compatible with ${model.clientFormat} models`,
+      },
       400,
     );
   }
 
   const existing = await aiModelRouteRepo.findByModelAndEndpoint(modelPk, endpoint.id);
-  if (existing) return c.json({ error: "Route already exists for this endpoint" }, 409);
+  if (existing) return c.json({ error: "Route already exists for this supplier connection" }, 409);
 
   const route = await aiModelRouteRepo.create({
     modelId: modelPk,

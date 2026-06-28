@@ -26,6 +26,10 @@ export interface EndpointWithSupplier extends AiEndpoint {
     supplierId: string;
     name: string;
     iconUrl: string | null;
+    authType: string;
+    authConfig: string;
+    officialConcurrencyLimit: number | null;
+    officialQueueTimeoutMs: number;
     enabled: boolean;
   };
 }
@@ -67,6 +71,10 @@ export const aiEndpointRepo = {
             supplierId: aiSuppliers.supplierId,
             name: aiSuppliers.name,
             iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
             enabled: aiSuppliers.enabled,
           },
         })
@@ -101,15 +109,33 @@ export const aiEndpointRepo = {
     );
   },
 
-  /** All rows except admin-disabled endpoints. For health check jobs. */
-  async findAllForHealthCheck(): Promise<AiEndpoint[]> {
-    return queryAll(
+  /** All rows except admin-disabled endpoints, including supplier defaults. */
+  async findAllForHealthCheckWithSupplier(): Promise<EndpointWithSupplier[]> {
+    const rows = await queryAll<{
+      endpoint: AiEndpoint;
+      supplier: EndpointWithSupplier["supplier"];
+    }>(
       db
-        .select()
+        .select({
+          endpoint: aiEndpoints,
+          supplier: {
+            id: aiSuppliers.id,
+            supplierId: aiSuppliers.supplierId,
+            name: aiSuppliers.name,
+            iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
+            enabled: aiSuppliers.enabled,
+          },
+        })
         .from(aiEndpoints)
+        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
         .where(or(eq(aiEndpoints.enabled, true), eq(aiEndpoints.autoDisabled, true)))
         .orderBy(asc(aiEndpoints.id)),
     );
+    return rows.map(flattenEndpointWithSupplier);
   },
 
   async findById(id: number): Promise<AiEndpoint | undefined> {
@@ -129,6 +155,10 @@ export const aiEndpointRepo = {
             supplierId: aiSuppliers.supplierId,
             name: aiSuppliers.name,
             iconUrl: aiSuppliers.iconUrl,
+            authType: aiSuppliers.authType,
+            authConfig: aiSuppliers.authConfig,
+            officialConcurrencyLimit: aiSuppliers.officialConcurrencyLimit,
+            officialQueueTimeoutMs: aiSuppliers.officialQueueTimeoutMs,
             enabled: aiSuppliers.enabled,
           },
         })
@@ -169,6 +199,27 @@ export const aiEndpointRepo = {
         .set({ ...data, updatedAt: new Date() })
         .where(eq(aiEndpoints.id, id)),
     );
+  },
+
+  /**
+   * Batch-update fields on all endpoints under a supplier that inherit the
+   * given runtime mode (auth or concurrency). Returns the IDs of affected
+   * endpoints for cache invalidation. Avoids N+1 queries when a supplier's
+   * defaults change and many endpoints need to be synced.
+   */
+  async updateInheritedBySupplier(
+    supplierId: number,
+    mode: "auth" | "concurrency",
+    sets: Partial<AiEndpoint>,
+  ): Promise<number[]> {
+    if (Object.keys(sets).length === 0) return [];
+    const modeColumn = mode === "auth" ? aiEndpoints.authMode : aiEndpoints.concurrencyMode;
+    const rows = await db
+      .update(aiEndpoints)
+      .set({ ...sets, updatedAt: new Date() })
+      .where(and(eq(aiEndpoints.supplierId, supplierId), eq(modeColumn, "inherit")))
+      .returning({ id: aiEndpoints.id });
+    return rows.map((row: { id: number }) => row.id);
   },
 
   async delete(id: number): Promise<void> {

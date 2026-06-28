@@ -6,6 +6,7 @@
  */
 import { Queue, Worker } from "bullmq";
 
+import type { SupplierRuntimeDefaults } from "@/server/ai/lib/connector-runtime-config";
 import { pingEndpoint, type PingResult } from "@/server/ai/lib/endpoint-health";
 import type { AiEndpoint } from "@/server/db";
 import { emit } from "@/server/events";
@@ -34,6 +35,10 @@ const FAILURE_WINDOW_MS =
 const REQUEST_TIMEOUT_MS = Number(process.env.ENDPOINT_HEALTH_CHECK_TIMEOUT_MS) || 10_000;
 const ENDPOINT_CONCURRENCY = 5;
 
+type HealthCheckEndpoint = AiEndpoint & {
+  supplier?: SupplierRuntimeDefaults | null;
+};
+
 let queue: Queue | null = null;
 let worker: Worker | null = null;
 
@@ -45,7 +50,7 @@ interface CheckTarget {
   name: string;
   baseUrl: string;
   modelsEndpointOverride: string | null;
-  endpoint: AiEndpoint;
+  endpoint: HealthCheckEndpoint;
 }
 
 interface HealthEntity {
@@ -63,7 +68,7 @@ function hasChatCapability(capabilities: string): boolean {
   }
 }
 
-async function findAnthropicProbeModelId(endpoint: AiEndpoint): Promise<string | null> {
+async function findAnthropicProbeModelId(endpoint: HealthCheckEndpoint): Promise<string | null> {
   if (endpoint.apiFormat !== "anthropic") return null;
 
   const models = await aiModelRepo.findEnabledByEndpointId(endpoint.id);
@@ -76,7 +81,7 @@ async function findAnthropicProbeModelId(endpoint: AiEndpoint): Promise<string |
 }
 
 async function checkAllEndpoints(): Promise<void> {
-  const endpoints = await aiEndpointRepo.findAllForHealthCheck();
+  const endpoints = await aiEndpointRepo.findAllForHealthCheckWithSupplier();
   if (endpoints.length === 0) return;
 
   for (let i = 0; i < endpoints.length; i += ENDPOINT_CONCURRENCY) {
@@ -85,7 +90,7 @@ async function checkAllEndpoints(): Promise<void> {
   }
 }
 
-export async function checkEndpoint(endpoint: AiEndpoint): Promise<void> {
+export async function checkEndpoint(endpoint: HealthCheckEndpoint): Promise<void> {
   // Skip admin-disabled endpoints (enabled=false && autoDisabled=false).
   if (!endpoint.enabled && !endpoint.autoDisabled) {
     return;

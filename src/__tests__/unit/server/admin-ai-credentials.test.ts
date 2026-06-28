@@ -49,6 +49,7 @@ vi.mock("@/server/repos", () => ({
   },
   aiEndpointRepo: {
     findById: (...args: unknown[]) => mockFindEndpointById(...args),
+    findWithSupplierById: (...args: unknown[]) => mockFindEndpointById(...args),
   },
   aiUpstreamRepo: {
     findById: (...args: unknown[]) => mockFindUpstreamById(...args),

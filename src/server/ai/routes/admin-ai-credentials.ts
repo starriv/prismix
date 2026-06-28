@@ -290,7 +290,7 @@ router.post("/endpoint-credentials/:id/test", async (c) => {
   const endpointCredential = await aiEndpointCredentialRepo.findById(id);
   if (!endpointCredential) return c.json({ error: "Endpoint credential not found" }, 404);
 
-  const endpoint = await aiEndpointRepo.findById(endpointCredential.endpointId);
+  const endpoint = await aiEndpointRepo.findWithSupplierById(endpointCredential.endpointId);
   if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
 
   let plainKey: string;

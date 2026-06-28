@@ -12,6 +12,12 @@ import {
   keyProviderRepo,
 } from "@/server/repos";
 
+import {
+  type ConnectorRuntimeFields,
+  parseAuthConfig,
+  resolveConnectorRuntimeConfig,
+  type SupplierRuntimeDefaults,
+} from "../lib/connector-runtime-config";
 import { isLimitedFreeActive, serializeLimitedFreeUntil } from "../lib/limited-free";
 import { safeParseJsonArray } from "../lib/safe-json";
 
@@ -23,16 +29,31 @@ export function parseJsonField(value: string): unknown {
   }
 }
 
-export function formatSupplier(supplier: { [key: string]: unknown }) {
-  return supplier;
+export function formatSupplier(supplier: { authConfig?: string; [key: string]: unknown }) {
+  return {
+    ...supplier,
+    authConfig: typeof supplier.authConfig === "string" ? parseAuthConfig(supplier.authConfig) : {},
+  };
 }
 
-export function formatEndpoint(endpoint: { authConfig: string; [key: string]: unknown }) {
-  return { ...endpoint, authConfig: parseJsonField(endpoint.authConfig) };
+type FormattableEndpoint = ConnectorRuntimeFields & {
+  supplier?: SupplierRuntimeDefaults | null;
+};
+
+function formatEffectiveRuntimeConfig(endpoint: FormattableEndpoint) {
+  const runtime = resolveConnectorRuntimeConfig(endpoint);
+  return {
+    ...runtime,
+    authConfig: parseAuthConfig(runtime.authConfig),
+  };
 }
 
-export function formatEndpointWithSupplier<T extends { authConfig: string }>(endpoint: T) {
-  return { ...endpoint, authConfig: parseJsonField(endpoint.authConfig) };
+export function formatEndpointWithSupplier<T extends FormattableEndpoint>(endpoint: T) {
+  return {
+    ...endpoint,
+    authConfig: parseAuthConfig(endpoint.authConfig),
+    effectiveRuntimeConfig: formatEffectiveRuntimeConfig(endpoint),
+  };
 }
 
 export function formatUpstream(u: { metadata: string; [key: string]: unknown }) {

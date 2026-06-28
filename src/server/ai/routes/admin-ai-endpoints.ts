@@ -5,6 +5,7 @@
  */
 import { Hono } from "hono";
 
+import { type AiEndpoint } from "@/server/db";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
@@ -28,11 +29,11 @@ import {
   aiUsageLogRepo,
 } from "@/server/repos";
 
+import { resolveConnectorRuntimeConfig } from "../lib/connector-runtime-config";
 import { invalidateCredentialPool } from "../lib/credential-balancer";
 import { seedDefaultEndpoints } from "../lib/seed-endpoints";
 import { invalidateUpstreamCache } from "../lib/upstream-routing";
 import {
-  formatEndpoint,
   formatEndpointCredentials,
   formatEndpointWithSupplier,
   formatSupplier,
@@ -40,6 +41,7 @@ import {
 } from "./admin-ai-helpers";
 
 const router = new Hono();
+type ConnectorConfigMode = "inherit" | "override";
 
 function emitEndpointInvalidated(endpointId: number, upstreamId?: number | null): void {
   invalidateUpstreamCache(endpointId);
@@ -49,6 +51,87 @@ function emitEndpointInvalidated(endpointId: number, upstreamId?: number | null)
     endpointId,
     upstreamId: upstreamId ?? undefined,
   });
+}
+
+function inferAuthMode(input: {
+  authMode?: ConnectorConfigMode;
+  authType?: string;
+  authConfig?: Record<string, unknown>;
+}): ConnectorConfigMode {
+  return (
+    input.authMode ??
+    (input.authType !== undefined || input.authConfig !== undefined ? "override" : "inherit")
+  );
+}
+
+function inferConcurrencyMode(input: {
+  concurrencyMode?: ConnectorConfigMode;
+  officialConcurrencyLimit?: number | null;
+  officialQueueTimeoutMs?: number;
+}): ConnectorConfigMode {
+  return (
+    input.concurrencyMode ??
+    (input.officialConcurrencyLimit !== undefined || input.officialQueueTimeoutMs !== undefined
+      ? "override"
+      : "inherit")
+  );
+}
+
+async function syncInheritedSupplierDefaults(
+  supplierId: number,
+  previous: {
+    authType: string;
+    authConfig: string;
+    officialConcurrencyLimit: number | null;
+    officialQueueTimeoutMs: number;
+  },
+  updates: Record<string, unknown>,
+): Promise<void> {
+  const runtimeFields = [
+    "authType",
+    "authConfig",
+    "officialConcurrencyLimit",
+    "officialQueueTimeoutMs",
+  ];
+  if (!runtimeFields.some((field) => updates[field] !== undefined)) return;
+
+  const nextDefaults = {
+    authType: (updates.authType as string | undefined) ?? previous.authType,
+    authConfig: (updates.authConfig as string | undefined) ?? previous.authConfig,
+    officialConcurrencyLimit:
+      updates.officialConcurrencyLimit !== undefined
+        ? (updates.officialConcurrencyLimit as number | null)
+        : previous.officialConcurrencyLimit,
+    officialQueueTimeoutMs:
+      (updates.officialQueueTimeoutMs as number | undefined) ?? previous.officialQueueTimeoutMs,
+  };
+
+  const authSets: Partial<AiEndpoint> = {};
+  if (updates.authType !== undefined) authSets.authType = nextDefaults.authType;
+  if (updates.authConfig !== undefined) authSets.authConfig = nextDefaults.authConfig;
+  const affectedAuthIds = await aiEndpointRepo.updateInheritedBySupplier(
+    supplierId,
+    "auth",
+    authSets,
+  );
+
+  const concurrencySets: Partial<AiEndpoint> = {};
+  if (updates.officialConcurrencyLimit !== undefined) {
+    concurrencySets.officialConcurrencyLimit = nextDefaults.officialConcurrencyLimit;
+  }
+  if (updates.officialQueueTimeoutMs !== undefined) {
+    concurrencySets.officialQueueTimeoutMs = nextDefaults.officialQueueTimeoutMs;
+  }
+  const affectedConcurrencyIds = await aiEndpointRepo.updateInheritedBySupplier(
+    supplierId,
+    "concurrency",
+    concurrencySets,
+  );
+
+  const affectedIds = new Set([...affectedAuthIds, ...affectedConcurrencyIds]);
+  for (const id of affectedIds) {
+    emitEndpointInvalidated(id);
+  }
 }
 
 async function findEndpointsWithDefaults() {
@@ -74,13 +157,18 @@ router.post("/suppliers", async (c) => {
   getAdminSession(c);
   const parsed = await parseBody(c, createAiSupplierBody);
   if (!parsed.ok) return parsed.response;
-  const { iconUrl, ...rest } = parsed.data;
+  const { authConfig, iconUrl, officialConcurrencyLimit, officialQueueTimeoutMs, ...rest } =
+    parsed.data;
 
   const existing = await aiSupplierRepo.findBySupplierId(rest.supplierId);
   if (existing) return c.json({ error: "Supplier ID already exists" }, 409);
 
   const created = await aiSupplierRepo.create({
     ...rest,
+    authType: rest.authType ?? "bearer",
+    authConfig: JSON.stringify(authConfig ?? {}),
+    officialConcurrencyLimit: officialConcurrencyLimit ?? null,
+    officialQueueTimeoutMs: officialQueueTimeoutMs ?? 30_000,
     iconUrl: iconUrl || null,
     enabled: rest.enabled ?? true,
   });
@@ -99,11 +187,14 @@ router.put("/suppliers/:id", async (c) => {
 
   const parsed = await parseBody(c, updateAiSupplierBody);
   if (!parsed.ok) return parsed.response;
+  const { authConfig, iconUrl, ...rest } = parsed.data;
 
-  const updated = await aiSupplierRepo.update(id, {
-    ...parsed.data,
-    iconUrl: parsed.data.iconUrl === "" ? null : parsed.data.iconUrl,
-  });
+  const updates: Record<string, unknown> = { ...rest };
+  if (authConfig !== undefined) updates.authConfig = JSON.stringify(authConfig);
+  if (iconUrl !== undefined) updates.iconUrl = iconUrl || null;
+
+  const updated = await aiSupplierRepo.update(id, updates);
+  await syncInheritedSupplierDefaults(id, existing, updates);
 
   return ok(c, formatSupplier(updated!));
 });
@@ -139,6 +230,7 @@ router.get("/endpoints/overview", async (c) => {
   const assignmentCounts = await aiUpstreamAssignmentRepo.countByEndpointIds(endpointIds);
 
   const items = endpoints.map((endpoint) => {
+    const runtime = resolveConnectorRuntimeConfig(endpoint);
     const credentialStat = credentialCountMap.get(endpoint.id);
     const usage = usageMap.get(endpoint.endpointId);
     const totalErrors = (usage?.clientErrors24h ?? 0) + (usage?.serverErrors24h ?? 0);
@@ -174,10 +266,14 @@ router.get("/endpoints/overview", async (c) => {
       name: endpoint.name,
       baseUrl: endpoint.baseUrl,
       apiFormat: endpoint.apiFormat,
-      authType: endpoint.authType,
+      authMode: endpoint.authMode,
+      authType: runtime.authType,
       iconUrl: endpoint.iconUrl,
       enabled: endpoint.enabled,
       autoDisabled: endpoint.autoDisabled,
+      concurrencyMode: endpoint.concurrencyMode,
+      officialConcurrencyLimit: runtime.officialConcurrencyLimit,
+      officialQueueTimeoutMs: runtime.officialQueueTimeoutMs,
       upstreamCount: assignmentCounts.get(endpoint.id) ?? 0,
       totalCredentials: credentialStat?.totalCredentials ?? 0,
       enabledCredentials: credentialStat?.enabledCredentials ?? 0,
@@ -230,7 +326,16 @@ router.post("/endpoints", async (c) => {
   getAdminSession(c);
   const parsed = await parseBody(c, createAiEndpointBody);
   if (!parsed.ok) return parsed.response;
-  const { authConfig, iconUrl, ...rest } = parsed.data;
+  const {
+    authConfig,
+    authMode: requestedAuthMode,
+    authType,
+    concurrencyMode: requestedConcurrencyMode,
+    iconUrl,
+    officialConcurrencyLimit,
+    officialQueueTimeoutMs,
+    ...rest
+  } = parsed.data;
 
   const supplier = await aiSupplierRepo.findById(rest.supplierId);
   if (!supplier || !supplier.enabled)
@@ -239,9 +344,36 @@ router.post("/endpoints", async (c) => {
   const existing = await aiEndpointRepo.findByEndpointId(rest.endpointId);
   if (existing) return c.json({ error: "Endpoint ID already exists" }, 409);
 
+  const authMode = inferAuthMode({
+    authMode: requestedAuthMode,
+    authType,
+    authConfig,
+  });
+  const concurrencyMode = inferConcurrencyMode({
+    concurrencyMode: requestedConcurrencyMode,
+    officialConcurrencyLimit,
+    officialQueueTimeoutMs,
+  });
+
   const created = await aiEndpointRepo.create({
     ...rest,
-    authConfig: JSON.stringify(authConfig ?? {}),
+    authMode,
+    authType: authMode === "inherit" ? supplier.authType : (authType ?? supplier.authType),
+    authConfig:
+      authMode === "inherit"
+        ? supplier.authConfig
+        : authConfig === undefined
+          ? supplier.authConfig
+          : JSON.stringify(authConfig),
+    concurrencyMode,
+    officialConcurrencyLimit:
+      concurrencyMode === "inherit" || officialConcurrencyLimit === undefined
+        ? supplier.officialConcurrencyLimit
+        : officialConcurrencyLimit,
+    officialQueueTimeoutMs:
+      concurrencyMode === "inherit"
+        ? supplier.officialQueueTimeoutMs
+        : (officialQueueTimeoutMs ?? supplier.officialQueueTimeoutMs),
     iconUrl: iconUrl || null,
     enabled: rest.enabled ?? true,
   });
@@ -250,7 +382,8 @@ router.post("/endpoints", async (c) => {
     { endpointId: created.endpointId, supplierId: supplier.supplierId },
     "AI endpoint created",
   );
-  return ok(c, formatEndpoint(created), 201);
+  const createdWithSupplier = await aiEndpointRepo.findWithSupplierById(created.id);
+  return ok(c, formatEndpointWithSupplier(createdWithSupplier ?? created), 201);
 });
 
 router.put("/endpoints/:id", async (c) => {
@@ -263,17 +396,85 @@ router.put("/endpoints/:id", async (c) => {
 
   const parsed = await parseBody(c, updateAiEndpointBody);
   if (!parsed.ok) return parsed.response;
-  const { authConfig, iconUrl, supplierId, ...rest } = parsed.data;
+  const {
+    authConfig,
+    authMode: requestedAuthMode,
+    authType,
+    concurrencyMode: requestedConcurrencyMode,
+    iconUrl,
+    officialConcurrencyLimit,
+    officialQueueTimeoutMs,
+    supplierId,
+    ...rest
+  } = parsed.data;
 
-  if (supplierId !== undefined) {
-    const supplier = await aiSupplierRepo.findById(supplierId);
-    if (!supplier || !supplier.enabled)
-      return c.json({ error: "Supplier not found or disabled" }, 400);
-  }
+  const targetSupplierId = supplierId ?? existing.supplierId;
+  const supplier = await aiSupplierRepo.findById(targetSupplierId);
+  if (!supplier) return c.json({ error: "Supplier not found" }, 400);
+
+  if (supplierId !== undefined && !supplier.enabled)
+    return c.json({ error: "Supplier not found or disabled" }, 400);
 
   const updates: Record<string, unknown> = { ...rest };
   if (supplierId !== undefined) updates.supplierId = supplierId;
-  if (authConfig !== undefined) updates.authConfig = JSON.stringify(authConfig);
+  const authMode = inferAuthMode({
+    authMode: requestedAuthMode,
+    authType,
+    authConfig,
+  });
+  const nextAuthMode =
+    requestedAuthMode === undefined && authType === undefined && authConfig === undefined
+      ? existing.authMode
+      : authMode;
+
+  if (
+    requestedAuthMode !== undefined ||
+    authType !== undefined ||
+    authConfig !== undefined ||
+    supplierId !== undefined
+  ) {
+    updates.authMode = nextAuthMode;
+    if (nextAuthMode === "inherit") {
+      updates.authType = supplier.authType;
+      updates.authConfig = supplier.authConfig;
+    } else {
+      if (authType !== undefined) updates.authType = authType;
+      if (authConfig !== undefined) updates.authConfig = JSON.stringify(authConfig);
+    }
+  }
+
+  const concurrencyMode = inferConcurrencyMode({
+    concurrencyMode: requestedConcurrencyMode,
+    officialConcurrencyLimit,
+    officialQueueTimeoutMs,
+  });
+  const nextConcurrencyMode =
+    requestedConcurrencyMode === undefined &&
+    officialConcurrencyLimit === undefined &&
+    officialQueueTimeoutMs === undefined
+      ? existing.concurrencyMode
+      : concurrencyMode;
+
+  if (
+    requestedConcurrencyMode !== undefined ||
+    officialConcurrencyLimit !== undefined ||
+    officialQueueTimeoutMs !== undefined ||
+    supplierId !== undefined
+  ) {
+    updates.concurrencyMode = nextConcurrencyMode;
+    if (nextConcurrencyMode === "inherit") {
+      updates.officialConcurrencyLimit = supplier.officialConcurrencyLimit;
+      updates.officialQueueTimeoutMs = supplier.officialQueueTimeoutMs;
+    } else {
+      if (officialConcurrencyLimit !== undefined) {
+        updates.officialConcurrencyLimit = officialConcurrencyLimit;
+      }
+      if (officialQueueTimeoutMs !== undefined) {
+        updates.officialQueueTimeoutMs = officialQueueTimeoutMs;
+      }
+    }
+  }
+
   if (iconUrl !== undefined) updates.iconUrl = iconUrl || null;
   if (parsed.data.enabled !== undefined) {
     updates.autoDisabled = false;
@@ -289,13 +490,19 @@ router.put("/endpoints/:id", async (c) => {
     parsed.data.baseUrl !== undefined ||
     parsed.data.upstreamRoutingStrategy !== undefined ||
     parsed.data.loadBalanceStrategy !== undefined ||
+    parsed.data.authMode !== undefined ||
+    parsed.data.authType !== undefined ||
+    parsed.data.authConfig !== undefined ||
+    parsed.data.concurrencyMode !== undefined ||
     parsed.data.officialConcurrencyLimit !== undefined ||
-    parsed.data.officialQueueTimeoutMs !== undefined
+    parsed.data.officialQueueTimeoutMs !== undefined ||
+    parsed.data.supplierId !== undefined
   ) {
     emitEndpointInvalidated(id);
   }
 
-  return ok(c, formatEndpoint(updated!));
+  const updatedWithSupplier = await aiEndpointRepo.findWithSupplierById(updated!.id);
+  return ok(c, formatEndpointWithSupplier(updatedWithSupplier ?? updated!));
 });
 
 router.delete("/endpoints/:id", async (c) => {
