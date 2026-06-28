@@ -33,13 +33,19 @@ const ANTHROPIC_OFFICIAL_PROBE_MODEL = "claude-haiku-4-5";
 const DEEPSEEK_ANTHROPIC_PROBE_MODEL = "deepseek-chat";
 
 export function buildModelsUrl(
-  endpoint: Pick<AiEndpoint, "apiFormat">,
+  endpoint: Pick<AiEndpoint, "apiFormat"> & Partial<Pick<AiEndpoint, "endpointId">>,
   baseUrl: string,
   modelsEndpointOverride?: string | null,
 ): string {
   if (modelsEndpointOverride) return modelsEndpointOverride;
 
   const base = baseUrl.replace(/\/+$/, "");
+  let host = "";
+  try {
+    host = new URL(base).hostname.toLowerCase();
+  } catch {
+    host = "";
+  }
 
   return match(endpoint.apiFormat)
     .with("bedrock", () => {
@@ -48,7 +54,10 @@ export function buildModelsUrl(
     })
     .with("gemini", () => `${base}/models`)
     .with("anthropic", () => `${base}/models`)
-    .otherwise(() => (base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`));
+    .otherwise(() => {
+      if (host === "api.deepseek.com") return `${base}/models`;
+      return base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`;
+    });
 }
 
 function shouldFallbackToAnthropicMessageProbe(

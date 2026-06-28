@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindEndpointById = vi.fn();
+const mockFindAnyEnabledCredentialBySupplier = vi.fn();
 const mockFindAnyEnabledByEndpoint = vi.fn();
 const mockFindAnyEnabledByUpstream = vi.fn();
 const mockFindModelsByEndpointId = vi.fn();
@@ -30,6 +31,10 @@ vi.mock("@/server/middleware/auth", () => ({
 }));
 
 vi.mock("@/server/repos", () => ({
+  aiCredentialRepo: {
+    findAnyEnabledBySupplierId: (...args: unknown[]) =>
+      mockFindAnyEnabledCredentialBySupplier(...args),
+  },
   aiEndpointCredentialRepo: {
     findAnyEnabledByEndpoint: (...args: unknown[]) => mockFindAnyEnabledByEndpoint(...args),
     findAnyEnabledByUpstream: (...args: unknown[]) => mockFindAnyEnabledByUpstream(...args),
@@ -94,6 +99,7 @@ app.route("/", router);
 describe("admin ai model discovery with upstream-scoped credentials", () => {
   beforeEach(() => {
     mockFindEndpointById.mockReset();
+    mockFindAnyEnabledCredentialBySupplier.mockReset();
     mockFindAnyEnabledByEndpoint.mockReset();
     mockFindAnyEnabledByUpstream.mockReset();
     mockFindModelsByEndpointId.mockReset();
@@ -117,6 +123,7 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
 
     mockFindEndpointById.mockResolvedValue({
       id: 7,
+      supplierId: 5,
       endpointId: "anthropic",
       name: "Anthropic",
       baseUrl: "https://api.anthropic.com",
@@ -126,6 +133,7 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
       enabled: true,
     });
     mockFindModelsByEndpointId.mockResolvedValue([]);
+    mockFindAnyEnabledCredentialBySupplier.mockResolvedValue(undefined);
     mockFindModelsByIds.mockResolvedValue([]);
     mockFindModelByModelId.mockResolvedValue(undefined);
     mockFindAllModels.mockResolvedValue([]);
@@ -201,6 +209,54 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
     expect(json.data[0]).toMatchObject({
       modelId: "claude-sonnet-4",
       name: "Claude Sonnet 4",
+      registered: false,
+    });
+  });
+
+  it("discovers official models with a reusable supplier credential when the endpoint pool is empty", async () => {
+    mockFindEndpointById.mockResolvedValue({
+      id: 7,
+      supplierId: 5,
+      endpointId: "deepseek-openai",
+      name: "DeepSeek OpenAI",
+      baseUrl: "https://api.deepseek.com",
+      apiFormat: "openai",
+      authType: "bearer",
+      authConfig: "{}",
+      enabled: true,
+    });
+    mockFindAnyEnabledByEndpoint.mockResolvedValue(undefined);
+    mockFindAnyEnabledCredentialBySupplier.mockResolvedValue({
+      id: 100,
+      supplierId: 5,
+      encryptedKey: "encrypted",
+      enabled: true,
+    });
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ id: "deepseek-chat", name: "DeepSeek Chat" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const res = await app.request("http://localhost/endpoints/7/discover-models");
+    const json = (await res.json()) as {
+      data: Array<{ modelId: string; name: string; registered: boolean }>;
+    };
+
+    expect(res.status).toBe(200);
+    expect(mockFindAnyEnabledByEndpoint).toHaveBeenCalledWith(7);
+    expect(mockFindAnyEnabledCredentialBySupplier).toHaveBeenCalledWith(5);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://api.deepseek.com/models");
+    expect(mockFetch.mock.calls[0][1]?.headers).toMatchObject({
+      Authorization: "Bearer plain-key",
+    });
+    expect(json.data[0]).toMatchObject({
+      modelId: "deepseek-chat",
+      name: "DeepSeek Chat",
       registered: false,
     });
   });

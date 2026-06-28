@@ -7,7 +7,7 @@
  * different owners/names. Per-endpoint binding is handled by
  * `ai_endpoint_credentials`, which has its own composite unique indexes.
  */
-import { count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   type AiCredential,
@@ -34,6 +34,17 @@ export const aiCredentialRepo = {
         .from(aiCredentials)
         .where(eq(aiCredentials.supplierId, supplierId))
         .orderBy(desc(aiCredentials.id)),
+    );
+  },
+
+  async findAnyEnabledBySupplierId(supplierId: number): Promise<AiCredential | undefined> {
+    return queryOne(
+      db
+        .select()
+        .from(aiCredentials)
+        .where(and(eq(aiCredentials.supplierId, supplierId), eq(aiCredentials.enabled, true)))
+        .orderBy(sql`${aiCredentials.lastUsedAt} DESC NULLS LAST`, desc(aiCredentials.id))
+        .limit(1),
     );
   },
 

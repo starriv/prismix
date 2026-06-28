@@ -11,6 +11,33 @@ describe("endpoint health ping", () => {
     vi.clearAllMocks();
   });
 
+  it("uses the DeepSeek official /models endpoint for OpenAI-compatible discovery", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [{ id: "deepseek-chat" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await pingEndpoint({
+      endpoint: {
+        endpointId: "deepseek-openai",
+        apiFormat: "openai",
+        authType: "bearer",
+        authConfig: "{}",
+      },
+      baseUrl: "https://api.deepseek.com",
+      plainKey: "test-key",
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://api.deepseek.com/models");
+    expect(mockFetch.mock.calls[0][1]?.headers).toMatchObject({
+      Authorization: "Bearer test-key",
+    });
+  });
+
   it("falls back to a DeepSeek Anthropic messages probe when /models is unavailable", async () => {
     mockFetch
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))

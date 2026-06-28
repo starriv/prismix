@@ -19,6 +19,7 @@ import { ok } from "@/server/lib/response";
 import { parseBody } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
+  aiCredentialRepo,
   aiEndpointCredentialRepo,
   aiEndpointRepo,
   aiModelGrayUserRepo,
@@ -95,7 +96,7 @@ router.get("/endpoints/:id/discover-models", async (c) => {
   const endpoint = await aiEndpointRepo.findById(id);
   if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
-  let credential: Awaited<ReturnType<typeof aiEndpointCredentialRepo.findAnyEnabledByUpstream>>;
+  let encryptedKey: string | null = null;
   let baseUrl: string | null = null;
   let modelsEndpointOverride: string | null = null;
 
@@ -104,7 +105,14 @@ router.get("/endpoints/:id/discover-models", async (c) => {
       return c.json({ error: "Supplier connection has no base URL configured" }, 400);
     }
     baseUrl = endpoint.baseUrl;
-    credential = await aiEndpointCredentialRepo.findAnyEnabledByEndpoint(id);
+    const endpointCredential = await aiEndpointCredentialRepo.findAnyEnabledByEndpoint(id);
+    encryptedKey = endpointCredential?.encryptedKey ?? null;
+    if (!encryptedKey) {
+      const supplierCredential = await aiCredentialRepo.findAnyEnabledBySupplierId(
+        endpoint.supplierId,
+      );
+      encryptedKey = supplierCredential?.encryptedKey ?? null;
+    }
   } else {
     for (const upstream of await resolveUpstreamCandidates(endpoint)) {
       const candidateCredential = await aiEndpointCredentialRepo.findAnyEnabledByUpstream(
@@ -112,14 +120,14 @@ router.get("/endpoints/:id/discover-models", async (c) => {
         upstream.id,
       );
       if (!candidateCredential) continue;
-      credential = candidateCredential;
+      encryptedKey = candidateCredential.encryptedKey;
       baseUrl = upstream.baseUrl;
       modelsEndpointOverride = upstream.modelsEndpoint;
       break;
     }
   }
 
-  if (!credential || !baseUrl) {
+  if (!encryptedKey || !baseUrl) {
     return c.json(
       { error: "No credential configured — add a supplier connection credential first" },
       400,
@@ -128,7 +136,7 @@ router.get("/endpoints/:id/discover-models", async (c) => {
 
   let plainKey: string;
   try {
-    plainKey = decrypt(credential.encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
+    plainKey = decrypt(encryptedKey, AI_CREDENTIAL_DOMAIN_TAG);
   } catch {
     return c.json({ error: "Failed to decrypt credential" }, 500);
   }

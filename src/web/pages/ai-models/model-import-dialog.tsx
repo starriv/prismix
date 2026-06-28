@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  useAiCredentials,
   useAiEndpointCredentials,
   useAiEndpoints,
   useBatchCreateAiModels,
@@ -58,6 +59,7 @@ export function ModelImportDialog({
   );
   const hasUpstreams = (selectedEndpoint?.upstreamCount ?? 0) > 0;
   const { data: keys = [] } = useAiEndpointCredentials(endpointId ?? 0);
+  const { data: reusableCredentials = [] } = useAiCredentials();
   const {
     data: discovered,
     error: discoverError,
@@ -95,15 +97,24 @@ export function ModelImportDialog({
     }
   }, [discovered]);
 
+  const hasReusableSupplierCredential =
+    source === "official" && selectedEndpoint
+      ? reusableCredentials.some(
+          (credential) =>
+            credential.supplierId === selectedEndpoint.supplierId && credential.enabled,
+        )
+      : false;
   const hasKey = endpointId
-    ? keys.some(
+    ? hasReusableSupplierCredential ||
+      keys.some(
         (key) =>
           key.endpointId === endpointId &&
           key.enabled &&
           (source === "official" ? key.upstreamId == null : key.upstreamId != null),
       )
     : false;
-  const noKey = discoverError instanceof Error || (!discovering && !discovered && !hasKey);
+  const discoverErrorMessage = discoverError instanceof Error ? discoverError.message : null;
+  const noKey = !discoverErrorMessage && !discovering && !discovered && !hasKey;
 
   const handleEndpointChange = useCallback(
     (value: string) => {
@@ -225,6 +236,13 @@ export function ModelImportDialog({
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <p className="text-xs text-muted-foreground">{t("ai-models.discover.no-key")}</p>
+            </div>
+          )}
+
+          {discoverErrorMessage && endpointId && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <p className="text-xs text-muted-foreground">{discoverErrorMessage}</p>
             </div>
           )}
 
