@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -567,8 +568,8 @@ export const aiSuppliers = pgTable(
   ],
 );
 
-export const aiEndpoints = pgTable(
-  "ai_endpoints",
+export const aiSupplierConnections = pgTable(
+  "ai_supplier_connections",
   {
     id: serial("id").primaryKey(),
     supplierId: integer("supplier_id")
@@ -605,10 +606,12 @@ export const aiEndpoints = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    index("idx_ai_endpoints_endpoint_id").on(t.endpointId),
-    index("idx_ai_endpoints_supplier_id").on(t.supplierId),
+    index("idx_ai_supplier_connections_endpoint_id").on(t.endpointId),
+    index("idx_ai_supplier_connections_supplier_id").on(t.supplierId),
   ],
 );
+
+export const aiEndpoints = aiSupplierConnections;
 
 export const aiUpstreams = pgTable("ai_upstreams", {
   id: serial("id").primaryKey(),
@@ -643,9 +646,7 @@ export const aiUpstreamAssignments = pgTable(
   "ai_upstream_assignments",
   {
     id: serial("id").primaryKey(),
-    endpointId: integer("endpoint_id")
-      .notNull()
-      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
+    endpointId: integer("endpoint_id").notNull(),
     upstreamId: integer("upstream_id")
       .notNull()
       .references(() => aiUpstreams.id, { onDelete: "cascade" }),
@@ -660,6 +661,11 @@ export const aiUpstreamAssignments = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
+    foreignKey({
+      columns: [t.endpointId],
+      foreignColumns: [aiSupplierConnections.id],
+      name: "fk_ai_upstream_assignments_connection_id",
+    }).onDelete("cascade"),
     unique().on(t.endpointId, t.upstreamId),
     index("idx_ai_upstream_assignments_endpoint_id").on(t.endpointId),
     index("idx_ai_upstream_assignments_upstream_id").on(t.upstreamId),
@@ -725,9 +731,7 @@ export const aiModelRoutes = pgTable(
     modelId: integer("model_id")
       .notNull()
       .references(() => aiModels.id, { onDelete: "cascade" }),
-    endpointId: integer("endpoint_id")
-      .notNull()
-      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
+    endpointId: integer("endpoint_id").notNull(),
     endpointModelId: text("endpoint_model_id"), // actual slug sent upstream; null = use model.modelId
     priority: integer("priority").notNull().default(100), // lower = tried first
     weight: integer("weight").notNull().default(1), // for weighted-random within same priority
@@ -740,6 +744,11 @@ export const aiModelRoutes = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
+    foreignKey({
+      columns: [t.endpointId],
+      foreignColumns: [aiSupplierConnections.id],
+      name: "fk_ai_model_routes_connection_id",
+    }).onDelete("cascade"),
     unique().on(t.modelId, t.endpointId),
     index("idx_ai_model_routes_model_id").on(t.modelId),
     index("idx_ai_model_routes_endpoint_id").on(t.endpointId),
@@ -798,9 +807,7 @@ export const aiEndpointCredentials = pgTable(
   "ai_endpoint_credentials",
   {
     id: serial("id").primaryKey(),
-    endpointId: integer("endpoint_id")
-      .notNull()
-      .references(() => aiEndpoints.id, { onDelete: "cascade" }),
+    endpointId: integer("endpoint_id").notNull(),
     upstreamId: integer("upstream_id").references(() => aiUpstreams.id, {
       onDelete: "set null",
     }),
@@ -819,6 +826,11 @@ export const aiEndpointCredentials = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [
+    foreignKey({
+      columns: [t.endpointId],
+      foreignColumns: [aiSupplierConnections.id],
+      name: "fk_ai_endpoint_credentials_connection_id",
+    }).onDelete("cascade"),
     uniqueIndex("uq_ai_endpoint_credentials_official")
       .on(t.endpointId, t.credentialId)
       .where(sql`${t.upstreamId} IS NULL`),
@@ -983,8 +995,10 @@ export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type NewWebhookEndpoint = typeof webhookEndpoints.$inferInsert;
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type NewWebhookDelivery = typeof webhookDeliveries.$inferInsert;
-export type AiEndpoint = typeof aiEndpoints.$inferSelect;
-export type NewAiEndpoint = typeof aiEndpoints.$inferInsert;
+export type AiSupplierConnection = typeof aiSupplierConnections.$inferSelect;
+export type NewAiSupplierConnection = typeof aiSupplierConnections.$inferInsert;
+export type AiEndpoint = AiSupplierConnection;
+export type NewAiEndpoint = NewAiSupplierConnection;
 export type AiUpstream = typeof aiUpstreams.$inferSelect;
 export type NewAiUpstream = typeof aiUpstreams.$inferInsert;
 export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;

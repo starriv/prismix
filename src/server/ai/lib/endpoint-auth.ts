@@ -37,7 +37,7 @@ export interface CloudflareAccessConfig {
 /**
  * Build authentication headers and (possibly modified) URL for an AI endpoint request.
  *
- * @param endpoint - The AI endpoint configuration from `ai_endpoints` table
+ * @param endpoint - The AI endpoint configuration from `ai_supplier_connections` table
  * @param plainKey - The decrypted API key (or secret access key for SigV4)
  * @param url      - The upstream URL (may be modified for Gemini query-param auth)
  * @param body     - Request body (needed for SigV4 payload signing)

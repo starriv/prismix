@@ -283,9 +283,9 @@ interface UsageFilters {
 
 /**
  * Filter condition that excludes logs whose denormalized endpoint/model slug
- * no longer exists in the live `ai_endpoints` / `ai_models` tables (i.e. the
- * endpoint or model was hard-deleted). Logs with NULL endpointId/modelId are
- * kept (they represent missing attribution, not deleted entities).
+ * no longer exists in the live `ai_supplier_connections` / `ai_models` tables
+ * (i.e. the endpoint or model was hard-deleted). Logs with NULL endpointId/modelId
+ * are kept (they represent missing attribution, not deleted entities).
  *
  * Uses EXISTS subqueries (not JOINs) so this remains a simple liveness filter
  * rather than changing the grouping semantics of log queries.

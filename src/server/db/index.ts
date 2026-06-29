@@ -75,6 +75,7 @@ export const withdrawOrders = s.withdrawOrders;
 export const keyProviders = s.keyProviders;
 export const keyProviderTransactions = s.keyProviderTransactions;
 export const aiSuppliers = s.aiSuppliers;
+export const aiSupplierConnections = s.aiSupplierConnections;
 export const aiEndpoints = s.aiEndpoints;
 export const aiUpstreams = s.aiUpstreams;
 export const aiUpstreamAssignments = s.aiUpstreamAssignments;
@@ -101,6 +102,7 @@ export type {
   AiModelGrayUser,
   AiModelRoute,
   AiSupplier,
+  AiSupplierConnection,
   AiUpstream,
   AiUpstreamAssignment,
   AiUpstreamModelMapping,
@@ -123,6 +125,7 @@ export type {
   NewAiModelGrayUser,
   NewAiModelRoute,
   NewAiSupplier,
+  NewAiSupplierConnection,
   NewAiUpstream,
   NewAiUpstreamAssignment,
   NewAiUpstreamModelMapping,

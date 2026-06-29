@@ -134,6 +134,13 @@
       "when": 1782668399486,
       "tag": "0018_add_upstream_model_mappings_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782691200000,
+      "tag": "0019_rename_ai_endpoints_to_supplier_connections",
+      "breakpoints": true
     }
   ]
 }
