@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +45,7 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { LongText } from "@/web/components/ui/long-text";
 import { SecretInput } from "@/web/components/ui/secret-input";
 import {
   Select,
@@ -54,6 +55,7 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
+import { buildReadableId, randomReadableIdSuffix } from "@/web/shared/readable-id";
 
 interface CredentialRow extends AiCredential {
   assignments: AiEndpointCredential[];
@@ -148,9 +150,7 @@ export default function AiCredentialsPage() {
             <DataTableText truncate className="font-medium">
               {row.original.name}
             </DataTableText>
-            <DataTableText mono muted>
-              {row.original.keyPrefix}
-            </DataTableText>
+            <LongText value={row.original.keyPrefix} kind="secret" head={8} />
           </div>
         ),
         meta: { minWidth: 180 },
@@ -179,17 +179,21 @@ export default function AiCredentialsPage() {
         id: "assignments",
         header: t("ai-credentials.table.references"),
         cell: ({ row }) => (
-          <div className="space-y-1">
-            <DataTableText numeric>
+          <div className="flex min-w-0 flex-col items-start gap-2 py-1">
+            <DataTableText numeric className="block leading-none">
               {t("ai-credentials.reference-count", {
                 enabled: row.original.enabledAssignments,
                 total: row.original.assignments.length,
               })}
             </DataTableText>
             {row.original.assignments.length > 0 && (
-              <div className="flex max-w-[280px] flex-wrap gap-1">
+              <div className="flex max-w-[280px] flex-wrap gap-x-1.5 gap-y-1">
                 {row.original.assignments.slice(0, 3).map((assignment) => (
-                  <Badge key={assignment.id} variant="secondary" className="max-w-full text-[10px]">
+                  <Badge
+                    key={assignment.id}
+                    variant="secondary"
+                    className="max-w-full px-2 py-0.5 text-[10px] leading-4"
+                  >
                     <span className="truncate">
                       {assignment.endpointName ?? `#${assignment.endpointId}`}
                       {assignment.upstreamName ? ` / ${assignment.upstreamName}` : ""}
@@ -197,7 +201,7 @@ export default function AiCredentialsPage() {
                   </Badge>
                 ))}
                 {row.original.assignments.length > 3 && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] leading-4">
                     +{row.original.assignments.length - 3}
                   </Badge>
                 )}
@@ -238,10 +242,11 @@ export default function AiCredentialsPage() {
           <Button
             variant="ghost"
             size="icon"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => setDeleteTarget(row.original)}
             aria-label={t("ai-credentials.delete", { name: row.original.name })}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         ),
         meta: dataTableMeta.stickyRight,
@@ -271,7 +276,11 @@ export default function AiCredentialsPage() {
         />
       </div>
 
-      <CredentialFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CredentialFormDialog
+        credentials={credentials}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
 
       <Dialog
         open={!!deleteTarget}
@@ -288,7 +297,14 @@ export default function AiCredentialsPage() {
               <KeyRound className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{deleteTarget?.name}</p>
-                <p className="font-mono text-xs text-muted-foreground">{deleteTarget?.keyPrefix}</p>
+                <LongText
+                  value={deleteTarget?.keyPrefix}
+                  kind="secret"
+                  appearance="plain"
+                  head={8}
+                  showTooltip={false}
+                  className="mt-1 block"
+                />
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -319,18 +335,25 @@ export default function AiCredentialsPage() {
 function CredentialFormDialog({
   open,
   onOpenChange,
+  credentials,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  credentials: AiCredential[];
 }) {
   const { t } = useTranslation();
   const createCredential = useCreateAiCredential();
   const { data: suppliers = [] } = useAiSuppliers();
   const { data: keyProviders = [] } = useKeyProviders();
+  const credentialNameSuffix = useMemo(() => (open ? randomReadableIdSuffix() : ""), [open]);
 
   const activeSuppliers = useMemo(
     () => suppliers.filter((supplier) => supplier.enabled),
     [suppliers],
+  );
+  const existingCredentialNames = useMemo(
+    () => new Set(credentials.map((credential) => credential.name)),
+    [credentials],
   );
   const activeKeyProviders = useMemo(
     () => keyProviders.filter((keyProvider) => keyProvider.status === "active"),
@@ -341,20 +364,54 @@ function CredentialFormDialog({
     resolver: zodResolver(credentialFormSchema),
     defaultValues: { supplierId: 0, name: "", apiKey: "", ownerId: null },
   });
+  const watchedSupplierId = useWatch({ control: form.control, name: "supplierId" });
+  const selectedSupplier = useMemo(
+    () => activeSuppliers.find((supplier) => supplier.id === watchedSupplierId),
+    [activeSuppliers, watchedSupplierId],
+  );
+  const generatedCredentialName = useMemo(
+    () =>
+      buildReadableId({
+        parts: [selectedSupplier?.name || selectedSupplier?.supplierId, "credential"],
+        suffix: credentialNameSuffix,
+        existingIds: existingCredentialNames,
+        fallback: "credential",
+      }),
+    [
+      credentialNameSuffix,
+      existingCredentialNames,
+      selectedSupplier?.name,
+      selectedSupplier?.supplierId,
+    ],
+  );
 
   useEffect(() => {
     if (!open) return;
+    const initialSupplier = activeSuppliers[0];
     form.reset({
-      supplierId: activeSuppliers[0]?.id ?? 0,
-      name: "",
+      supplierId: initialSupplier?.id ?? 0,
+      name: buildReadableId({
+        parts: [initialSupplier?.name || initialSupplier?.supplierId, "credential"],
+        suffix: credentialNameSuffix,
+        existingIds: existingCredentialNames,
+        fallback: "credential",
+      }),
       apiKey: "",
       ownerId: null,
     });
-  }, [activeSuppliers, form, open]);
+  }, [activeSuppliers, credentialNameSuffix, existingCredentialNames, form, open]);
+
+  useEffect(() => {
+    if (!open || !selectedSupplier) return;
+    form.setValue("name", generatedCredentialName, { shouldValidate: true });
+  }, [form, generatedCredentialName, open, selectedSupplier]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
-      await createCredential.mutateAsync(data);
+      await createCredential.mutateAsync({
+        ...data,
+        name: data.name.trim() || generatedCredentialName,
+      });
       toast.success(t("ai-credentials.toast.created"));
       onOpenChange(false);
     } catch (err) {
@@ -405,7 +462,7 @@ function CredentialFormDialog({
                   <FormItem>
                     <FormLabel>{t("ai-credentials.form.name")}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t("ai-credentials.form.name-ph")} {...field} />
+                      <Input disabled placeholder={t("ai-credentials.form.name-ph")} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
