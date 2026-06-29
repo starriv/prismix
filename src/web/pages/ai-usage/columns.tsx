@@ -11,8 +11,8 @@ import type {
 } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
-import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
+import { LongText } from "@/web/components/ui/long-text";
 
 import { formatTokens, StatusBadge } from "./helpers";
 
@@ -38,9 +38,12 @@ export function buildAiUsageByKeyColumns({
               {keyInfo?.name ?? `Key #${row.original.consumerKeyId}`}
             </DataTableText>
             {keyInfo && (
-              <Badge variant="outline" className="font-mono text-xs">
-                {keyInfo.apiKeyPrefix}
-              </Badge>
+              <LongText
+                value={keyInfo.apiKeyPrefix}
+                kind="secret"
+                head={8}
+                className="max-w-[160px]"
+              />
             )}
           </div>
         );

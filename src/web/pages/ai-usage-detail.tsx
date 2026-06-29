@@ -30,6 +30,7 @@ import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { formatSecretText } from "@/web/components/ui/long-text";
 import { ScrollArea } from "@/web/components/ui/scroll-area";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { DailyTrendChart, ModelDistributionChart } from "@/web/pages/ai-usage/charts";
@@ -74,7 +75,7 @@ export default function AiUsageDetailPage() {
     <div>
       <Header
         title={t("ai-usage.detail.title", { name: keyName })}
-        description={keyInfo?.apiKeyPrefix}
+        description={keyInfo ? formatSecretText(keyInfo.apiKeyPrefix, 8) : undefined}
       />
 
       <div className="p-4 md:p-8 space-y-6">

@@ -4,6 +4,7 @@ import type { TFunction } from "i18next";
 import { removeTailingZero } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
+import { LongText } from "@/web/components/ui/long-text";
 import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
 
 export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsageRecord>[] {
@@ -11,14 +12,13 @@ export function buildLogColumns(t: TFunction, language: string): ColumnDef<AiUsa
     {
       accessorKey: "requestId",
       cell: ({ row }) => (
-        <DataTableText
+        <LongText
+          value={row.original.requestId}
+          head={8}
+          tail={6}
+          emptyText="—"
           className="max-w-[180px]"
-          mono
-          truncate
-          title={row.original.requestId ?? undefined}
-        >
-          {row.original.requestId ?? "—"}
-        </DataTableText>
+        />
       ),
       enableHiding: false,
       header: t("ai-logs.th.request-id"),
