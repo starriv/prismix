@@ -209,6 +209,8 @@ const editAssignmentFormSchema = z.object({
 type EditAssignmentFormInput = z.input<typeof editAssignmentFormSchema>;
 type EditAssignmentFormValues = z.output<typeof editAssignmentFormSchema>;
 
+const EMPTY_AI_ENDPOINTS: AiEndpoint[] = [];
+
 // ── Page ────────────────────────────────────────────────────────────
 
 export default function SupplierConnectionsPage() {
@@ -969,7 +971,7 @@ function EndpointFormDialog({
   open,
   onOpenChange,
   endpoint,
-  endpoints = [],
+  endpoints = EMPTY_AI_ENDPOINTS,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1008,54 +1010,58 @@ function EndpointFormDialog({
   });
 
   useEffect(() => {
-    if (open && endpoint) {
-      const runtime = endpointEffectiveRuntime(endpoint);
-      const ac = (runtime.authConfig ?? {}) as Record<string, unknown>;
-      form.reset({
-        supplierId: endpoint.supplierId,
-        endpointId: endpoint.endpointId,
-        name: endpoint.name,
-        baseUrl: endpoint.baseUrl,
-        apiFormat: endpoint.apiFormat as EndpointFormValues["apiFormat"],
-        authMode: endpoint.authMode,
-        authType: endpointAuthType(runtime.authType),
-        apiKeyHeaderName: (ac.headerName as string) ?? "",
-        enabled: endpoint.enabled,
-        concurrencyMode: endpoint.concurrencyMode,
-        officialConcurrencyLimit: runtime.officialConcurrencyLimit ?? null,
-        officialQueueTimeoutMs: runtime.officialQueueTimeoutMs ?? 30_000,
-        sigv4Region: (ac.region as string) ?? "",
-        sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
-        cloudflareClientId: (ac.clientId as string) ?? "",
-      });
-    } else if (open) {
-      const supplier = suppliers[0];
-      const defaults = supplierEndpointDefaults(supplier);
-      form.reset({
-        supplierId: supplier?.id ?? 0,
-        endpointId: generatedEndpointId({
-          supplier,
-          name: "",
-          apiFormat: "openai",
-          suffix: endpointIdSuffix,
-          existingIds: new Set(endpoints.map((item) => item.endpointId)),
-        }),
+    if (!open || !endpoint) return;
+
+    const runtime = endpointEffectiveRuntime(endpoint);
+    const ac = (runtime.authConfig ?? {}) as Record<string, unknown>;
+    form.reset({
+      supplierId: endpoint.supplierId,
+      endpointId: endpoint.endpointId,
+      name: endpoint.name,
+      baseUrl: endpoint.baseUrl,
+      apiFormat: endpoint.apiFormat as EndpointFormValues["apiFormat"],
+      authMode: endpoint.authMode,
+      authType: endpointAuthType(runtime.authType),
+      apiKeyHeaderName: (ac.headerName as string) ?? "",
+      enabled: endpoint.enabled,
+      concurrencyMode: endpoint.concurrencyMode,
+      officialConcurrencyLimit: runtime.officialConcurrencyLimit ?? null,
+      officialQueueTimeoutMs: runtime.officialQueueTimeoutMs ?? 30_000,
+      sigv4Region: (ac.region as string) ?? "",
+      sigv4AccessKeyId: (ac.accessKeyId as string) ?? "",
+      cloudflareClientId: (ac.clientId as string) ?? "",
+    });
+  }, [open, endpoint, form]);
+
+  useEffect(() => {
+    if (!open || isEdit) return;
+
+    const supplier = suppliers[0];
+    const defaults = supplierEndpointDefaults(supplier);
+    form.reset({
+      supplierId: supplier?.id ?? 0,
+      endpointId: generatedEndpointId({
+        supplier,
         name: "",
-        baseUrl: "",
         apiFormat: "openai",
-        authMode: "inherit",
-        authType: defaults.authType,
-        apiKeyHeaderName: defaults.apiKeyHeaderName,
-        enabled: true,
-        concurrencyMode: "inherit",
-        officialConcurrencyLimit: defaults.officialConcurrencyLimit,
-        officialQueueTimeoutMs: defaults.officialQueueTimeoutMs,
-        sigv4Region: defaults.sigv4Region,
-        sigv4AccessKeyId: defaults.sigv4AccessKeyId,
-        cloudflareClientId: defaults.cloudflareClientId,
-      });
-    }
-  }, [open, endpoint, suppliers, endpoints, endpointIdSuffix, form]);
+        suffix: endpointIdSuffix,
+        existingIds: new Set(endpoints.map((item) => item.endpointId)),
+      }),
+      name: "",
+      baseUrl: "",
+      apiFormat: "openai",
+      authMode: "inherit",
+      authType: defaults.authType,
+      apiKeyHeaderName: defaults.apiKeyHeaderName,
+      enabled: true,
+      concurrencyMode: "inherit",
+      officialConcurrencyLimit: defaults.officialConcurrencyLimit,
+      officialQueueTimeoutMs: defaults.officialQueueTimeoutMs,
+      sigv4Region: defaults.sigv4Region,
+      sigv4AccessKeyId: defaults.sigv4AccessKeyId,
+      cloudflareClientId: defaults.cloudflareClientId,
+    });
+  }, [open, isEdit, suppliers, endpoints, endpointIdSuffix, form]);
 
   // Auto-link: Bedrock apiFormat → default region + baseUrl
   const watchedApiFormat = useWatch({ control: form.control, name: "apiFormat" });
@@ -1095,6 +1101,7 @@ function EndpointFormDialog({
 
   useEffect(() => {
     if (!open || isEdit) return;
+    if (form.getValues("endpointId") === autoEndpointId) return;
     form.setValue("endpointId", autoEndpointId, { shouldValidate: true });
   }, [autoEndpointId, form, isEdit, open]);
 
@@ -1105,15 +1112,31 @@ function EndpointFormDialog({
 
     const defaults = supplierEndpointDefaults(supplier);
     if (watchedAuthMode === "inherit") {
-      form.setValue("authType", defaults.authType);
-      form.setValue("apiKeyHeaderName", defaults.apiKeyHeaderName);
-      form.setValue("sigv4Region", defaults.sigv4Region);
-      form.setValue("sigv4AccessKeyId", defaults.sigv4AccessKeyId);
-      form.setValue("cloudflareClientId", defaults.cloudflareClientId);
+      if (form.getValues("authType") !== defaults.authType) {
+        form.setValue("authType", defaults.authType);
+      }
+      if (form.getValues("apiKeyHeaderName") !== defaults.apiKeyHeaderName) {
+        form.setValue("apiKeyHeaderName", defaults.apiKeyHeaderName);
+      }
+      if (form.getValues("sigv4Region") !== defaults.sigv4Region) {
+        form.setValue("sigv4Region", defaults.sigv4Region);
+      }
+      if (form.getValues("sigv4AccessKeyId") !== defaults.sigv4AccessKeyId) {
+        form.setValue("sigv4AccessKeyId", defaults.sigv4AccessKeyId);
+      }
+      if (form.getValues("cloudflareClientId") !== defaults.cloudflareClientId) {
+        form.setValue("cloudflareClientId", defaults.cloudflareClientId);
+      }
     }
     if (watchedConcurrencyMode === "inherit") {
-      form.setValue("officialConcurrencyLimit", defaults.officialConcurrencyLimit);
-      form.setValue("officialQueueTimeoutMs", defaults.officialQueueTimeoutMs);
+      if (
+        !Object.is(form.getValues("officialConcurrencyLimit"), defaults.officialConcurrencyLimit)
+      ) {
+        form.setValue("officialConcurrencyLimit", defaults.officialConcurrencyLimit);
+      }
+      if (form.getValues("officialQueueTimeoutMs") !== defaults.officialQueueTimeoutMs) {
+        form.setValue("officialQueueTimeoutMs", defaults.officialQueueTimeoutMs);
+      }
     }
   }, [form, open, suppliers, watchedAuthMode, watchedConcurrencyMode, watchedSupplierId]);
 
@@ -1125,7 +1148,10 @@ function EndpointFormDialog({
 
   useEffect(() => {
     if (watchedApiFormat === "bedrock" && watchedRegion) {
-      form.setValue("baseUrl", `https://bedrock-runtime.${watchedRegion}.amazonaws.com`);
+      const baseUrl = `https://bedrock-runtime.${watchedRegion}.amazonaws.com`;
+      if (form.getValues("baseUrl") !== baseUrl) {
+        form.setValue("baseUrl", baseUrl);
+      }
     }
   }, [watchedApiFormat, watchedRegion, form]);
 
