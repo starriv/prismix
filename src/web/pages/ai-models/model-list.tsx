@@ -280,12 +280,6 @@ export function ModelList({
         meta: { headerClassName: "w-[14%]" },
       },
       {
-        id: "routes",
-        cell: ({ row }) => <RoutesBadges routes={row.original.routes ?? []} />,
-        header: t("ai-models.th.routes"),
-        meta: { headerClassName: "w-[16%]" },
-      },
-      {
         accessorKey: "inputPrice",
         cell: ({ row }) => (
           <DataTableText
@@ -662,41 +656,5 @@ export function ModelList({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-// ── Route badges ────────────────────────────────────────────────────
-
-function RoutesBadges({ routes }: { routes: NonNullable<AiModel["routes"]> }) {
-  if (routes.length === 0) {
-    return <span className="text-xs text-muted-foreground italic">No routes</span>;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1">
-      {routes.slice(0, 3).map((r) => (
-        <Badge key={r.id} variant="outline" className="text-xs gap-1">
-          {r.endpointIconUrl ? (
-            <img
-              src={r.endpointIconUrl}
-              alt=""
-              className="h-3 w-3 rounded-sm object-contain"
-              width={12}
-              height={12}
-            />
-          ) : (
-            <Sparkles className="h-3 w-3" />
-          )}
-          {r.supplierName
-            ? `${r.supplierName} / ${r.endpointName ?? `#${r.endpointId}`}`
-            : (r.endpointName ?? `#${r.endpointId}`)}
-        </Badge>
-      ))}
-      {routes.length > 3 && (
-        <Badge variant="secondary" className="text-xs">
-          +{routes.length - 3}
-        </Badge>
-      )}
-    </div>
   );
 }

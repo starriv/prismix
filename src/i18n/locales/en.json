@@ -2517,6 +2517,7 @@
   "user-models": {
     "title": "Model Catalog",
     "desc": "Available models and pricing for your account",
+    "catalog-title": "Models",
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
     "no-endpoints": "No supplier connections configured yet",
@@ -2532,6 +2533,7 @@
       "name": "Name",
       "input-price": "Input / 1M tokens",
       "output-price": "Output / 1M tokens",
+      "context-window": "Context window",
       "capabilities": "Capabilities"
     }
   },

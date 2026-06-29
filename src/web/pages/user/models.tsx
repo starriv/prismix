@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Brain, Info, Search, Sparkles } from "lucide-react";
-import { parseAsInteger, useQueryState } from "nuqs";
+import { Brain, Info, Search } from "lucide-react";
 
 import { useUserModels } from "@/web/api/user-hooks";
 import type { UserModel, UserModelEndpoint } from "@/web/api/user-hooks";
@@ -16,11 +15,8 @@ import {
   DataTableToolbar,
 } from "@/web/components/data-table";
 import { Badge } from "@/web/components/ui/badge";
-import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Input } from "@/web/components/ui/input";
-import { Skeleton } from "@/web/components/ui/skeleton";
-import { cn } from "@/web/shared/utils";
 
 function formatDateTime(value: string | null | undefined, locale: string): string {
   if (!value) return "";
@@ -28,21 +24,34 @@ function formatDateTime(value: string | null | undefined, locale: string): strin
   return Number.isFinite(date.getTime()) ? date.toLocaleString(locale) : "";
 }
 
+type CatalogModel = UserModel;
+
+const EMPTY_USER_MODEL_ENDPOINTS: UserModelEndpoint[] = [];
+
+function compareCatalogModels(a: CatalogModel, b: CatalogModel): number {
+  return a.modelId.localeCompare(b.modelId, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function flattenCatalogModels(endpoints: UserModelEndpoint[]): CatalogModel[] {
+  const byModelId = new Map<string, CatalogModel>();
+
+  for (const endpoint of endpoints) {
+    for (const model of endpoint.models) {
+      const current = byModelId.get(model.modelId);
+      if (!current) byModelId.set(model.modelId, model);
+    }
+  }
+
+  return Array.from(byModelId.values()).sort(compareCatalogModels);
+}
+
 export default function UserModelsPage() {
   const { t } = useTranslation();
   const { data, isLoading } = useUserModels();
-  const [endpointId, setEndpointId] = useQueryState("endpointId", parseAsInteger);
 
-  const endpoints = data?.endpoints ?? [];
+  const endpoints = data?.endpoints ?? EMPTY_USER_MODEL_ENDPOINTS;
+  const models = useMemo(() => flattenCatalogModels(endpoints), [endpoints]);
   const markupPercent = data?.markupPercent ?? 0;
-
-  const selectedEndpoint = endpoints.find((endpoint) => endpoint.id === endpointId) ?? null;
-
-  const handleBack = useCallback(() => setEndpointId(null), [setEndpointId]);
-  const handleSelect = useCallback(
-    (endpoint: UserModelEndpoint) => setEndpointId(endpoint.id),
-    [setEndpointId],
-  );
 
   return (
     <div>
@@ -60,129 +69,30 @@ export default function UserModelsPage() {
           </Card>
         )}
 
-        {selectedEndpoint ? (
-          <ModelList endpoint={selectedEndpoint} onBack={handleBack} />
-        ) : (
-          <EndpointGrid endpoints={endpoints} loading={isLoading} onSelect={handleSelect} />
-        )}
+        <ModelCatalogTable loading={isLoading} models={models} />
       </div>
     </div>
   );
 }
 
-// ── Endpoint Grid ───────────────────────────────────────────────
+// ── Model Catalog ───────────────────────────────────────────────
 
-function EndpointGrid({
-  endpoints,
-  loading,
-  onSelect,
-}: {
-  endpoints: UserModelEndpoint[];
-  loading: boolean;
-  onSelect: (endpoint: UserModelEndpoint) => void;
-}) {
-  const { t } = useTranslation();
-
-  if (loading) {
-    return (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} className="p-6">
-            <Skeleton className="h-5 w-32 mb-4" />
-            <Skeleton className="h-8 w-8 rounded-md" />
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (endpoints.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Brain className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">{t("user-models.no-endpoints")}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      {endpoints.map((endpoint) => (
-        <EndpointCard key={endpoint.id} endpoint={endpoint} onClick={() => onSelect(endpoint)} />
-      ))}
-    </div>
-  );
-}
-
-function EndpointCard({ endpoint, onClick }: { endpoint: UserModelEndpoint; onClick: () => void }) {
-  const { t } = useTranslation();
-  const limitedFreeCount = endpoint.models.filter((model) => model.isLimitedFree).length;
-
-  return (
-    <Card
-      className={cn(
-        "cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
-        "flex flex-col justify-between",
-      )}
-      onClick={onClick}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold truncate">{endpoint.name}</h3>
-          <Badge variant="secondary" className="text-xs tabular-nums">
-            {endpoint.models.length}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 pb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {endpoint.iconUrl ? (
-            <img
-              src={endpoint.iconUrl}
-              alt={endpoint.name}
-              className="h-8 w-8 rounded-md object-contain"
-              width={32}
-              height={32}
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-          )}
-          <Badge variant="outline" className="text-xs">
-            {endpoint.apiFormat}
-          </Badge>
-          {limitedFreeCount > 0 && (
-            <Badge
-              variant="outline"
-              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-            >
-              {t("user-models.tag.limited-free")}
-            </Badge>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Model List ──────────────────────────────────────────────────
-
-function ModelList({ endpoint, onBack }: { endpoint: UserModelEndpoint; onBack: () => void }) {
+function ModelCatalogTable({ loading, models }: { loading: boolean; models: CatalogModel[] }) {
   const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filteredModels = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return endpoint.models;
-    return endpoint.models.filter(
-      (m) => m.modelId.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
+    if (!q) return models;
+    return models.filter(
+      (m) =>
+        m.modelId.toLowerCase().includes(q) ||
+        m.name.toLowerCase().includes(q) ||
+        m.capabilities.some((cap) => cap.toLowerCase().includes(q)),
     );
-  }, [endpoint.models, search]);
+  }, [models, search]);
 
-  const columns = useMemo<ColumnDef<UserModel>[]>(
+  const columns = useMemo<ColumnDef<CatalogModel>[]>(
     () => [
       {
         accessorKey: "modelId",
@@ -234,14 +144,30 @@ function ModelList({ endpoint, onBack }: { endpoint: UserModelEndpoint; onBack: 
         meta: dataTableMeta.right,
       },
       {
+        accessorKey: "contextWindow",
+        cell: ({ row }) => (
+          <DataTableText mono numeric>
+            {row.original.contextWindow
+              ? row.original.contextWindow.toLocaleString(i18n.language)
+              : "-"}
+          </DataTableText>
+        ),
+        header: t("user-models.th.context-window"),
+        meta: dataTableMeta.right,
+      },
+      {
         id: "capabilities",
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1">
-            {row.original.capabilities.map((cap) => (
-              <DataTableBadge key={cap} variant="outline">
-                {cap}
-              </DataTableBadge>
-            ))}
+            {row.original.capabilities.length > 0 ? (
+              row.original.capabilities.map((cap) => (
+                <DataTableBadge key={cap} variant="outline">
+                  {cap}
+                </DataTableBadge>
+              ))
+            ) : (
+              <DataTableText className="text-muted-foreground">-</DataTableText>
+            )}
           </div>
         ),
         header: t("user-models.th.capabilities"),
@@ -253,35 +179,20 @@ function ModelList({ endpoint, onBack }: { endpoint: UserModelEndpoint; onBack: 
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("common.btn.back")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            {endpoint.iconUrl ? (
-              <img
-                src={endpoint.iconUrl}
-                alt={endpoint.name}
-                className="h-6 w-6 rounded object-contain"
-                width={24}
-                height={24}
-              />
-            ) : (
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-              </div>
-            )}
-            <CardTitle className="text-base">{endpoint.name}</CardTitle>
-          </div>
-        </div>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Brain className="h-4 w-4" />
+          {t("user-models.catalog-title")}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <DataTable
           columns={columns}
           data={filteredModels}
           emptyText={t("user-models.empty")}
-          tableClassName="min-w-[760px]"
+          getRowId={(row) => row.modelId}
+          loading={loading}
+          tableClassName="min-w-[900px]"
           toolbar={
             <DataTableToolbar>
               <div className="relative w-full max-w-sm">
@@ -297,9 +208,9 @@ function ModelList({ endpoint, onBack }: { endpoint: UserModelEndpoint; onBack: 
                 {search.trim()
                   ? t("user-models.filter-count-filtered", {
                       filtered: filteredModels.length,
-                      total: endpoint.models.length,
+                      total: models.length,
                     })
-                  : t("user-models.filter-count", { count: endpoint.models.length })}
+                  : t("user-models.filter-count", { count: models.length })}
               </span>
             </DataTableToolbar>
           }

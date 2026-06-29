@@ -2517,6 +2517,7 @@
   "user-models": {
     "title": "模型目录",
     "desc": "您账户可用的模型及定价",
+    "catalog-title": "模型列表",
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
     "no-endpoints": "暂无已配置的供应商连接",
@@ -2532,6 +2533,7 @@
       "name": "名称",
       "input-price": "输入 / 百万 token",
       "output-price": "输出 / 百万 token",
+      "context-window": "上下文窗口",
       "capabilities": "能力"
     }
   },
