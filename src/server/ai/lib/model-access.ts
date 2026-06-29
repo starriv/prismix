@@ -62,3 +62,9 @@ export async function filterModelsForConsumer<T extends { model: AiModel }>(
       isGrayModelVisibleToUser(row.model, consumer.userId, grayModelIdsForUser),
   );
 }
+
+export function filterModelsForUserCatalog<
+  T extends { model: Pick<AiModel, "grayReleaseEnabled"> },
+>(rows: T[]): T[] {
+  return rows.filter((row) => !row.model.grayReleaseEnabled);
+}

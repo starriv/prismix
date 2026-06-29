@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canConsumerAccessModel,
   filterModelsForConsumer,
+  filterModelsForUserCatalog,
   isGrayModelVisibleToUser,
   isModelAllowedByConsumerKey,
   modelIdMatchesPattern,
@@ -165,5 +166,33 @@ describe("filterModelsForConsumer", () => {
       userId: 5,
     });
     expect(mockFindUserModelIds).not.toHaveBeenCalled();
+  });
+});
+
+describe("filterModelsForUserCatalog", () => {
+  it("excludes gray models even when they are limited-free", () => {
+    const rows = [
+      {
+        model: {
+          id: 1,
+          modelId: "gpt-4o",
+          grayReleaseEnabled: false,
+          limitedFreeUntil: null,
+        },
+      },
+      {
+        model: {
+          id: 2,
+          modelId: "glm-5.2",
+          grayReleaseEnabled: true,
+          limitedFreeUntil: new Date("2026-07-01T00:00:00Z"),
+        },
+      },
+    ];
+
+    const result = filterModelsForUserCatalog(rows);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].model.modelId).toBe("gpt-4o");
   });
 });

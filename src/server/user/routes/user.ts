@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { groupBy, pick, uniq } from "lodash-es";
 
 import { isLimitedFreeActive, serializeLimitedFreeUntil } from "@/server/ai/lib/limited-free";
-import { filterModelsForConsumer } from "@/server/ai/lib/model-access";
+import { filterModelsForConsumer, filterModelsForUserCatalog } from "@/server/ai/lib/model-access";
 import { safeParseJsonArray } from "@/server/ai/lib/safe-json";
 import { getGlobalDefaultMarkup } from "@/server/ai/middleware/consumer-key-auth";
 import type { NewRelayConsumerKey, RelayConsumerKey } from "@/server/db";
@@ -118,9 +118,13 @@ user.get("/models", async (c) => {
     userId: session.userId,
   });
 
-  // 6. Compute consumer prices + group by endpoint
+  // 6. Hide gray-release models from the user portal catalog. Gray whitelist access is only
+  // for direct gateway use; the catalog should not advertise staged models.
+  const catalogRows = filterModelsForUserCatalog(filtered);
+
+  // 7. Compute consumer prices + group by endpoint
   const markupMultiplier = 1 + effectiveMarkup / 100;
-  const grouped = groupBy(filtered, (r) => r.endpoint.id);
+  const grouped = groupBy(catalogRows, (r) => r.endpoint.id);
 
   const endpoints = Object.entries(grouped).map(([, items]) => {
     const { endpoint } = items[0];
