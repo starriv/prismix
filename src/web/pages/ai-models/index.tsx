@@ -6,7 +6,7 @@ import { useAiEndpoints, useAiModelsList } from "@/web/api/hooks";
 import { Header } from "@/web/components/dashboard/header";
 
 import { ModelList } from "./model-list";
-import { ModelRoutesSheet } from "./model-routes-sheet";
+import { ModelRoutesDialog } from "./model-routes-dialog";
 
 export default function AiModelsPage() {
   const { t } = useTranslation();
@@ -30,7 +30,7 @@ export default function AiModelsPage() {
       </div>
 
       {routeModel && (
-        <ModelRoutesSheet
+        <ModelRoutesDialog
           open={!!routeModel}
           onOpenChange={(v) => {
             if (!v) setRouteModelId(null);

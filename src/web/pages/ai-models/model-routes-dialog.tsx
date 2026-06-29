@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -32,14 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/web/components/ui/select";
-import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
 import { Switch } from "@/web/components/ui/switch";
 
 function supplierConnectionLabel(endpoint: Pick<AiEndpoint, "name" | "supplierName">): string {
   return endpoint.supplierName ? `${endpoint.supplierName} / ${endpoint.name}` : endpoint.name;
 }
 
-export function ModelRoutesSheet({
+export function ModelRoutesDialog({
   open,
   onOpenChange,
   model,
@@ -76,60 +76,57 @@ export function ModelRoutesSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[520px]">
-          <SheetHeader>
-            <SheetTitle>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[760px] lg:max-w-[860px]">
+          <DialogHeader>
+            <DialogTitle>
               {t("ai-models.routes.title")} — {model.modelId}
-            </SheetTitle>
-          </SheetHeader>
-          <SheetBody>
-            <div className="space-y-5">
-              <p className="text-sm text-muted-foreground">{t("ai-models.routes.desc")}</p>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      {t("ai-models.routes.btn.routes")}
-                      <Badge variant="secondary" className="text-xs">
-                        {routes.length}
-                      </Badge>
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      onClick={() => setAddOpen(true)}
-                      disabled={availableEndpoints.length === 0}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      {t("ai-models.routes.btn.add")}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {isLoading ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
-                  ) : sortedRoutes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">
-                      {t("ai-models.routes.empty")}
-                    </p>
-                  ) : (
-                    sortedRoutes.map((route) => (
-                      <RouteCard
-                        key={route.id}
-                        route={route}
-                        modelId={model.id}
-                        modelSlug={model.modelId}
-                        onDelete={setDeleteTarget}
-                      />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </SheetBody>
-        </SheetContent>
-      </Sheet>
+            </DialogTitle>
+            <DialogDescription>{t("ai-models.routes.desc")}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    {t("ai-models.routes.btn.routes")}
+                    <Badge variant="secondary" className="text-xs">
+                      {routes.length}
+                    </Badge>
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setAddOpen(true)}
+                    disabled={availableEndpoints.length === 0}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t("ai-models.routes.btn.add")}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {isLoading ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
+                ) : sortedRoutes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    {t("ai-models.routes.empty")}
+                  </p>
+                ) : (
+                  sortedRoutes.map((route) => (
+                    <RouteCard
+                      key={route.id}
+                      route={route}
+                      modelId={model.id}
+                      modelSlug={model.modelId}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
       <AddRouteDialog
         open={addOpen}
