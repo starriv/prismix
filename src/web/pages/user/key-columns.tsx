@@ -5,6 +5,7 @@ import { Copy, Trash2 } from "lucide-react";
 import type { UserKey } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
+import { LongText } from "@/web/components/ui/long-text";
 import { Switch } from "@/web/components/ui/switch";
 
 export function buildUserKeyColumns({
@@ -32,7 +33,7 @@ export function buildUserKeyColumns({
     },
     {
       accessorKey: "apiKeyPrefix",
-      cell: ({ row }) => <DataTableText mono>{row.original.apiKeyPrefix}...</DataTableText>,
+      cell: ({ row }) => <LongText value={row.original.apiKeyPrefix} kind="secret" head={8} />,
       header: t("user.keys.th.prefix"),
     },
     {

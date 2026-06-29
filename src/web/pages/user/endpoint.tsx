@@ -11,6 +11,7 @@ import { LocaleLink } from "@/web/components/locale-link";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { LongText } from "@/web/components/ui/long-text";
 import { Skeleton } from "@/web/components/ui/skeleton";
 
 export default function UserEndpointPage() {
@@ -102,9 +103,7 @@ export default function UserEndpointPage() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{k.name}</span>
-                      <code className="font-mono text-xs text-muted-foreground">
-                        {k.apiKeyPrefix}...
-                      </code>
+                      <LongText value={k.apiKeyPrefix} kind="secret" head={8} />
                     </div>
                     <Badge
                       variant="outline"

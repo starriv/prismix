@@ -46,6 +46,7 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { LongText } from "@/web/components/ui/long-text";
 
 export default function ConsumerKeysPage() {
   const { t, i18n } = useTranslation();
@@ -149,7 +150,7 @@ export default function ConsumerKeysPage() {
       },
       {
         accessorKey: "apiKeyPrefix",
-        cell: ({ row }) => <DataTableText mono>{row.original.apiKeyPrefix}...</DataTableText>,
+        cell: ({ row }) => <LongText value={row.original.apiKeyPrefix} kind="secret" head={8} />,
         header: t("consumer-keys.th.prefix"),
         meta: { headerClassName: "w-[16%]" },
       },

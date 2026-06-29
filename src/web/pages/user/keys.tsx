@@ -27,6 +27,7 @@ import {
 } from "@/web/components/ui/dialog";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
+import { LongText } from "@/web/components/ui/long-text";
 
 import { buildUserKeyColumns } from "./key-columns";
 
@@ -257,7 +258,7 @@ function DeleteKeyDialog({
           {keyItem ? (
             <div className="rounded-lg border bg-muted/50 px-3 py-2">
               <p className="text-sm font-medium">{keyItem.name}</p>
-              <p className="text-xs text-muted-foreground">{keyItem.apiKeyPrefix}...</p>
+              <LongText value={keyItem.apiKeyPrefix} kind="secret" head={8} />
             </div>
           ) : null}
         </DialogBody>
