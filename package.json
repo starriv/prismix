@@ -15,6 +15,8 @@
     "dev:web:wait": "node scripts/wait-for-server.mjs && vite",
     "dev:server": "tsx watch --env-file=.env.local src/server/index.ts",
     "dev:worker": "ROLE=worker WORKER_HEALTH_PORT=3404 tsx watch --env-file=.env.local src/server/worker.ts",
+    "dev:auth-token": "tsx --env-file=.env.local scripts/dev-auth-token.ts",
+    "verify:web": "tsx --env-file=.env.local scripts/verify-web-ui.ts",
     "build": "pnpm build:web && pnpm build:server",
     "build:web": "vite build",
     "build:analyze": "ANALYZE=true vite build",
