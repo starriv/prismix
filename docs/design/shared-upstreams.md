@@ -29,7 +29,7 @@ Make upstreams first-class global entities that can be attached to multiple endp
 ## Current Architecture
 
 ```text
-aiEndpoints (1) ──FK──→ (N) aiEndpointUpstreams
+aiSupplierConnections (1) ──FK──→ (N) aiEndpointUpstreams
                               ↑
                          aiEndpointCredentials.upstreamId (nullable FK, SET NULL)
 ```
@@ -47,7 +47,7 @@ aiEndpoints (1) ──FK──→ (N) aiEndpointUpstreams
 ### Data Model
 
 ```text
-aiEndpoints (M) ←── aiUpstreamAssignments ──→ (N) aiUpstreams
+aiSupplierConnections (M) ←── aiUpstreamAssignments ──→ (N) aiUpstreams
                           (junction table)              ↑
                                                   aiEndpointCredentials.upstreamId
 ```
@@ -78,16 +78,16 @@ Removed from upstream:
 
 New junction table for endpoint-specific attachment and routing:
 
-| Column       | Type                                           | Notes                    |
-| ------------ | ---------------------------------------------- | ------------------------ |
-| `id`         | serial PK                                      | Assignment ID            |
-| `endpointId` | integer NOT NULL FK → `aiEndpoints.id` CASCADE |                          |
-| `upstreamId` | integer NOT NULL FK → `aiUpstreams.id` CASCADE |                          |
-| `priority`   | integer NOT NULL default 100                   | Endpoint-scoped priority |
-| `weight`     | integer NOT NULL default 1                     | Endpoint-scoped weight   |
-| `enabled`    | boolean NOT NULL default true                  | Assignment-level switch  |
-| `createdAt`  | timestamp                                      |                          |
-| `updatedAt`  | timestamp                                      |                          |
+| Column       | Type                                                     | Notes                    |
+| ------------ | -------------------------------------------------------- | ------------------------ |
+| `id`         | serial PK                                                | Assignment ID            |
+| `endpointId` | integer NOT NULL FK → `aiSupplierConnections.id` CASCADE |                          |
+| `upstreamId` | integer NOT NULL FK → `aiUpstreams.id` CASCADE           |                          |
+| `priority`   | integer NOT NULL default 100                             | Endpoint-scoped priority |
+| `weight`     | integer NOT NULL default 1                               | Endpoint-scoped weight   |
+| `enabled`    | boolean NOT NULL default true                            | Assignment-level switch  |
+| `createdAt`  | timestamp                                                |                          |
+| `updatedAt`  | timestamp                                                |                          |
 
 Constraints and indexes:
 

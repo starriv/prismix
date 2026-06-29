@@ -99,7 +99,7 @@ effectiveModelId = upstream_mapping[endpointModelId]    -- 第三层：上游映
 | `ai_suppliers`               | 供应商（真实厂商）      | `supplierId`, `name`, `enabled`                                  |
 | `ai_models`                  | 模型目录                | `modelId`, `enabled`                                             |
 | `ai_model_routes`            | 模型 → 端点路由         | `modelId`, `endpointId`, `endpointModelId`, `priority`, `weight` |
-| `ai_endpoints`               | 协议端点配置            | `supplierId`, `apiFormat`, `authType`, `baseUrl`                 |
+| `ai_supplier_connections`    | 供应商连接配置          | `supplierId`, `apiFormat`, `authType`, `baseUrl`                 |
 | `ai_upstream_assignments`    | 端点 → 上游绑定         | `endpointId`, `upstreamId`, `priority`, `weight`                 |
 | `ai_upstreams`               | 上游服务器              | `baseUrl`, `modelsEndpoint`, `kind`                              |
 | `ai_upstream_model_mappings` | 上游级模型 ID 覆盖      | `upstreamId`, `sourceModelId`, `mappedModelId`                   |

@@ -204,7 +204,7 @@ markupPercent = consumer.markupPercent ?? agent.defaultMarkupPercent ?? globalDe
 | `ai_suppliers`                 | 供应商（真实厂商，如 DeepSeek、OpenAI）              |
 | `ai_models`                    | 模型目录（价格、fallback）                           |
 | `ai_model_routes`              | 模型 → 端点路由（priority、weight、endpointModelId） |
-| `ai_endpoints`                 | 协议端点（apiFormat、authType、负载均衡策略）        |
+| `ai_supplier_connections`      | 供应商连接（apiFormat、authType、负载均衡策略）      |
 | `ai_credentials`               | 上游 API 凭证（AES-256-GCM 加密存储）                |
 | `ai_endpoint_credentials`      | 端点 ↔ 凭证绑定（含 upstreamId、weight）             |
 | `ai_upstreams`                 | 上游端点（baseUrl、kind、modelsEndpoint）            |
@@ -431,22 +431,22 @@ Degradation: silent drop + throttled warning when Redis is unavailable; billing 
 
 ### Core Data Model
 
-| Table                          | Purpose                                                        |
-| ------------------------------ | -------------------------------------------------------------- |
-| `relay_consumer_keys`          | Consumer API key (hash, allowedModels, markup, limits)         |
-| `relay_consumer_key_blacklist` | Replay protection for deleted keys                             |
-| `pay_agents`                   | Wallet / balance account                                       |
-| `pay_agent_transactions`       | Transaction ledger                                             |
-| `ai_suppliers`                 | Suppliers (real vendors, e.g. DeepSeek, OpenAI)                |
-| `ai_models`                    | Model catalog (pricing, fallback)                              |
-| `ai_model_routes`              | Model → endpoint routes (priority, weight, endpointModelId)    |
-| `ai_endpoints`                 | Protocol endpoint (apiFormat, authType, load-balance strategy) |
-| `ai_credentials`               | Upstream API credentials (AES-256-GCM at rest)                 |
-| `ai_endpoint_credentials`      | Endpoint ↔ credential binding (with upstreamId, weight)        |
-| `ai_upstreams`                 | Upstream endpoints (baseUrl, kind, modelsEndpoint)             |
-| `ai_upstream_assignments`      | Endpoint ↔ upstream N:N binding                                |
-| `ai_upstream_model_mappings`   | Per-upstream model name override                               |
-| `ai_guardrail_configs`         | Content moderation rules                                       |
+| Table                          | Purpose                                                          |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `relay_consumer_keys`          | Consumer API key (hash, allowedModels, markup, limits)           |
+| `relay_consumer_key_blacklist` | Replay protection for deleted keys                               |
+| `pay_agents`                   | Wallet / balance account                                         |
+| `pay_agent_transactions`       | Transaction ledger                                               |
+| `ai_suppliers`                 | Suppliers (real vendors, e.g. DeepSeek, OpenAI)                  |
+| `ai_models`                    | Model catalog (pricing, fallback)                                |
+| `ai_model_routes`              | Model → endpoint routes (priority, weight, endpointModelId)      |
+| `ai_supplier_connections`      | Supplier connection (apiFormat, authType, load-balance strategy) |
+| `ai_credentials`               | Upstream API credentials (AES-256-GCM at rest)                   |
+| `ai_endpoint_credentials`      | Endpoint ↔ credential binding (with upstreamId, weight)          |
+| `ai_upstreams`                 | Upstream endpoints (baseUrl, kind, modelsEndpoint)               |
+| `ai_upstream_assignments`      | Endpoint ↔ upstream N:N binding                                  |
+| `ai_upstream_model_mappings`   | Per-upstream model name override                                 |
+| `ai_guardrail_configs`         | Content moderation rules                                         |
 
 ### Key Design Decisions
 

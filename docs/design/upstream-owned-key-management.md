@@ -38,7 +38,7 @@ Phase 1 gets the natural UX the product wants with minimal architectural churn.
 Today the core model is:
 
 ```text
-ai_endpoints
+ai_supplier_connections
   ├─ endpoint config: supplierId, baseUrl, apiFormat, authType, authConfig
   ├─ upstreamRoutingStrategy
   └─ loadBalanceStrategy
@@ -59,7 +59,7 @@ ai_credentials
   └─ encrypted key material (encryptedKey, keyHash, keyPrefix)
 
 ai_endpoint_credentials
-  ├─ endpointId (NOT NULL, FK CASCADE → ai_endpoints)
+  ├─ endpointId (NOT NULL, FK CASCADE → ai_supplier_connections)
   ├─ upstreamId (nullable, FK SET NULL → ai_upstreams)
   ├─ credentialId (NOT NULL, FK CASCADE → ai_credentials)
   ├─ weight / enabled
@@ -70,7 +70,7 @@ Important detail:
 
 - `ai_endpoint_credentials.endpointId` is mandatory. Deleting an endpoint cascades to all its credential assignments (FK CASCADE).
 - `ai_endpoint_credentials.upstreamId` is optional. FK `SET NULL` on upstream deletion.
-- `ai_credentials.ownerId` links to `key_providers` (revenue-share partners), not to `ai_endpoints` or `ai_suppliers`.
+- `ai_credentials.ownerId` links to `key_providers` (revenue-share partners), not to `ai_supplier_connections` or `ai_suppliers`.
 - `upstreamId = null` currently means "use the endpoint default base URL".
 - Deleting an assignment **deletes** all credential assignments bound to that endpoint+upstream pair via `aiEndpointCredentialRepo.deleteByEndpointAndUpstream()` (application logic). An assignment is upstream-specific within an endpoint and cannot be reused with a different upstream without a new assignment row.
 - Deleting the upstream entity itself nulls credential assignments via FK `SET NULL` (database constraint). This is a separate path that should eventually be aligned to also delete.

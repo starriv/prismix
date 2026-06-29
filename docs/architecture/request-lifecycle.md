@@ -200,7 +200,7 @@ consumer.allowedModels.some((pattern) => {
 
 ```
 aiModelRouteRepo.findEnabledRoutesByModelId(body.model)
-  → JOIN ai_model_routes + ai_models + ai_endpoints
+  → JOIN ai_model_routes + ai_models + ai_supplier_connections
   → orderRoutesByPriorityAndWeight()
 ```
 
@@ -552,7 +552,7 @@ share = platformProfit * provider.revenueSharePercent / 100
 | `ai_suppliers`                 | 供应商（真实厂商）        | supplierId, name, enabled                                            |
 | `ai_models`                    | 模型目录                  | modelId, inputPrice, outputPrice, fallbackModelIds                   |
 | `ai_model_routes`              | 模型→端点路由             | modelId, endpointId, endpointModelId, priority, weight               |
-| `ai_endpoints`                 | 协议端点配置              | supplierId, apiFormat, authType, baseUrl, loadBalanceStrategy        |
+| `ai_supplier_connections`      | 供应商连接配置            | supplierId, apiFormat, authType, baseUrl, loadBalanceStrategy        |
 | `ai_credentials`               | 上游 API 凭证（加密存储） | supplierId, ownerId, encryptedKey, keyHash, keyPrefix                |
 | `ai_endpoint_credentials`      | 端点↔凭证绑定             | endpointId, upstreamId, credentialId, weight, enabled                |
 | `ai_upstreams`                 | 上游端点                  | baseUrl, kind (official/reseller/custom), modelsEndpoint             |
