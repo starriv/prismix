@@ -13,6 +13,7 @@ import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/component
 import { Button } from "@/web/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Input } from "@/web/components/ui/input";
+import { LongText } from "@/web/components/ui/long-text";
 import { Sheet, SheetContent } from "@/web/components/ui/sheet";
 
 import { USER_STATUS_COLORS, USER_STATUS_KEYS } from "./constants";
@@ -146,11 +147,7 @@ export default function AdminDashboardPage() {
         accessorKey: "uuid",
         cell: ({ row }) => {
           const uuid = row.original.uuid ?? "---";
-          return (
-            <DataTableText mono title={uuid}>
-              {uuid}
-            </DataTableText>
-          );
+          return <LongText value={uuid} head={8} tail={6} />;
         },
         header: t("admin.users.th.uuid"),
         meta: { headerClassName: "text-xs", minWidth: 340, width: 340 },

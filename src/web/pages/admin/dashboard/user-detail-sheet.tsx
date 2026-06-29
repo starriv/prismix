@@ -30,6 +30,7 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { LongText } from "@/web/components/ui/long-text";
 import {
   Select,
   SelectContent,
@@ -162,9 +163,7 @@ export function UserDetailSheet({ user, onClose }: { user: UserInfo; onClose: ()
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs text-muted-foreground">User #{user.id}</p>
                 <div className="flex items-start gap-2">
-                  <p className="min-w-0 break-all font-mono text-xs text-muted-foreground">
-                    {user.uuid ?? "---"}
-                  </p>
+                  <LongText value={user.uuid} head={8} tail={6} emptyText="---" />
                   {user.uuid && (
                     <Button
                       type="button"

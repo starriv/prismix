@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/web/components/ui/dialog";
+import { LongText } from "@/web/components/ui/long-text";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { buildAiUsageRecentColumns } from "@/web/pages/ai-usage/columns";
 
@@ -106,9 +107,7 @@ export function KeyProviderDetailPage({
         cell: ({ row }) => (
           <div className="space-y-1">
             <DataTableText className="font-medium">{row.original.keyName}</DataTableText>
-            <DataTableText mono muted>
-              {row.original.keyPrefix}
-            </DataTableText>
+            <LongText value={row.original.keyPrefix} kind="secret" head={8} />
           </div>
         ),
         header: t("common.th.name"),
