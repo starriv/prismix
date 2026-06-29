@@ -68,6 +68,11 @@ import {
 } from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
+import {
+  buildReadableId,
+  randomReadableIdSuffix,
+  slugifyReadableIdPart,
+} from "@/web/shared/readable-id";
 import { cn } from "@/web/shared/utils";
 
 import {
@@ -139,6 +144,39 @@ function supplierEndpointDefaults(supplier?: AiSupplier) {
     officialConcurrencyLimit: supplier?.officialConcurrencyLimit ?? null,
     officialQueueTimeoutMs: supplier?.officialQueueTimeoutMs ?? 30_000,
   };
+}
+
+function generatedEndpointId({
+  supplier,
+  name,
+  apiFormat,
+  region,
+  suffix,
+  existingIds,
+}: {
+  supplier?: AiSupplier;
+  name: string;
+  apiFormat: string;
+  region?: string;
+  suffix: string;
+  existingIds: Set<string>;
+}): string {
+  const supplierSlug = slugifyReadableIdPart(supplier?.name || supplier?.supplierId);
+  const nameSlug = slugifyReadableIdPart(name);
+  const formatSlug =
+    apiFormat === "bedrock" && region
+      ? slugifyReadableIdPart(region)
+      : slugifyReadableIdPart(apiFormat);
+
+  const parts = nameSlug
+    ? nameSlug === supplierSlug || nameSlug.startsWith(`${supplierSlug}-`)
+      ? [nameSlug]
+      : [supplierSlug, nameSlug]
+    : supplierSlug === formatSlug
+      ? [supplierSlug]
+      : [supplierSlug, formatSlug || "connection"];
+
+  return buildReadableId({ parts, suffix, existingIds, fallback: "connection" });
 }
 
 function endpointEffectiveRuntime(endpoint: AiEndpoint) {
@@ -222,7 +260,7 @@ export default function SupplierConnectionsPage() {
         )}
       </div>
 
-      <EndpointFormDialog open={addOpen} onOpenChange={setAddOpen} />
+      <EndpointFormDialog open={addOpen} onOpenChange={setAddOpen} endpoints={endpoints} />
     </div>
   );
 }
@@ -931,16 +969,22 @@ function EndpointFormDialog({
   open,
   onOpenChange,
   endpoint,
+  endpoints = [],
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   endpoint?: AiEndpoint | null;
+  endpoints?: AiEndpoint[];
 }) {
   const { t } = useTranslation();
   const createEndpoint = useCreateAiEndpoint();
   const updateEndpoint = useUpdateAiEndpoint();
   const { data: suppliers = [] } = useAiSuppliers();
   const isEdit = !!endpoint;
+  const endpointIdSuffix = useMemo(
+    () => (open && !isEdit ? randomReadableIdSuffix() : ""),
+    [isEdit, open],
+  );
 
   const form = useForm<EndpointFormValues>({
     resolver: zodResolver(endpointFormSchema),
@@ -989,7 +1033,13 @@ function EndpointFormDialog({
       const defaults = supplierEndpointDefaults(supplier);
       form.reset({
         supplierId: supplier?.id ?? 0,
-        endpointId: "",
+        endpointId: generatedEndpointId({
+          supplier,
+          name: "",
+          apiFormat: "openai",
+          suffix: endpointIdSuffix,
+          existingIds: new Set(endpoints.map((item) => item.endpointId)),
+        }),
         name: "",
         baseUrl: "",
         apiFormat: "openai",
@@ -1005,7 +1055,7 @@ function EndpointFormDialog({
         cloudflareClientId: defaults.cloudflareClientId,
       });
     }
-  }, [open, endpoint, suppliers, form]);
+  }, [open, endpoint, suppliers, endpoints, endpointIdSuffix, form]);
 
   // Auto-link: Bedrock apiFormat → default region + baseUrl
   const watchedApiFormat = useWatch({ control: form.control, name: "apiFormat" });
@@ -1014,6 +1064,39 @@ function EndpointFormDialog({
   const watchedConcurrencyMode = useWatch({ control: form.control, name: "concurrencyMode" });
   const watchedRegion = useWatch({ control: form.control, name: "sigv4Region" });
   const watchedSupplierId = useWatch({ control: form.control, name: "supplierId" });
+  const watchedName = useWatch({ control: form.control, name: "name" });
+  const existingEndpointIds = useMemo(
+    () => new Set(endpoints.map((item) => item.endpointId)),
+    [endpoints],
+  );
+  const watchedSupplier = useMemo(
+    () => suppliers.find((item) => item.id === watchedSupplierId),
+    [suppliers, watchedSupplierId],
+  );
+  const autoEndpointId = useMemo(
+    () =>
+      generatedEndpointId({
+        supplier: watchedSupplier,
+        name: watchedName,
+        apiFormat: watchedApiFormat,
+        region: watchedRegion,
+        suffix: endpointIdSuffix,
+        existingIds: existingEndpointIds,
+      }),
+    [
+      endpointIdSuffix,
+      existingEndpointIds,
+      watchedApiFormat,
+      watchedName,
+      watchedRegion,
+      watchedSupplier,
+    ],
+  );
+
+  useEffect(() => {
+    if (!open || isEdit) return;
+    form.setValue("endpointId", autoEndpointId, { shouldValidate: true });
+  }, [autoEndpointId, form, isEdit, open]);
 
   useEffect(() => {
     if (!open || !watchedSupplierId) return;
@@ -1052,12 +1135,23 @@ function EndpointFormDialog({
       sigv4AccessKeyId,
       cloudflareClientId,
       apiKeyHeaderName,
+      endpointId: formEndpointId,
       authMode,
       concurrencyMode,
       officialConcurrencyLimit,
       officialQueueTimeoutMs,
       ...rest
     } = data;
+    const endpointId = isEdit
+      ? formEndpointId
+      : generatedEndpointId({
+          supplier: suppliers.find((item) => item.id === data.supplierId),
+          name: data.name,
+          apiFormat: data.apiFormat,
+          region: sigv4Region,
+          suffix: endpointIdSuffix,
+          existingIds: existingEndpointIds,
+        });
 
     let authConfig: Record<string, unknown> | undefined;
     if (authMode === "override" && data.authType === "cloudflare") {
@@ -1076,6 +1170,7 @@ function EndpointFormDialog({
 
     const payload = {
       ...rest,
+      endpointId,
       authMode,
       ...(authMode === "override" ? { authConfig } : {}),
       ...(concurrencyMode === "override"
@@ -1154,7 +1249,7 @@ function EndpointFormDialog({
                       <Input
                         placeholder={t("supplier-connections.form.endpoint-id-ph")}
                         {...field}
-                        disabled={isEdit}
+                        disabled
                       />
                     </FormControl>
                     <FormMessage />

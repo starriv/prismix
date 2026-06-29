@@ -41,6 +41,7 @@ import {
   FormMessage,
 } from "@/web/components/ui/form";
 import { Input } from "@/web/components/ui/input";
+import { formatSecretText, LongText } from "@/web/components/ui/long-text";
 import { SecretInput } from "@/web/components/ui/secret-input";
 import {
   Select,
@@ -52,6 +53,7 @@ import {
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { Switch } from "@/web/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/web/components/ui/tooltip";
+import { buildReadableId, randomReadableIdSuffix } from "@/web/shared/readable-id";
 import { cn } from "@/web/shared/utils";
 
 import { DEFAULT_UPSTREAM_PRIORITY, DEFAULT_UPSTREAM_WEIGHT } from "./constants";
@@ -496,9 +498,13 @@ function BucketCard({
                   </div>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                  <code className="font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded w-[160px] truncate inline-block">
-                    {credential.keyPrefix}****
-                  </code>
+                  <LongText
+                    value={`${credential.keyPrefix}****`}
+                    kind="secret"
+                    head={10}
+                    tail={4}
+                    className="max-w-[160px]"
+                  />
                   <Badge
                     variant={credential.ownerName ? "secondary" : "outline"}
                     className="text-[10px] px-1.5 py-0"
@@ -570,9 +576,18 @@ function AddCredentialToBucketDialog({
   const createCredential = useCreateAiEndpointCredential();
   const { data: reusableCredentials = [] } = useAiCredentials();
   const { data: keyProviders = [] } = useKeyProviders();
+  const credentialNameSuffix = useMemo(() => (open ? randomReadableIdSuffix() : ""), [open]);
   const activeKeyProviders = useMemo(
     () => keyProviders.filter((keyProvider) => keyProvider.status === "active"),
     [keyProviders],
+  );
+  const existingCredentialNames = useMemo(
+    () =>
+      new Set([
+        ...reusableCredentials.map((credential) => credential.name),
+        ...(bucket?.credentials.map((credential) => credential.name) ?? []),
+      ]),
+    [bucket?.credentials, reusableCredentials],
   );
   const availableCredentials = useMemo(() => {
     const assignedCredentialIds = new Set(
@@ -599,6 +614,27 @@ function AddCredentialToBucketDialog({
     },
   });
   const mode = useWatch({ control: form.control, name: "mode" }) ?? "new";
+  const generatedCredentialName = useMemo(
+    () =>
+      buildReadableId({
+        parts: [
+          endpoint.supplierName || endpoint.name,
+          bucket?.upstreamId == null ? "official" : bucket?.name,
+          "credential",
+        ],
+        suffix: credentialNameSuffix,
+        existingIds: existingCredentialNames,
+        fallback: "credential",
+      }),
+    [
+      bucket?.name,
+      bucket?.upstreamId,
+      credentialNameSuffix,
+      endpoint.name,
+      endpoint.supplierName,
+      existingCredentialNames,
+    ],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -606,11 +642,11 @@ function AddCredentialToBucketDialog({
     form.reset({
       mode: nextMode,
       credentialId: availableCredentials[0]?.id ?? null,
-      name: "",
+      name: nextMode === "new" ? generatedCredentialName : "",
       apiKey: "",
       ownerId: null,
     });
-  }, [availableCredentials, open, form]);
+  }, [availableCredentials, form, generatedCredentialName, open]);
 
   const handleModeChange = useCallback(
     (nextMode: AddCredentialToBucketValues["mode"]) => {
@@ -619,9 +655,11 @@ function AddCredentialToBucketDialog({
         form.setValue("credentialId", availableCredentials[0]?.id ?? null, {
           shouldValidate: true,
         });
+      } else {
+        form.setValue("name", generatedCredentialName, { shouldValidate: true });
       }
     },
-    [availableCredentials, form],
+    [availableCredentials, form, generatedCredentialName],
   );
 
   const handleSubmit = form.handleSubmit(async (data) => {
@@ -652,7 +690,7 @@ function AddCredentialToBucketDialog({
           endpointId: endpoint.id,
           supplierId: endpoint.supplierId,
           upstreamId: bucket.upstreamId ?? null,
-          name: data.name!.trim(),
+          name: data.name?.trim() || generatedCredentialName,
           apiKey: data.apiKey!.trim(),
           ownerId: data.ownerId,
         });
@@ -730,7 +768,7 @@ function AddCredentialToBucketDialog({
                             <SelectContent>
                               {availableCredentials.map((credential) => (
                                 <SelectItem key={credential.id} value={String(credential.id)}>
-                                  {credential.name} - {credential.keyPrefix}
+                                  {credential.name} - {formatSecretText(credential.keyPrefix, 8)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -757,6 +795,7 @@ function AddCredentialToBucketDialog({
                           <FormLabel>{t("supplier-connections.credentials.form.name")}</FormLabel>
                           <FormControl>
                             <Input
+                              disabled
                               placeholder={t("supplier-connections.credentials.form.name-ph")}
                               value={field.value ?? ""}
                               onChange={field.onChange}
