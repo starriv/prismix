@@ -46,38 +46,14 @@ export async function consumeNonce(
  * Build an EIP-4361 compliant SIWE message.
  */
 export function buildSiweMessage(address: string, nonce: string, origin?: string): string {
-  let domain: string;
-  let uri: string;
-
-  if (origin) {
-    try {
-      const parsed = new URL(origin);
-      domain = parsed.hostname;
-      uri = parsed.origin;
-    } catch {
-      throw new Error("Invalid origin for SIWE message");
-    }
-  } else if (process.env.CORS_ORIGIN) {
-    try {
-      const parsed = new URL(process.env.CORS_ORIGIN);
-      domain = parsed.hostname;
-      uri = parsed.origin;
-    } catch {
-      throw new Error("Invalid CORS_ORIGIN configuration");
-    }
-  } else if (process.env.DOMAIN) {
-    domain = process.env.DOMAIN;
-    uri = `https://${process.env.DOMAIN}`;
-  } else {
-    throw new Error("Missing origin — set CORS_ORIGIN or DOMAIN");
-  }
+  const { messageOrigin, uri } = resolveSiweOrigin(origin);
 
   const chainId = 8453; // Base mainnet
   const issuedAt = new Date().toISOString();
   const expirationTime = new Date(Date.now() + NONCE_TTL).toISOString();
 
   return [
-    `${domain} wants you to sign in with your Ethereum account:`,
+    `${messageOrigin} wants you to sign in with your Ethereum account:`,
     address,
     "",
     "Sign in to Prismix",
@@ -89,6 +65,44 @@ export function buildSiweMessage(address: string, nonce: string, origin?: string
     `Issued At: ${issuedAt}`,
     `Expiration Time: ${expirationTime}`,
   ].join("\n");
+}
+
+export function resolveSiweOrigin(origin?: string): { messageOrigin: string; uri: string } {
+  const configuredOrigin = origin ?? process.env.CORS_ORIGIN;
+  if (configuredOrigin) {
+    try {
+      const parsed = new URL(configuredOrigin);
+      return {
+        messageOrigin: shouldUseFullLocalOrigin(parsed) ? parsed.origin : parsed.host,
+        uri: parsed.origin,
+      };
+    } catch {
+      throw new Error(
+        origin ? "Invalid origin for SIWE message" : "Invalid CORS_ORIGIN configuration",
+      );
+    }
+  }
+
+  if (process.env.NODE_ENV !== "production" && process.env.VITE_DEV_PORT) {
+    const uri = `http://localhost:${process.env.VITE_DEV_PORT}`;
+    return { messageOrigin: uri, uri };
+  }
+
+  if (process.env.DOMAIN) {
+    return {
+      messageOrigin: process.env.DOMAIN,
+      uri: `https://${process.env.DOMAIN}`,
+    };
+  }
+
+  throw new Error("Missing origin — set CORS_ORIGIN or DOMAIN");
+}
+
+function shouldUseFullLocalOrigin(origin: URL): boolean {
+  if (process.env.NODE_ENV === "production" || origin.protocol !== "http:") return false;
+
+  const hostname = origin.hostname.toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 export async function getNonceCount(): Promise<number> {

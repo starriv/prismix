@@ -5,7 +5,7 @@
  */
 import { verifyMessage } from "viem";
 
-import { consumeNonce } from "../middleware/auth";
+import { consumeNonce, resolveSiweOrigin } from "../middleware/auth";
 import { createRefreshToken, signAccessToken, validateRefreshToken } from "./jwt";
 
 // ── SIWE signature verification (EIP-4361) ──────────────────────────
@@ -52,35 +52,21 @@ export async function verifySiweSignature(
     return { ok: false, reason: "Invalid Chain ID in message" };
   }
 
-  // Derive expected domain and URI from origin header (same logic as buildSiweMessage)
-  let expectedDomain: string;
+  // Derive expected origin fields from the same logic used to build the SIWE message.
+  let expectedMessageOrigin: string;
   let expectedUri: string;
-  if (origin) {
-    try {
-      const parsed = new URL(origin);
-      expectedDomain = parsed.hostname;
-      expectedUri = parsed.origin;
-    } catch {
-      return { ok: false, reason: "Invalid origin" };
-    }
-  } else if (process.env.CORS_ORIGIN) {
-    try {
-      const parsed = new URL(process.env.CORS_ORIGIN);
-      expectedDomain = parsed.hostname;
-      expectedUri = parsed.origin;
-    } catch {
-      return { ok: false, reason: "Invalid CORS_ORIGIN configuration" };
-    }
-  } else if (process.env.DOMAIN) {
-    expectedDomain = process.env.DOMAIN;
-    expectedUri = `https://${process.env.DOMAIN}`;
-  } else {
-    return { ok: false, reason: "Missing origin — set CORS_ORIGIN or DOMAIN" };
+  try {
+    ({ messageOrigin: expectedMessageOrigin, uri: expectedUri } = resolveSiweOrigin(origin));
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : "Invalid origin",
+    };
   }
 
-  // Validate domain — must match expected domain
-  const msgDomain = lines[0]?.split(" wants you to sign in")[0];
-  if (msgDomain !== expectedDomain) {
+  // Validate requested origin — must match expected origin.
+  const msgOrigin = lines[0]?.split(" wants you to sign in")[0];
+  if (msgOrigin !== expectedMessageOrigin) {
     return { ok: false, reason: "Domain mismatch in message" };
   }
 

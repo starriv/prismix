@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { verifyMessage } from "viem";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { verifySiweSignature } from "@/server/lib/auth-flows";
 import {
   buildSiweMessage,
   consumeNonce,
@@ -50,6 +52,10 @@ const redisMock = vi.hoisted(() => {
 
 vi.mock("@/server/lib/redis", () => ({
   getRedis: () => redisMock.redis,
+}));
+
+vi.mock("viem", () => ({
+  verifyMessage: vi.fn(),
 }));
 
 describe("nonce system", () => {
@@ -130,6 +136,26 @@ describe("nonce system", () => {
 
 describe("buildSiweMessage (EIP-4361)", () => {
   const TEST_ORIGIN = "https://test.example.com";
+  const ORIGINAL_ENV = {
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
+    DOMAIN: process.env.DOMAIN,
+    NODE_ENV: process.env.NODE_ENV,
+    VITE_DEV_PORT: process.env.VITE_DEV_PORT,
+  };
+
+  beforeEach(() => {
+    delete process.env.CORS_ORIGIN;
+    delete process.env.DOMAIN;
+    delete process.env.VITE_DEV_PORT;
+    process.env.NODE_ENV = "test";
+  });
+
+  afterEach(() => {
+    restoreEnv("CORS_ORIGIN", ORIGINAL_ENV.CORS_ORIGIN);
+    restoreEnv("DOMAIN", ORIGINAL_ENV.DOMAIN);
+    restoreEnv("NODE_ENV", ORIGINAL_ENV.NODE_ENV);
+    restoreEnv("VITE_DEV_PORT", ORIGINAL_ENV.VITE_DEV_PORT);
+  });
 
   it("includes required EIP-4361 fields", () => {
     const msg = buildSiweMessage("0xABC", "nonce123", TEST_ORIGIN);
@@ -161,8 +187,14 @@ describe("buildSiweMessage (EIP-4361)", () => {
 
   it("uses request origin with port for domain and URI", () => {
     const msg = buildSiweMessage("0xABC", "n1", "https://app.example.com:8443");
-    expect(msg).toContain("app.example.com wants you to sign in");
+    expect(msg).toContain("app.example.com:8443 wants you to sign in");
     expect(msg).toContain("URI: https://app.example.com:8443");
+  });
+
+  it("uses full local HTTP origin in development", () => {
+    const msg = buildSiweMessage("0xABC", "n1", "http://localhost:5189");
+    expect(msg).toContain("http://localhost:5189 wants you to sign in");
+    expect(msg).toContain("URI: http://localhost:5189");
   });
 
   it("throws when origin is not provided and no env vars set", () => {
@@ -184,6 +216,41 @@ describe("buildSiweMessage (EIP-4361)", () => {
     }
   });
 
+  it("uses local CORS_ORIGIN as full origin in development", () => {
+    process.env.CORS_ORIGIN = "http://localhost:5189";
+    try {
+      const msg = buildSiweMessage("0xABC", "n1");
+      expect(msg).toContain("http://localhost:5189 wants you to sign in");
+      expect(msg).toContain("URI: http://localhost:5189");
+    } finally {
+      delete process.env.CORS_ORIGIN;
+    }
+  });
+
+  it("falls back to VITE_DEV_PORT in development", () => {
+    process.env.VITE_DEV_PORT = "5189";
+    try {
+      const msg = buildSiweMessage("0xABC", "n1");
+      expect(msg).toContain("http://localhost:5189 wants you to sign in");
+      expect(msg).toContain("URI: http://localhost:5189");
+    } finally {
+      delete process.env.VITE_DEV_PORT;
+    }
+  });
+
+  it("prefers VITE_DEV_PORT over DOMAIN in development", () => {
+    process.env.DOMAIN = "localhost";
+    process.env.VITE_DEV_PORT = "5189";
+    try {
+      const msg = buildSiweMessage("0xABC", "n1");
+      expect(msg).toContain("http://localhost:5189 wants you to sign in");
+      expect(msg).toContain("URI: http://localhost:5189");
+    } finally {
+      delete process.env.DOMAIN;
+      delete process.env.VITE_DEV_PORT;
+    }
+  });
+
   it("uses DOMAIN env var when origin and CORS_ORIGIN are not provided", () => {
     process.env.DOMAIN = "myapp.io";
     try {
@@ -195,3 +262,116 @@ describe("buildSiweMessage (EIP-4361)", () => {
     }
   });
 });
+
+describe("verifySiweSignature", () => {
+  const ADDR = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12";
+  const ORIGIN = "https://app.example.com";
+  const ORIGINAL_ENV = {
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
+    DOMAIN: process.env.DOMAIN,
+    NODE_ENV: process.env.NODE_ENV,
+    VITE_DEV_PORT: process.env.VITE_DEV_PORT,
+  };
+
+  beforeEach(() => {
+    redisMock.store.clear();
+    delete process.env.CORS_ORIGIN;
+    delete process.env.DOMAIN;
+    delete process.env.VITE_DEV_PORT;
+    process.env.NODE_ENV = "test";
+    vi.mocked(verifyMessage).mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    restoreEnv("CORS_ORIGIN", ORIGINAL_ENV.CORS_ORIGIN);
+    restoreEnv("DOMAIN", ORIGINAL_ENV.DOMAIN);
+    restoreEnv("NODE_ENV", ORIGINAL_ENV.NODE_ENV);
+    restoreEnv("VITE_DEV_PORT", ORIGINAL_ENV.VITE_DEV_PORT);
+    vi.mocked(verifyMessage).mockRestore();
+  });
+
+  async function signAndVerify(address: string, origin: string, scope: "user" | "admin" = "user") {
+    const nonce = await createNonce(address, scope);
+    const message = buildSiweMessage(address, nonce, origin);
+    return verifySiweSignature(address, "0xfake", message, scope, origin);
+  }
+
+  it("succeeds when nonce, message, and signature are valid", async () => {
+    const result = await signAndVerify(ADDR, ORIGIN);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("fails when nonce was already consumed (single-use)", async () => {
+    const nonce = await createNonce(ADDR);
+    const message = buildSiweMessage(ADDR, nonce, ORIGIN);
+    await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    const second = await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    expect(second).toEqual({ ok: false, reason: "Invalid or expired nonce" });
+  });
+
+  it("fails when nonce does not match the message", async () => {
+    await createNonce(ADDR);
+    const message = buildSiweMessage(ADDR, "wrong-nonce", ORIGIN);
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    expect(result).toEqual({ ok: false, reason: "Nonce mismatch" });
+  });
+
+  it("fails when address in message does not match", async () => {
+    const nonce = await createNonce(ADDR);
+    const message = buildSiweMessage("0x0000000000000000000000000000000000000001", nonce, ORIGIN);
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.reason).toContain("Address mismatch");
+  });
+
+  it("fails when domain in message does not match expected origin", async () => {
+    const nonce = await createNonce(ADDR);
+    const message = buildSiweMessage(ADDR, nonce, "https://evil.com");
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.reason).toContain("Domain mismatch");
+  });
+
+  it("fails when URI in message does not match expected origin", async () => {
+    const nonce = await createNonce(ADDR);
+    let message = buildSiweMessage(ADDR, nonce, ORIGIN);
+    message = message.replace("URI: https://app.example.com", "URI: https://evil.com");
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "user", ORIGIN);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.reason).toContain("URI mismatch");
+  });
+
+  it("fails when signature verification returns false", async () => {
+    vi.mocked(verifyMessage).mockResolvedValue(false);
+    const result = await signAndVerify(ADDR, ORIGIN);
+    expect(result).toEqual({ ok: false, reason: "Signature verification failed" });
+  });
+
+  it("fails when origin is malformed", async () => {
+    const nonce = await createNonce(ADDR);
+    const message = buildSiweMessage(ADDR, nonce, ORIGIN);
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "user", "not-a-url");
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.reason).toContain("Invalid origin");
+  });
+
+  it("succeeds with localhost dev origin including scheme", async () => {
+    const result = await signAndVerify(ADDR, "http://localhost:5189");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("isolates user and admin scopes during verification", async () => {
+    const userNonce = await createNonce(ADDR, "user");
+    const message = buildSiweMessage(ADDR, userNonce, ORIGIN);
+    const result = await verifySiweSignature(ADDR, "0xfake", message, "admin", ORIGIN);
+    expect(result).toEqual({ ok: false, reason: "Invalid or expired nonce" });
+  });
+});
+
+function restoreEnv(key: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
