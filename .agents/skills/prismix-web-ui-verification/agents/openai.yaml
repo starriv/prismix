@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prismix Web UI Verification"
+  short_description: "Browser verification for Prismix UI changes"
+  default_prompt: "Use $prismix-web-ui-verification before accepting any Prismix web UI change."
