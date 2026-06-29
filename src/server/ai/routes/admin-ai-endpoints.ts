@@ -342,7 +342,7 @@ router.post("/endpoints", async (c) => {
     return c.json({ error: "Supplier not found or disabled" }, 400);
 
   const existing = await aiEndpointRepo.findByEndpointId(rest.endpointId);
-  if (existing) return c.json({ error: "Endpoint ID already exists" }, 409);
+  if (existing) return c.json({ error: "Supplier connection ID already exists" }, 409);
 
   const authMode = inferAuthMode({
     authMode: requestedAuthMode,
@@ -392,7 +392,7 @@ router.put("/endpoints/:id", async (c) => {
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
   const existing = await aiEndpointRepo.findById(id);
-  if (!existing) return c.json({ error: "Endpoint not found" }, 404);
+  if (!existing) return c.json({ error: "Supplier connection not found" }, 404);
 
   const parsed = await parseBody(c, updateAiEndpointBody);
   if (!parsed.ok) return parsed.response;
@@ -511,7 +511,7 @@ router.delete("/endpoints/:id", async (c) => {
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
   const existing = await aiEndpointRepo.findById(id);
-  if (!existing) return c.json({ error: "Endpoint not found" }, 404);
+  if (!existing) return c.json({ error: "Supplier connection not found" }, 404);
 
   await aiEndpointRepo.delete(id);
   emitEndpointInvalidated(id);
@@ -525,7 +525,7 @@ router.get("/endpoints/:id/credentials", async (c) => {
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(id);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const credentials = await aiEndpointCredentialRepo.findByEndpointId(id);
   return ok(c, await formatEndpointCredentials(credentials));
@@ -539,7 +539,7 @@ router.get("/endpoints/:id/upstreams", async (c) => {
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(id);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const assignments = await aiUpstreamAssignmentRepo.findByEndpointId(id);
   return ok(
@@ -563,7 +563,7 @@ router.post("/endpoints/:id/upstreams", async (c) => {
   if (Number.isNaN(id)) return c.json({ error: "Invalid id" }, 400);
 
   const endpoint = await aiEndpointRepo.findById(id);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const parsed = await parseBody(c, createAiUpstreamAssignmentBody);
   if (!parsed.ok) return parsed.response;
@@ -575,7 +575,8 @@ router.post("/endpoints/:id/upstreams", async (c) => {
     id,
     parsed.data.upstreamId,
   );
-  if (existing) return c.json({ error: "Upstream already assigned to this endpoint" }, 409);
+  if (existing)
+    return c.json({ error: "Upstream already assigned to this supplier connection" }, 409);
 
   const created = await aiUpstreamAssignmentRepo.create({
     endpointId: id,
@@ -603,7 +604,7 @@ router.put("/endpoints/:endpointId/upstreams/:assignmentId", async (c) => {
   }
 
   const endpoint = await aiEndpointRepo.findById(endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   const existing = await aiUpstreamAssignmentRepo.findById(assignmentId);
   if (!existing || existing.endpointId !== endpointId) {

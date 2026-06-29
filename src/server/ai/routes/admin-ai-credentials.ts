@@ -85,7 +85,7 @@ async function validateEndpointCredentialTarget(
 ) {
   const endpoint = await aiEndpointRepo.findById(endpointId);
   if (!endpoint || !endpoint.enabled) {
-    return { ok: false as const, response: { error: "Endpoint not found or disabled" } };
+    return { ok: false as const, response: { error: "Supplier connection not found or disabled" } };
   }
 
   const credential = await aiCredentialRepo.findById(credentialId);
@@ -296,7 +296,7 @@ router.post("/endpoint-credentials/:id/test", async (c) => {
   if (!endpointCredential) return c.json({ error: "Endpoint credential not found" }, 404);
 
   const endpoint = await aiEndpointRepo.findWithSupplierById(endpointCredential.endpointId);
-  if (!endpoint) return c.json({ error: "Endpoint not found" }, 404);
+  if (!endpoint) return c.json({ error: "Supplier connection not found" }, 404);
 
   let plainKey: string;
   try {
