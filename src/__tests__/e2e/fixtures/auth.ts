@@ -19,7 +19,7 @@ export const test = base.extend<AuthFixtures>({
     // Inject tokens and E2E flag before any page JS executes
     await page.addInitScript(() => {
       localStorage.setItem("prismix_admin_token", "e2e-test-jwt-token");
-      localStorage.setItem("prismix_refresh_token", "e2e-test-refresh-token");
+      localStorage.setItem("prismix_admin_refresh_token", "e2e-test-refresh-token");
       (window as unknown as Record<string, unknown>).__E2E_SKIP_DISCONNECT__ = true;
     });
 
