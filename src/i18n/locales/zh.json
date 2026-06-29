@@ -136,7 +136,7 @@
   },
   "dash": {
     "title": "仪表盘",
-    "desc": "Prismix AI 网关概览",
+    "desc": "快速查看网关请求量、Token 消耗、成本和错误情况。",
     "announce": {
       "dismiss": "关闭",
       "dismiss-all": "全部关闭",
@@ -172,7 +172,7 @@
   },
   "agents": {
     "title": "Pay Agent 管理",
-    "desc": "管理 Pay Agent 和账本余额",
+    "desc": "管理 Pay Agent 的钱包、余额和扣费来源。",
     "card-title": "Pay Agent 列表",
     "empty": "暂无 Agent，创建一个 Pay Agent 来自动化支付。",
     "dialog-title": "创建 Pay Agent",
@@ -275,7 +275,7 @@
   },
   "settings": {
     "title": "设置",
-    "desc": "管理你的账号设置",
+    "desc": "调整账号、安全和 AI 网关的默认设置。",
     "admin": {
       "title": "账号",
       "desc": "已注册的身份信息",
@@ -375,7 +375,7 @@
   },
   "admin": {
     "login-title": "管理面板",
-    "login-desc": "连接钱包并签名以访问管理面板",
+    "login-desc": "用管理员钱包登录，进入团队的 Prismix 控制台。",
     "sign-in-btn": "管理员登录",
     "not-admin": "此账号未注册为管理员，请联系系统管理员。",
     "back": "返回登录",
@@ -394,7 +394,7 @@
     },
     "gateway": {
       "title": "网关韧性",
-      "desc": "配置速率限制、熔断器、超时和队列背压",
+      "desc": "设置限流、超时、熔断和队列保护，让网关在高峰和故障时更稳。",
       "tab": {
         "rate-limit": "速率限制",
         "circuit-breaker": "熔断器",
@@ -452,7 +452,7 @@
     },
     "key-providers": {
       "title": "密钥合作方",
-      "desc": "管理第三方 AI Key 合作方及分润配置",
+      "desc": "管理外部 Key 合作方、余额和分润规则。",
       "table-empty": "暂无密钥合作方",
       "th": {
         "share": "分润比例",
@@ -495,7 +495,7 @@
       "report": {
         "title": "{{name}} 报告",
         "title-fallback": "密钥合作方报告",
-        "desc": "详细的对账和 Key 维度盈利分析。",
+        "desc": "查看合作方 Key 的请求量、成本、收入和利润表现。",
         "back": "返回密钥合作方",
         "invalid-id": "缺少或无效的合作方 ID。"
       },
@@ -519,7 +519,7 @@
     },
     "announce": {
       "title": "系统公告",
-      "desc": "编写并向所有用户广播系统公告",
+      "desc": "发布面向用户和管理员的系统公告，并跟踪投放状态。",
       "btn": {
         "compose": "编写",
         "send": "发送",
@@ -599,7 +599,7 @@
     },
     "admins": {
       "title": "管理员",
-      "desc": "管理可以访问此面板的管理员账号",
+      "desc": "维护能登录管理台的成员，控制后台访问权限。",
       "add": "添加管理员",
       "empty": "暂无管理员",
       "name": "名称",
@@ -628,7 +628,7 @@
     },
     "withdraw": {
       "title": "提现订单",
-      "desc": "审核和管理用户提现请求",
+      "desc": "审核提现申请，完成放款或退回原因说明。",
       "card-title": "订单列表",
       "empty": "暂无提现订单",
       "detail": {
@@ -698,7 +698,7 @@
     },
     "login-strategies": {
       "title": "登录策略",
-      "desc": "配置用户可用的认证方式",
+      "desc": "选择用户可以使用的登录方式，并配置对应凭据。",
       "save": "保存更改",
       "always-on": "始终开启",
       "confirm-clear-title": "{{provider}} 已禁用",
@@ -775,7 +775,7 @@
     },
     "users": {
       "title": "用户管理",
-      "desc": "管理所有已注册的用户",
+      "desc": "查看用户、钱包余额和账户状态，必要时为用户处理充值。",
       "th": {
         "id": "ID",
         "uuid": "UUID",
@@ -832,7 +832,7 @@
     },
     "notif": {
       "title": "通知渠道配置",
-      "desc": "配置平台级通知渠道",
+      "desc": "配置邮件、Telegram、Webhook 等平台通知渠道。",
       "email-title": "邮件",
       "email-desc": "通过 SMTP 或 Resend API 发送通知",
       "telegram-title": "Telegram",
@@ -877,7 +877,7 @@
     },
     "networks": {
       "title": "网络管理",
-      "desc": "管理支持的区块链网络和 RPC 端点",
+      "desc": "维护可用链和 RPC，保证充值、提现和链上校验可用。",
       "empty": "尚未配置任何网络，添加您的第一个网络以开始使用。",
       "hint": "网络配置在所有商户间共享。代币配置在单独页面管理。",
       "rpc-url-ph": "输入 RPC URL",
@@ -905,7 +905,7 @@
     },
     "tokens": {
       "title": "代币管理",
-      "desc": "管理允许的代币及其在各网络上的合约地址",
+      "desc": "维护可充值和提现的代币，以及各网络上的合约地址。",
       "empty": "尚未配置任何代币，添加您的第一个代币以开始使用。",
       "dialog-title": "添加代币",
       "no-networks": "当前没有已启用的网络，请先启用至少一个网络再添加代币。",
@@ -950,7 +950,7 @@
       "badge": "AI 网关 · 多供应商 · 统一 API",
       "title-1": "所有 AI，",
       "title-2": "一个端点。",
-      "desc": "通过一个 OpenAI 兼容 API 路由到任意供应商。负载均衡、自动故障转移和用量追踪，尽在控制台。",
+      "desc": "一个兼容 OpenAI 的入口，帮你统一路由、故障切换和用量统计。",
       "protocol": "OpenAI 兼容 · 多供应商 · 用量追踪",
       "feat": {
         "fast": {
@@ -1010,7 +1010,7 @@
   },
   "notif": {
     "title": "通知",
-    "desc": "配置通知规则和查看投递日志",
+    "desc": "设置关键事件通知，确认消息是否成功送达。",
     "tab": {
       "configs": "通知",
       "logs": "日志"
@@ -1126,7 +1126,7 @@
   },
   "webhook": {
     "title": "Webhooks",
-    "desc": "管理用于事件驱动集成的 Webhook 端点",
+    "desc": "把订单、钱包和网关事件推送到你的系统。",
     "table-empty": "尚未配置 Webhook 端点。",
     "btn": {
       "add": "添加端点",
@@ -1236,7 +1236,7 @@
       "ai-title-1": "统一 AI 网关",
       "ai-title-2": "一个端点，接入多家模型供应商",
       "ai-tagline": "统一接入 · 智能路由 · 用量计费",
-      "ai-desc": "专门适配 Claude Code，同时兼容 OpenAI SDK、Gemini SDK 等客户端。内置上游路由、故障转移、访问控制与用量计费。",
+      "ai-desc": "把 Claude Code、OpenAI SDK 和 Gemini SDK 接到同一个 AI 网关，自动选择可用上游，记录用量和费用。",
       "cta-primary": "开始接入",
       "cta-secondary": "阅读文档"
     },
@@ -1348,7 +1348,7 @@
     },
     "hub": {
       "title": "Prismix 文档",
-      "desc": "使用指南、部署方案和安全架构。",
+      "desc": "快速了解如何部署、接入和安全运行 Prismix。",
       "security": "安全架构",
       "security-desc": "多层纵深防御设计，保护网关、凭证和上游 API。",
       "architecture": "系统架构",
@@ -1356,7 +1356,7 @@
     },
     "production": {
       "title": "生产部署",
-      "desc": "完整生产技术栈，持久化数据库 + 分布式缓存，支持多实例水平扩展。",
+      "desc": "按生产环境需要部署数据库、缓存和 Prismix 服务。",
       "arch": {
         "title": "架构",
         "prismix": "Node.js 应用，同时提供 API 和 React SPA",
@@ -1456,7 +1456,7 @@
     },
     "security": {
       "title": "安全架构",
-      "desc": "多层安全设计，保护 AI 网关、上游 API 和 API 凭证。",
+      "desc": "了解 Prismix 如何保护登录、API 密钥、上游请求和自定义脚本。",
       "arch": {
         "title": "纵深防御架构",
         "desc": "每个请求经过多个安全层后才到达上游 API。每一层独立运行——单一层被绕过不会影响其他层。",
@@ -1532,7 +1532,7 @@
     },
     "arch": {
       "title": "系统架构",
-      "desc": "网关管道、认证系统、多租户、签名引擎和性能优化。",
+      "desc": "看清一次请求从鉴权、路由到上游响应的完整路径。",
       "flow": {
         "title": "网关管道",
         "desc": "一次 HTTP 往返：402 → 支付 → 验证 → 转发 → 完成。热路径从不阻塞数据库 I/O。所有写入均为异步。"
@@ -1563,7 +1563,7 @@
     },
     "db": {
       "title": "数据库与升级",
-      "desc": "Schema 管理、迁移工作流与升级流程。",
+      "desc": "了解数据库表结构、迁移流程和日常维护方式。",
       "supported": {
         "title": "支持的数据库",
         "th": {
@@ -1722,7 +1722,7 @@
     },
     "brand": {
       "title": "品牌规范",
-      "desc": "Logo、色彩、字体和设计系统规范。",
+      "desc": "统一 Logo、色彩、排版和界面文案，让产品体验保持一致。",
       "overview": {
         "title": "品牌概述",
         "desc": "Prismix 是自托管 AI 网关，提供统一多供应商 API 访问。单色设计，开发者优先，基础设施原生。",
@@ -2145,11 +2145,11 @@
   "error": {
     "403": {
       "title": "无权访问",
-      "desc": "您没有权限查看此页面。"
+      "desc": "当前账号没有访问这个页面的权限。"
     },
     "404": {
       "title": "页面不存在",
-      "desc": "您访问的页面不存在或已被移除。"
+      "desc": "这个地址没有对应页面，可能已移动或被删除。"
     },
     "btn": {
       "back": "返回上页",
@@ -2159,7 +2159,7 @@
   },
   "ledger": {
     "title": "交易记录",
-    "desc": "所有钱包交易 — 充值、提现、AI 扣费、退款",
+    "desc": "查看充值、提现、扣费、退款等所有钱包流水。",
     "table-title": "交易明细",
     "empty": "暂无交易记录",
     "filter": {
@@ -2189,7 +2189,7 @@
   },
   "fiat": {
     "title": "收款方式",
-    "desc": "配置 Agent 充值的法币收款方式",
+    "desc": "配置线下收款方式，方便用户提交法币充值。",
     "valid": {
       "display-name-required": "请输入显示名称",
       "unsupported-image-type": "仅支持 PNG、JPEG、GIF 或 WebP 格式的图片"
@@ -2252,7 +2252,7 @@
   },
   "topup": {
     "title": "充值订单",
-    "desc": "查看并管理已创建的充值订单",
+    "desc": "跟进用户充值订单，确认付款并处理异常。",
     "card-title": "充值订单",
     "table-empty": "暂无充值订单",
     "filter": {
@@ -2309,7 +2309,7 @@
   },
   "ai-suppliers": {
     "title": "供应商",
-    "desc": "管理真实 AI 供应商，配置默认认证和官方并发；供应商连接可继承或覆盖。",
+    "desc": "维护模型供应商的基础信息、默认认证方式和并发能力。",
     "empty": "暂无供应商",
     "none": "无",
     "btn": {
@@ -2377,7 +2377,7 @@
   },
   "ai-models": {
     "title": "AI 模型",
-    "desc": "管理模型目录与供应商连接路由",
+    "desc": "维护对外开放的模型、价格和供应商路由。",
     "empty": "暂无已配置的模型",
     "card-title": "模型目录",
     "no-endpoints": "暂无已配置的供应商连接",
@@ -2516,7 +2516,7 @@
   },
   "user-models": {
     "title": "模型目录",
-    "desc": "您账户可用的模型及定价",
+    "desc": "查看当前账户可用模型、价格和能力标签。",
     "catalog-title": "模型列表",
     "markup-note": "价格已包含 {{markup}}% 服务费",
     "empty": "暂无可用模型",
@@ -2539,7 +2539,7 @@
   },
   "access-endpoints": {
     "title": "接入端点",
-    "desc": "为客户端 SDK 暴露按协议分离的 Base URL，共享路由、计费和用量追踪",
+    "desc": "给不同客户端准备可直接复制的接入地址，统一路由、计费和用量统计。",
     "intro": {
       "title": "什么是接入端点？",
       "body": "Prismix 暴露独立的 OpenAI 兼容和 Anthropic 兼容 Base URL。每个接入端点对应一种客户端协议，底层共享供应商连接路由、计费和用量追踪。",
@@ -2564,7 +2564,7 @@
   },
   "ai-usage": {
     "title": "AI 用量",
-    "desc": "Token 消耗与请求统计",
+    "desc": "查看请求量、Token 消耗和费用变化，定位主要使用来源。",
     "stats": {
       "requests": "总请求数",
       "input-tokens": "输入 Token",
@@ -2625,7 +2625,7 @@
   },
   "ai-logs": {
     "title": "AI 网关日志",
-    "desc": "AI 模型中继的请求级日志",
+    "desc": "按请求查看模型、上游、Token、耗时和错误详情。",
     "card-title": "请求日志",
     "live": "实时",
     "table-empty": "暂无 AI 日志",
@@ -2671,11 +2671,11 @@
   },
   "ai-errors": {
     "title": "AI 网关错误",
-    "desc": "4xx / 5xx 错误概览与近期趋势"
+    "desc": "集中查看 4xx/5xx 错误趋势，找到最常出问题的时间段。"
   },
   "ai-upstreams": {
     "title": "AI 上游",
-    "desc": "查看已配置 upstream 的实时状态、最近流量与错误情况",
+    "desc": "查看上游是否可用，及时发现慢请求、错误和流量异常。",
     "empty": "当前还没有配置任何 upstream",
     "never": "从未",
     "health": {
@@ -2812,7 +2812,7 @@
   },
   "consumer-keys": {
     "title": "消费者密钥",
-    "desc": "为最终用户发放 API 密钥 — 计费由关联的 Pay Agent 统一管理",
+    "desc": "给客户或应用发放独立 API Key，按 Pay Agent 统一计费。",
     "empty": "尚未创建消费者密钥",
     "never": "从未使用",
     "btn": {
@@ -2904,7 +2904,7 @@
     },
     "login": {
       "title": "登录您的账户",
-      "desc": "访问您的 API 密钥和用量仪表盘",
+      "desc": "登录后查看 API Key、用量、账单和可用模型。",
       "sign-in-btn": "使用钱包登录",
       "register-btn": "创建账户",
       "have-account": "已有账户？去登录",
@@ -2914,7 +2914,7 @@
     },
     "dash": {
       "title": "仪表盘",
-      "desc": "查看您的 API 用量和钱包概览",
+      "desc": "查看你的余额、API Key、请求量和近期用量变化。",
       "requests": "总请求数",
       "spend": "总花费",
       "balance": "钱包余额",
@@ -2932,7 +2932,7 @@
     },
     "keys": {
       "title": "我的 API 密钥",
-      "desc": "管理您的消费者 API 密钥",
+      "desc": "创建和管理你的 API Key，用于调用 Prismix 网关。",
       "empty": "暂无 API 密钥，创建一个开始使用。",
       "action": {
         "delete": "删除",
@@ -2993,11 +2993,11 @@
     },
     "errors": {
       "title": "错误",
-      "desc": "查看您自己的 4xx / 5xx 错误概览与趋势"
+      "desc": "查看你的请求错误趋势，快速判断是鉴权、限流还是上游问题。"
     },
     "settings": {
       "title": "设置",
-      "desc": "管理您的个人资料",
+      "desc": "更新个人信息、登录方式和钱包相关设置。",
       "profile-title": "个人资料",
       "wallet-title": "钱包地址",
       "wallet-desc": "查看你的链上钱包地址和当前支持的区块链网络。",
@@ -3015,7 +3015,7 @@
     },
     "endpoint": {
       "title": "API 端点",
-      "desc": "通过按协议分离的端点连接 Claude Code 和 OpenAI SDK 客户端",
+      "desc": "复制可直接用于 Claude Code、OpenAI SDK 和 Gemini SDK 的接入地址。",
       "copied": "已复制到剪贴板",
       "intro-title": "推荐接入：Claude Code",
       "intro-body": "如果你主要使用 Claude Code，请把 ANTHROPIC_BASE_URL 和 ANTHROPIC_API_KEY 指向 Anthropic 端点。OpenAI SDK 客户端应使用 OpenAI 端点。Prismix 会在后台处理模型路由、用量追踪和计费。",
@@ -3028,7 +3028,7 @@
     },
     "wallet": {
       "title": "钱包",
-      "desc": "管理你的 USDC 余额、充值和提现",
+      "desc": "管理 USDC 余额，发起充值、提现和法币订单。",
       "balance": "可用余额",
       "balance-tooltip": "本站统一使用 USDC 结算。无论你通过加密货币还是法币充值，最终都会按规则换算并以 USDC 计入余额。",
       "deposit": "充值",
@@ -3162,12 +3162,12 @@
     },
     "transactions": {
       "title": "交易",
-      "desc": "查看钱包的充值、提现、支付和 AI 使用记录"
+      "desc": "查看充值、提现、扣费和退款的完整流水。"
     }
   },
   "ai-credentials": {
     "title": "AI 凭证",
-    "desc": "集中管理真实供应商 API 密钥，并在多个连接器凭证池中复用。",
+    "desc": "集中保存供应商 API Key，在不同连接和凭证池中安全复用。",
     "add": "添加凭证",
     "empty": "暂无 AI 凭证",
     "platform": "平台自有",
@@ -3210,7 +3210,7 @@
   },
   "supplier-connections": {
     "title": "供应商连接",
-    "desc": "管理真实供应商下可调用的 API 连接、协议格式、认证方式和凭证池。",
+    "desc": "把供应商账号接入 Prismix，设置协议、鉴权和可用凭证。",
     "empty": "暂未配置供应商连接",
     "card": {
       "upstreams": "{{count}} 个上游",

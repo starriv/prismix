@@ -136,7 +136,7 @@
   },
   "dash": {
     "title": "Dashboard",
-    "desc": "Overview of your Prismix AI gateway",
+    "desc": "See gateway traffic, token usage, cost, and errors at a glance.",
     "announce": {
       "dismiss": "Dismiss",
       "dismiss-all": "Dismiss All",
@@ -172,7 +172,7 @@
   },
   "agents": {
     "title": "Pay Agent Management",
-    "desc": "Manage your pay agents and ledger balances",
+    "desc": "Manage pay agent wallets, balances, and charging sources.",
     "card-title": "Pay Agents",
     "empty": "No agents yet. Create a pay agent to automate payments.",
     "dialog-title": "Create Pay Agent",
@@ -275,7 +275,7 @@
   },
   "settings": {
     "title": "Settings",
-    "desc": "Manage your account and wallet",
+    "desc": "Tune account, security, and AI gateway defaults.",
     "admin": {
       "title": "Account",
       "desc": "Your registered identity",
@@ -375,7 +375,7 @@
   },
   "admin": {
     "login-title": "Admin Panel",
-    "login-desc": "Connect your wallet and sign in to access the admin panel",
+    "login-desc": "Sign in with an admin wallet to open the Prismix console.",
     "sign-in-btn": "Sign In as Admin",
     "not-admin": "This account is not registered as an admin. Please contact the system administrator.",
     "back": "Back to login",
@@ -394,7 +394,7 @@
     },
     "gateway": {
       "title": "Gateway Resilience",
-      "desc": "Configure rate limiting, circuit breakers, timeouts, and queue backpressure",
+      "desc": "Set rate limits, timeouts, circuit breakers, and queue protection to keep the gateway stable.",
       "tab": {
         "rate-limit": "Rate Limiting",
         "circuit-breaker": "Circuit Breaker",
@@ -452,7 +452,7 @@
     },
     "key-providers": {
       "title": "Key Providers",
-      "desc": "Manage third-party AI key providers and revenue sharing",
+      "desc": "Manage external key partners, balances, and revenue-share rules.",
       "table-empty": "No key providers yet",
       "th": {
         "share": "Revenue Share",
@@ -495,7 +495,7 @@
       "report": {
         "title": "{{name}} Report",
         "title-fallback": "Key Provider Report",
-        "desc": "Detailed reconciliation and key-level profitability.",
+        "desc": "Review each partner key's traffic, cost, revenue, and profit.",
         "back": "Back to key providers",
         "invalid-id": "Missing or invalid provider ID."
       },
@@ -519,7 +519,7 @@
     },
     "announce": {
       "title": "System Announcements",
-      "desc": "Compose and broadcast announcements to all users",
+      "desc": "Publish system announcements for users and admins, then track delivery status.",
       "btn": {
         "compose": "Compose",
         "send": "Send",
@@ -599,7 +599,7 @@
     },
     "admins": {
       "title": "Admin Members",
-      "desc": "Manage admin accounts who can access this panel",
+      "desc": "Maintain who can sign in to the admin console and control backend access.",
       "add": "Add Admin",
       "empty": "No admin members yet",
       "name": "Name",
@@ -628,7 +628,7 @@
     },
     "withdraw": {
       "title": "Withdrawal Orders",
-      "desc": "Review and manage user withdrawal requests",
+      "desc": "Review withdrawal requests, complete payouts, or send rejection notes.",
       "card-title": "Orders",
       "empty": "No withdrawal orders",
       "detail": {
@@ -698,7 +698,7 @@
     },
     "login-strategies": {
       "title": "Login Strategies",
-      "desc": "Configure which authentication methods are available to users",
+      "desc": "Choose which sign-in methods users can use and configure the required credentials.",
       "save": "Save Changes",
       "always-on": "Always On",
       "confirm-clear-title": "{{provider}} disabled",
@@ -775,7 +775,7 @@
     },
     "users": {
       "title": "Users",
-      "desc": "Manage all registered users",
+      "desc": "Review users, wallet balances, and account status, then credit users when needed.",
       "th": {
         "id": "ID",
         "uuid": "UUID",
@@ -832,7 +832,7 @@
     },
     "notif": {
       "title": "Notification Providers",
-      "desc": "Configure platform-level notification channels",
+      "desc": "Configure platform channels such as email, Telegram, and webhooks.",
       "email-title": "Email",
       "email-desc": "Send notifications via SMTP or Resend API",
       "telegram-title": "Telegram",
@@ -877,7 +877,7 @@
     },
     "networks": {
       "title": "Network Management",
-      "desc": "Manage supported blockchain networks and RPC endpoints",
+      "desc": "Keep chains and RPCs ready for deposits, withdrawals, and on-chain checks.",
       "empty": "No networks configured yet. Add your first network to get started.",
       "hint": "Networks are shared across all merchants. Token configuration is managed separately.",
       "rpc-url-ph": "Enter RPC URL",
@@ -905,7 +905,7 @@
     },
     "tokens": {
       "title": "Token Management",
-      "desc": "Manage allowed tokens and their contract addresses across networks",
+      "desc": "Maintain the tokens users can deposit or withdraw and their contract addresses.",
       "empty": "No tokens configured yet. Add your first token to get started.",
       "dialog-title": "Add Token",
       "no-networks": "No networks are enabled. Please enable at least one network before adding tokens.",
@@ -950,7 +950,7 @@
       "badge": "AI Gateway · Multi-Provider · Unified API",
       "title-1": "All your AI,",
       "title-2": "one endpoint.",
-      "desc": "Route requests to any provider through a single OpenAI-compatible API. Load balancing, failover, and usage tracking — all from one dashboard.",
+      "desc": "One OpenAI-compatible entry point for routing, failover, and usage tracking.",
       "protocol": "OpenAI-compatible · Multi-Provider · Usage Tracking",
       "feat": {
         "fast": {
@@ -1010,7 +1010,7 @@
   },
   "notif": {
     "title": "Notifications",
-    "desc": "Configure notification rules and view delivery logs",
+    "desc": "Set up event notifications and confirm each message was delivered.",
     "tab": {
       "configs": "Notifications",
       "logs": "Logs"
@@ -1126,7 +1126,7 @@
   },
   "webhook": {
     "title": "Webhooks",
-    "desc": "Manage webhook endpoints for event-driven integrations",
+    "desc": "Push order, wallet, and gateway events into your own system.",
     "table-empty": "No webhook endpoints configured yet.",
     "btn": {
       "add": "Add Endpoint",
@@ -1236,7 +1236,7 @@
       "ai-title-1": "Unified AI Gateway",
       "ai-title-2": "One Endpoint for Multiple Model Providers",
       "ai-tagline": "Unified Access · Smart Routing · Usage Billing",
-      "ai-desc": "Tailored for Claude Code, while remaining compatible with the OpenAI SDK, Gemini SDK, and other clients. Includes upstream routing, failover, access control, and usage billing.",
+      "ai-desc": "Connect Claude Code, the OpenAI SDK, and the Gemini SDK to one AI gateway that picks healthy upstreams and tracks usage.",
       "cta-primary": "Get Started",
       "cta-secondary": "Read Docs"
     },
@@ -1348,7 +1348,7 @@
     },
     "hub": {
       "title": "Prismix Documentation",
-      "desc": "Guides, deployment options, and security architecture for your AI gateway.",
+      "desc": "Learn how to deploy, connect, and run Prismix safely.",
       "security": "Security Architecture",
       "security-desc": "Multi-layered defense-in-depth design protecting the gateway, credentials, and upstream APIs.",
       "architecture": "System Architecture",
@@ -1356,7 +1356,7 @@
     },
     "production": {
       "title": "Production Deployment",
-      "desc": "Full production stack with persistent database, distributed cache, and multi-instance scaling support.",
+      "desc": "Deploy the database, cache, and Prismix service for production use.",
       "arch": {
         "title": "Architecture",
         "prismix": "Node.js app serving both the API and the React SPA",
@@ -1456,7 +1456,7 @@
     },
     "security": {
       "title": "Security Architecture",
-      "desc": "Multi-layered security design protecting the AI gateway, upstream APIs, and user credentials.",
+      "desc": "See how Prismix protects sign-in, API keys, upstream requests, and custom scripts.",
       "arch": {
         "title": "Defense-in-Depth Architecture",
         "desc": "Every request passes through multiple security layers before reaching the upstream API. Each layer is independent — a bypass of one layer does not compromise the others.",
@@ -1532,7 +1532,7 @@
     },
     "arch": {
       "title": "System Architecture",
-      "desc": "Gateway pipeline, authentication, multi-tenancy, signing engines, and performance.",
+      "desc": "Follow a request from authentication and routing through the upstream response.",
       "flow": {
         "title": "Gateway Pipeline",
         "desc": "One HTTP round-trip: 402 → pay → verified → forwarded → done. The hot path never blocks on database I/O. All writes are async."
@@ -1563,7 +1563,7 @@
     },
     "db": {
       "title": "Database & Upgrades",
-      "desc": "Schema management, migration workflow, and upgrade procedures.",
+      "desc": "Understand the database schema, migration flow, and day-to-day maintenance.",
       "supported": {
         "title": "Supported Databases",
         "th": {
@@ -1722,7 +1722,7 @@
     },
     "brand": {
       "title": "Brand Guidelines",
-      "desc": "Logo, colors, typography, and design system conventions.",
+      "desc": "Keep the logo, colors, typography, and product copy consistent.",
       "overview": {
         "title": "Brand Overview",
         "desc": "Prismix is a self-hosted AI gateway with unified multi-provider API access. Monochrome design, developer-first, infrastructure-native.",
@@ -2145,11 +2145,11 @@
   "error": {
     "403": {
       "title": "Access Denied",
-      "desc": "You don't have permission to view this page."
+      "desc": "The current account cannot access this page."
     },
     "404": {
       "title": "Page Not Found",
-      "desc": "The page you're looking for doesn't exist or has been moved."
+      "desc": "No page exists at this address. It may have moved or been removed."
     },
     "btn": {
       "back": "Go Back",
@@ -2159,7 +2159,7 @@
   },
   "ledger": {
     "title": "Transaction Ledger",
-    "desc": "All wallet transactions — deposits, withdrawals, AI charges, and refunds",
+    "desc": "Review every wallet entry, including deposits, withdrawals, charges, and refunds.",
     "table-title": "Transactions",
     "empty": "No transactions yet",
     "filter": {
@@ -2189,7 +2189,7 @@
   },
   "fiat": {
     "title": "Payment Methods",
-    "desc": "Configure fiat payment methods for agent top-ups",
+    "desc": "Set up offline payment methods so users can submit fiat deposits.",
     "valid": {
       "display-name-required": "Display name is required",
       "unsupported-image-type": "Only PNG, JPEG, GIF, or WebP images are accepted"
@@ -2252,7 +2252,7 @@
   },
   "topup": {
     "title": "Top-up Orders",
-    "desc": "View and manage created deposit orders",
+    "desc": "Follow up on deposit orders, confirm payments, and handle exceptions.",
     "card-title": "Top-up Orders",
     "table-empty": "No top-up orders found",
     "filter": {
@@ -2309,7 +2309,7 @@
   },
   "ai-suppliers": {
     "title": "Suppliers",
-    "desc": "Manage real AI suppliers, default auth, and official concurrency. Supplier connections can inherit or override these defaults.",
+    "desc": "Maintain model suppliers, default authentication, and official concurrency limits.",
     "empty": "No suppliers configured yet",
     "none": "None",
     "btn": {
@@ -2377,7 +2377,7 @@
   },
   "ai-models": {
     "title": "AI Models",
-    "desc": "Manage model catalog and supplier connection routes",
+    "desc": "Maintain the models, prices, and supplier routes you expose to clients.",
     "empty": "No models configured",
     "card-title": "Model Catalog",
     "no-endpoints": "No supplier connections configured",
@@ -2516,7 +2516,7 @@
   },
   "user-models": {
     "title": "Model Catalog",
-    "desc": "Available models and pricing for your account",
+    "desc": "See the models, prices, and capability tags available to your account.",
     "catalog-title": "Models",
     "markup-note": "Prices include {{markup}}% service fee",
     "empty": "No models available",
@@ -2539,7 +2539,7 @@
   },
   "access-endpoints": {
     "title": "Access Endpoints",
-    "desc": "Expose protocol-specific base URLs for client SDKs with shared routing, billing, and usage tracking",
+    "desc": "Copy ready-to-use endpoints for each client while Prismix handles routing, billing, and usage.",
     "intro": {
       "title": "What are Access Endpoints?",
       "body": "Prismix exposes separate OpenAI-compatible and Anthropic-compatible base URLs. Each access endpoint has its own client protocol while sharing supplier-connection routing, billing, and usage tracking behind the scenes.",
@@ -2564,7 +2564,7 @@
   },
   "ai-usage": {
     "title": "AI Usage",
-    "desc": "Token consumption and request statistics",
+    "desc": "Track requests, token usage, spend, and the sources driving usage.",
     "stats": {
       "requests": "Total Requests",
       "input-tokens": "Input Tokens",
@@ -2625,7 +2625,7 @@
   },
   "ai-logs": {
     "title": "AI Gateway Logs",
-    "desc": "Request-level logs for AI model relay",
+    "desc": "Inspect each request's model, upstream, tokens, latency, and error details.",
     "card-title": "Request Logs",
     "live": "Live",
     "table-empty": "No AI logs found",
@@ -2671,11 +2671,11 @@
   },
   "ai-errors": {
     "title": "AI Gateway Errors",
-    "desc": "4xx / 5xx error overview and recent error trends"
+    "desc": "Watch 4xx/5xx error trends and spot the periods causing the most trouble."
   },
   "ai-upstreams": {
     "title": "AI Upstreams",
-    "desc": "Inspect configured upstreams, recent traffic, and error conditions",
+    "desc": "Check whether upstreams are healthy and catch slow requests, errors, or traffic spikes.",
     "empty": "No upstreams have been configured yet",
     "never": "Never",
     "health": {
@@ -2812,7 +2812,7 @@
   },
   "consumer-keys": {
     "title": "Consumer Keys",
-    "desc": "Issue API keys to your end users — billing is managed by the linked pay-agent",
+    "desc": "Issue separate API keys for customers or apps and bill them through a pay agent.",
     "empty": "No consumer keys created yet",
     "never": "Never",
     "btn": {
@@ -2904,7 +2904,7 @@
     },
     "login": {
       "title": "Sign in to your account",
-      "desc": "Access your API keys and usage dashboard",
+      "desc": "Sign in to view API keys, usage, billing, and available models.",
       "sign-in-btn": "Sign in with Wallet",
       "register-btn": "Create Account",
       "have-account": "Already have an account? Sign in",
@@ -2914,7 +2914,7 @@
     },
     "dash": {
       "title": "Dashboard",
-      "desc": "Overview of your API usage and wallet",
+      "desc": "See your balance, API keys, request volume, and recent usage trends.",
       "requests": "Total Requests",
       "spend": "Total Spend",
       "balance": "Wallet Balance",
@@ -2932,7 +2932,7 @@
     },
     "keys": {
       "title": "My API Keys",
-      "desc": "Manage your consumer API keys",
+      "desc": "Create and manage the API keys you use to call the Prismix gateway.",
       "empty": "No API keys yet. Create one to get started.",
       "action": {
         "delete": "Delete",
@@ -2993,11 +2993,11 @@
     },
     "errors": {
       "title": "Errors",
-      "desc": "Your 4xx / 5xx error overview and trend"
+      "desc": "Review your request errors and tell whether auth, rate limits, or upstreams are involved."
     },
     "settings": {
       "title": "Settings",
-      "desc": "Manage your profile",
+      "desc": "Update profile, sign-in, and wallet-related settings.",
       "profile-title": "Profile",
       "wallet-title": "Wallet Address",
       "wallet-desc": "View your on-chain wallet address and the blockchain networks currently supported.",
@@ -3015,7 +3015,7 @@
     },
     "endpoint": {
       "title": "API Endpoint",
-      "desc": "Connect Claude Code and OpenAI SDK clients through separate protocol-specific endpoints",
+      "desc": "Copy endpoints that work with Claude Code, the OpenAI SDK, and the Gemini SDK.",
       "copied": "Copied to clipboard",
       "intro-title": "Recommended: Claude Code",
       "intro-body": "If Claude Code is your main client, point ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY at the Anthropic endpoint. OpenAI SDK clients should use the OpenAI endpoint. Prismix handles model routing, usage tracking, and billing behind the scenes.",
@@ -3028,7 +3028,7 @@
     },
     "wallet": {
       "title": "Wallet",
-      "desc": "Manage your USDC balance, deposits, and withdrawals",
+      "desc": "Manage your USDC balance and start deposits, withdrawals, or fiat orders.",
       "balance": "Available Balance",
       "balance-tooltip": "This site settles in USDC. Whether you deposit with crypto or fiat, the final credited balance is converted and recorded in USDC.",
       "deposit": "Deposit",
@@ -3162,12 +3162,12 @@
     },
     "transactions": {
       "title": "Transactions",
-      "desc": "View wallet deposits, withdrawals, payments, and AI usage history"
+      "desc": "Review your full history of deposits, withdrawals, charges, and refunds."
     }
   },
   "ai-credentials": {
     "title": "AI Credentials",
-    "desc": "Manage real supplier API keys centrally and reuse them across connector credential pools.",
+    "desc": "Store supplier API keys centrally and safely reuse them across connections and pools.",
     "add": "Add Credential",
     "empty": "No AI credentials yet",
     "platform": "Platform-owned",
@@ -3210,7 +3210,7 @@
   },
   "supplier-connections": {
     "title": "Supplier Connections",
-    "desc": "Manage callable API connections under real suppliers, including protocol format, auth mode, and credential pools.",
+    "desc": "Connect supplier accounts to Prismix and set protocol, authentication, and usable credentials.",
     "empty": "No supplier connections configured yet",
     "card": {
       "upstreams": "{{count}} upstreams",
