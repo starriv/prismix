@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Switch } from "@/web/components/ui/switch";
+import { buildReadableId, randomReadableIdSuffix } from "@/web/shared/readable-id";
 import { getSvglIconUrl, searchSvglIcons, type SvglIcon } from "@/web/shared/svgl-icons";
 
 import { BEDROCK_REGIONS } from "./supplier-connections/constants";
@@ -276,6 +277,7 @@ export default function AiSuppliersPage() {
       <SupplierFormDialog
         editTarget={editTarget}
         open={createOpen || !!editTarget}
+        suppliers={suppliers}
         onOpenChange={(open) => {
           if (!open) {
             setCreateOpen(false);
@@ -310,15 +312,30 @@ function SupplierFormDialog({
   open,
   onOpenChange,
   editTarget,
+  suppliers,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editTarget: AiSupplier | null;
+  suppliers: AiSupplier[];
 }) {
   const { t } = useTranslation();
   const createSupplier = useCreateAiSupplier();
   const updateSupplier = useUpdateAiSupplier();
   const isEdit = !!editTarget;
+  const supplierIdSuffix = useMemo(
+    () => (open && !isEdit ? randomReadableIdSuffix() : ""),
+    [isEdit, open],
+  );
+  const existingSupplierIds = useMemo(
+    () =>
+      new Set(
+        suppliers
+          .filter((supplier) => supplier.id !== editTarget?.id)
+          .map((supplier) => supplier.supplierId),
+      ),
+    [editTarget?.id, suppliers],
+  );
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
     defaultValues: EMPTY_SUPPLIER_FORM,
@@ -326,6 +343,16 @@ function SupplierFormDialog({
   const watchedAuthType = useWatch({ control: form.control, name: "authType" });
   const watchedSupplierId = useWatch({ control: form.control, name: "supplierId" });
   const watchedName = useWatch({ control: form.control, name: "name" });
+  const autoSupplierId = useMemo(
+    () =>
+      buildReadableId({
+        parts: [watchedName || "supplier"],
+        suffix: supplierIdSuffix,
+        existingIds: existingSupplierIds,
+        fallback: "supplier",
+      }),
+    [existingSupplierIds, supplierIdSuffix, watchedName],
+  );
   const svglSearchHint = watchedName?.trim() || watchedSupplierId?.trim() || "";
 
   useEffect(() => {
@@ -353,8 +380,21 @@ function SupplierFormDialog({
       return;
     }
 
-    form.reset(EMPTY_SUPPLIER_FORM);
-  }, [editTarget, form, open]);
+    form.reset({
+      ...EMPTY_SUPPLIER_FORM,
+      supplierId: buildReadableId({
+        parts: ["supplier"],
+        suffix: supplierIdSuffix,
+        existingIds: existingSupplierIds,
+        fallback: "supplier",
+      }),
+    });
+  }, [editTarget, existingSupplierIds, form, open, supplierIdSuffix]);
+
+  useEffect(() => {
+    if (!open || isEdit) return;
+    form.setValue("supplierId", autoSupplierId, { shouldValidate: true });
+  }, [autoSupplierId, form, isEdit, open]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     let authConfig: Record<string, unknown> = {};
@@ -388,7 +428,12 @@ function SupplierFormDialog({
         toast.success(t("ai-suppliers.toast.updated"));
       } else {
         await createSupplier.mutateAsync({
-          supplierId: values.supplierId.trim(),
+          supplierId: buildReadableId({
+            parts: [values.name || "supplier"],
+            suffix: supplierIdSuffix,
+            existingIds: existingSupplierIds,
+            fallback: "supplier",
+          }),
           ...body,
         });
         toast.success(t("ai-suppliers.toast.created"));
@@ -425,7 +470,7 @@ function SupplierFormDialog({
                     <FormControl>
                       <Input
                         className="font-mono"
-                        disabled={isEdit}
+                        disabled
                         placeholder={t("ai-suppliers.form.supplier-id-ph")}
                         {...field}
                       />
