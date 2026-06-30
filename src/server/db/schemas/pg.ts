@@ -611,8 +611,6 @@ export const aiSupplierConnections = pgTable(
   ],
 );
 
-export const aiEndpoints = aiSupplierConnections;
-
 export const aiUpstreams = pgTable("ai_upstreams", {
   id: serial("id").primaryKey(),
   upstreamId: text("upstream_id")
@@ -997,8 +995,6 @@ export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type NewWebhookDelivery = typeof webhookDeliveries.$inferInsert;
 export type AiSupplierConnection = typeof aiSupplierConnections.$inferSelect;
 export type NewAiSupplierConnection = typeof aiSupplierConnections.$inferInsert;
-export type AiEndpoint = AiSupplierConnection;
-export type NewAiEndpoint = NewAiSupplierConnection;
 export type AiUpstream = typeof aiUpstreams.$inferSelect;
 export type NewAiUpstream = typeof aiUpstreams.$inferInsert;
 export type AiUpstreamAssignment = typeof aiUpstreamAssignments.$inferSelect;

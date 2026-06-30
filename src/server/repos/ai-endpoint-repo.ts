@@ -1,18 +1,18 @@
 /**
- * AI Endpoint repository — CRUD for protocol endpoints.
+ * Supplier connection repository behind the existing AI endpoint API.
  *
- * Endpoints are concrete callable protocol surfaces under a real supplier.
+ * Connections are concrete callable protocol surfaces under a real supplier.
  * Examples: `deepseek-openai`, `deepseek-anthropic`.
  */
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import {
-  type AiEndpoint,
-  aiEndpoints,
+  type AiSupplierConnection,
+  aiSupplierConnections,
   aiSuppliers,
   db,
   exec,
-  type NewAiEndpoint,
+  type NewAiSupplierConnection,
   queryAll,
   queryOne,
   returningOne,
@@ -20,7 +20,7 @@ import {
 
 export type EndpointHealthStatus = "unknown" | "healthy" | "degraded" | "down";
 
-export interface EndpointWithSupplier extends AiEndpoint {
+export interface SupplierConnectionWithSupplier extends AiSupplierConnection {
   supplier: {
     id: number;
     supplierId: string;
@@ -44,28 +44,33 @@ export interface HealthPatch {
   autoDisabled?: boolean;
 }
 
-function flattenEndpointWithSupplier(row: {
-  endpoint: AiEndpoint;
-  supplier: EndpointWithSupplier["supplier"];
-}): EndpointWithSupplier {
+function flattenSupplierConnectionWithSupplier(row: {
+  endpoint: AiSupplierConnection;
+  supplier: SupplierConnectionWithSupplier["supplier"];
+}): SupplierConnectionWithSupplier {
   return { ...row.endpoint, supplier: row.supplier };
 }
 
 export const aiEndpointRepo = {
-  async findAll(limit = 200, offset = 0): Promise<AiEndpoint[]> {
+  async findAll(limit = 200, offset = 0): Promise<AiSupplierConnection[]> {
     return queryAll(
-      db.select().from(aiEndpoints).orderBy(asc(aiEndpoints.id)).limit(limit).offset(offset),
+      db
+        .select()
+        .from(aiSupplierConnections)
+        .orderBy(asc(aiSupplierConnections.id))
+        .limit(limit)
+        .offset(offset),
     );
   },
 
-  async findAllWithSupplier(limit = 200, offset = 0): Promise<EndpointWithSupplier[]> {
+  async findAllWithSupplier(limit = 200, offset = 0): Promise<SupplierConnectionWithSupplier[]> {
     const rows = await queryAll<{
-      endpoint: AiEndpoint;
-      supplier: EndpointWithSupplier["supplier"];
+      endpoint: AiSupplierConnection;
+      supplier: SupplierConnectionWithSupplier["supplier"];
     }>(
       db
         .select({
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -78,46 +83,51 @@ export const aiEndpointRepo = {
             enabled: aiSuppliers.enabled,
           },
         })
-        .from(aiEndpoints)
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
-        .orderBy(asc(aiEndpoints.id))
+        .from(aiSupplierConnections)
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
+        .orderBy(asc(aiSupplierConnections.id))
         .limit(limit)
         .offset(offset),
     );
-    return rows.map(flattenEndpointWithSupplier);
+    return rows.map(flattenSupplierConnectionWithSupplier);
   },
 
   /** All endpoint rows with enabled=true (includes auto-disabled). */
-  async findAllEnabled(): Promise<AiEndpoint[]> {
+  async findAllEnabled(): Promise<AiSupplierConnection[]> {
     return queryAll(
       db
         .select()
-        .from(aiEndpoints)
-        .where(eq(aiEndpoints.enabled, true))
-        .orderBy(asc(aiEndpoints.id)),
+        .from(aiSupplierConnections)
+        .where(eq(aiSupplierConnections.enabled, true))
+        .orderBy(asc(aiSupplierConnections.id)),
     );
   },
 
   /** All rows with enabled=true && !autoDisabled. For request paths. */
-  async findAllActive(): Promise<AiEndpoint[]> {
+  async findAllActive(): Promise<AiSupplierConnection[]> {
     return queryAll(
       db
         .select()
-        .from(aiEndpoints)
-        .where(and(eq(aiEndpoints.enabled, true), eq(aiEndpoints.autoDisabled, false)))
-        .orderBy(asc(aiEndpoints.id)),
+        .from(aiSupplierConnections)
+        .where(
+          and(
+            eq(aiSupplierConnections.enabled, true),
+            eq(aiSupplierConnections.autoDisabled, false),
+          ),
+        )
+        .orderBy(asc(aiSupplierConnections.id)),
     );
   },
 
   /** All rows except admin-disabled endpoints, including supplier defaults. */
-  async findAllForHealthCheckWithSupplier(): Promise<EndpointWithSupplier[]> {
+  async findAllForHealthCheckWithSupplier(): Promise<SupplierConnectionWithSupplier[]> {
     const rows = await queryAll<{
-      endpoint: AiEndpoint;
-      supplier: EndpointWithSupplier["supplier"];
+      endpoint: AiSupplierConnection;
+      supplier: SupplierConnectionWithSupplier["supplier"];
     }>(
       db
         .select({
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -130,26 +140,30 @@ export const aiEndpointRepo = {
             enabled: aiSuppliers.enabled,
           },
         })
-        .from(aiEndpoints)
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
-        .where(or(eq(aiEndpoints.enabled, true), eq(aiEndpoints.autoDisabled, true)))
-        .orderBy(asc(aiEndpoints.id)),
+        .from(aiSupplierConnections)
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
+        .where(
+          or(eq(aiSupplierConnections.enabled, true), eq(aiSupplierConnections.autoDisabled, true)),
+        )
+        .orderBy(asc(aiSupplierConnections.id)),
     );
-    return rows.map(flattenEndpointWithSupplier);
+    return rows.map(flattenSupplierConnectionWithSupplier);
   },
 
-  async findById(id: number): Promise<AiEndpoint | undefined> {
-    return queryOne(db.select().from(aiEndpoints).where(eq(aiEndpoints.id, id)));
+  async findById(id: number): Promise<AiSupplierConnection | undefined> {
+    return queryOne(
+      db.select().from(aiSupplierConnections).where(eq(aiSupplierConnections.id, id)),
+    );
   },
 
-  async findWithSupplierById(id: number): Promise<EndpointWithSupplier | undefined> {
+  async findWithSupplierById(id: number): Promise<SupplierConnectionWithSupplier | undefined> {
     const row = await queryOne<{
-      endpoint: AiEndpoint;
-      supplier: EndpointWithSupplier["supplier"];
+      endpoint: AiSupplierConnection;
+      supplier: SupplierConnectionWithSupplier["supplier"];
     }>(
       db
         .select({
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -162,42 +176,52 @@ export const aiEndpointRepo = {
             enabled: aiSuppliers.enabled,
           },
         })
-        .from(aiEndpoints)
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
-        .where(eq(aiEndpoints.id, id)),
+        .from(aiSupplierConnections)
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
+        .where(eq(aiSupplierConnections.id, id)),
     );
-    return row ? flattenEndpointWithSupplier(row) : undefined;
+    return row ? flattenSupplierConnectionWithSupplier(row) : undefined;
   },
 
-  async findByIds(ids: number[]): Promise<AiEndpoint[]> {
+  async findByIds(ids: number[]): Promise<AiSupplierConnection[]> {
     if (ids.length === 0) return [];
-    return queryAll(db.select().from(aiEndpoints).where(inArray(aiEndpoints.id, ids)));
+    return queryAll(
+      db.select().from(aiSupplierConnections).where(inArray(aiSupplierConnections.id, ids)),
+    );
   },
 
-  async findByEndpointId(endpointId: string): Promise<AiEndpoint | undefined> {
-    return queryOne(db.select().from(aiEndpoints).where(eq(aiEndpoints.endpointId, endpointId)));
+  async findByEndpointId(endpointId: string): Promise<AiSupplierConnection | undefined> {
+    return queryOne(
+      db
+        .select()
+        .from(aiSupplierConnections)
+        .where(eq(aiSupplierConnections.endpointId, endpointId)),
+    );
   },
 
-  async findBySupplierId(supplierId: number): Promise<AiEndpoint[]> {
+  async findBySupplierId(supplierId: number): Promise<AiSupplierConnection[]> {
     return queryAll(
       db
         .select()
-        .from(aiEndpoints)
-        .where(eq(aiEndpoints.supplierId, supplierId))
-        .orderBy(asc(aiEndpoints.id)),
+        .from(aiSupplierConnections)
+        .where(eq(aiSupplierConnections.supplierId, supplierId))
+        .orderBy(asc(aiSupplierConnections.id)),
     );
   },
 
-  async create(data: NewAiEndpoint): Promise<AiEndpoint> {
-    return returningOne(db.insert(aiEndpoints).values(data));
+  async create(data: NewAiSupplierConnection): Promise<AiSupplierConnection> {
+    return returningOne(db.insert(aiSupplierConnections).values(data));
   },
 
-  async update(id: number, data: Partial<AiEndpoint>): Promise<AiEndpoint | undefined> {
+  async update(
+    id: number,
+    data: Partial<AiSupplierConnection>,
+  ): Promise<AiSupplierConnection | undefined> {
     return returningOne(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({ ...data, updatedAt: new Date() })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
@@ -210,20 +234,21 @@ export const aiEndpointRepo = {
   async updateInheritedBySupplier(
     supplierId: number,
     mode: "auth" | "concurrency",
-    sets: Partial<AiEndpoint>,
+    sets: Partial<AiSupplierConnection>,
   ): Promise<number[]> {
     if (Object.keys(sets).length === 0) return [];
-    const modeColumn = mode === "auth" ? aiEndpoints.authMode : aiEndpoints.concurrencyMode;
+    const modeColumn =
+      mode === "auth" ? aiSupplierConnections.authMode : aiSupplierConnections.concurrencyMode;
     const rows = await db
-      .update(aiEndpoints)
+      .update(aiSupplierConnections)
       .set({ ...sets, updatedAt: new Date() })
-      .where(and(eq(aiEndpoints.supplierId, supplierId), eq(modeColumn, "inherit")))
-      .returning({ id: aiEndpoints.id });
+      .where(and(eq(aiSupplierConnections.supplierId, supplierId), eq(modeColumn, "inherit")))
+      .returning({ id: aiSupplierConnections.id });
     return rows.map((row: { id: number }) => row.id);
   },
 
   async delete(id: number): Promise<void> {
-    await exec(db.delete(aiEndpoints).where(eq(aiEndpoints.id, id)));
+    await exec(db.delete(aiSupplierConnections).where(eq(aiSupplierConnections.id, id)));
   },
 
   /** Return only the load-balance strategy for the credential balancer. */
@@ -232,25 +257,25 @@ export const aiEndpointRepo = {
   ): Promise<{ loadBalanceStrategy: string | null } | undefined> {
     return queryOne(
       db
-        .select({ loadBalanceStrategy: aiEndpoints.loadBalanceStrategy })
-        .from(aiEndpoints)
-        .where(eq(aiEndpoints.id, id)),
+        .select({ loadBalanceStrategy: aiSupplierConnections.loadBalanceStrategy })
+        .from(aiSupplierConnections)
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
   async updateHealth(id: number, patch: HealthPatch): Promise<void> {
     await exec(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({ ...patch, updatedAt: new Date() })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
   async recordSuccess(id: number): Promise<void> {
     await exec(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({
           healthStatus: "healthy",
           lastCheckedAt: new Date(),
@@ -259,7 +284,7 @@ export const aiEndpointRepo = {
           lastError: null,
           updatedAt: new Date(),
         })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
@@ -267,16 +292,16 @@ export const aiEndpointRepo = {
     const current = await queryOne<{ consecutiveFailures: number; autoDisabled: boolean }>(
       db
         .select({
-          consecutiveFailures: aiEndpoints.consecutiveFailures,
-          autoDisabled: aiEndpoints.autoDisabled,
+          consecutiveFailures: aiSupplierConnections.consecutiveFailures,
+          autoDisabled: aiSupplierConnections.autoDisabled,
         })
-        .from(aiEndpoints)
-        .where(eq(aiEndpoints.id, id)),
+        .from(aiSupplierConnections)
+        .where(eq(aiSupplierConnections.id, id)),
     );
     const nextFailures = (current?.consecutiveFailures ?? 0) + 1;
     await exec(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({
           healthStatus: current?.autoDisabled ? "down" : "degraded",
           lastCheckedAt: new Date(),
@@ -285,28 +310,28 @@ export const aiEndpointRepo = {
           consecutiveFailures: nextFailures,
           updatedAt: new Date(),
         })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
   async markAutoDisabled(id: number, reason: string): Promise<void> {
     await exec(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({
           autoDisabled: true,
           healthStatus: "down",
           lastError: truncate(reason, 1000),
           updatedAt: new Date(),
         })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 
   async markAutoReenabled(id: number): Promise<void> {
     await exec(
       db
-        .update(aiEndpoints)
+        .update(aiSupplierConnections)
         .set({
           autoDisabled: false,
           healthStatus: "healthy",
@@ -316,7 +341,7 @@ export const aiEndpointRepo = {
           lastCheckedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(aiEndpoints.id, id)),
+        .where(eq(aiSupplierConnections.id, id)),
     );
   },
 };

@@ -1,4 +1,4 @@
-import type { AiEndpoint, AiSupplier } from "@/server/db";
+import type { AiSupplier, AiSupplierConnection } from "@/server/db";
 
 export type ConnectorConfigMode = "inherit" | "override";
 
@@ -126,7 +126,7 @@ export function parseAuthConfig(authConfig: string): Record<string, unknown> {
 }
 
 export type RuntimeConfigEndpoint = Pick<
-  AiEndpoint,
+  AiSupplierConnection,
   | "authMode"
   | "authType"
   | "authConfig"

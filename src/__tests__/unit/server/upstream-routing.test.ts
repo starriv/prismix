@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AiEndpoint } from "@/server/db";
+import type { AiSupplierConnection } from "@/server/db";
 
 const mockFindEnabledByEndpointId = vi.fn();
 const mockFindByUpstreamId = vi.fn();
@@ -45,7 +45,7 @@ describe("upstream routing", () => {
       officialConcurrencyLimit: 2,
       officialQueueTimeoutMs: 45_000,
       upstreamRoutingStrategy: "priority",
-    } as unknown as AiEndpoint;
+    } as unknown as AiSupplierConnection;
 
     const targets = await resolveUpstreamCandidates(endpoint);
 
@@ -83,7 +83,7 @@ describe("upstream routing", () => {
         officialConcurrencyLimit: 12,
         officialQueueTimeoutMs: 60_000,
       },
-    } as unknown as AiEndpoint;
+    } as unknown as AiSupplierConnection;
 
     const targets = await resolveUpstreamCandidates(endpoint);
 

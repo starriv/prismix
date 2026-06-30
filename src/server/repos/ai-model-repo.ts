@@ -4,9 +4,9 @@
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import {
-  type AiEndpoint,
   type AiModel,
   aiModels,
+  type AiSupplierConnection,
   db,
   exec,
   execWithChanges,
@@ -54,7 +54,7 @@ export const aiModelRepo = {
   async findEnabledByModelId(
     modelId: string,
     clientFormat?: ClientFormat,
-  ): Promise<{ model: AiModel; endpoint: AiEndpoint } | undefined> {
+  ): Promise<{ model: AiModel; endpoint: AiSupplierConnection } | undefined> {
     const routes = await aiModelRouteRepo.findEnabledRoutesByModelId(modelId);
     const route = clientFormat
       ? routes.find(({ endpoint }) => canServeClientFormat(clientFormat, endpoint.apiFormat))
@@ -66,7 +66,7 @@ export const aiModelRepo = {
   /** All enabled models (for /v1/models catalog). */
   async findAllEnabled(
     clientFormat?: ClientFormat,
-  ): Promise<Array<{ model: AiModel; endpoint: AiEndpoint }>> {
+  ): Promise<Array<{ model: AiModel; endpoint: AiSupplierConnection }>> {
     const routes = await aiModelRouteRepo.findAllEnabledRoutes();
     const routesByModelId = new Map<string, EnabledRouteResult[]>();
     for (const route of routes) {
@@ -75,7 +75,7 @@ export const aiModelRepo = {
       else routesByModelId.set(route.model.modelId, [route]);
     }
 
-    const results: Array<{ model: AiModel; endpoint: AiEndpoint }> = [];
+    const results: Array<{ model: AiModel; endpoint: AiSupplierConnection }> = [];
     for (const modelRoutes of routesByModelId.values()) {
       const route = clientFormat
         ? modelRoutes.find(({ endpoint }) => canServeClientFormat(clientFormat, endpoint.apiFormat))

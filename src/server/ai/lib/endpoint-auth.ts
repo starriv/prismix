@@ -14,7 +14,7 @@ import crypto from "crypto";
 
 import { match } from "ts-pattern";
 
-import type { AiEndpoint } from "@/server/db";
+import type { AiSupplierConnection } from "@/server/db";
 import { log } from "@/server/lib/logger";
 
 import { type ConnectorAuthFields, resolveConnectorAuthConfig } from "./connector-runtime-config";
@@ -43,7 +43,7 @@ export interface CloudflareAccessConfig {
  * @param body     - Request body (needed for SigV4 payload signing)
  */
 export function buildEndpointAuth(
-  endpoint: ConnectorAuthFields & Pick<AiEndpoint, "apiFormat">,
+  endpoint: ConnectorAuthFields & Pick<AiSupplierConnection, "apiFormat">,
   plainKey: string,
   url: string,
   body?: string,

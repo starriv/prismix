@@ -6,7 +6,7 @@
  */
 import { type Context, Hono } from "hono";
 
-import type { AiEndpoint, AiModel } from "@/server/db";
+import type { AiModel, AiSupplierConnection } from "@/server/db";
 import { aiRelayChatBody } from "@/server/lib/body-schemas";
 import { decrypt } from "@/server/lib/crypto";
 import {
@@ -831,7 +831,7 @@ export default relay;
 
 interface Candidate {
   model: AiModel;
-  endpoint: AiEndpoint;
+  endpoint: AiSupplierConnection;
   /** Actual model slug sent to the upstream endpoint (may differ from model.modelId). */
   endpointModelId: string;
 }

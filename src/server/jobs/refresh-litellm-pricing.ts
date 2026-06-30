@@ -14,7 +14,7 @@ import {
   lookupPricing,
   refreshLiteLLMPricing,
 } from "@/server/ai/lib/litellm-pricing";
-import { aiEndpoints, aiModelRoutes, aiModels, db, queryAll } from "@/server/db";
+import { aiModelRoutes, aiModels, aiSupplierConnections, db, queryAll } from "@/server/db";
 import { removeStaleRepeatableJobs } from "@/server/jobs/repeatable";
 import { log } from "@/server/lib/logger";
 import { formatPercent } from "@/shared/number";
@@ -47,18 +47,18 @@ async function checkPriceDrift(): Promise<void> {
           modelId: aiModels.modelId,
           inputPrice: aiModels.inputPrice,
           outputPrice: aiModels.outputPrice,
-          endpointId: aiEndpoints.endpointId,
-          endpointName: aiEndpoints.name,
+          endpointId: aiSupplierConnections.endpointId,
+          endpointName: aiSupplierConnections.name,
         })
         .from(aiModels)
         .innerJoin(aiModelRoutes, eq(aiModels.id, aiModelRoutes.modelId))
-        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
+        .innerJoin(aiSupplierConnections, eq(aiModelRoutes.endpointId, aiSupplierConnections.id))
         .where(
           and(
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
-            eq(aiEndpoints.enabled, true),
-            eq(aiEndpoints.autoDisabled, false),
+            eq(aiSupplierConnections.enabled, true),
+            eq(aiSupplierConnections.autoDisabled, false),
           ),
         ),
     );

@@ -7,7 +7,7 @@
  */
 import { match } from "ts-pattern";
 
-import type { AiEndpoint } from "@/server/db";
+import type { AiSupplierConnection } from "@/server/db";
 
 import { anthropicAdapter } from "../protocol-adapters/anthropic";
 import { buildEndpointAuth } from "./endpoint-auth";
@@ -20,8 +20,8 @@ export interface PingResult {
 }
 
 export interface PingEndpointOpts {
-  endpoint: Pick<AiEndpoint, "authType" | "authConfig" | "apiFormat"> &
-    Partial<Pick<AiEndpoint, "endpointId">>;
+  endpoint: Pick<AiSupplierConnection, "authType" | "authConfig" | "apiFormat"> &
+    Partial<Pick<AiSupplierConnection, "endpointId">>;
   baseUrl: string;
   modelsEndpointOverride?: string | null;
   plainKey: string;
@@ -33,7 +33,8 @@ const ANTHROPIC_OFFICIAL_PROBE_MODEL = "claude-haiku-4-5";
 const DEEPSEEK_ANTHROPIC_PROBE_MODEL = "deepseek-chat";
 
 export function buildModelsUrl(
-  endpoint: Pick<AiEndpoint, "apiFormat"> & Partial<Pick<AiEndpoint, "endpointId">>,
+  endpoint: Pick<AiSupplierConnection, "apiFormat"> &
+    Partial<Pick<AiSupplierConnection, "endpointId">>,
   baseUrl: string,
   modelsEndpointOverride?: string | null,
 ): string {
@@ -61,7 +62,7 @@ export function buildModelsUrl(
 }
 
 function shouldFallbackToAnthropicMessageProbe(
-  endpoint: Pick<AiEndpoint, "apiFormat">,
+  endpoint: Pick<AiSupplierConnection, "apiFormat">,
   result: PingResult,
   modelsEndpointOverride?: string | null,
 ): boolean {
@@ -71,7 +72,7 @@ function shouldFallbackToAnthropicMessageProbe(
 }
 
 function defaultAnthropicProbeModel(
-  endpoint: Partial<Pick<AiEndpoint, "endpointId">>,
+  endpoint: Partial<Pick<AiSupplierConnection, "endpointId">>,
   baseUrl: string,
 ): string {
   const endpointId = endpoint.endpointId?.toLowerCase() ?? "";

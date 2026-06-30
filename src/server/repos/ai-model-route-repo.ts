@@ -5,12 +5,12 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import {
-  type AiEndpoint,
-  aiEndpoints,
   type AiModel,
   type AiModelRoute,
   aiModelRoutes,
   aiModels,
+  type AiSupplierConnection,
+  aiSupplierConnections,
   aiSuppliers,
   db,
   exec,
@@ -21,24 +21,24 @@ import {
   returningOne,
 } from "@/server/db";
 
-import type { EndpointWithSupplier } from "./ai-endpoint-repo";
+import type { SupplierConnectionWithSupplier } from "./ai-endpoint-repo";
 
 export interface RouteWithEndpoint {
   route: AiModelRoute;
-  endpoint: EndpointWithSupplier;
+  endpoint: SupplierConnectionWithSupplier;
 }
 
 export interface EnabledRouteResult {
   route: AiModelRoute;
   model: AiModel;
-  endpoint: EndpointWithSupplier;
+  endpoint: SupplierConnectionWithSupplier;
 }
 
 interface EnabledRouteRow {
   route: AiModelRoute;
   model: AiModel;
-  endpoint: AiEndpoint;
-  supplier: EndpointWithSupplier["supplier"];
+  endpoint: AiSupplierConnection;
+  supplier: SupplierConnectionWithSupplier["supplier"];
 }
 
 export const aiModelRouteRepo = {
@@ -53,7 +53,7 @@ export const aiModelRouteRepo = {
         .select({
           route: aiModelRoutes,
           model: aiModels,
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -68,15 +68,15 @@ export const aiModelRouteRepo = {
         })
         .from(aiModelRoutes)
         .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
-        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
+        .innerJoin(aiSupplierConnections, eq(aiModelRoutes.endpointId, aiSupplierConnections.id))
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
         .where(
           and(
             eq(aiModels.modelId, modelId),
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
-            eq(aiEndpoints.enabled, true),
-            eq(aiEndpoints.autoDisabled, false),
+            eq(aiSupplierConnections.enabled, true),
+            eq(aiSupplierConnections.autoDisabled, false),
             eq(aiSuppliers.enabled, true),
           ),
         )
@@ -101,7 +101,7 @@ export const aiModelRouteRepo = {
         .select({
           route: aiModelRoutes,
           model: aiModels,
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -116,14 +116,14 @@ export const aiModelRouteRepo = {
         })
         .from(aiModelRoutes)
         .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
-        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
+        .innerJoin(aiSupplierConnections, eq(aiModelRoutes.endpointId, aiSupplierConnections.id))
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
         .where(
           and(
             eq(aiModels.enabled, true),
             eq(aiModelRoutes.enabled, true),
-            eq(aiEndpoints.enabled, true),
-            eq(aiEndpoints.autoDisabled, false),
+            eq(aiSupplierConnections.enabled, true),
+            eq(aiSupplierConnections.autoDisabled, false),
             eq(aiSuppliers.enabled, true),
           ),
         )
@@ -142,7 +142,7 @@ export const aiModelRouteRepo = {
         .select({
           route: aiModelRoutes,
           model: aiModels,
-          endpoint: aiEndpoints,
+          endpoint: aiSupplierConnections,
           supplier: {
             id: aiSuppliers.id,
             supplierId: aiSuppliers.supplierId,
@@ -157,8 +157,8 @@ export const aiModelRouteRepo = {
         })
         .from(aiModelRoutes)
         .innerJoin(aiModels, eq(aiModelRoutes.modelId, aiModels.id))
-        .innerJoin(aiEndpoints, eq(aiModelRoutes.endpointId, aiEndpoints.id))
-        .innerJoin(aiSuppliers, eq(aiEndpoints.supplierId, aiSuppliers.id))
+        .innerJoin(aiSupplierConnections, eq(aiModelRoutes.endpointId, aiSupplierConnections.id))
+        .innerJoin(aiSuppliers, eq(aiSupplierConnections.supplierId, aiSuppliers.id))
         .where(eq(aiModelRoutes.modelId, modelPk))
         .orderBy(asc(aiModelRoutes.priority), desc(aiModelRoutes.weight), asc(aiModelRoutes.id)),
     );

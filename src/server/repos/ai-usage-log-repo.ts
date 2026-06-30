@@ -18,8 +18,8 @@ import {
 } from "drizzle-orm";
 
 import {
-  aiEndpoints,
   aiModels,
+  aiSupplierConnections,
   type AiUsageLog,
   aiUsageLogs,
   db,
@@ -294,7 +294,7 @@ function liveEntityFilter() {
   return and(
     or(
       isNull(aiUsageLogs.endpointId),
-      sql`EXISTS (SELECT 1 FROM ${aiEndpoints} WHERE ${aiEndpoints.endpointId} = ${aiUsageLogs.endpointId})`,
+      sql`EXISTS (SELECT 1 FROM ${aiSupplierConnections} WHERE ${aiSupplierConnections.endpointId} = ${aiUsageLogs.endpointId})`,
     ),
     or(
       isNull(aiUsageLogs.modelId),
@@ -474,7 +474,7 @@ export const aiUsageLogRepo = {
         .select({
           endpointId: aiUsageLogs.endpointId,
           // aiUsageLogs does not denormalize endpointName / endpointBaseUrl;
-          // surface null (route uses aiEndpoints row for name/baseUrl).
+          // surface null (route uses aiSupplierConnections row for name/baseUrl).
           endpointName: sql<string | null>`NULL`,
           endpointBaseUrl: sql<string | null>`NULL`,
           requests24h: count(),

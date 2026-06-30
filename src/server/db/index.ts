@@ -76,7 +76,6 @@ export const keyProviders = s.keyProviders;
 export const keyProviderTransactions = s.keyProviderTransactions;
 export const aiSuppliers = s.aiSuppliers;
 export const aiSupplierConnections = s.aiSupplierConnections;
-export const aiEndpoints = s.aiEndpoints;
 export const aiUpstreams = s.aiUpstreams;
 export const aiUpstreamAssignments = s.aiUpstreamAssignments;
 export const aiUpstreamModelMappings = s.aiUpstreamModelMappings;
@@ -96,7 +95,6 @@ export type {
   Admin,
   AiGuardrailConfig,
   AiCredential,
-  AiEndpoint,
   AiEndpointCredential,
   AiModel,
   AiModelGrayUser,
@@ -119,7 +117,6 @@ export type {
   NewAdmin,
   NewAiGuardrailConfig,
   NewAiCredential,
-  NewAiEndpoint,
   NewAiEndpointCredential,
   NewAiModel,
   NewAiModelGrayUser,

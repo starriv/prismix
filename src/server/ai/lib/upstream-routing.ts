@@ -1,4 +1,4 @@
-import type { AiEndpoint } from "@/server/db";
+import type { AiSupplierConnection } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { weightedShuffle } from "@/server/lib/weighted-shuffle";
 import { aiUpstreamAssignmentRepo, type AssignmentWithUpstream } from "@/server/repos";
@@ -23,7 +23,7 @@ export interface UpstreamTarget {
   isLegacy: boolean;
 }
 
-type RoutableEndpoint = AiEndpoint & {
+type RoutableEndpoint = AiSupplierConnection & {
   supplier?: SupplierRuntimeDefaults | null;
 };
 

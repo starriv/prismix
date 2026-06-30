@@ -8,7 +8,7 @@ import { Queue, Worker } from "bullmq";
 
 import type { SupplierRuntimeDefaults } from "@/server/ai/lib/connector-runtime-config";
 import { pingEndpoint, type PingResult } from "@/server/ai/lib/endpoint-health";
-import type { AiEndpoint } from "@/server/db";
+import type { AiSupplierConnection } from "@/server/db";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import { removeStaleRepeatableJobs } from "@/server/jobs/repeatable";
@@ -35,7 +35,7 @@ const FAILURE_WINDOW_MS =
 const REQUEST_TIMEOUT_MS = Number(process.env.ENDPOINT_HEALTH_CHECK_TIMEOUT_MS) || 10_000;
 const ENDPOINT_CONCURRENCY = 5;
 
-type HealthCheckEndpoint = AiEndpoint & {
+type HealthCheckEndpoint = AiSupplierConnection & {
   supplier?: SupplierRuntimeDefaults | null;
 };
 

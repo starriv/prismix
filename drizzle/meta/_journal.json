@@ -141,6 +141,13 @@
       "when": 1782691200000,
       "tag": "0019_rename_ai_endpoints_to_supplier_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782722793430,
+      "tag": "0020_drop_ai_endpoints_compat_view",
+      "breakpoints": true
     }
   ]
 }

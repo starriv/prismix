@@ -5,7 +5,7 @@
  */
 import { Hono } from "hono";
 
-import { type AiEndpoint } from "@/server/db";
+import { type AiSupplierConnection } from "@/server/db";
 import { emit } from "@/server/events";
 import { DOMAIN_EVENT_TYPES } from "@/server/events/registry";
 import {
@@ -106,7 +106,7 @@ async function syncInheritedSupplierDefaults(
       (updates.officialQueueTimeoutMs as number | undefined) ?? previous.officialQueueTimeoutMs,
   };
 
-  const authSets: Partial<AiEndpoint> = {};
+  const authSets: Partial<AiSupplierConnection> = {};
   if (updates.authType !== undefined) authSets.authType = nextDefaults.authType;
   if (updates.authConfig !== undefined) authSets.authConfig = nextDefaults.authConfig;
   const affectedAuthIds = await aiEndpointRepo.updateInheritedBySupplier(
@@ -115,7 +115,7 @@ async function syncInheritedSupplierDefaults(
     authSets,
   );
 
-  const concurrencySets: Partial<AiEndpoint> = {};
+  const concurrencySets: Partial<AiSupplierConnection> = {};
   if (updates.officialConcurrencyLimit !== undefined) {
     concurrencySets.officialConcurrencyLimit = nextDefaults.officialConcurrencyLimit;
   }

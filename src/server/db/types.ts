@@ -4,7 +4,6 @@
 export type {
   Admin,
   AiCredential,
-  AiEndpoint,
   AiEndpointCredential,
   AiGuardrailConfig,
   AiModel,
@@ -27,7 +26,6 @@ export type {
   KeyProviderTransaction,
   NewAdmin,
   NewAiCredential,
-  NewAiEndpoint,
   NewAiEndpointCredential,
   NewAiGuardrailConfig,
   NewAiModel,
