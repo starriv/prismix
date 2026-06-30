@@ -38,6 +38,69 @@ describe("endpoint health ping", () => {
     });
   });
 
+  it("uses /models directly when an OpenAI-compatible base URL already has a version path", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [{ id: "glm-5.2" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await pingEndpoint({
+      endpoint: {
+        endpointId: "zhipu-glm",
+        apiFormat: "openai",
+        authType: "bearer",
+        authConfig: "{}",
+      },
+      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+      plainKey: "test-key",
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://open.bigmodel.cn/api/paas/v4/models");
+  });
+
+  it("falls back to a minimal OpenAI chat probe when /models is unavailable", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] }), { status: 200 }));
+
+    const result = await pingEndpoint({
+      endpoint: {
+        endpointId: "aliyun-bailian-glm",
+        apiFormat: "openai",
+        authType: "bearer",
+        authConfig: "{}",
+      },
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      plainKey: "test-key",
+      probeModelId: "glm-5.2",
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+    );
+    expect(mockFetch.mock.calls[1][0]).toBe(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    );
+    expect(mockFetch.mock.calls[1][1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({
+        Authorization: "Bearer test-key",
+      }),
+    });
+    expect(JSON.parse(mockFetch.mock.calls[1][1]?.body as string)).toMatchObject({
+      model: "glm-5.2",
+      max_tokens: 1,
+      messages: [{ role: "user", content: "ping" }],
+      stream: false,
+    });
+  });
+
   it("falls back to a DeepSeek Anthropic messages probe when /models is unavailable", async () => {
     mockFetch
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))

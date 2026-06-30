@@ -10,7 +10,9 @@ import { match } from "ts-pattern";
 import type { AiSupplierConnection } from "@/server/db";
 
 import { anthropicAdapter } from "../protocol-adapters/anthropic";
+import { openaiAdapter } from "../protocol-adapters/openai";
 import { buildEndpointAuth } from "./endpoint-auth";
+import { buildOpenAiCompatibleUrl } from "./openai-compatible-url";
 
 export interface PingResult {
   ok: boolean;
@@ -25,6 +27,7 @@ export interface PingEndpointOpts {
   baseUrl: string;
   modelsEndpointOverride?: string | null;
   plainKey: string;
+  probeModelId?: string | null;
   anthropicProbeModelId?: string | null;
   timeoutMs?: number;
 }
@@ -41,12 +44,6 @@ export function buildModelsUrl(
   if (modelsEndpointOverride) return modelsEndpointOverride;
 
   const base = baseUrl.replace(/\/+$/, "");
-  let host = "";
-  try {
-    host = new URL(base).hostname.toLowerCase();
-  } catch {
-    host = "";
-  }
 
   return match(endpoint.apiFormat)
     .with("bedrock", () => {
@@ -55,10 +52,7 @@ export function buildModelsUrl(
     })
     .with("gemini", () => `${base}/models`)
     .with("anthropic", () => `${base}/models`)
-    .otherwise(() => {
-      if (host === "api.deepseek.com") return `${base}/models`;
-      return base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`;
-    });
+    .otherwise(() => buildOpenAiCompatibleUrl(base, "models"));
 }
 
 function shouldFallbackToAnthropicMessageProbe(
@@ -68,6 +62,18 @@ function shouldFallbackToAnthropicMessageProbe(
 ): boolean {
   if (endpoint.apiFormat !== "anthropic") return false;
   if (modelsEndpointOverride) return false;
+  return result.status === 400 || result.status === 404 || result.status === 405;
+}
+
+function shouldFallbackToOpenAiChatProbe(
+  endpoint: Pick<AiSupplierConnection, "apiFormat">,
+  result: PingResult,
+  modelsEndpointOverride?: string | null,
+  probeModelId?: string | null,
+): boolean {
+  if (endpoint.apiFormat !== "openai") return false;
+  if (modelsEndpointOverride) return false;
+  if (!probeModelId) return false;
   return result.status === 400 || result.status === 404 || result.status === 405;
 }
 
@@ -138,6 +144,57 @@ async function pingAnthropicMessagesEndpoint(opts: {
   }
 }
 
+async function pingOpenAiChatEndpoint(opts: {
+  endpoint: PingEndpointOpts["endpoint"];
+  baseUrl: string;
+  plainKey: string;
+  modelId: string;
+  timeoutMs: number;
+}): Promise<PingResult> {
+  const { endpoint, baseUrl, plainKey, modelId, timeoutMs } = opts;
+  const body = JSON.stringify(
+    openaiAdapter.transformRequest({
+      model: modelId,
+      messages: [{ role: "user", content: "ping" }],
+      max_tokens: 1,
+      stream: false,
+    }),
+  );
+  const url = openaiAdapter.buildUrl(baseUrl, {
+    model: modelId,
+    stream: false,
+  });
+  const { headers: authHeaders, url: finalUrl } = buildEndpointAuth(endpoint, plainKey, url, body);
+
+  const start = Date.now();
+  try {
+    const res = await fetch(finalUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const latencyMs = Date.now() - start;
+
+    if (res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      return { ok: true, status: res.status, latencyMs };
+    }
+
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false,
+      status: res.status,
+      error: `HTTP ${res.status}: ${text.slice(0, 200)}`,
+      latencyMs,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: 0, error: message, latencyMs };
+  }
+}
+
 /** ok=true for any 2xx response; ok=false for 3xx/4xx/5xx/network errors. */
 export async function pingEndpoint(opts: PingEndpointOpts): Promise<PingResult> {
   const {
@@ -145,6 +202,7 @@ export async function pingEndpoint(opts: PingEndpointOpts): Promise<PingResult> 
     baseUrl,
     modelsEndpointOverride,
     plainKey,
+    probeModelId,
     anthropicProbeModelId,
     timeoutMs = 10_000,
   } = opts;
@@ -176,7 +234,19 @@ export async function pingEndpoint(opts: PingEndpointOpts): Promise<PingResult> 
         endpoint,
         baseUrl,
         plainKey,
-        modelId: anthropicProbeModelId ?? defaultAnthropicProbeModel(endpoint, baseUrl),
+        modelId:
+          anthropicProbeModelId ?? probeModelId ?? defaultAnthropicProbeModel(endpoint, baseUrl),
+        timeoutMs,
+      });
+    }
+    if (shouldFallbackToOpenAiChatProbe(endpoint, result, modelsEndpointOverride, probeModelId)) {
+      const openAiProbeModelId = probeModelId;
+      if (!openAiProbeModelId) return result;
+      return pingOpenAiChatEndpoint({
+        endpoint,
+        baseUrl,
+        plainKey,
+        modelId: openAiProbeModelId,
         timeoutMs,
       });
     }

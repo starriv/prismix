@@ -68,8 +68,8 @@ function hasChatCapability(capabilities: string): boolean {
   }
 }
 
-async function findAnthropicProbeModelId(endpoint: HealthCheckEndpoint): Promise<string | null> {
-  if (endpoint.apiFormat !== "anthropic") return null;
+async function findProbeModelId(endpoint: HealthCheckEndpoint): Promise<string | null> {
+  if (endpoint.apiFormat !== "anthropic" && endpoint.apiFormat !== "openai") return null;
 
   const models = await aiModelRepo.findEnabledByEndpointId(endpoint.id);
   return (
@@ -96,7 +96,7 @@ export async function checkEndpoint(endpoint: HealthCheckEndpoint): Promise<void
   }
 
   const targets: CheckTarget[] = [];
-  const anthropicProbeModelId = await findAnthropicProbeModelId(endpoint);
+  const probeModelId = await findProbeModelId(endpoint);
 
   const assignments = await aiUpstreamAssignmentRepo.findByEndpointId(endpoint.id);
   const upstreamIds = assignments.map((assignment) => assignment.upstreamId);
@@ -176,7 +176,8 @@ export async function checkEndpoint(endpoint: HealthCheckEndpoint): Promise<void
         baseUrl: target.baseUrl,
         modelsEndpointOverride: target.modelsEndpointOverride,
         plainKey,
-        anthropicProbeModelId,
+        probeModelId,
+        anthropicProbeModelId: endpoint.apiFormat === "anthropic" ? probeModelId : null,
         timeoutMs: REQUEST_TIMEOUT_MS,
       });
       return { target, result };

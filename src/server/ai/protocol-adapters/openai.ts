@@ -5,6 +5,7 @@
  * These upstreams accept the OpenAI chat completions format natively, so
  * transformRequest/transformResponse are identity functions.
  */
+import { buildOpenAiCompatibleUrl } from "../lib/openai-compatible-url";
 import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
 import type {
   BuildUrlOptions,
@@ -67,8 +68,6 @@ export const openaiAdapter: ProtocolAdapter = {
   },
 
   buildUrl(baseUrl: string, _opts: BuildUrlOptions): string {
-    // Ensure no double slash: strip trailing slash from baseUrl
-    const base = baseUrl.replace(/\/+$/, "");
-    return base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
+    return buildOpenAiCompatibleUrl(baseUrl, "chat/completions");
   },
 };

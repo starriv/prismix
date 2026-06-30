@@ -35,6 +35,15 @@ describe("openai adapter", () => {
         }),
       ).toBe("https://class-1-violations.ixg.be/v1/chat/completions");
     });
+
+    it("does not add /v1 when base URL already contains a version path", () => {
+      expect(
+        openaiAdapter.buildUrl("https://open.bigmodel.cn/api/paas/v4", {
+          model: "glm-5.2",
+          stream: false,
+        }),
+      ).toBe("https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    });
   });
 
   describe("transformRequest", () => {

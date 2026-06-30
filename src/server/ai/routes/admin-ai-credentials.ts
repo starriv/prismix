@@ -64,11 +64,8 @@ function hasChatCapability(capabilities: string): boolean {
   }
 }
 
-async function findAnthropicProbeModelId(
-  endpointId: number,
-  apiFormat: string,
-): Promise<string | null> {
-  if (apiFormat !== "anthropic") return null;
+async function findProbeModelId(endpointId: number, apiFormat: string): Promise<string | null> {
+  if (apiFormat !== "anthropic" && apiFormat !== "openai") return null;
 
   const models = await aiModelRepo.findEnabledByEndpointId(endpointId);
   return (
@@ -325,13 +322,14 @@ router.post("/endpoint-credentials/:id/test", async (c) => {
 
     const baseUrl = upstream?.baseUrl ?? endpoint.baseUrl;
     const modelsEndpointOverride = upstream?.modelsEndpoint ?? null;
-    const anthropicProbeModelId = await findAnthropicProbeModelId(endpoint.id, endpoint.apiFormat);
+    const probeModelId = await findProbeModelId(endpoint.id, endpoint.apiFormat);
     const finalResult = await pingEndpoint({
       endpoint,
       baseUrl,
       modelsEndpointOverride,
       plainKey,
-      anthropicProbeModelId,
+      probeModelId,
+      anthropicProbeModelId: endpoint.apiFormat === "anthropic" ? probeModelId : null,
       timeoutMs: CREDENTIAL_TEST_TIMEOUT_MS,
     });
     const latencyMs = Date.now() - start;
