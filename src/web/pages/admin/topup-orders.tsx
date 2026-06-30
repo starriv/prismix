@@ -227,52 +227,47 @@ export default function AdminTopupOrdersPage() {
     <div>
       <Header title={t("topup.title")} description={t("topup.desc")} />
       <div className="p-4 md:p-8 space-y-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">{t("topup.card-title")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-              <Select value={draftStatus} onValueChange={setDraftStatus}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("topup.filter.all")}</SelectItem>
-                  <SelectItem value="pending">{t("topup.status.pending")}</SelectItem>
-                  <SelectItem value="confirmed">{t("topup.status.confirmed")}</SelectItem>
-                  <SelectItem value="rejected">{t("topup.status.rejected")}</SelectItem>
-                  <SelectItem value="expired">{t("topup.status.expired")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={applyFilters}>
-                  <Search className="mr-1 h-3.5 w-3.5" />
-                  {t("common.btn.search")}
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            <Select value={draftStatus} onValueChange={setDraftStatus}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("topup.filter.all")}</SelectItem>
+                <SelectItem value="pending">{t("topup.status.pending")}</SelectItem>
+                <SelectItem value="confirmed">{t("topup.status.confirmed")}</SelectItem>
+                <SelectItem value="rejected">{t("topup.status.rejected")}</SelectItem>
+                <SelectItem value="expired">{t("topup.status.expired")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={applyFilters}>
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {t("common.btn.search")}
+              </Button>
+              {draftStatus !== "all" && (
+                <Button size="sm" variant="outline" onClick={resetFilters}>
+                  {t("common.btn.reset")}
                 </Button>
-                {draftStatus !== "all" && (
-                  <Button size="sm" variant="outline" onClick={resetFilters}>
-                    {t("common.btn.reset")}
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
+          </div>
 
-            <DataTable
-              columns={columns}
-              data={orders}
-              emptyText={t("topup.table-empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              manualPagination
-              onPaginationChange={setPagination}
-              onRowClick={setSelected}
-              pagination={pagination}
-              rowCount={data?.total ?? 0}
-              tableClassName="min-w-[980px]"
-            />
-          </CardContent>
-        </Card>
+          <DataTable
+            columns={columns}
+            data={orders}
+            emptyText={t("topup.table-empty")}
+            getRowId={(row) => String(row.id)}
+            loading={isLoading}
+            manualPagination
+            onPaginationChange={setPagination}
+            onRowClick={setSelected}
+            pagination={pagination}
+            rowCount={data?.total ?? 0}
+            tableClassName="min-w-[980px]"
+          />
+        </div>
       </div>
 
       <Sheet open={!!selected} onOpenChange={() => setSelected(null)}>

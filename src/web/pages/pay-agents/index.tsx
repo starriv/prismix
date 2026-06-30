@@ -13,7 +13,6 @@ import { StatusBadge } from "@/web/components/dashboard/status-badge";
 import { DataTable, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -240,63 +239,58 @@ export default function PayAgentsPage() {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">{t("agents.card-title")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Filter bar */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-              <Input
-                placeholder={t("agents.filter-user-ph")}
-                value={draftUser}
-                onChange={handleUserChange}
-                onKeyDown={handleKeyDown}
-                className="w-full sm:w-[180px]"
-              />
-              <Input
-                placeholder={t("agents.filter-uuid-ph")}
-                value={draftUserUuid}
-                onChange={handleUserUuidChange}
-                onKeyDown={handleKeyDown}
-                className="w-full sm:w-[240px]"
-              />
-              <Input
-                placeholder={t("agents.filter-address-ph")}
-                value={draftAddress}
-                onChange={handleAddressChange}
-                onKeyDown={handleKeyDown}
-                className="w-full sm:w-[200px]"
-              />
-
-              <div className="flex gap-2">
-                <Button size="sm" onClick={applyFilters}>
-                  <Search className="mr-1 h-3.5 w-3.5" />
-                  {t("common.btn.search")}
-                </Button>
-                {hasFilters && (
-                  <Button size="sm" variant="outline" onClick={resetFilters}>
-                    {t("common.btn.reset")}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <DataTable
-              columns={columns}
-              data={agents}
-              emptyText={t("agents.empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              manualPagination
-              onPaginationChange={setPagination}
-              onRowClick={(row) => setEditingId(row.id)}
-              pageCount={agentPageCount}
-              pagination={pagination}
-              tableClassName="min-w-[980px]"
+        <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            <Input
+              placeholder={t("agents.filter-user-ph")}
+              value={draftUser}
+              onChange={handleUserChange}
+              onKeyDown={handleKeyDown}
+              className="w-full sm:w-[180px]"
             />
-          </CardContent>
-        </Card>
+            <Input
+              placeholder={t("agents.filter-uuid-ph")}
+              value={draftUserUuid}
+              onChange={handleUserUuidChange}
+              onKeyDown={handleKeyDown}
+              className="w-full sm:w-[240px]"
+            />
+            <Input
+              placeholder={t("agents.filter-address-ph")}
+              value={draftAddress}
+              onChange={handleAddressChange}
+              onKeyDown={handleKeyDown}
+              className="w-full sm:w-[200px]"
+            />
+
+            <div className="flex gap-2">
+              <Button size="sm" onClick={applyFilters}>
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {t("common.btn.search")}
+              </Button>
+              {hasFilters && (
+                <Button size="sm" variant="outline" onClick={resetFilters}>
+                  {t("common.btn.reset")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <DataTable
+            columns={columns}
+            data={agents}
+            emptyText={t("agents.empty")}
+            getRowId={(row) => String(row.id)}
+            loading={isLoading}
+            manualPagination
+            onPaginationChange={setPagination}
+            onRowClick={(row) => setEditingId(row.id)}
+            pageCount={agentPageCount}
+            pagination={pagination}
+            tableClassName="min-w-[980px]"
+          />
+        </div>
       </div>
 
       {/* Detail / Edit Sheet */}

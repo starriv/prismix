@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { ArrowDownLeft, ArrowUpRight, ExternalLink, Receipt, Search, Zap } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, Search, Zap } from "lucide-react";
 import { match } from "ts-pattern";
 
 import { removeTailingZero } from "@/shared/number";
@@ -19,7 +19,6 @@ import {
 } from "@/web/components/data-table";
 import { LocaleLink } from "@/web/components/locale-link";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -176,85 +175,77 @@ export default function TransactionLedgerPage() {
       <Header title={t("ledger.title")} description={t("ledger.desc")} />
 
       <div className="p-4 md:p-8 space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Receipt className="h-4 w-4" />
-              {t("ledger.table-title")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-              <Select value={draftType} onValueChange={setDraftType}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder={t("ledger.filter.type")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("ledger.filter.all-types")}</SelectItem>
-                  <SelectItem value="top_up">{t("ledger.type.top_up")}</SelectItem>
-                  <SelectItem value="ai_usage">{t("ledger.type.ai_usage")}</SelectItem>
-                  <SelectItem value="withdraw">{t("ledger.type.withdraw")}</SelectItem>
-                  <SelectItem value="payment">{t("ledger.type.payment")}</SelectItem>
-                  <SelectItem value="admin_debit">{t("ledger.type.admin_debit")}</SelectItem>
-                </SelectContent>
-              </Select>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            <Select value={draftType} onValueChange={setDraftType}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder={t("ledger.filter.type")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("ledger.filter.all-types")}</SelectItem>
+                <SelectItem value="top_up">{t("ledger.type.top_up")}</SelectItem>
+                <SelectItem value="ai_usage">{t("ledger.type.ai_usage")}</SelectItem>
+                <SelectItem value="withdraw">{t("ledger.type.withdraw")}</SelectItem>
+                <SelectItem value="payment">{t("ledger.type.payment")}</SelectItem>
+                <SelectItem value="admin_debit">{t("ledger.type.admin_debit")}</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Select value={draftSource} onValueChange={setDraftSource}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder={t("ledger.filter.source")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("ledger.filter.all-sources")}</SelectItem>
-                  <SelectItem value="platform">{t("ledger.source.platform")}</SelectItem>
-                  <SelectItem value="on_chain">{t("ledger.source.on_chain")}</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={draftSource} onValueChange={setDraftSource}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder={t("ledger.filter.source")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("ledger.filter.all-sources")}</SelectItem>
+                <SelectItem value="platform">{t("ledger.source.platform")}</SelectItem>
+                <SelectItem value="on_chain">{t("ledger.source.on_chain")}</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Select value={draftAgent} onValueChange={setDraftAgent}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder={t("ledger.filter.agent")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("ledger.filter.all-agents")}</SelectItem>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={draftAgent} onValueChange={setDraftAgent}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={t("ledger.filter.agent")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("ledger.filter.all-agents")}</SelectItem>
+                {agents.map((a) => (
+                  <SelectItem key={a.id} value={String(a.id)}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <div className="flex gap-2">
-                <Button size="sm" onClick={applyFilters} onKeyDown={handleKeyDown}>
-                  <Search className="mr-1 h-3.5 w-3.5" />
-                  {t("common.btn.search")}
+            <div className="flex gap-2">
+              <Button size="sm" onClick={applyFilters} onKeyDown={handleKeyDown}>
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {t("common.btn.search")}
+              </Button>
+              {hasFilters && (
+                <Button size="sm" variant="outline" onClick={resetFilters}>
+                  {t("common.btn.reset")}
                 </Button>
-                {hasFilters && (
-                  <Button size="sm" variant="outline" onClick={resetFilters}>
-                    {t("common.btn.reset")}
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
+          </div>
 
-            <DataTable
-              columns={columns}
-              data={txns}
-              emptyText={t("ledger.empty")}
-              getRowId={(row) => String(row.id)}
-              loading={
-                isLoading
-                  ? { initial: true, fetching: false }
-                  : { initial: false, fetching: isFetching }
-              }
-              manualPagination
-              onPaginationChange={setPagination}
-              pageCount={txnPageCount}
-              pagination={pagination}
-              tableClassName="min-w-[1080px]"
-            />
-          </CardContent>
-        </Card>
+          <DataTable
+            columns={columns}
+            data={txns}
+            emptyText={t("ledger.empty")}
+            getRowId={(row) => String(row.id)}
+            loading={
+              isLoading
+                ? { initial: true, fetching: false }
+                : { initial: false, fetching: isFetching }
+            }
+            manualPagination
+            onPaginationChange={setPagination}
+            pageCount={txnPageCount}
+            pagination={pagination}
+            tableClassName="min-w-[1080px]"
+          />
+        </div>
       </div>
     </div>
   );

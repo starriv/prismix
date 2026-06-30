@@ -31,7 +31,6 @@ import {
   DataTableText,
 } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
 import { Checkbox } from "@/web/components/ui/checkbox";
 import {
   Dialog,
@@ -294,32 +293,26 @@ export default function AdminAnnouncementsPage() {
     <div>
       <Header title={t("admin.announce.title")} description={t("admin.announce.desc")} />
 
-      <div className="p-4 md:p-8">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">{t("admin.announce.title")}</CardTitle>
-              <Button size="sm" onClick={() => setComposeOpen(true)} className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                {t("admin.announce.btn.compose")}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DataTable
-              columns={columns}
-              data={announcements}
-              emptyText={t("admin.announce.table-empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              manualPagination
-              onPaginationChange={setPagination}
-              pageCount={announcementPageCount}
-              pagination={pagination}
-              tableClassName="min-w-[1180px]"
-            />
-          </CardContent>
-        </Card>
+      <div className="space-y-4 p-4 md:p-8">
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setComposeOpen(true)} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            {t("admin.announce.btn.compose")}
+          </Button>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={announcements}
+          emptyText={t("admin.announce.table-empty")}
+          getRowId={(row) => String(row.id)}
+          loading={isLoading}
+          manualPagination
+          onPaginationChange={setPagination}
+          pageCount={announcementPageCount}
+          pagination={pagination}
+          tableClassName="min-w-[1180px]"
+        />
       </div>
 
       {/* Compose / Edit dialog */}

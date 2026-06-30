@@ -11,7 +11,6 @@ import type { FiatConfig } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable, dataTableMeta, DataTableText } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-import { Card, CardContent } from "@/web/components/ui/card";
 import { Switch } from "@/web/components/ui/switch";
 
 import { ConfigDialog } from "./config-dialog";
@@ -125,19 +124,15 @@ export default function FiatConfigsPage() {
           </Button>
         </div>
 
-        <Card>
-          <CardContent className="pt-4">
-            <DataTable
-              columns={columns}
-              data={configs}
-              emptyText={t("fiat.table-empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              showPagination={false}
-              tableClassName="min-w-[900px]"
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={configs}
+          emptyText={t("fiat.table-empty")}
+          getRowId={(row) => String(row.id)}
+          loading={isLoading}
+          showPagination={false}
+          tableClassName="min-w-[900px]"
+        />
       </div>
 
       <ConfigDialog open={createOpen} onClose={() => setCreateOpen(false)} />

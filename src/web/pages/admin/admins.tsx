@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Shield, Shuffle, Trash2 } from "lucide-react";
+import { Plus, Shuffle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -19,13 +19,6 @@ import {
   DataTableText,
 } from "@/web/components/data-table";
 import { Button } from "@/web/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/web/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -157,26 +150,15 @@ export default function AdminMembersPage() {
           <AddAdminDialog />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              {t("admin.admins.title")}
-            </CardTitle>
-            <CardDescription>{t("admin.admins.desc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              columns={columns}
-              data={admins}
-              emptyText={isLoading ? t("auth.loading") : t("admin.admins.empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              showPagination={false}
-              tableClassName="min-w-[920px]"
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={admins}
+          emptyText={isLoading ? t("auth.loading") : t("admin.admins.empty")}
+          getRowId={(row) => String(row.id)}
+          loading={isLoading}
+          showPagination={false}
+          tableClassName="min-w-[920px]"
+        />
       </div>
 
       {/* Delete confirmation dialog */}

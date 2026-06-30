@@ -26,13 +26,6 @@ import {
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/web/components/ui/card";
-import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -191,31 +184,22 @@ export default function AdminTokensPage() {
       <Header title={t("admin.tokens.title")} description={t("admin.tokens.desc")} />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>{t("admin.tokens.title")}</CardTitle>
-                <CardDescription>{t("admin.tokens.desc")}</CardDescription>
-              </div>
-              <Button size="sm" onClick={() => setAddOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                {t("admin.tokens.btn.new")}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              columns={columns}
-              data={tokens}
-              emptyText={t("admin.tokens.empty")}
-              getRowId={(row) => String(row.id)}
-              loading={false}
-              showPagination={false}
-              tableClassName="min-w-[900px]"
-            />
-          </CardContent>
-        </Card>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            {t("admin.tokens.btn.new")}
+          </Button>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={tokens}
+          emptyText={t("admin.tokens.empty")}
+          getRowId={(row) => String(row.id)}
+          loading={false}
+          showPagination={false}
+          tableClassName="min-w-[900px]"
+        />
       </div>
 
       <AddTokenDialog open={addOpen} onOpenChange={setAddOpen} />

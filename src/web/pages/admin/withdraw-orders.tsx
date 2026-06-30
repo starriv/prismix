@@ -198,64 +198,57 @@ export default function AdminWithdrawOrdersPage() {
       <Header title={t("admin.withdraw.title")} description={t("admin.withdraw.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">{t("admin.withdraw.card-title")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Filter bar */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-              <Select value={draftStatus} onValueChange={setDraftStatus}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("admin.withdraw.filter.all")}</SelectItem>
-                  <SelectItem value="pending">{t("admin.withdraw.filter.pending")}</SelectItem>
-                  <SelectItem value="processing">
-                    {t("admin.withdraw.status.processing")}
-                  </SelectItem>
-                  <SelectItem value="completed">{t("admin.withdraw.filter.completed")}</SelectItem>
-                  <SelectItem value="failed">{t("admin.withdraw.filter.failed")}</SelectItem>
-                  <SelectItem value="cancelled">{t("admin.withdraw.filter.cancelled")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder={t("admin.withdraw.filter-uuid-ph")}
-                value={draftUserUuid}
-                onChange={handleUserUuidChange}
-                onKeyDown={handleKeyDown}
-                className="w-full sm:w-[240px]"
-              />
-
-              <div className="flex gap-2">
-                <Button size="sm" onClick={applyFilters}>
-                  <Search className="mr-1 h-3.5 w-3.5" />
-                  {t("common.btn.search")}
-                </Button>
-                {hasFilters && (
-                  <Button size="sm" variant="outline" onClick={resetFilters}>
-                    {t("common.btn.reset")}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <DataTable
-              columns={columns}
-              data={orders}
-              emptyText={t("admin.withdraw.empty")}
-              getRowId={(row) => String(row.id)}
-              loading={isLoading}
-              manualPagination
-              onPaginationChange={setPagination}
-              onRowClick={setSelected}
-              pageCount={orderPageCount}
-              pagination={pagination}
-              tableClassName="min-w-[980px]"
+        <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+            <Select value={draftStatus} onValueChange={setDraftStatus}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("admin.withdraw.filter.all")}</SelectItem>
+                <SelectItem value="pending">{t("admin.withdraw.filter.pending")}</SelectItem>
+                <SelectItem value="processing">{t("admin.withdraw.status.processing")}</SelectItem>
+                <SelectItem value="completed">{t("admin.withdraw.filter.completed")}</SelectItem>
+                <SelectItem value="failed">{t("admin.withdraw.filter.failed")}</SelectItem>
+                <SelectItem value="cancelled">{t("admin.withdraw.filter.cancelled")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder={t("admin.withdraw.filter-uuid-ph")}
+              value={draftUserUuid}
+              onChange={handleUserUuidChange}
+              onKeyDown={handleKeyDown}
+              className="w-full sm:w-[240px]"
             />
-          </CardContent>
-        </Card>
+
+            <div className="flex gap-2">
+              <Button size="sm" onClick={applyFilters}>
+                <Search className="mr-1 h-3.5 w-3.5" />
+                {t("common.btn.search")}
+              </Button>
+              {hasFilters && (
+                <Button size="sm" variant="outline" onClick={resetFilters}>
+                  {t("common.btn.reset")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <DataTable
+            columns={columns}
+            data={orders}
+            emptyText={t("admin.withdraw.empty")}
+            getRowId={(row) => String(row.id)}
+            loading={isLoading}
+            manualPagination
+            onPaginationChange={setPagination}
+            onRowClick={setSelected}
+            pageCount={orderPageCount}
+            pagination={pagination}
+            tableClassName="min-w-[980px]"
+          />
+        </div>
       </div>
 
       <Sheet open={!!selected} onOpenChange={() => setSelected(null)}>
