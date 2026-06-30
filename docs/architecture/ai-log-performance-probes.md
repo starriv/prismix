@@ -48,6 +48,9 @@ AI 网关在 `ai_usage_logs` 中记录请求级性能探测字段，用于解释
 - `cacheStatus` 描述 Prismix 网关自己的语义缓存是否命中、未命中、绕过或关闭。
 - `cacheReadInputTokens` 和 `cacheCreationInputTokens` 来自供应商 usage 字段，表示供应商 prompt cache 的读写 token。
 - 聚合 cache hit rate 的分母只统计 `hit` 和 `miss`，不把 `bypass` 或 `disabled` 计入命中率分母。
+- `cacheEligibleRequests = hit + miss`。当 eligible 为 0 时，网关缓存命中率不可计算，UI 显示 `—` 而不是 `0%`。
+- 当前流式请求和 passthrough 请求会记录为 `bypass`，因此它们可以解释“没有缓存参与”，但不会拉低语义缓存命中率。
+- `disabled` 是 `cacheStatus` 的保留枚举值（语义缓存被配置关闭时使用），当前 relay 路径尚未写入该状态，聚合层不单独统计。
 - prompt cache read/write rate 使用供应商 cache token 除以输入 token 总量计算，不从 `cacheStatus` 推断。
 
 ## 计费语义

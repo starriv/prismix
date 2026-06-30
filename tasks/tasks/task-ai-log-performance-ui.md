@@ -53,6 +53,7 @@ Admin and user AI log views display the new performance and cache metrics with a
 - `/admin/ai-logs` is language-prefixed in local dev; the verified route is `/en/admin/ai-logs`.
 - The detail sheet is shared, so the performance probe section was added once and reused by admin/user log surfaces.
 - A synthetic local dev log row with model `gpt-performance-probe` was inserted to verify populated metric rendering and detail-sheet drill-down, then removed after verification.
+- Summary cards now label gateway semantic-cache hit rate separately from provider prompt-cache read rate. If the gateway cache has no eligible `hit + miss` rows, the hit-rate card displays `—` instead of a misleading `0%`.
 
 ## Execution Log
 
@@ -62,6 +63,7 @@ Admin and user AI log views display the new performance and cache metrics with a
 - 2026-06-30: Browser verification passed for `http://localhost:5189/en/admin/ai-logs` as admin at 1440x1000 and 390x844, including row click and performance detail rendering.
 - 2026-06-30: Console/network review showed only expected dev-mode informational output and a verifier HEAD request aborted by the script; application API requests returned 200.
 - 2026-06-30: Re-verified current worktree with a temporary populated performance log row. Desktop and mobile detail-sheet clicks both rendered `Performance Probe`, `Upstream TTFB`, and `Request Body`; the request-log API returned 200. Temporary DB/Redis data and admin storage state were cleaned afterward.
+- 2026-06-30: Re-reviewed cache summary display after a production screenshot showed `0%`; changed local UI copy to `网关缓存命中率` / `供应商读缓存率` and verified unavailable gateway hit rate renders as `—` on desktop and mobile.
 
 ## Review
 

@@ -4,6 +4,7 @@ import type { AiUsageRecord } from "@/web/api/schemas";
 import {
   formatBytes,
   formatDurationMs,
+  formatGatewayCacheHitRate,
   hasPerformanceMetrics,
 } from "@/web/pages/ai-logs/performance";
 
@@ -63,6 +64,17 @@ describe("formatBytes", () => {
   it("formats MB", () => {
     expect(formatBytes(1048576)).toBe("1MB");
     expect(formatBytes(1572864)).toBe("1.5MB");
+  });
+});
+
+describe("formatGatewayCacheHitRate", () => {
+  it("returns an unavailable marker when there are no cache-eligible requests", () => {
+    expect(formatGatewayCacheHitRate(null)).toBe("—");
+    expect(formatGatewayCacheHitRate({ cacheEligibleRequests: 0, cacheHitRate: 0 })).toBe("—");
+  });
+
+  it("formats hit rate when hit/miss denominator exists", () => {
+    expect(formatGatewayCacheHitRate({ cacheEligibleRequests: 10, cacheHitRate: 0.4 })).toBe("40%");
   });
 });
 

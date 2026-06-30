@@ -55,6 +55,7 @@ The performance probe feature is validated end to end with tests, migration chec
 - The local admin log route requires a language prefix; verification used `http://localhost:5189/en/admin/ai-logs`.
 - Live provider traffic was not required for rollout validation. Deterministic unit tests cover relay/cache/stream paths, and a temporary synthetic local usage row verified populated UI rendering before cleanup.
 - `pnpm lint` passes with existing warnings in unrelated files; no lint errors were introduced by this feature.
+- Gateway semantic-cache hit rate and provider prompt-cache read rate need separate rollout monitoring. Streaming and passthrough traffic currently records `cacheStatus=bypass`, so a workload made entirely of those rows should not be interpreted as a real 0% semantic-cache hit rate.
 
 ## Execution Log
 
@@ -66,6 +67,7 @@ The performance probe feature is validated end to end with tests, migration chec
 - 2026-06-30: Browser verification passed on desktop and mobile with admin storage state; manual Playwright click verified the detail sheet and request log response.
 - 2026-06-30: Added `docs/architecture/ai-log-performance-probes.md` with metric definitions, cache denominator, and cache-hit billing semantics.
 - 2026-06-30: Current-state audit re-ran `pnpm db:migrate`, full `pnpm test:unit`, `pnpm typecheck`, `pnpm lint`, locale JSON parse, `git diff --check`, desktop/mobile `pnpm verify:web`, and desktop/mobile Playwright detail-sheet clicks. Only existing lint warnings, dev-mode console notices, and verifier HEAD aborts remain.
+- 2026-06-30: Follow-up metric review passed focused summary/schema/UI helper tests, `pnpm typecheck`, `pnpm lint`, and desktop/mobile `pnpm verify:web` for `http://localhost:5189/zh/admin/ai-logs`; API calls returned 200 and only the known dev-mode Lit warning plus verifier HEAD abort appeared.
 
 ## Review
 

@@ -68,7 +68,30 @@ describe("ai log performance schemas", () => {
     });
 
     expect(parsed.cacheHitRate).toBe(0);
+    expect(parsed.cacheEligibleRequests).toBe(0);
     expect(parsed.p95LatencyMs).toBe(0);
     expect(parsed.promptCacheReadRate).toBe(0);
+  });
+
+  it("parses aggregate cache denominator fields", () => {
+    const parsed = aiUsageSummarySchema.parse({
+      totalRequests: 12,
+      totalInputTokens: 100,
+      totalOutputTokens: 20,
+      totalTokens: 120,
+      totalEstimatedCost: 0.001,
+      errorCount: 0,
+      errorRate: 0,
+      cacheHits: 2,
+      cacheMisses: 3,
+      cacheBypasses: 7,
+      cacheEligibleRequests: 5,
+      cacheHitRate: 0.4,
+      byEndpoint: [],
+      byModel: [],
+    });
+
+    expect(parsed.cacheEligibleRequests).toBe(5);
+    expect(parsed.cacheHitRate).toBe(0.4);
   });
 });

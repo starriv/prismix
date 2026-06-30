@@ -2630,10 +2630,10 @@
     "live": "实时",
     "table-empty": "暂无 AI 日志",
     "stats": {
-      "cache-hit-rate": "缓存命中率",
+      "cache-hit-rate": "网关缓存命中率",
       "p95-latency": "P95 耗时",
       "p95-ttfb": "P95 TTFB",
-      "prompt-cache-read": "读缓存率"
+      "prompt-cache-read": "供应商读缓存率"
     },
     "th": {
       "request-id": "请求 ID",

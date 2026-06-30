@@ -41,6 +41,7 @@ export interface AiUsageSummary {
   cacheHits: number;
   cacheMisses: number;
   cacheBypasses: number;
+  cacheEligibleRequests: number;
   cacheHitRate: number;
   promptCacheCreationInputTokens: number;
   promptCacheReadInputTokens: number;
@@ -711,7 +712,7 @@ export const aiUsageLogRepo = {
     const cacheHits = Number(totalsRow?.cacheHits ?? 0);
     const cacheMisses = Number(totalsRow?.cacheMisses ?? 0);
     const cacheBypasses = Number(totalsRow?.cacheBypasses ?? 0);
-    const cacheDenominator = cacheHits + cacheMisses;
+    const cacheEligibleRequests = cacheHits + cacheMisses;
     const promptCacheCreationInputTokens = Number(totalsRow?.promptCacheCreationInputTokens ?? 0);
     const promptCacheReadInputTokens = Number(totalsRow?.promptCacheReadInputTokens ?? 0);
 
@@ -770,7 +771,8 @@ export const aiUsageLogRepo = {
       cacheHits,
       cacheMisses,
       cacheBypasses,
-      cacheHitRate: cacheDenominator > 0 ? cacheHits / cacheDenominator : 0,
+      cacheEligibleRequests,
+      cacheHitRate: cacheEligibleRequests > 0 ? cacheHits / cacheEligibleRequests : 0,
       promptCacheCreationInputTokens,
       promptCacheReadInputTokens,
       promptCacheCreationRate:

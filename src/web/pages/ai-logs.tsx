@@ -33,7 +33,7 @@ import {
 
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
-import { formatDurationMs } from "./ai-logs/performance";
+import { formatDurationMs, formatGatewayCacheHitRate } from "./ai-logs/performance";
 import { StatCard } from "./ai-usage/helpers";
 
 export default function AiLogsPage() {
@@ -128,6 +128,7 @@ export default function AiLogsPage() {
   }, [setAppliedKey, setAppliedModel, setAppliedRequestId, setAppliedStatus, setPage]);
 
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
+  const cacheHitRateValue = formatGatewayCacheHitRate(summary);
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex: page, pageSize: DEFAULT_PAGE_SIZE }),
     [page],
@@ -149,7 +150,7 @@ export default function AiLogsPage() {
           <StatCard
             icon={Database}
             label={t("ai-logs.stats.cache-hit-rate")}
-            value={formatPercent(summary?.cacheHitRate ?? 0)}
+            value={cacheHitRateValue}
             loading={summaryLoading}
           />
           <StatCard

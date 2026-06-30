@@ -15,10 +15,11 @@ function computeSummaryRates(raw: {
   promptCacheCreationInputTokens: number;
   promptCacheReadInputTokens: number;
 }) {
-  const cacheDenominator = raw.cacheHits + raw.cacheMisses;
+  const cacheEligibleRequests = raw.cacheHits + raw.cacheMisses;
   return {
     errorRate: raw.totalRequests > 0 ? raw.errorCount / raw.totalRequests : 0,
-    cacheHitRate: cacheDenominator > 0 ? raw.cacheHits / cacheDenominator : 0,
+    cacheEligibleRequests,
+    cacheHitRate: cacheEligibleRequests > 0 ? raw.cacheHits / cacheEligibleRequests : 0,
     promptCacheCreationRate:
       raw.totalInputTokens > 0 ? raw.promptCacheCreationInputTokens / raw.totalInputTokens : 0,
     promptCacheReadRate:
@@ -42,6 +43,7 @@ describe("ai-usage-log summary aggregation logic", () => {
     });
     expect(result.errorRate).toBe(0);
     expect(result.cacheHitRate).toBe(0);
+    expect(result.cacheEligibleRequests).toBe(0);
     expect(result.promptCacheCreationRate).toBe(0);
     expect(result.promptCacheReadRate).toBe(0);
     expect(result.totalTokens).toBe(0);
@@ -91,6 +93,23 @@ describe("ai-usage-log summary aggregation logic", () => {
     });
     // 5 / (5 + 5) = 0.5, bypasses excluded
     expect(result.cacheHitRate).toBe(0.5);
+    expect(result.cacheEligibleRequests).toBe(10);
+  });
+
+  it("only cache bypasses make gateway cache hit rate ineligible", () => {
+    const result = computeSummaryRates({
+      totalRequests: 20,
+      totalInputTokens: 300,
+      totalOutputTokens: 150,
+      errorCount: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      cacheBypasses: 20,
+      promptCacheCreationInputTokens: 0,
+      promptCacheReadInputTokens: 0,
+    });
+    expect(result.cacheHitRate).toBe(0);
+    expect(result.cacheEligibleRequests).toBe(0);
   });
 
   it("mix of hit/miss/bypass computes correct rate", () => {

@@ -346,6 +346,7 @@ export const aiUsageSummarySchema = z.object({
   cacheHits: z.number().optional().default(0),
   cacheMisses: z.number().optional().default(0),
   cacheBypasses: z.number().optional().default(0),
+  cacheEligibleRequests: z.number().optional().default(0),
   cacheHitRate: z.number().optional().default(0),
   promptCacheCreationInputTokens: z.number().optional().default(0),
   promptCacheReadInputTokens: z.number().optional().default(0),

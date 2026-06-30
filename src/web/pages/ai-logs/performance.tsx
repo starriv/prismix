@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 
-import type { AiUsageRecord } from "@/web/api/schemas";
+import { formatPercent } from "@/shared/number";
+import type { AiUsageRecord, AiUsageSummary } from "@/web/api/schemas";
 import { DataTableText } from "@/web/components/data-table";
 
 export function formatDurationMs(value: number | null | undefined): string {
@@ -15,6 +16,14 @@ export function formatBytes(value: number | null | undefined): string {
   if (value < 1024) return `${value}B`;
   if (value < 1024 * 1024) return `${removeTrailingZero(value / 1024, 1)}KB`;
   return `${removeTrailingZero(value / (1024 * 1024), 1)}MB`;
+}
+
+export function formatGatewayCacheHitRate(
+  summary: Pick<AiUsageSummary, "cacheEligibleRequests" | "cacheHitRate"> | null | undefined,
+): string {
+  return (summary?.cacheEligibleRequests ?? 0) > 0
+    ? formatPercent(summary?.cacheHitRate ?? 0)
+    : "—";
 }
 
 export function hasPerformanceMetrics(log: AiUsageRecord): boolean {
