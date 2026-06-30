@@ -34,6 +34,7 @@ import { buildEndpointAuth } from "../lib/endpoint-auth";
 import { checkInputGuardrails, type GuardrailConfig } from "../lib/guardrails";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
+import { type AiLogPerformanceMetrics, AiRequestProbe, byteLength } from "../lib/performance-probe";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { notifyResourceDown, type ResourceDownAlertInput } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules, safeParseJsonArray } from "../lib/safe-json";
@@ -71,6 +72,7 @@ interface RelayErrorExtras {
   requestBody?: string;
   responseBody?: string;
   estimatedCost?: string | null;
+  performanceMetrics?: AiLogPerformanceMetrics;
 }
 
 function respondWithRelayError(
@@ -92,6 +94,7 @@ function respondWithRelayError(
     upstreamBaseUrl: extras?.upstreamBaseUrl ?? null,
     estimatedCost: extras?.estimatedCost ?? null,
     latencyMs: Date.now() - start,
+    performanceMetrics: extras?.performanceMetrics,
     requestBody: extras?.requestBody,
     responseBody: extras?.responseBody ?? JSON.stringify(payload),
     error: buildAccessLogErrorMessage(
@@ -122,6 +125,7 @@ relay.post("/v1/chat/completions", async (c) => {
   getAdminSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const probe = new AiRequestProbe({ routeType: "chat" });
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const logEnabled = await isRequestLoggingEnabled();
 
@@ -129,6 +133,7 @@ relay.post("/v1/chat/completions", async (c) => {
   const parsed = await parseBody(c, aiRelayChatBody);
   if (!parsed.ok) return respondWithRelayError(c, requestId, start, 400, { error: parsed.error });
   const body = parsed.data;
+  probe.set({ isStream: !!body.stream });
 
   // -- 1b. Input guardrails --
   const guardrailConfigs = await aiGuardrailConfigRepo.findAllEnabled();
@@ -144,6 +149,7 @@ relay.post("/v1/chat/completions", async (c) => {
         return respondWithRelayError(c, requestId, start, 403, {
           error: result.reason ?? "Request blocked by guardrails",
           flagged: result.flaggedContent,
+          performanceMetrics: probe.snapshot(),
         });
       }
       if (!result.allowed) {
@@ -153,10 +159,13 @@ relay.post("/v1/chat/completions", async (c) => {
   }
 
   // -- 2. Build candidate chain via model routes (primary + fallbacks) --
+  const routingStart = probe.mark();
   const candidates = await buildCandidateChain(body.model);
+  probe.set({ routingMs: probe.since(routingStart) });
   if (candidates.length === 0) {
     return respondWithRelayError(c, requestId, start, 404, {
       error: `Model "${body.model}" not found or disabled`,
+      performanceMetrics: probe.snapshot(),
     });
   }
 
@@ -213,10 +222,18 @@ relay.post("/v1/chat/completions", async (c) => {
         inputPrice: candidate.model.inputPrice,
         outputPrice: candidate.model.outputPrice,
         requestBody: logEnabled ? attemptBody : undefined,
+        performanceMetrics: probe.snapshot({
+          routeType: "chat",
+          isStream: !!body.stream,
+          requestBytes: byteLength(attemptBody),
+          attemptCount: totalAttempts,
+          retryCount: Math.max(0, totalAttempts - 1),
+        }),
       };
 
       // -- Cache check (non-streaming only) --
       if (!body.stream) {
+        const cacheLookupStart = probe.mark();
         const cacheKey = buildCacheKey({
           scope: "admin",
           model: candidate.model.modelId,
@@ -226,13 +243,52 @@ relay.post("/v1/chat/completions", async (c) => {
           requestBody: attemptBody,
         });
         const cached = getCachedResponse(cacheKey);
+        const cacheLookupMs = probe.since(cacheLookupStart);
         if (cached) {
+          const cachedText = JSON.stringify(cached);
+          const usage = extractPassthroughUsage(cachedText);
+          const cost = calculateCost(usage, candidate.model);
+          enqueueJob("ai-usage-log", {
+            endpointCredentialId: keyMeta.endpointCredentialId,
+            endpointId: candidate.endpoint.endpointId,
+            modelId: candidate.model.modelId,
+            upstreamId: keyMeta.upstreamId,
+            upstreamName: keyMeta.upstreamName,
+            upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+            inputTokens: usage?.inputTokens ?? 0,
+            outputTokens: usage?.outputTokens ?? 0,
+            totalTokens: usage?.totalTokens ?? 0,
+            cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
+            cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+            estimatedCost: cost ?? null,
+            latencyMs: probe.elapsed(),
+            statusCode: 200,
+            requestId,
+            error: null,
+            ...probe.snapshot({
+              routeType: "chat",
+              isStream: false,
+              cacheStatus: "hit",
+              cacheLookupMs,
+              requestBytes: byteLength(attemptBody),
+              responseBytes: byteLength(cachedText),
+              attemptCount: totalAttempts,
+              retryCount: Math.max(0, totalAttempts - 1),
+            }),
+          } as Record<string, unknown>);
+          enqueueJob("ai-endpoint-credential-touch", {
+            endpointCredentialId: keyMeta.endpointCredentialId,
+          });
           return c.json(cached);
         }
+        probe.set({ cacheStatus: "miss", cacheLookupMs });
+      } else {
+        probe.set({ cacheStatus: "bypass" });
       }
 
       let concurrencyLease: UpstreamConcurrencyLease | null;
       try {
+        const queueStart = probe.mark();
         concurrencyLease = await acquireUpstreamSlot({
           upstreamId: keyMeta.upstreamId,
           concurrencyScopeKey: keyMeta.concurrencyScopeKey,
@@ -242,6 +298,7 @@ relay.post("/v1/chat/completions", async (c) => {
           endpointId: candidate.endpoint.endpointId,
           modelId: candidate.model.modelId,
         });
+        probe.set({ queueWaitMs: probe.since(queueStart) });
       } catch (err) {
         lastError = toConcurrencyLastError(err);
         lastResourceDownAlert = null;
@@ -251,6 +308,7 @@ relay.post("/v1/chat/completions", async (c) => {
       if (body.stream) {
         let releaseInFinally = true;
         try {
+          const upstreamStart = probe.mark();
           const upstreamFetchMs = resolveUpstreamFetchTimeoutMs(timeouts, {
             endpointId: candidate.endpoint.endpointId,
             modelId: candidate.model.modelId,
@@ -262,6 +320,7 @@ relay.post("/v1/chat/completions", async (c) => {
             upstreamFetchMs,
             { endpoint: candidate.endpoint.endpointId, route: "chat" },
           );
+          probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
           if (upstreamRes.ok) {
             const streamConcurrencyLease = concurrencyLease;
             releaseInFinally = false;
@@ -274,6 +333,14 @@ relay.post("/v1/chat/completions", async (c) => {
                 upstreamId: keyMeta.upstreamId,
                 upstreamName: keyMeta.upstreamName,
                 upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+                performanceMetrics: probe.snapshot({
+                  routeType: "chat",
+                  isStream: true,
+                  cacheStatus: "bypass",
+                  requestBytes: byteLength(attemptBody),
+                  attemptCount: totalAttempts,
+                  retryCount: Math.max(0, totalAttempts - 1),
+                }),
               },
               undefined,
               timeouts,
@@ -315,6 +382,13 @@ relay.post("/v1/chat/completions", async (c) => {
               upstreamName: keyMeta.upstreamName,
               upstreamBaseUrl: keyMeta.upstreamBaseUrl,
               requestBody: logEnabled ? attemptBody : undefined,
+              performanceMetrics: probe.snapshot({
+                routeType: "chat",
+                isStream: true,
+                requestBytes: byteLength(attemptBody),
+                attemptCount: totalAttempts,
+                retryCount: Math.max(0, totalAttempts - 1),
+              }),
             },
           );
         } catch (err) {
@@ -342,6 +416,7 @@ relay.post("/v1/chat/completions", async (c) => {
         let upstreamRes: Response;
         try {
           const fetchStart = Date.now();
+          const upstreamStart = probe.mark();
           upstreamRes = await fetch(finalUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...authHeaders, ...passthroughHeaders },
@@ -352,6 +427,7 @@ relay.post("/v1/chat/completions", async (c) => {
             { endpoint: candidate.endpoint.endpointId, route: "chat", phase: "response" },
             (Date.now() - fetchStart) / 1000,
           );
+          probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
         } catch (err) {
           markCredentialFailure(keyMeta.endpointCredentialId);
           lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
@@ -407,10 +483,11 @@ relay.post("/v1/chat/completions", async (c) => {
           );
         }
 
-        const latencyMs = Date.now() - start;
         let responseBody: unknown;
         try {
+          const upstreamBodyStart = probe.mark();
           responseBody = await upstreamRes.json();
+          probe.set({ upstreamBodyMs: probe.since(upstreamBodyStart) });
         } catch {
           return respondWithRelayError(
             c,
@@ -426,15 +503,38 @@ relay.post("/v1/chat/completions", async (c) => {
               upstreamName: keyMeta.upstreamName,
               upstreamBaseUrl: keyMeta.upstreamBaseUrl,
               requestBody: logEnabled ? attemptBody : undefined,
+              performanceMetrics: probe.snapshot({
+                routeType: "chat",
+                isStream: false,
+                requestBytes: byteLength(attemptBody),
+                attemptCount: totalAttempts,
+                retryCount: Math.max(0, totalAttempts - 1),
+              }),
             },
           );
         }
 
+        const transformStart = probe.mark();
         const transformed = adapter.transformResponse(responseBody);
         const usage = adapter.extractUsage(responseBody);
+        probe.set({ transformMs: probe.since(transformStart) });
         markCredentialSuccess(keyMeta.endpointCredentialId);
 
         const cost = calculateCost(usage, candidate.model);
+        const responseText = JSON.stringify(responseBody);
+        const cacheKey = buildCacheKey({
+          scope: "admin",
+          model: candidate.model.modelId,
+          endpointId: candidate.endpoint.endpointId,
+          upstreamId: keyMeta.upstreamId,
+          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
+          requestBody: attemptBody,
+        });
+        const cacheWriteStart = probe.mark();
+        setCachedResponse(cacheKey, transformed);
+        probe.set({ cacheWriteMs: probe.since(cacheWriteStart) });
+
+        const latencyMs = probe.elapsed();
         enqueueJob("ai-usage-log", {
           endpointCredentialId: keyMeta.endpointCredentialId,
           endpointId: candidate.endpoint.endpointId,
@@ -449,6 +549,14 @@ relay.post("/v1/chat/completions", async (c) => {
           cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
           estimatedCost: cost ?? null,
           latencyMs,
+          ...probe.snapshot({
+            routeType: "chat",
+            isStream: false,
+            requestBytes: byteLength(attemptBody),
+            responseBytes: byteLength(responseText),
+            attemptCount: totalAttempts,
+            retryCount: Math.max(0, totalAttempts - 1),
+          }),
           statusCode: upstreamRes.status,
           requestId,
           error: null,
@@ -460,7 +568,7 @@ relay.post("/v1/chat/completions", async (c) => {
             consumerKeyId: null,
             modelId: candidate.model.modelId,
             requestBody: attemptBody,
-            responseBody: JSON.stringify(responseBody),
+            responseBody: responseText,
             createdAt: new Date().toISOString(),
           } as Record<string, unknown>);
         }
@@ -468,16 +576,6 @@ relay.post("/v1/chat/completions", async (c) => {
         enqueueJob("ai-endpoint-credential-touch", {
           endpointCredentialId: keyMeta.endpointCredentialId,
         });
-
-        const cacheKey = buildCacheKey({
-          scope: "admin",
-          model: candidate.model.modelId,
-          endpointId: candidate.endpoint.endpointId,
-          upstreamId: keyMeta.upstreamId,
-          upstreamBaseUrl: keyMeta.upstreamBaseUrl,
-          requestBody: attemptBody,
-        });
-        setCachedResponse(cacheKey, transformed);
 
         return c.json(transformed);
       } catch (err) {
@@ -530,6 +628,7 @@ relay.all("/v1/*", async (c) => {
   getAdminSession(c);
   const requestId = getRequestId(c);
   const start = Date.now();
+  const probe = new AiRequestProbe({ routeType: "passthrough" });
   const timeouts = resolveTimeoutConfig(getGatewayConfigCached().timeouts);
   const subPath = c.req.path.replace(/^.*\/v1\//, "");
   const logEnabled = await isRequestLoggingEnabled();
@@ -542,11 +641,15 @@ relay.all("/v1/*", async (c) => {
       if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         return respondWithRelayError(c, requestId, start, 400, {
           error: "Request body must be a JSON object",
+          performanceMetrics: probe.snapshot(),
         });
       }
       body = raw as Record<string, unknown>;
     } catch {
-      return respondWithRelayError(c, requestId, start, 400, { error: "Invalid JSON body" });
+      return respondWithRelayError(c, requestId, start, 400, {
+        error: "Invalid JSON body",
+        performanceMetrics: probe.snapshot(),
+      });
     }
   }
 
@@ -554,6 +657,7 @@ relay.all("/v1/*", async (c) => {
   if (!modelId) {
     return respondWithRelayError(c, requestId, start, 400, {
       error: "Request body must contain a 'model' field",
+      performanceMetrics: probe.snapshot(),
     });
   }
 
@@ -561,6 +665,7 @@ relay.all("/v1/*", async (c) => {
   if (!result) {
     return respondWithRelayError(c, requestId, start, 404, {
       error: `Model "${modelId}" not found or disabled`,
+      performanceMetrics: probe.snapshot(),
     });
   }
 
@@ -573,7 +678,7 @@ relay.all("/v1/*", async (c) => {
       start,
       400,
       { error: "Bedrock streaming is not supported yet" },
-      { endpointId: endpoint.endpointId, modelId },
+      { endpointId: endpoint.endpointId, modelId, performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -593,7 +698,10 @@ relay.all("/v1/*", async (c) => {
   const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
   const serializedBody = JSON.stringify(body);
 
-  for (const upstream of await resolveUpstreamCandidates(endpoint)) {
+  const routingStart = probe.mark();
+  const upstreams = await resolveUpstreamCandidates(endpoint);
+  probe.set({ routingMs: probe.since(routingStart) });
+  for (const upstream of upstreams) {
     const credential = await pickEndpointCredential(endpoint.id, upstream.id);
     if (!credential) continue;
 
@@ -636,12 +744,13 @@ relay.all("/v1/*", async (c) => {
       start,
       403,
       { error: "No endpoint credential configured for this endpoint" },
-      { endpointId: endpoint.endpointId, modelId },
+      { endpointId: endpoint.endpointId, modelId, performanceMetrics: probe.snapshot() },
     );
   }
 
   const passthroughHeaders = extractPassthroughHeaders(c);
   const isStreaming = body.stream === true;
+  probe.set({ isStream: isStreaming, cacheStatus: "bypass" });
   let lastError: { status: number; message: string } | null = null;
   let selected = resolvedAttempts[0];
 
@@ -660,11 +769,21 @@ relay.all("/v1/*", async (c) => {
       inputPrice: result.model.inputPrice,
       outputPrice: result.model.outputPrice,
       requestBody: logEnabled ? selected.serializedBody : undefined,
+      routeType: "passthrough",
+      performanceMetrics: probe.snapshot({
+        routeType: "passthrough",
+        isStream: isStreaming,
+        cacheStatus: "bypass",
+        requestBytes: byteLength(selected.serializedBody),
+        attemptCount: idx + 1,
+        retryCount: idx,
+      }),
     };
 
     let concurrencyLease: UpstreamConcurrencyLease | null;
     let releaseInFinally = true;
     try {
+      const queueStart = probe.mark();
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: selected.upstreamId,
         concurrencyScopeKey: selected.concurrencyScopeKey,
@@ -674,6 +793,7 @@ relay.all("/v1/*", async (c) => {
         endpointId: endpoint.endpointId,
         modelId,
       });
+      probe.set({ queueWaitMs: probe.since(queueStart) });
     } catch (err) {
       lastError = toConcurrencyLastError(err);
       continue;
@@ -681,6 +801,7 @@ relay.all("/v1/*", async (c) => {
 
     try {
       const fetchStart = Date.now();
+      const upstreamStart = probe.mark();
       const upstreamRes = await fetch(selected.finalUrl, {
         method: c.req.method,
         headers: {
@@ -702,12 +823,29 @@ relay.all("/v1/*", async (c) => {
         { endpoint: endpoint.endpointId, route: "passthrough", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
+      probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
 
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
         const streamConcurrencyLease = concurrencyLease;
         releaseInFinally = false;
-        return forwardPassthroughStream(c, upstreamRes, meta, undefined, timeouts, undefined, () =>
-          releaseUpstreamSlot(streamConcurrencyLease),
+        return forwardPassthroughStream(
+          c,
+          upstreamRes,
+          {
+            ...meta,
+            performanceMetrics: probe.snapshot({
+              routeType: "passthrough",
+              isStream: true,
+              cacheStatus: "bypass",
+              requestBytes: byteLength(selected.serializedBody),
+              attemptCount: idx + 1,
+              retryCount: idx,
+            }),
+          },
+          undefined,
+          timeouts,
+          undefined,
+          () => releaseUpstreamSlot(streamConcurrencyLease),
         );
       }
 
@@ -718,13 +856,14 @@ relay.all("/v1/*", async (c) => {
         continue;
       }
 
-      const latencyMs = Date.now() - start;
       const isJson = (upstreamRes.headers.get("content-type") ?? "").includes("application/json");
       let responseText: string | null = null;
       let usage: ReturnType<typeof extractPassthroughUsage> = null;
 
       if (isJson) {
+        const bodyStart = probe.mark();
         responseText = await upstreamRes.text();
+        probe.set({ upstreamBodyMs: probe.since(bodyStart) });
         usage = extractPassthroughUsage(responseText);
       }
 
@@ -734,6 +873,7 @@ relay.all("/v1/*", async (c) => {
         markCredentialFailure(selected.endpointCredentialId);
       }
 
+      const latencyMs = probe.elapsed();
       enqueueJob("ai-usage-log", {
         endpointCredentialId: selected.endpointCredentialId,
         endpointId: endpoint.endpointId,
@@ -745,6 +885,15 @@ relay.all("/v1/*", async (c) => {
         outputTokens: usage?.outputTokens ?? 0,
         totalTokens: usage?.totalTokens ?? 0,
         latencyMs,
+        ...probe.snapshot({
+          routeType: "passthrough",
+          isStream: isStreaming,
+          cacheStatus: "bypass",
+          requestBytes: byteLength(selected.serializedBody),
+          responseBytes: byteLength(responseText),
+          attemptCount: idx + 1,
+          retryCount: idx,
+        }),
         statusCode: upstreamRes.status,
         requestId,
         error:

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AlertTriangle, ArrowDownToLine, ArrowRight, FileText, Info } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, ArrowRight, FileText, Gauge, Info } from "lucide-react";
 
 import { removeTailingZero } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/web/components/ui/card";
 import { formatTokens, StatusBadge } from "@/web/pages/ai-usage/helpers";
 
 import { DetailCard, formatRaw, JsonBlock, safeParseJson } from "./log-detail-helpers";
+import { formatBytes, formatDurationMs, hasPerformanceMetrics } from "./performance";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export function LogDetail({ log, keyName, requestLog, bodyLoading }: LogDetailPr
             )}
           </DetailRow>
           <DetailRow label={t("ai-logs.detail.latency")}>
-            <span className="text-xs">{log.latencyMs != null ? `${log.latencyMs}ms` : "—"}</span>
+            <span className="text-xs">{formatDurationMs(log.latencyMs)}</span>
           </DetailRow>
           <DetailRow label={t("ai-logs.detail.status")}>
             <StatusBadge code={log.statusCode} error={log.error} />
@@ -111,6 +112,114 @@ export function LogDetail({ log, keyName, requestLog, bodyLoading }: LogDetailPr
           </DetailRow>
         </div>
       </DetailCard>
+
+      {hasPerformanceMetrics(log) && (
+        <DetailCard title={t("ai-logs.detail.performance")} icon={Gauge} defaultOpen>
+          <div className="space-y-3">
+            <PerformanceRow label={t("ai-logs.detail.route-type")} value={log.routeType} />
+            <PerformanceRow
+              label={t("ai-logs.detail.stream")}
+              value={
+                log.isStream == null
+                  ? null
+                  : log.isStream
+                    ? t("ai-logs.detail.yes")
+                    : t("ai-logs.detail.no")
+              }
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.cache-status")}
+              value={log.cacheStatus ? t(`ai-logs.cache.${log.cacheStatus}`) : null}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.cache-lookup")}
+              value={formatDurationMs(log.cacheLookupMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.cache-write")}
+              value={formatDurationMs(log.cacheWriteMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.routing")}
+              value={formatDurationMs(log.routingMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.queue-wait")}
+              value={formatDurationMs(log.queueWaitMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.upstream-ttfb")}
+              value={formatDurationMs(log.upstreamTtfbMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.upstream-body")}
+              value={formatDurationMs(log.upstreamBodyMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.transform")}
+              value={formatDurationMs(log.transformMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.billing")}
+              value={formatDurationMs(log.billingMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.first-chunk")}
+              value={formatDurationMs(log.firstChunkMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.first-token")}
+              value={formatDurationMs(log.firstTokenMs)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.attempts")}
+              value={
+                log.attemptCount == null
+                  ? null
+                  : `${log.attemptCount} / ${t("ai-logs.detail.retries")}: ${log.retryCount ?? 0}`
+              }
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.request-bytes")}
+              value={formatBytes(log.requestBytes)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.response-bytes")}
+              value={formatBytes(log.responseBytes)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.stream-chunks")}
+              value={log.streamChunks == null ? null : String(log.streamChunks)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.stream-bytes")}
+              value={formatBytes(log.streamBytes)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.stream-pings")}
+              value={log.streamPingCount == null ? null : String(log.streamPingCount)}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.abort-reason")}
+              value={log.streamAbortReason}
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.cache-read-tokens")}
+              value={
+                log.cacheReadInputTokens == null ? null : formatTokens(log.cacheReadInputTokens)
+              }
+            />
+            <PerformanceRow
+              label={t("ai-logs.detail.cache-write-tokens")}
+              value={
+                log.cacheCreationInputTokens == null
+                  ? null
+                  : formatTokens(log.cacheCreationInputTokens)
+              }
+            />
+          </div>
+        </DetailCard>
+      )}
 
       {/* Error */}
       {log.error && (
@@ -165,5 +274,13 @@ export function LogDetail({ log, keyName, requestLog, bodyLoading }: LogDetailPr
         </Card>
       ) : null}
     </div>
+  );
+}
+
+function PerformanceRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <DetailRow label={label}>
+      <span className="font-mono text-xs">{value && value !== "-" ? value : "—"}</span>
+    </DetailRow>
   );
 }

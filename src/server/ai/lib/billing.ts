@@ -12,6 +12,13 @@ import { payAgentRepo, payAgentTransactionRepo } from "@/server/repos";
 import { gt, removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/shared/number";
 
 import type { TokenUsage } from "../protocol-adapters/types";
+import {
+  type AiLogPerformanceMetrics,
+  byteLength,
+  elapsedMs,
+  mergePerformanceMetrics,
+  probeNow,
+} from "./performance-probe";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -45,6 +52,8 @@ export interface BillConsumerParams {
   requestBody?: string;
   /** Raw response body — for request logging. */
   responseBody?: string;
+  performanceMetrics?: AiLogPerformanceMetrics;
+  includeBillingInLatency?: boolean;
   /**
    * When true, limit/balance failures are returned to the caller before usage
    * logs are written. Use for non-streaming responses that can still return
@@ -203,6 +212,7 @@ async function suspendAgentForLimit(
  * Used by all consumer relay paths (chat/completions + passthrough, streaming + non-streaming).
  */
 export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBillingResult> {
+  const billingStart = probeNow();
   const { upstreamCost, costStr } = calculateConsumerCost(
     p.usage,
     p.inputPrice,
@@ -278,6 +288,12 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
   }
 
   // Log usage
+  const billingMs = elapsedMs(billingStart);
+  const performanceMetrics = mergePerformanceMetrics(p.performanceMetrics, {
+    billingMs,
+    requestBytes: p.performanceMetrics?.requestBytes ?? byteLength(p.requestBody),
+    responseBytes: p.performanceMetrics?.responseBytes ?? byteLength(p.responseBody),
+  });
   enqueueJob("ai-usage-log", {
     endpointCredentialId: p.endpointCredentialId,
     consumerKeyId: p.consumer.consumerId,
@@ -296,7 +312,8 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
     estimatedCost: costStr,
     upstreamCost: removeTailingZero(upstreamCost, 6),
     markupPercent: p.consumer.markupPercent,
-    latencyMs: p.latencyMs,
+    latencyMs: p.includeBillingInLatency ? p.latencyMs + billingMs : p.latencyMs,
+    ...performanceMetrics,
     statusCode: p.statusCode,
     requestId: p.requestId,
     error: p.error ?? null,

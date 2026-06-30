@@ -38,6 +38,18 @@ export interface AiUsageSummary {
   totalEstimatedCost: number;
   errorCount: number;
   errorRate: number;
+  cacheHits: number;
+  cacheMisses: number;
+  cacheBypasses: number;
+  cacheHitRate: number;
+  promptCacheCreationInputTokens: number;
+  promptCacheReadInputTokens: number;
+  promptCacheCreationRate: number;
+  promptCacheReadRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  avgUpstreamTtfbMs: number;
+  p95UpstreamTtfbMs: number;
   byEndpoint: Array<{
     endpointId: string;
     requests: number;
@@ -660,6 +672,15 @@ export const aiUsageLogRepo = {
       totalOutput: string | null;
       totalCost: string | null;
       errorCount: string | null;
+      cacheHits: string | null;
+      cacheMisses: string | null;
+      cacheBypasses: string | null;
+      promptCacheCreationInputTokens: string | null;
+      promptCacheReadInputTokens: string | null;
+      avgLatencyMs: string | null;
+      p95LatencyMs: string | null;
+      avgUpstreamTtfbMs: string | null;
+      p95UpstreamTtfbMs: string | null;
     }>(
       db
         .select({
@@ -668,6 +689,15 @@ export const aiUsageLogRepo = {
           totalOutput: sum(aiUsageLogs.outputTokens),
           totalCost: sql<string>`SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC))`,
           errorCount: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 OR ${aiUsageLogs.statusCode} = 0)`,
+          cacheHits: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.cacheStatus} = 'hit')`,
+          cacheMisses: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.cacheStatus} = 'miss')`,
+          cacheBypasses: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.cacheStatus} = 'bypass')`,
+          promptCacheCreationInputTokens: sum(aiUsageLogs.cacheCreationInputTokens),
+          promptCacheReadInputTokens: sum(aiUsageLogs.cacheReadInputTokens),
+          avgLatencyMs: sql<string>`AVG(${aiUsageLogs.latencyMs})`,
+          p95LatencyMs: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.latencyMs}) FILTER (WHERE ${aiUsageLogs.latencyMs} IS NOT NULL)`,
+          avgUpstreamTtfbMs: sql<string>`AVG(${aiUsageLogs.upstreamTtfbMs})`,
+          p95UpstreamTtfbMs: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.upstreamTtfbMs}) FILTER (WHERE ${aiUsageLogs.upstreamTtfbMs} IS NOT NULL)`,
         })
         .from(aiUsageLogs)
         .where(where),
@@ -678,6 +708,12 @@ export const aiUsageLogRepo = {
     const totalOutputTokens = Number(totalsRow?.totalOutput ?? 0);
     const totalEstimatedCost = Number(totalsRow?.totalCost ?? 0);
     const errorCount = Number(totalsRow?.errorCount ?? 0);
+    const cacheHits = Number(totalsRow?.cacheHits ?? 0);
+    const cacheMisses = Number(totalsRow?.cacheMisses ?? 0);
+    const cacheBypasses = Number(totalsRow?.cacheBypasses ?? 0);
+    const cacheDenominator = cacheHits + cacheMisses;
+    const promptCacheCreationInputTokens = Number(totalsRow?.promptCacheCreationInputTokens ?? 0);
+    const promptCacheReadInputTokens = Number(totalsRow?.promptCacheReadInputTokens ?? 0);
 
     const byEndpoint = await queryAll<{
       endpointId: string | null;
@@ -731,6 +767,19 @@ export const aiUsageLogRepo = {
       totalEstimatedCost,
       errorCount,
       errorRate: totalRequests > 0 ? errorCount / totalRequests : 0,
+      cacheHits,
+      cacheMisses,
+      cacheBypasses,
+      cacheHitRate: cacheDenominator > 0 ? cacheHits / cacheDenominator : 0,
+      promptCacheCreationInputTokens,
+      promptCacheReadInputTokens,
+      promptCacheCreationRate:
+        totalInputTokens > 0 ? promptCacheCreationInputTokens / totalInputTokens : 0,
+      promptCacheReadRate: totalInputTokens > 0 ? promptCacheReadInputTokens / totalInputTokens : 0,
+      avgLatencyMs: Math.round(Number(totalsRow?.avgLatencyMs ?? 0)),
+      p95LatencyMs: Math.round(Number(totalsRow?.p95LatencyMs ?? 0)),
+      avgUpstreamTtfbMs: Math.round(Number(totalsRow?.avgUpstreamTtfbMs ?? 0)),
+      p95UpstreamTtfbMs: Math.round(Number(totalsRow?.p95UpstreamTtfbMs ?? 0)),
       byEndpoint: byEndpoint.map((r) => ({
         endpointId: r.endpointId ?? "",
         requests: r.requests,

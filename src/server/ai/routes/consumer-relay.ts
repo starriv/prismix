@@ -30,6 +30,7 @@ import {
 import { log } from "@/server/lib/logger";
 import { gatewayUpstreamDuration } from "@/server/lib/metrics";
 import { parseBody } from "@/server/lib/validate";
+import { enqueueJob } from "@/server/lib/write-queue";
 import { getRequestId } from "@/server/middleware/request-id";
 import { aiGuardrailConfigRepo, aiModelRepo, aiModelRouteRepo } from "@/server/repos";
 import { lte, removeTailingZero } from "@/shared/number";
@@ -59,6 +60,7 @@ import {
 } from "../lib/model-access";
 import { resolveModelMapping } from "../lib/model-mapping-cache";
 import { orderRoutesByPriorityAndWeight } from "../lib/model-routing";
+import { type AiLogPerformanceMetrics, AiRequestProbe, byteLength } from "../lib/performance-probe";
 import { extractPassthroughHeaders, isRequestLoggingEnabled } from "../lib/request-helpers";
 import { notifyResourceDown } from "../lib/runtime-alerts";
 import { safeParseGuardrailRules } from "../lib/safe-json";
@@ -102,6 +104,7 @@ interface ConsumerErrorExtras {
   responseBody?: string;
   estimatedCost?: string | null;
   upstreamCost?: string | null;
+  performanceMetrics?: AiLogPerformanceMetrics;
 }
 
 function respondWithConsumerError(
@@ -129,6 +132,7 @@ function respondWithConsumerError(
     upstreamCost: extras?.upstreamCost ?? null,
     markupPercent: consumer.markupPercent,
     latencyMs: Date.now() - start,
+    performanceMetrics: extras?.performanceMetrics,
     requestBody: extras?.requestBody,
     responseBody: extras?.responseBody ?? JSON.stringify(payload),
     error: buildAccessLogErrorMessage(
@@ -497,6 +501,7 @@ async function handleAnthropicCountTokens(
   }
 
   const { body } = converted;
+  const probe = new AiRequestProbe({ routeType: "passthrough" });
   if (!isModelAllowedByConsumerKey(body.model, consumer.allowedModels)) {
     return respondWithModelAnnouncementError(
       c,
@@ -507,6 +512,7 @@ async function handleAnthropicCountTokens(
       { error: `Model "${body.model}" is not allowed for this key` },
       body.model,
       "not_allowed",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -523,6 +529,7 @@ async function handleAnthropicCountTokens(
       { error: `Model "${body.model}" not found or disabled` },
       body.model,
       "not_found_or_disabled",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -540,6 +547,7 @@ async function handleAnthropicCountTokens(
       { error: "No compatible endpoint route configured for this model" },
       body.model,
       "no_route",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -554,6 +562,7 @@ async function handleAnthropicCountTokens(
       { error: `Model "${body.model}" is not available for this user` },
       body.model,
       "not_allowed",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -585,6 +594,7 @@ async function handleCanonicalChatCompletions(
     passthroughHeaders = {},
     responseTransformer,
   } = options;
+  const probe = new AiRequestProbe({ routeType: "chat", isStream: !!body.stream });
 
   // -- 2. Model ACL check --
   if (!isModelAllowedByConsumerKey(body.model, consumer.allowedModels)) {
@@ -597,6 +607,7 @@ async function handleCanonicalChatCompletions(
       { error: `Model "${body.model}" is not allowed for this key` },
       body.model,
       "not_allowed",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -613,6 +624,7 @@ async function handleCanonicalChatCompletions(
       if (!result.allowed && gc.action === "block") {
         return respondWithConsumerError(c, consumer, requestId, start, 403, {
           error: result.reason ?? "Blocked by guardrails",
+          performanceMetrics: probe.snapshot(),
         });
       }
     }
@@ -621,9 +633,11 @@ async function handleCanonicalChatCompletions(
   }
 
   // -- 4. Resolve model via routes --
+  const routingStart = probe.mark();
   const routes = orderRoutesByPriorityAndWeight(
     await aiModelRouteRepo.findEnabledRoutesByModelId(body.model),
   );
+  probe.set({ routingMs: probe.since(routingStart) });
   if (routes.length === 0) {
     return respondWithModelAnnouncementError(
       c,
@@ -634,6 +648,7 @@ async function handleCanonicalChatCompletions(
       { error: `Model "${body.model}" not found or disabled` },
       body.model,
       "not_found_or_disabled",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -648,6 +663,7 @@ async function handleCanonicalChatCompletions(
       { error: `Model "${body.model}" is not available for this user` },
       body.model,
       "not_allowed",
+      { performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -664,7 +680,7 @@ async function handleCanonicalChatCompletions(
       {
         error: "Agent balance exhausted. Please top up the pay-agent.",
       },
-      { modelId: model.modelId },
+      { modelId: model.modelId, performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -829,7 +845,7 @@ async function handleCanonicalChatCompletions(
       { error: "No endpoint credential configured for any endpoint route" },
       model.modelId,
       "no_route",
-      { modelId: model.modelId },
+      { modelId: model.modelId, performanceMetrics: probe.snapshot() },
     );
   }
 
@@ -855,6 +871,7 @@ async function handleCanonicalChatCompletions(
           endpointCredentialId: selected.endpointCredentialId,
           endpointId: selected.endpointId,
           modelId: model.modelId,
+          performanceMetrics: probe.snapshot(),
         },
       );
     }
@@ -883,6 +900,13 @@ async function handleCanonicalChatCompletions(
       inputPrice: model.inputPrice,
       outputPrice: model.outputPrice,
       requestBody: logEnabled ? selected.serializedBody : undefined,
+      performanceMetrics: probe.snapshot({
+        routeType: "chat",
+        isStream: !!body.stream,
+        requestBytes: byteLength(selected.serializedBody),
+        attemptCount: uIdx + 1,
+        retryCount: uIdx,
+      }),
     };
 
     const cacheKey = !body.stream
@@ -896,8 +920,58 @@ async function handleCanonicalChatCompletions(
         })
       : null;
     if (cacheKey) {
+      const cacheLookupStart = probe.mark();
       const cached = getCachedResponse(cacheKey);
+      const cacheLookupMs = probe.since(cacheLookupStart);
       if (cached) {
+        const cachedText = JSON.stringify(cached);
+        const usage = extractPassthroughUsage(cachedText);
+        enqueueJob("ai-usage-log", {
+          endpointCredentialId: selected.endpointCredentialId,
+          consumerKeyId: consumer.consumerId,
+          userId: consumer.userId,
+          endpointId: selected.endpointId,
+          modelId: model.modelId,
+          upstreamId: selected.upstreamId ?? null,
+          upstreamName: selected.upstreamName ?? null,
+          upstreamBaseUrl: selected.upstreamBaseUrl ?? null,
+          inputTokens: usage?.inputTokens ?? 0,
+          outputTokens: usage?.outputTokens ?? 0,
+          totalTokens: usage?.totalTokens ?? 0,
+          cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
+          cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+          estimatedCost: "0",
+          upstreamCost: "0",
+          markupPercent: consumer.markupPercent,
+          latencyMs: probe.elapsed(),
+          ...probe.snapshot({
+            routeType: "chat",
+            isStream: false,
+            cacheStatus: "hit",
+            cacheLookupMs,
+            requestBytes: byteLength(selected.serializedBody),
+            responseBytes: byteLength(cachedText),
+            attemptCount: uIdx + 1,
+            retryCount: uIdx,
+          }),
+          statusCode: 200,
+          requestId,
+          error: null,
+        } as Record<string, unknown>);
+        enqueueJob("consumer-key-touch", { consumerId: consumer.consumerId });
+        enqueueJob("ai-endpoint-credential-touch", {
+          endpointCredentialId: selected.endpointCredentialId,
+        });
+        if (logEnabled) {
+          enqueueJob("ai-request-log", {
+            requestId,
+            consumerKeyId: consumer.consumerId,
+            modelId: model.modelId,
+            requestBody: selected.serializedBody,
+            responseBody: cachedText,
+            createdAt: new Date().toISOString(),
+          } as Record<string, unknown>);
+        }
         if (cliNoticeText) {
           const injected = injectCliNoticeIntoClientResponse(cached, cliNoticeText, clientFormat);
           if (injected) {
@@ -907,10 +981,14 @@ async function handleCanonicalChatCompletions(
         }
         return c.json(cached);
       }
+      probe.set({ cacheStatus: "miss", cacheLookupMs });
+    } else {
+      probe.set({ cacheStatus: "bypass" });
     }
 
     let concurrencyLease: UpstreamConcurrencyLease | null;
     try {
+      const queueStart = probe.mark();
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: selected.upstreamId,
         concurrencyScopeKey: selected.concurrencyScopeKey,
@@ -920,6 +998,7 @@ async function handleCanonicalChatCompletions(
         endpointId: selected.endpointId,
         modelId: model.modelId,
       });
+      probe.set({ queueWaitMs: probe.since(queueStart) });
     } catch (err) {
       lastError = toConcurrencyLastError(err);
       continue;
@@ -934,6 +1013,7 @@ async function handleCanonicalChatCompletions(
           endpointId: selected.endpointId,
           modelId: model.modelId,
         });
+        const upstreamStart = probe.mark();
         const upstreamRes = await fetchUpstream(
           selected.finalUrl,
           streamingHeaders,
@@ -944,6 +1024,7 @@ async function handleCanonicalChatCompletions(
             route: "chat",
           },
         );
+        probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
         if (!upstreamRes.ok) {
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
             markCredentialFailure(selected.endpointCredentialId);
@@ -999,7 +1080,12 @@ async function handleCanonicalChatCompletions(
         // before forwardStream would burn the once-per-consumer delivery if the
         // write later fails. Follows the same lifecycle as billing.
         const cliNoticeForStream = cliNotice;
-        const onComplete: StreamCompleteCallback = async (usage, latencyMs, rawResponse) => {
+        const onComplete: StreamCompleteCallback = async (
+          usage,
+          latencyMs,
+          rawResponse,
+          streamMetrics,
+        ) => {
           await billConsumer({
             usage,
             latencyMs,
@@ -1016,6 +1102,7 @@ async function handleCanonicalChatCompletions(
             statusCode: 200,
             requestBody: logEnabled ? billSelected.serializedBody : undefined,
             responseBody: rawResponse,
+            performanceMetrics: streamMetrics,
           });
           await markCliAnnouncementDelivered(cliNoticeForStream, consumer);
         };
@@ -1030,7 +1117,17 @@ async function handleCanonicalChatCompletions(
           c,
           upstreamRes,
           selected.adapter!,
-          meta,
+          {
+            ...meta,
+            performanceMetrics: probe.snapshot({
+              routeType: "chat",
+              isStream: true,
+              cacheStatus: "bypass",
+              requestBytes: byteLength(selected.serializedBody),
+              attemptCount: uIdx + 1,
+              retryCount: uIdx,
+            }),
+          },
           onComplete,
           timeouts,
           createStreamOutputTransformer?.(model.modelId),
@@ -1054,6 +1151,7 @@ async function handleCanonicalChatCompletions(
       let upstreamRes: Response;
       try {
         const fetchStart = Date.now();
+        const upstreamStart = probe.mark();
         upstreamRes = await fetch(selected.finalUrl, {
           method: "POST",
           headers: {
@@ -1068,6 +1166,7 @@ async function handleCanonicalChatCompletions(
           { endpoint: selected.endpointId, route: "chat", phase: "response" },
           (Date.now() - fetchStart) / 1000,
         );
+        probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
       } catch (err) {
         markCredentialFailure(selected.endpointCredentialId);
         lastError = { status: 0, message: err instanceof Error ? err.message : String(err) };
@@ -1126,7 +1225,9 @@ async function handleCanonicalChatCompletions(
       // Success — parse, bill, log, return
       let responseBody: unknown;
       try {
+        const bodyStart = probe.mark();
         responseBody = await upstreamRes.json();
+        probe.set({ upstreamBodyMs: probe.since(bodyStart) });
       } catch {
         return respondWithConsumerError(
           c,
@@ -1147,13 +1248,23 @@ async function handleCanonicalChatCompletions(
         );
       }
 
+      const transformStart = probe.mark();
       const canonicalResponse = selected.adapter!.transformResponse(responseBody);
       const transformed = responseTransformer
         ? responseTransformer(canonicalResponse, model.modelId)
         : canonicalResponse;
       const usage = selected.adapter!.extractUsage(responseBody);
-      const latencyMs = Date.now() - start;
+      probe.set({ transformMs: probe.since(transformStart) });
       markCredentialSuccess(selected.endpointCredentialId);
+
+      const responseText = JSON.stringify(responseBody);
+      if (cacheKey) {
+        const cacheWriteStart = probe.mark();
+        setCachedResponse(cacheKey, transformed);
+        probe.set({ cacheWriteMs: probe.since(cacheWriteStart) });
+      }
+
+      const latencyMs = probe.elapsed();
 
       // -- 10. Debit consumer + log usage --
       const billing = await billConsumer({
@@ -1171,7 +1282,16 @@ async function handleCanonicalChatCompletions(
         requestId,
         statusCode: upstreamRes.status,
         requestBody: logEnabled ? selected.serializedBody : undefined,
-        responseBody: logEnabled ? JSON.stringify(responseBody) : undefined,
+        responseBody: logEnabled ? responseText : undefined,
+        performanceMetrics: probe.snapshot({
+          routeType: "chat",
+          isStream: false,
+          requestBytes: byteLength(selected.serializedBody),
+          responseBytes: byteLength(responseText),
+          attemptCount: uIdx + 1,
+          retryCount: uIdx,
+        }),
+        includeBillingInLatency: true,
         rejectOnLimit: true,
       });
       if (!billing.ok) {
@@ -1192,13 +1312,16 @@ async function handleCanonicalChatCompletions(
             requestBody: logEnabled ? selected.serializedBody : undefined,
             estimatedCost: billing.costStr,
             upstreamCost: removeTailingZero(billing.upstreamCost, 6),
+            performanceMetrics: probe.snapshot({
+              routeType: "chat",
+              isStream: false,
+              requestBytes: byteLength(selected.serializedBody),
+              responseBytes: byteLength(responseText),
+              attemptCount: uIdx + 1,
+              retryCount: uIdx,
+            }),
           },
         );
-      }
-
-      // Cache
-      if (cacheKey) {
-        setCachedResponse(cacheKey, transformed);
       }
 
       if (cliNoticeText) {
@@ -1316,11 +1439,26 @@ async function handlePassthrough(
     }
   }
 
+  const isStreaming = body.stream === true;
+  const ptProbe = new AiRequestProbe({
+    routeType: "passthrough",
+    isStream: isStreaming,
+    cacheStatus: "bypass",
+  });
+
   const modelId = body.model as string | undefined;
   if (!modelId) {
-    return respondWithConsumerError(c, consumer, requestId, start, 400, {
-      error: "Request body must contain a 'model' field",
-    });
+    return respondWithConsumerError(
+      c,
+      consumer,
+      requestId,
+      start,
+      400,
+      {
+        error: "Request body must contain a 'model' field",
+      },
+      { performanceMetrics: ptProbe.snapshot() },
+    );
   }
 
   // Model ACL
@@ -1334,6 +1472,7 @@ async function handlePassthrough(
       { error: `Model "${modelId}" is not allowed for this key` },
       modelId,
       "not_allowed",
+      { performanceMetrics: ptProbe.snapshot() },
     );
   }
 
@@ -1350,6 +1489,7 @@ async function handlePassthrough(
       { error: `Model "${modelId}" not found or disabled` },
       modelId,
       "not_found_or_disabled",
+      { performanceMetrics: ptProbe.snapshot() },
     );
   }
 
@@ -1364,6 +1504,7 @@ async function handlePassthrough(
       { error: `Model "${modelId}" is not available for this user` },
       modelId,
       "not_allowed",
+      { performanceMetrics: ptProbe.snapshot() },
     );
   }
 
@@ -1379,7 +1520,7 @@ async function handlePassthrough(
       {
         error: "Agent balance exhausted. Please top up the pay-agent.",
       },
-      { modelId },
+      { modelId, performanceMetrics: ptProbe.snapshot() },
     );
   }
   const serializedBody = JSON.stringify(body);
@@ -1486,7 +1627,6 @@ async function handlePassthrough(
   const passthroughHeaders = extractPassthroughHeaders(c);
 
   const ptLogEnabled = await isRequestLoggingEnabled();
-  const isStreaming = body.stream === true;
 
   let ptSelected = resolvedPtUpstreams[0];
   let ptLastError: { status: number; message: string } | null = null;
@@ -1506,11 +1646,21 @@ async function handlePassthrough(
       inputPrice: model.inputPrice,
       outputPrice: model.outputPrice,
       requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
+      routeType: "passthrough",
+      performanceMetrics: ptProbe.snapshot({
+        routeType: "passthrough",
+        isStream: isStreaming,
+        cacheStatus: "bypass",
+        requestBytes: byteLength(ptSelected.serializedBody),
+        attemptCount: pIdx + 1,
+        retryCount: pIdx,
+      }),
     };
 
     let concurrencyLease: UpstreamConcurrencyLease | null;
     let releaseInFinally = true;
     try {
+      const queueStart = ptProbe.mark();
       concurrencyLease = await acquireUpstreamSlot({
         upstreamId: ptSelected.upstreamId,
         concurrencyScopeKey: ptSelected.concurrencyScopeKey,
@@ -1520,6 +1670,7 @@ async function handlePassthrough(
         endpointId: ptSelected.endpointId,
         modelId,
       });
+      ptProbe.set({ queueWaitMs: ptProbe.since(queueStart) });
     } catch (err) {
       ptLastError = toConcurrencyLastError(err);
       continue;
@@ -1527,6 +1678,7 @@ async function handlePassthrough(
 
     try {
       const fetchStart = Date.now();
+      const upstreamStart = ptProbe.mark();
       const upstreamRes = await fetch(ptSelected.finalUrl, {
         method: c.req.method,
         headers: {
@@ -1548,12 +1700,18 @@ async function handlePassthrough(
         { endpoint: ptSelected.endpointId, route: "passthrough", phase: "response" },
         (Date.now() - fetchStart) / 1000,
       );
+      ptProbe.set({ upstreamTtfbMs: ptProbe.since(upstreamStart) });
 
       // ── Streaming passthrough — parse SSE frames for usage + billing ──
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
         const billPt = ptSelected; // capture for closure
         const cliNoticeForStream = cliNotice;
-        const onComplete: StreamCompleteCallback = async (usage, latencyMs, rawResponse) => {
+        const onComplete: StreamCompleteCallback = async (
+          usage,
+          latencyMs,
+          rawResponse,
+          streamMetrics,
+        ) => {
           await billConsumer({
             usage,
             latencyMs,
@@ -1570,6 +1728,7 @@ async function handlePassthrough(
             statusCode: 200,
             requestBody: ptLogEnabled ? billPt.serializedBody : undefined,
             responseBody: rawResponse,
+            performanceMetrics: streamMetrics,
           });
           await markCliAnnouncementDelivered(cliNoticeForStream, consumer);
         };
@@ -1583,7 +1742,17 @@ async function handlePassthrough(
         return forwardPassthroughStream(
           c,
           upstreamRes,
-          meta,
+          {
+            ...meta,
+            performanceMetrics: ptProbe.snapshot({
+              routeType: "passthrough",
+              isStream: true,
+              cacheStatus: "bypass",
+              requestBytes: byteLength(ptSelected.serializedBody),
+              attemptCount: pIdx + 1,
+              retryCount: pIdx,
+            }),
+          },
           onComplete,
           timeouts,
           initialEvents,
@@ -1600,13 +1769,14 @@ async function handlePassthrough(
       }
 
       // ── Non-streaming passthrough — read JSON for usage + billing ──
-      const latencyMs = Date.now() - start;
       const isJson = (upstreamRes.headers.get("content-type") ?? "").includes("application/json");
       let responseText: string | null = null;
       let usage: TokenUsage | null = null;
 
       if (isJson) {
+        const bodyStart = ptProbe.mark();
         responseText = await upstreamRes.text();
+        ptProbe.set({ upstreamBodyMs: ptProbe.since(bodyStart) });
         usage = extractPassthroughUsage(responseText);
       }
 
@@ -1616,6 +1786,7 @@ async function handlePassthrough(
         markCredentialFailure(ptSelected.endpointCredentialId);
       }
 
+      const latencyMs = ptProbe.elapsed();
       const billing = await billConsumer({
         usage,
         latencyMs,
@@ -1638,6 +1809,16 @@ async function handlePassthrough(
               : undefined,
         requestBody: ptLogEnabled ? ptSelected.serializedBody : undefined,
         responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
+        performanceMetrics: ptProbe.snapshot({
+          routeType: "passthrough",
+          isStream: isStreaming,
+          cacheStatus: "bypass",
+          requestBytes: byteLength(ptSelected.serializedBody),
+          responseBytes: byteLength(responseText),
+          attemptCount: pIdx + 1,
+          retryCount: pIdx,
+        }),
+        includeBillingInLatency: !isStreaming,
         rejectOnLimit: !isStreaming,
       });
       if (!billing.ok) {
@@ -1659,6 +1840,15 @@ async function handlePassthrough(
             responseBody: ptLogEnabled ? (responseText ?? "") : undefined,
             estimatedCost: billing.costStr,
             upstreamCost: removeTailingZero(billing.upstreamCost, 6),
+            performanceMetrics: ptProbe.snapshot({
+              routeType: "passthrough",
+              isStream: isStreaming,
+              cacheStatus: "bypass",
+              requestBytes: byteLength(ptSelected.serializedBody),
+              responseBytes: byteLength(responseText),
+              attemptCount: pIdx + 1,
+              retryCount: pIdx,
+            }),
           },
         );
       }

@@ -879,6 +879,27 @@ export const aiUsageLogs = pgTable(
     upstreamCost: text("upstream_cost"), // numeric string — raw cost before markup
     markupPercent: real("markup_percent"), // markup % applied at billing time
     latencyMs: integer("latency_ms"),
+    routeType: text("route_type"), // "chat" | "passthrough"
+    isStream: boolean("is_stream"),
+    cacheStatus: text("cache_status"), // "hit" | "miss" | "bypass" | "disabled"
+    cacheLookupMs: integer("cache_lookup_ms"),
+    cacheWriteMs: integer("cache_write_ms"),
+    routingMs: integer("routing_ms"),
+    queueWaitMs: integer("queue_wait_ms"),
+    upstreamTtfbMs: integer("upstream_ttfb_ms"),
+    upstreamBodyMs: integer("upstream_body_ms"),
+    transformMs: integer("transform_ms"),
+    billingMs: integer("billing_ms"),
+    firstChunkMs: integer("first_chunk_ms"),
+    firstTokenMs: integer("first_token_ms"),
+    requestBytes: integer("request_bytes"),
+    responseBytes: integer("response_bytes"),
+    streamChunks: integer("stream_chunks"),
+    streamBytes: integer("stream_bytes"),
+    streamPingCount: integer("stream_ping_count"),
+    streamAbortReason: text("stream_abort_reason"),
+    attemptCount: integer("attempt_count").notNull().default(1),
+    retryCount: integer("retry_count").notNull().default(0),
     statusCode: integer("status_code"),
     requestId: text("request_id"),
     error: text("error"),
@@ -896,6 +917,7 @@ export const aiUsageLogs = pgTable(
     index("idx_ai_usage_logs_credential_id").on(t.credentialId),
     index("idx_ai_usage_logs_credential_owner_id").on(t.credentialOwnerId),
     index("idx_ai_usage_logs_upstream_id").on(t.upstreamId),
+    index("idx_ai_usage_logs_cache_status").on(t.cacheStatus),
   ],
 );
 

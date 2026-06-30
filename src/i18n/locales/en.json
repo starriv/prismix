@@ -2629,6 +2629,12 @@
     "card-title": "Request Logs",
     "live": "Live",
     "table-empty": "No AI logs found",
+    "stats": {
+      "cache-hit-rate": "Cache Hit Rate",
+      "p95-latency": "P95 Latency",
+      "p95-ttfb": "P95 TTFB",
+      "prompt-cache-read": "Prompt Cache Read"
+    },
     "th": {
       "request-id": "Request ID",
       "model": "Model",
@@ -2639,6 +2645,16 @@
       "latency": "Latency",
       "status": "Status",
       "time": "Time"
+    },
+    "perf": {
+      "ttfb-short": "TTFB",
+      "ttft-short": "TTFT"
+    },
+    "cache": {
+      "hit": "Hit",
+      "miss": "Miss",
+      "bypass": "Bypass",
+      "disabled": "Disabled"
     },
     "filter": {
       "all-models": "All Models",
@@ -2661,6 +2677,32 @@
       "total-tokens": "Total Tokens",
       "cost": "Cost",
       "latency": "Latency",
+      "performance": "Performance Probe",
+      "route-type": "Route Type",
+      "stream": "Stream",
+      "yes": "Yes",
+      "no": "No",
+      "cache-status": "Cache Status",
+      "cache-lookup": "Cache Lookup",
+      "cache-write": "Cache Write",
+      "routing": "Routing",
+      "queue-wait": "Queue Wait",
+      "upstream-ttfb": "Upstream TTFB",
+      "upstream-body": "Upstream Body",
+      "transform": "Transform",
+      "billing": "Billing",
+      "first-chunk": "First Chunk",
+      "first-token": "First Token",
+      "attempts": "Attempts",
+      "retries": "Retries",
+      "request-bytes": "Request Size",
+      "response-bytes": "Response Size",
+      "stream-chunks": "Stream Chunks",
+      "stream-bytes": "Stream Bytes",
+      "stream-pings": "Stream Pings",
+      "abort-reason": "End Reason",
+      "cache-read-tokens": "Cache Read Tokens",
+      "cache-write-tokens": "Cache Write Tokens",
       "status": "Status",
       "time": "Time",
       "error": "Error",

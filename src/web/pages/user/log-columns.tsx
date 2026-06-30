@@ -3,9 +3,10 @@ import type { TFunction } from "i18next";
 
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
+import { CacheTokenSummary, LatencySummary } from "@/web/pages/ai-logs/performance";
 import { StatusBadge } from "@/web/pages/ai-usage/helpers";
 
-import { UserCurrencyText, UserTokenText } from "./table-helpers";
+import { UserCurrencyText } from "./table-helpers";
 
 export function buildUserLogColumns(t: TFunction, language: string): ColumnDef<AiUsageRecord>[] {
   return [
@@ -49,7 +50,7 @@ export function buildUserLogColumns(t: TFunction, language: string): ColumnDef<A
     },
     {
       accessorKey: "totalTokens",
-      cell: ({ row }) => <UserTokenText value={row.original.totalTokens} />,
+      cell: ({ row }) => <CacheTokenSummary log={row.original} />,
       header: t("ai-logs.th.tokens"),
       meta: {
         headerClassName: "w-[10%]",
@@ -68,14 +69,10 @@ export function buildUserLogColumns(t: TFunction, language: string): ColumnDef<A
     },
     {
       accessorKey: "latencyMs",
-      cell: ({ row }) => (
-        <DataTableText muted>
-          {row.original.latencyMs != null ? `${row.original.latencyMs}ms` : "—"}
-        </DataTableText>
-      ),
+      cell: ({ row }) => <LatencySummary log={row.original} t={t} />,
       header: t("ai-logs.th.latency"),
       meta: {
-        headerClassName: "w-[8%]",
+        headerClassName: "w-[12%]",
         ...dataTableMeta.hiddenOnMobile,
         visibilityLabel: t("ai-logs.th.latency"),
       },

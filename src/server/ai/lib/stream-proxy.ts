@@ -31,6 +31,11 @@ import { removeTailingZero, safeDividedBy, safeMultipliedBy, safePlus } from "@/
 
 import type { ProtocolAdapter, TokenUsage } from "../protocol-adapters/types";
 import { markCredentialFailure, markCredentialSuccess } from "./credential-balancer";
+import {
+  type AiLogPerformanceMetrics,
+  byteLength,
+  mergePerformanceMetrics,
+} from "./performance-probe";
 import { extractTokenUsageFromUsageObject } from "./token-usage";
 
 /**
@@ -100,6 +105,7 @@ export interface StreamRelayMeta {
   /** Serialized request body — passed through for request logging. */
   requestBody?: string;
   routeType?: "chat" | "passthrough";
+  performanceMetrics?: AiLogPerformanceMetrics;
 }
 
 /**
@@ -111,6 +117,7 @@ export type StreamCompleteCallback = (
   usage: TokenUsage | null,
   latencyMs: number,
   rawResponse?: string,
+  performanceMetrics?: AiLogPerformanceMetrics,
 ) => Promise<void>;
 
 export interface StreamOutputTransformer {
@@ -496,6 +503,17 @@ export function forwardStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
+      const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
+        routeType: state.routeType,
+        isStream: true,
+        firstChunkMs: state.firstChunkLatencyMs,
+        firstTokenMs: state.firstChunkLatencyMs,
+        responseBytes: rawResponse ? byteLength(rawResponse) : state.totalBytes,
+        streamChunks: state.chunkCount,
+        streamBytes: state.totalBytes,
+        streamPingCount: state.pingCount,
+        streamAbortReason: state.abortReason ?? "completed",
+      });
 
       if (onFinalize) {
         try {
@@ -510,7 +528,7 @@ export function forwardStream(
       } else {
         // Admin relay — log usage here
         const cost = calculateCost(usage, meta);
-        enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost);
+        enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost, streamMetrics);
         enqueueJob("ai-endpoint-credential-touch", {
           endpointCredentialId: meta.endpointCredentialId,
         });
@@ -518,7 +536,7 @@ export function forwardStream(
 
       // Consumer billing callback — debit balance after usage is known
       if (onComplete) {
-        onComplete(usage, latencyMs, rawResponse).catch((err) => {
+        onComplete(usage, latencyMs, rawResponse, streamMetrics).catch((err) => {
           log.gateway.error(
             { err, requestId: meta.requestId },
             "Stream onComplete callback failed",
@@ -754,6 +772,17 @@ export function forwardPassthroughStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
+      const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
+        routeType: state.routeType,
+        isStream: true,
+        firstChunkMs: state.firstChunkLatencyMs,
+        firstTokenMs: state.firstChunkLatencyMs,
+        responseBytes: rawResponse ? byteLength(rawResponse) : state.totalBytes,
+        streamChunks: state.chunkCount,
+        streamBytes: state.totalBytes,
+        streamPingCount: state.pingCount,
+        streamAbortReason: state.abortReason ?? "completed",
+      });
 
       if (onFinalize) {
         try {
@@ -764,7 +793,7 @@ export function forwardPassthroughStream(
       }
 
       if (onComplete) {
-        onComplete(usage, latencyMs, rawResponse).catch((err) => {
+        onComplete(usage, latencyMs, rawResponse, streamMetrics).catch((err) => {
           log.gateway.error(
             { err, requestId: meta.requestId },
             "Passthrough stream onComplete callback failed",
@@ -772,7 +801,7 @@ export function forwardPassthroughStream(
         });
       } else {
         const cost = calculateCost(usage, meta);
-        enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost);
+        enqueueUsageLog(meta, upstreamRes.status, latencyMs, usage, undefined, cost, streamMetrics);
         enqueueJob("ai-endpoint-credential-touch", {
           endpointCredentialId: meta.endpointCredentialId,
         });
@@ -961,7 +990,9 @@ function enqueueUsageLog(
   usage?: TokenUsage | null,
   error?: string,
   estimatedCost?: string,
+  performanceMetrics?: AiLogPerformanceMetrics,
 ): void {
+  const metrics = mergePerformanceMetrics(meta.performanceMetrics, performanceMetrics);
   enqueueJob("ai-usage-log", {
     endpointCredentialId: meta.endpointCredentialId,
     supplierId: meta.supplierId ?? null,
@@ -977,6 +1008,7 @@ function enqueueUsageLog(
     cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
     estimatedCost: estimatedCost ?? null,
     latencyMs,
+    ...metrics,
     statusCode,
     requestId: meta.requestId,
     error: error ?? null,

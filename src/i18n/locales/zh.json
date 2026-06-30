@@ -2629,6 +2629,12 @@
     "card-title": "请求日志",
     "live": "实时",
     "table-empty": "暂无 AI 日志",
+    "stats": {
+      "cache-hit-rate": "缓存命中率",
+      "p95-latency": "P95 耗时",
+      "p95-ttfb": "P95 TTFB",
+      "prompt-cache-read": "读缓存率"
+    },
     "th": {
       "request-id": "请求 ID",
       "model": "模型",
@@ -2639,6 +2645,16 @@
       "latency": "延迟",
       "status": "状态",
       "time": "时间"
+    },
+    "perf": {
+      "ttfb-short": "TTFB",
+      "ttft-short": "TTFT"
+    },
+    "cache": {
+      "hit": "命中",
+      "miss": "未命中",
+      "bypass": "跳过",
+      "disabled": "未启用"
     },
     "filter": {
       "all-models": "所有模型",
@@ -2661,6 +2677,32 @@
       "total-tokens": "总 Token",
       "cost": "费用",
       "latency": "延迟",
+      "performance": "性能探测",
+      "route-type": "路由类型",
+      "stream": "流式",
+      "yes": "是",
+      "no": "否",
+      "cache-status": "缓存状态",
+      "cache-lookup": "缓存查找",
+      "cache-write": "缓存写入",
+      "routing": "路由解析",
+      "queue-wait": "排队等待",
+      "upstream-ttfb": "上游 TTFB",
+      "upstream-body": "上游 Body",
+      "transform": "协议转换",
+      "billing": "计费",
+      "first-chunk": "首 Chunk",
+      "first-token": "首 Token",
+      "attempts": "尝试次数",
+      "retries": "重试",
+      "request-bytes": "请求大小",
+      "response-bytes": "响应大小",
+      "stream-chunks": "流式 Chunk",
+      "stream-bytes": "流式字节",
+      "stream-pings": "流式 Ping",
+      "abort-reason": "结束原因",
+      "cache-read-tokens": "读缓存 Token",
+      "cache-write-tokens": "写缓存 Token",
       "status": "状态",
       "time": "时间",
       "error": "错误",

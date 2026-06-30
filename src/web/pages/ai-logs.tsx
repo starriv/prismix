@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { Search } from "lucide-react";
+import { Clock3, Database, Gauge, Search, Timer } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
+import { formatPercent } from "@/shared/number";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
-import { useAiLogs, useAiRequestLog, useRelayKeyOptions } from "@/web/api/hooks";
+import { useAiLogs, useAiRequestLog, useAiUsageSummary, useRelayKeyOptions } from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
@@ -32,6 +33,8 @@ import {
 
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
+import { formatDurationMs } from "./ai-logs/performance";
+import { StatCard } from "./ai-usage/helpers";
 
 export default function AiLogsPage() {
   const { t, i18n } = useTranslation();
@@ -64,6 +67,7 @@ export default function AiLogsPage() {
   // Data — auto-refresh every 5s
   const LIVE_REFETCH_MS = 5_000;
   const { data: keys = [] } = useRelayKeyOptions();
+  const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
   const {
     data: logsData,
     isLoading,
@@ -141,6 +145,33 @@ export default function AiLogsPage() {
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={Database}
+            label={t("ai-logs.stats.cache-hit-rate")}
+            value={formatPercent(summary?.cacheHitRate ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Timer}
+            label={t("ai-logs.stats.p95-latency")}
+            value={formatDurationMs(summary?.p95LatencyMs ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Clock3}
+            label={t("ai-logs.stats.p95-ttfb")}
+            value={formatDurationMs(summary?.p95UpstreamTtfbMs ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Gauge}
+            label={t("ai-logs.stats.prompt-cache-read")}
+            value={formatPercent(summary?.promptCacheReadRate ?? 0)}
+            loading={summaryLoading}
+          />
+        </div>
+
         <div className="space-y-4">
           {/* Filter bar */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">

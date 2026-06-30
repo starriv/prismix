@@ -1,5 +1,11 @@
 import { enqueueJob } from "@/server/lib/write-queue";
 
+import {
+  type AiLogPerformanceMetrics,
+  byteLength,
+  mergePerformanceMetrics,
+} from "./performance-probe";
+
 export interface AiAccessLogParams {
   requestId: string;
   statusCode: number;
@@ -22,6 +28,7 @@ export interface AiAccessLogParams {
   upstreamCost?: string | null;
   markupPercent?: number | null;
   latencyMs?: number | null;
+  performanceMetrics?: AiLogPerformanceMetrics;
   requestBody?: string;
   responseBody?: string;
 }
@@ -37,6 +44,10 @@ export function buildAccessLogErrorMessage(error: string, detail?: unknown): str
 }
 
 export function enqueueAiAccessLog(params: AiAccessLogParams): void {
+  const performanceMetrics = mergePerformanceMetrics(params.performanceMetrics, {
+    requestBytes: params.performanceMetrics?.requestBytes ?? byteLength(params.requestBody),
+    responseBytes: params.performanceMetrics?.responseBytes ?? byteLength(params.responseBody),
+  });
   enqueueJob("ai-usage-log", {
     endpointCredentialId: params.endpointCredentialId ?? null,
     credentialId: params.credentialId ?? null,
@@ -56,6 +67,7 @@ export function enqueueAiAccessLog(params: AiAccessLogParams): void {
     upstreamCost: params.upstreamCost ?? null,
     markupPercent: params.markupPercent ?? null,
     latencyMs: params.latencyMs ?? null,
+    ...performanceMetrics,
     statusCode: params.statusCode,
     requestId: params.requestId,
     error: params.error,

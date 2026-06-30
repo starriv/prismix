@@ -175,7 +175,21 @@ describe("forwardStream", () => {
     );
 
     expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(onComplete).toHaveBeenCalledWith(null, expect.any(Number), undefined);
+    const [usage, latencyMs, rawResponse, performanceMetrics] = onComplete.mock.calls[0]!;
+    expect(usage).toBeNull();
+    expect(typeof latencyMs).toBe("number");
+    expect(rawResponse).toBeUndefined();
+    expect(performanceMetrics).toMatchObject({
+      routeType: "chat",
+      isStream: true,
+      streamAbortReason: "completed",
+      streamChunks: 1,
+      streamBytes: expect.any(Number),
+      responseBytes: expect.any(Number),
+      streamPingCount: 0,
+      firstChunkMs: expect.any(Number),
+      firstTokenMs: expect.any(Number),
+    });
   });
 
   it("sends heartbeat comments to keep connection alive", async () => {
