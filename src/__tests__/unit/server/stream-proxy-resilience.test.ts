@@ -283,6 +283,18 @@ describe("forwardPassthroughStream", () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     const [usage] = onComplete.mock.calls[0]!;
     expect(usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    const [, , , performanceMetrics] = onComplete.mock.calls[0]!;
+    expect(performanceMetrics).toMatchObject({
+      routeType: "passthrough",
+      isStream: true,
+      streamAbortReason: "completed",
+      streamChunks: expect.any(Number),
+      streamBytes: expect.any(Number),
+      responseBytes: expect.any(Number),
+      streamPingCount: 0,
+      firstChunkMs: expect.any(Number),
+      firstTokenMs: expect.any(Number),
+    });
   });
 
   it("handles upstream with no body", async () => {
