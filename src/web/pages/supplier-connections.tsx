@@ -10,6 +10,7 @@ import { parseAsInteger, useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AI_API_FORMATS } from "@/shared/ai-constants";
 import type { HealthStatus } from "@/web/api/health-status";
 import {
   useAiEndpointAssignments,
@@ -90,7 +91,7 @@ const endpointFormSchema = z
     endpointId: z.string().min(1, "common.valid.required"),
     name: z.string().min(1, "common.valid.name-required"),
     baseUrl: z.string().url("common.valid.invalid-url"),
-    apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
+    apiFormat: z.enum(AI_API_FORMATS),
     authMode: z.enum(["inherit", "override"]),
     authType: z.enum(["bearer", "api-key", "sigv4", "cloudflare"]),
     apiKeyHeaderName: z.string().trim().optional(),

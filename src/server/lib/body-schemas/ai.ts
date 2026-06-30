@@ -3,6 +3,7 @@
  */
 import { z } from "zod";
 
+import { AI_API_FORMATS } from "@/shared/ai-constants";
 import { PRICE_RE } from "@/shared/number";
 
 // ── SSRF-safe URL check ─────────────────────────────────────────────
@@ -84,8 +85,8 @@ export const createAiEndpointBody = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/, "Endpoint ID must be lowercase alphanumeric with hyphens"),
   name: z.string().min(1).max(100),
-  baseUrl: z.string().url().max(500),
-  apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]),
+  baseUrl: safeUrlSchema,
+  apiFormat: z.enum(AI_API_FORMATS),
   authMode: connectorConfigModeSchema.optional(),
   authType: aiAuthTypeSchema.optional(),
   authConfig: aiAuthConfigSchema.optional(),
@@ -100,8 +101,8 @@ export const createAiEndpointBody = z.object({
 export const updateAiEndpointBody = z.object({
   supplierId: z.number().int().positive().optional(),
   name: z.string().min(1).max(100).optional(),
-  baseUrl: z.string().url().max(500).optional(),
-  apiFormat: z.enum(["openai", "anthropic", "gemini", "azure-openai", "bedrock"]).optional(),
+  baseUrl: safeUrlSchema.optional(),
+  apiFormat: z.enum(AI_API_FORMATS).optional(),
   authMode: connectorConfigModeSchema.optional(),
   authType: aiAuthTypeSchema.optional(),
   authConfig: aiAuthConfigSchema.optional(),

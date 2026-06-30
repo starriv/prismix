@@ -3,6 +3,10 @@
  *
  * Connections are concrete callable protocol surfaces under a real supplier.
  * Examples: `deepseek-openai`, `deepseek-anthropic`.
+ *
+ * The `aiEndpointRepo` export name, route paths, and URL contract are
+ * intentionally preserved for API stability; only the DB table was renamed
+ * to `ai_supplier_connections`.
  */
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 
