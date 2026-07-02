@@ -875,6 +875,7 @@ export const aiUsageLogs = pgTable(
     totalTokens: integer("total_tokens").notNull().default(0),
     cacheCreationInputTokens: integer("cache_creation_input_tokens").notNull().default(0),
     cacheReadInputTokens: integer("cache_read_input_tokens").notNull().default(0),
+    reasoningTokens: integer("reasoning_tokens").notNull().default(0),
     estimatedCost: text("estimated_cost"), // numeric string — consumer cost (after markup)
     upstreamCost: text("upstream_cost"), // numeric string — raw cost before markup
     markupPercent: real("markup_percent"), // markup % applied at billing time
@@ -892,6 +893,7 @@ export const aiUsageLogs = pgTable(
     billingMs: integer("billing_ms"),
     firstChunkMs: integer("first_chunk_ms"),
     firstTokenMs: integer("first_token_ms"),
+    tokensPerSecond: real("tokens_per_second"),
     requestBytes: integer("request_bytes"),
     responseBytes: integer("response_bytes"),
     streamChunks: integer("stream_chunks"),

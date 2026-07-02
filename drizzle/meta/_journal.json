@@ -155,6 +155,13 @@
       "when": 1782806677671,
       "tag": "0021_ai_usage_performance_probes",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783020715893,
+      "tag": "0022_add_tps_and_reasoning_tokens",
+      "breakpoints": true
     }
   ]
 }
