@@ -51,6 +51,8 @@ export interface AiUsageSummary {
   p95LatencyMs: number;
   avgUpstreamTtfbMs: number;
   p95UpstreamTtfbMs: number;
+  avgTokensPerSecond: number;
+  p95TokensPerSecond: number;
   byEndpoint: Array<{
     endpointId: string;
     requests: number;
@@ -682,6 +684,8 @@ export const aiUsageLogRepo = {
       p95LatencyMs: string | null;
       avgUpstreamTtfbMs: string | null;
       p95UpstreamTtfbMs: string | null;
+      avgTokensPerSecond: string | null;
+      p95TokensPerSecond: string | null;
     }>(
       db
         .select({
@@ -699,6 +703,8 @@ export const aiUsageLogRepo = {
           p95LatencyMs: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.latencyMs}) FILTER (WHERE ${aiUsageLogs.latencyMs} IS NOT NULL)`,
           avgUpstreamTtfbMs: sql<string>`AVG(${aiUsageLogs.upstreamTtfbMs})`,
           p95UpstreamTtfbMs: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.upstreamTtfbMs}) FILTER (WHERE ${aiUsageLogs.upstreamTtfbMs} IS NOT NULL)`,
+          avgTokensPerSecond: sql<string>`AVG(${aiUsageLogs.tokensPerSecond}) FILTER (WHERE ${aiUsageLogs.tokensPerSecond} IS NOT NULL)`,
+          p95TokensPerSecond: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.tokensPerSecond}) FILTER (WHERE ${aiUsageLogs.tokensPerSecond} IS NOT NULL)`,
         })
         .from(aiUsageLogs)
         .where(where),
@@ -782,6 +788,8 @@ export const aiUsageLogRepo = {
       p95LatencyMs: Math.round(Number(totalsRow?.p95LatencyMs ?? 0)),
       avgUpstreamTtfbMs: Math.round(Number(totalsRow?.avgUpstreamTtfbMs ?? 0)),
       p95UpstreamTtfbMs: Math.round(Number(totalsRow?.p95UpstreamTtfbMs ?? 0)),
+      avgTokensPerSecond: Number(totalsRow?.avgTokensPerSecond ?? 0) || 0,
+      p95TokensPerSecond: Number(totalsRow?.p95TokensPerSecond ?? 0) || 0,
       byEndpoint: byEndpoint.map((r) => ({
         endpointId: r.endpointId ?? "",
         requests: r.requests,
