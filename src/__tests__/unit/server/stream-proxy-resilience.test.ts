@@ -188,8 +188,35 @@ describe("forwardStream", () => {
       responseBytes: expect.any(Number),
       streamPingCount: 0,
       firstChunkMs: expect.any(Number),
+    });
+    expect(performanceMetrics).not.toHaveProperty("firstTokenMs");
+  });
+
+  it("sets firstTokenMs on first content-bearing OpenAI delta", async () => {
+    const frames = [
+      'data: {"choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    const body = makeSSEStream(frames);
+    const upstreamRes = new Response(body, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+
+    await captureStreamOutput((c) =>
+      forwardStream(c, upstreamRes, passthroughAdapter, makeMeta(), onComplete),
+    );
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    const [, , , performanceMetrics] = onComplete.mock.calls[0]!;
+    expect(performanceMetrics).toMatchObject({
+      firstChunkMs: expect.any(Number),
       firstTokenMs: expect.any(Number),
     });
+    expect(performanceMetrics.firstTokenMs).toBeGreaterThanOrEqual(0);
   });
 
   it("sends heartbeat comments to keep connection alive", async () => {
@@ -293,8 +320,8 @@ describe("forwardPassthroughStream", () => {
       responseBytes: expect.any(Number),
       streamPingCount: 0,
       firstChunkMs: expect.any(Number),
-      firstTokenMs: expect.any(Number),
     });
+    expect(performanceMetrics).not.toHaveProperty("firstTokenMs");
   });
 
   it("handles upstream with no body", async () => {

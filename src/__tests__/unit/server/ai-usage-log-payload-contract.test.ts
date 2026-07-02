@@ -26,6 +26,7 @@ const EXPECTED_PAYLOAD_FIELDS = [
   "totalTokens",
   "cacheCreationInputTokens",
   "cacheReadInputTokens",
+  "reasoningTokens",
   "estimatedCost",
   "upstreamCost",
   "markupPercent",
@@ -43,6 +44,7 @@ const EXPECTED_PAYLOAD_FIELDS = [
   "billingMs",
   "firstChunkMs",
   "firstTokenMs",
+  "tokensPerSecond",
   "requestBytes",
   "responseBytes",
   "streamChunks",
@@ -71,7 +73,6 @@ describe("ai-usage-log payload contract", () => {
       transformMs: 1,
       billingMs: 8,
       firstChunkMs: 310,
-      firstTokenMs: 310,
       requestBytes: 1024,
       responseBytes: 4096,
       streamChunks: 12,
@@ -131,7 +132,6 @@ describe("ai-usage-log payload contract", () => {
       routeType: "chat",
       isStream: true,
       firstChunkMs: 250,
-      firstTokenMs: 250,
       streamChunks: 50,
       streamBytes: 8192,
       streamPingCount: 3,
@@ -171,5 +171,26 @@ describe("ai-usage-log payload contract", () => {
     expect(sanitized.firstChunkMs).toBeUndefined();
     expect(sanitized.responseBytes).toBe(0);
     expect(sanitized.streamChunks).toBe(6);
+  });
+
+  it("sanitizePerformanceMetrics preserves float values for non-integer fields", () => {
+    const sanitized = sanitizePerformanceMetrics({
+      tokensPerSecond: 38.7,
+      routeType: "chat",
+    });
+    expect(sanitized.tokensPerSecond).toBe(38.7);
+    expect(sanitized.routeType).toBe("chat");
+  });
+
+  it("sanitizePerformanceMetrics rejects NaN/Infinity for float fields", () => {
+    const sanitized = sanitizePerformanceMetrics({
+      tokensPerSecond: Number.NaN,
+    });
+    expect(sanitized.tokensPerSecond).toBeUndefined();
+
+    const sanitized2 = sanitizePerformanceMetrics({
+      tokensPerSecond: Number.POSITIVE_INFINITY,
+    });
+    expect(sanitized2.tokensPerSecond).toBeUndefined();
   });
 });

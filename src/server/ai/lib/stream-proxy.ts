@@ -23,6 +23,7 @@ import {
   aiStreamChunksTotal,
   aiStreamCompletedTotal,
   aiStreamFirstChunkLatency,
+  aiStreamFirstTokenLatency,
   aiStreamStartedTotal,
   gatewayUpstreamDuration,
 } from "@/server/lib/metrics";
@@ -139,6 +140,7 @@ interface StreamLifecycleState {
   pingCount: number;
   startedAt: number;
   firstChunkLatencyMs: number | null;
+  firstTokenLatencyMs: number | null;
   lastChunkAt: number | null;
   abortReason: StreamAbortReason | null;
 }
@@ -151,6 +153,7 @@ function createLifecycleState(meta: StreamRelayMeta): StreamLifecycleState {
     pingCount: 0,
     startedAt: Date.now(),
     firstChunkLatencyMs: null,
+    firstTokenLatencyMs: null,
     lastChunkAt: null,
     abortReason: null,
   };
@@ -196,6 +199,69 @@ function observeFirstChunk(meta: StreamRelayMeta, state: StreamLifecycleState): 
     { endpoint: meta.endpointId, route: state.routeType },
     state.firstChunkLatencyMs / 1000,
   );
+}
+
+function observeFirstToken(
+  meta: StreamRelayMeta,
+  state: StreamLifecycleState,
+  dataLine: string,
+): void {
+  if (state.firstTokenLatencyMs !== null) return;
+  if (!isContentBearingDelta(dataLine)) return;
+  state.firstTokenLatencyMs = Date.now() - meta.start;
+  aiStreamFirstTokenLatency.observe(
+    { endpoint: meta.endpointId, route: state.routeType },
+    state.firstTokenLatencyMs / 1000,
+  );
+}
+
+function isContentBearingDelta(dataLine: string): boolean {
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(dataLine) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  const eventType = obj.type as string | undefined;
+
+  if (eventType === "content_block_delta") {
+    const delta = obj.delta as Record<string, unknown> | undefined;
+    const text = delta?.text;
+    return typeof text === "string" && text.length > 0;
+  }
+  if (
+    eventType === "message_start" ||
+    eventType === "content_block_start" ||
+    eventType === "content_block_stop" ||
+    eventType === "message_delta" ||
+    eventType === "message_stop" ||
+    eventType === "ping"
+  ) {
+    return false;
+  }
+
+  if (eventType?.startsWith("response.output_text")) {
+    return true;
+  }
+  if (eventType?.startsWith("response.")) return false;
+
+  const choices = obj.choices as Array<Record<string, unknown>> | undefined;
+  if (choices && choices.length > 0) {
+    const delta = choices[0].delta as Record<string, unknown> | undefined;
+    const content = delta?.content;
+    return typeof content === "string" && content.length > 0;
+  }
+
+  const candidates = obj.candidates as Array<Record<string, unknown>> | undefined;
+  if (candidates && candidates.length > 0) {
+    const content = candidates[0].content as Record<string, unknown> | undefined;
+    const parts = content?.parts as Array<Record<string, unknown>> | undefined;
+    if (parts) {
+      return parts.some((p) => typeof p.text === "string" && (p.text as string).length > 0);
+    }
+  }
+
+  return false;
 }
 
 function observeChunk(meta: StreamRelayMeta, state: StreamLifecycleState, bytes: number): void {
@@ -450,6 +516,8 @@ export function forwardStream(
             usage = usage ? mergeUsage(usage, frameUsage) : frameUsage;
           }
 
+          observeFirstToken(meta, state, dataLine);
+
           const transformed = adapter.transformStreamEvent(dataLine);
           if (transformed !== null) {
             const events = outputTransformer?.transformEvent(transformed) ?? [
@@ -503,11 +571,21 @@ export function forwardStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
+      const outputTokens = usage?.outputTokens ?? 0;
+      const decodeMs =
+        state.firstTokenLatencyMs != null
+          ? Math.max(0, latencyMs - state.firstTokenLatencyMs)
+          : null;
+      const tokensPerSecond =
+        decodeMs != null && decodeMs > 0 && outputTokens > 0
+          ? (outputTokens * 1000) / decodeMs
+          : null;
       const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
         routeType: state.routeType,
         isStream: true,
         firstChunkMs: state.firstChunkLatencyMs,
-        firstTokenMs: state.firstChunkLatencyMs,
+        firstTokenMs: state.firstTokenLatencyMs,
+        tokensPerSecond,
         responseBytes: rawResponse ? byteLength(rawResponse) : state.totalBytes,
         streamChunks: state.chunkCount,
         streamBytes: state.totalBytes,
@@ -561,6 +639,7 @@ export function forwardStream(
           bytesSeen: state.totalBytes,
           pingCount: state.pingCount,
           firstChunkLatencyMs: state.firstChunkLatencyMs,
+          firstTokenLatencyMs: state.firstTokenLatencyMs,
           lastChunkAt: state.lastChunkAt,
           latencyMs,
         },
@@ -737,6 +816,7 @@ export function forwardPassthroughStream(
             if (frameUsage) {
               usage = usage ? mergeUsage(usage, frameUsage) : frameUsage;
             }
+            observeFirstToken(meta, state, dataLine);
           }
 
           // Forward the entire raw frame (preserving event:, data:, etc.)
@@ -772,11 +852,21 @@ export function forwardPassthroughStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
+      const outputTokens = usage?.outputTokens ?? 0;
+      const decodeMs =
+        state.firstTokenLatencyMs != null
+          ? Math.max(0, latencyMs - state.firstTokenLatencyMs)
+          : null;
+      const tokensPerSecond =
+        decodeMs != null && decodeMs > 0 && outputTokens > 0
+          ? (outputTokens * 1000) / decodeMs
+          : null;
       const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
         routeType: state.routeType,
         isStream: true,
         firstChunkMs: state.firstChunkLatencyMs,
-        firstTokenMs: state.firstChunkLatencyMs,
+        firstTokenMs: state.firstTokenLatencyMs,
+        tokensPerSecond,
         responseBytes: rawResponse ? byteLength(rawResponse) : state.totalBytes,
         streamChunks: state.chunkCount,
         streamBytes: state.totalBytes,
@@ -824,6 +914,7 @@ export function forwardPassthroughStream(
           bytesSeen: state.totalBytes,
           pingCount: state.pingCount,
           firstChunkLatencyMs: state.firstChunkLatencyMs,
+          firstTokenLatencyMs: state.firstTokenLatencyMs,
           lastChunkAt: state.lastChunkAt,
           latencyMs,
         },
@@ -1006,6 +1097,7 @@ function enqueueUsageLog(
     totalTokens: usage?.totalTokens ?? 0,
     cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
     cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+    reasoningTokens: usage?.reasoningTokens ?? 0,
     estimatedCost: estimatedCost ?? null,
     latencyMs,
     ...metrics,

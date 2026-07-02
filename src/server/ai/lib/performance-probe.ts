@@ -15,6 +15,7 @@ export interface AiLogPerformanceMetrics {
   billingMs?: number | null;
   firstChunkMs?: number | null;
   firstTokenMs?: number | null;
+  tokensPerSecond?: number | null;
   requestBytes?: number | null;
   responseBytes?: number | null;
   streamChunks?: number | null;
@@ -73,6 +74,7 @@ export function sanitizePerformanceMetrics(
       sanitized[key] = Math.max(0, Math.round(value)) as never;
       continue;
     }
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
     sanitized[key] = value as never;
   }
   return sanitized;
