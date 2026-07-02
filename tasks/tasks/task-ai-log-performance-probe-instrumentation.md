@@ -54,6 +54,7 @@ Admin relay and consumer relay produce consistent per-request performance metric
 - Stream completion already had lifecycle state for first chunk, chunk count, and bytes; the implementation now passes those values into `StreamCompleteCallback` and admin usage-log writes instead of recomputing them elsewhere.
 - Non-streaming consumer billing includes `billingMs` in the persisted metrics because it affects response latency. Stream billing remains in the completion callback and records its own timing without delaying first response bytes.
 - Early catalog/auth/model-list failures can still write access logs without a full relay probe because no upstream relay attempt has started yet; upstream-facing relay failures include the metrics collected up to the failure.
+- A later metric credibility review found that `firstTokenMs` was being populated from the same raw stream-read mark as `firstChunkMs`. That is not a real protocol-level first-token probe, so new stream logs no longer write `firstTokenMs`.
 
 ## Execution Log
 
@@ -61,10 +62,11 @@ Admin relay and consumer relay produce consistent per-request performance metric
 - 2026-06-30: Added probe snapshots through admin relay, consumer relay, passthrough, stream proxy, and billing paths.
 - 2026-06-30: Added stream callback metric assertions and fixed the existing stream resilience test to assert the new callback contract.
 - 2026-06-30: Validation passed: relay, passthrough, stream proxy, consumer billing, focused probe, and full unit suites.
+- 2026-06-30: Removed `firstTokenMs` from the hot-path performance payload because the current stream proxy only observes first upstream chunk bytes, not first decoded model token.
 
 ## Review
 
-Done. The hot paths now share one metric contract while preserving existing billing and request-log behavior.
+Done. The hot paths now share one metric contract while preserving existing billing and request-log behavior. `firstChunkMs` is the trustworthy streaming responsiveness metric until a protocol-aware first-token detector exists.
 
 ## Notes
 

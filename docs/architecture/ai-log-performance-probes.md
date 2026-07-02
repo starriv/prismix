@@ -28,7 +28,7 @@ AI 网关在 `ai_usage_logs` 中记录请求级性能探测字段，用于解释
 | `transformMs`    | 网关完成协议转换、响应格式转换、token usage 提取等本地处理的耗时。                                                 |
 | `billingMs`      | 消费者扣费、交易记录、使用日志入队等计费相关操作耗时。非流式路径会计入用户可见延迟；流式路径在完成回调中异步记录。 |
 | `firstChunkMs`   | 流式请求从 relay 开始处理到收到第一个上游 chunk 的耗时。                                                           |
-| `firstTokenMs`   | 首 token 近似耗时。当前实现与 `firstChunkMs` 同源，保留独立字段以便未来接入协议级 token 事件。                     |
+| `firstTokenMs`   | 历史保留字段。当前 relay 没有协议级首 token 探测点，新日志不再写入，UI 不把 `firstChunkMs` 冒充 TTFT。             |
 
 ## 大小和流式字段
 
@@ -50,8 +50,15 @@ AI 网关在 `ai_usage_logs` 中记录请求级性能探测字段，用于解释
 - 聚合 cache hit rate 的分母只统计 `hit` 和 `miss`，不把 `bypass` 或 `disabled` 计入命中率分母。
 - `cacheEligibleRequests = hit + miss`。当 eligible 为 0 时，网关缓存命中率不可计算，UI 显示 `—` 而不是 `0%`。
 - 当前流式请求和 passthrough 请求会记录为 `bypass`，因此它们可以解释“没有缓存参与”，但不会拉低语义缓存命中率。
-- `disabled` 是 `cacheStatus` 的保留枚举值（语义缓存被配置关闭时使用），当前 relay 路径尚未写入该状态，聚合层不单独统计。
-- prompt cache read/write rate 使用供应商 cache token 除以输入 token 总量计算，不从 `cacheStatus` 推断。
+- `disabled` 是 `cacheStatus` 的保留枚举值（语义缓存被配置关闭时使用）。当前 relay 路径尚未写入该状态，因此聚合 API 不暴露单独的 disabled 计数。
+- prompt cache read/write rate 使用供应商 cache token 除以输入 token 总量计算，不从 `cacheStatus` 推断。由于部分供应商不会返回 prompt-cache token 字段，UI 在没有观察到正数读/写 cache token 时显示 `—`，避免把缺失数据解释成真实 0。
+
+## UI 展示策略
+
+- 详情页只展示对当前请求路径适用且有采集依据的字段。
+- 流式请求展示 `upstreamTtfbMs`、`firstChunkMs`、stream chunk/bytes 和结束原因；不展示非流式 `upstreamBodyMs` 或 `transformMs` 空值。
+- `cacheStatus=bypass` 时不展示 `cacheLookupMs` / `cacheWriteMs` 空行；只有 `hit` / `miss` 或实际采集到 lookup/write 耗时时才展示。
+- 供应商 cache token 只在正数时展示在单请求详情中；0 值通常表示字段缺失或供应商未返回，不足以证明“真实 0 token 命中”。
 
 ## 计费语义
 

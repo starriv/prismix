@@ -54,6 +54,7 @@ Admin and user AI log views display the new performance and cache metrics with a
 - The detail sheet is shared, so the performance probe section was added once and reused by admin/user log surfaces.
 - A synthetic local dev log row with model `gpt-performance-probe` was inserted to verify populated metric rendering and detail-sheet drill-down, then removed after verification.
 - Summary cards now label gateway semantic-cache hit rate separately from provider prompt-cache read rate. If the gateway cache has no eligible `hit + miss` rows, the hit-rate card displays `—` instead of a misleading `0%`.
+- The detail sheet now conditionally renders only fields applicable to the current request path. Stream bypass rows do not show empty cache lookup/write, non-stream body/transform, duplicate response size, zero stream ping, or zero provider cache-token rows.
 
 ## Execution Log
 
@@ -64,6 +65,7 @@ Admin and user AI log views display the new performance and cache metrics with a
 - 2026-06-30: Console/network review showed only expected dev-mode informational output and a verifier HEAD request aborted by the script; application API requests returned 200.
 - 2026-06-30: Re-verified current worktree with a temporary populated performance log row. Desktop and mobile detail-sheet clicks both rendered `Performance Probe`, `Upstream TTFB`, and `Request Body`; the request-log API returned 200. Temporary DB/Redis data and admin storage state were cleaned afterward.
 - 2026-06-30: Re-reviewed cache summary display after a production screenshot showed `0%`; changed local UI copy to `网关缓存命中率` / `供应商读缓存率` and verified unavailable gateway hit rate renders as `—` on desktop and mobile.
+- 2026-06-30: Re-reviewed a user-log detail screenshot with many empty fields. Removed fake TTFT display, changed the table to show first chunk instead, hid inapplicable detail rows by request type, and verified `/zh/user/logs` desktop/mobile with a temporary stream bypass row before cleanup.
 
 ## Review
 

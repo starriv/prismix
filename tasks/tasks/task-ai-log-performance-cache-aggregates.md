@@ -55,6 +55,7 @@ Gateway semantic-cache hits, misses, and bypasses are visible in logs and aggreg
 - Provider prompt-cache read/write rates remain separate from gateway semantic-cache status and are derived from provider usage token fields.
 - A production screenshot showing `0%` cache hit rate exposed a UI ambiguity rather than a denominator bug: when all observed rows are `bypass`, gateway cache hit rate has no eligible `hit + miss` denominator and should be shown as unavailable.
 - `cacheStatus: "disabled"` is a reserved enum value for a future config flag that turns off the semantic cache. Relay routes do not write it yet, so the aggregate layer only tracks `hit`, `miss`, and `bypass`. A `cacheDisabled` count was briefly added but removed as dead code until the write-site lands.
+- Provider prompt-cache token fields default to 0 in storage and many suppliers do not return them. A later review changed the UI to display provider prompt-cache rate as unavailable when no positive read/write cache tokens were observed.
 
 ## Execution Log
 
@@ -63,6 +64,7 @@ Gateway semantic-cache hits, misses, and bypasses are visible in logs and aggreg
 - 2026-06-30: Extended usage summaries with cache hit/miss/bypass counts, cache hit rate, prompt-cache read/write token totals/rates, average latency, p95 latency, average TTFB, and p95 TTFB.
 - 2026-06-30: Validation passed with `ai-usage-log-repo`, relay, consumer relay, and full unit tests.
 - 2026-06-30: Reviewed cache-rate calculation after production UI showed `0%`; added explicit `cacheEligibleRequests` summary field so clients can distinguish zero hits from no eligible cache samples. Removed a premature `cacheDisabled`/`cacheObservedRequests` pair after confirming no relay write-site emits `cacheStatus: "disabled"` today.
+- 2026-06-30: Reviewed provider prompt-cache detail display; zero cache token values are no longer shown as single-request detail facts unless the provider returned positive cache tokens.
 
 ## Review
 
