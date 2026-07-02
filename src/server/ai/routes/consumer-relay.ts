@@ -940,6 +940,7 @@ async function handleCanonicalChatCompletions(
           totalTokens: usage?.totalTokens ?? 0,
           cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
           cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+          reasoningTokens: usage?.reasoningTokens ?? 0,
           estimatedCost: "0",
           upstreamCost: "0",
           markupPercent: consumer.markupPercent,

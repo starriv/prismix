@@ -260,6 +260,7 @@ relay.post("/v1/chat/completions", async (c) => {
             totalTokens: usage?.totalTokens ?? 0,
             cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
             cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+            reasoningTokens: usage?.reasoningTokens ?? 0,
             estimatedCost: cost ?? null,
             latencyMs: probe.elapsed(),
             statusCode: 200,
@@ -547,6 +548,7 @@ relay.post("/v1/chat/completions", async (c) => {
           totalTokens: usage?.totalTokens ?? 0,
           cacheCreationInputTokens: usage?.cacheCreationInputTokens ?? 0,
           cacheReadInputTokens: usage?.cacheReadInputTokens ?? 0,
+          reasoningTokens: usage?.reasoningTokens ?? 0,
           estimatedCost: cost ?? null,
           latencyMs,
           ...probe.snapshot({
