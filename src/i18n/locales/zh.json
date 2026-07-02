@@ -2648,7 +2648,9 @@
     },
     "perf": {
       "ttfb-short": "TTFB",
-      "ttft-short": "TTFT"
+      "ttft-short": "TTFT",
+      "first-chunk-short": "首块",
+      "tps-short": "TPS"
     },
     "cache": {
       "hit": "命中",

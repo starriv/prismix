@@ -1,10 +1,13 @@
+import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 
 import type { AiUsageRecord } from "@/web/api/schemas";
+import { buildPerformanceDetailRows } from "@/web/pages/ai-logs/log-detail";
 import {
   formatBytes,
   formatDurationMs,
   formatGatewayCacheHitRate,
+  formatProviderPromptCacheReadRate,
   hasPerformanceMetrics,
 } from "@/web/pages/ai-logs/performance";
 
@@ -78,6 +81,29 @@ describe("formatGatewayCacheHitRate", () => {
   });
 });
 
+describe("formatProviderPromptCacheReadRate", () => {
+  it("returns unavailable when no provider cache tokens were observed", () => {
+    expect(formatProviderPromptCacheReadRate(null)).toBe("—");
+    expect(
+      formatProviderPromptCacheReadRate({
+        promptCacheCreationInputTokens: 0,
+        promptCacheReadInputTokens: 0,
+        promptCacheReadRate: 0,
+      }),
+    ).toBe("—");
+  });
+
+  it("formats zero read rate when provider cache token fields were observed through writes", () => {
+    expect(
+      formatProviderPromptCacheReadRate({
+        promptCacheCreationInputTokens: 100,
+        promptCacheReadInputTokens: 0,
+        promptCacheReadRate: 0,
+      }),
+    ).toBe("0%");
+  });
+});
+
 describe("hasPerformanceMetrics", () => {
   it("returns false for legacy row (all null)", () => {
     expect(hasPerformanceMetrics(makeLog())).toBe(false);
@@ -107,5 +133,67 @@ describe("hasPerformanceMetrics", () => {
   });
   it("returns false when only latencyMs is set (not in checked list)", () => {
     expect(hasPerformanceMetrics(makeLog({ latencyMs: 500 }))).toBe(false);
+  });
+});
+
+describe("buildPerformanceDetailRows", () => {
+  const t = ((key: string) => key) as TFunction;
+  const keysFor = (overrides: Partial<AiUsageRecord>) =>
+    buildPerformanceDetailRows(makeLog(overrides), t).map((row) => row.key);
+
+  it("hides inapplicable non-stream and cache-token rows for streaming bypass logs", () => {
+    const keys = keysFor({
+      routeType: "chat",
+      isStream: true,
+      cacheStatus: "bypass",
+      routingMs: 2,
+      queueWaitMs: 1,
+      upstreamTtfbMs: 1800,
+      firstChunkMs: 1900,
+      billingMs: 0,
+      requestBytes: 454 * 1024,
+      responseBytes: 7600,
+      streamChunks: 25,
+      streamBytes: 7600,
+      streamPingCount: 0,
+      streamAbortReason: "completed",
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: 0,
+    });
+
+    expect(keys).toContain("first-chunk");
+    expect(keys).toContain("stream-chunks");
+    expect(keys).toContain("stream-bytes");
+    expect(keys).toContain("abort-reason");
+    expect(keys).not.toContain("cache-lookup");
+    expect(keys).not.toContain("cache-write");
+    expect(keys).not.toContain("upstream-body");
+    expect(keys).not.toContain("transform");
+    expect(keys).not.toContain("response-bytes");
+    expect(keys).not.toContain("stream-pings");
+    expect(keys).not.toContain("cache-read-tokens");
+    expect(keys).not.toContain("cache-write-tokens");
+  });
+
+  it("shows cache and non-stream processing rows when those probes exist", () => {
+    const keys = keysFor({
+      routeType: "chat",
+      isStream: false,
+      cacheStatus: "miss",
+      cacheLookupMs: 1,
+      cacheWriteMs: 2,
+      upstreamBodyMs: 30,
+      transformMs: 1,
+      responseBytes: 2048,
+      cacheReadInputTokens: 128,
+    });
+
+    expect(keys).toContain("cache-lookup");
+    expect(keys).toContain("cache-write");
+    expect(keys).toContain("upstream-body");
+    expect(keys).toContain("transform");
+    expect(keys).toContain("response-bytes");
+    expect(keys).toContain("cache-read-tokens");
+    expect(keys).not.toContain("first-chunk");
   });
 });

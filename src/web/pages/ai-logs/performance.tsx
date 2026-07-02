@@ -18,12 +18,33 @@ export function formatBytes(value: number | null | undefined): string {
   return `${removeTrailingZero(value / (1024 * 1024), 1)}MB`;
 }
 
+export function formatTokensPerSecond(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value === 0) return "-";
+  if (value < 1) return value.toFixed(2);
+  if (value < 100) return value.toFixed(1);
+  return Math.round(value).toString();
+}
+
 export function formatGatewayCacheHitRate(
   summary: Pick<AiUsageSummary, "cacheEligibleRequests" | "cacheHitRate"> | null | undefined,
 ): string {
   return (summary?.cacheEligibleRequests ?? 0) > 0
     ? formatPercent(summary?.cacheHitRate ?? 0)
     : "—";
+}
+
+export function formatProviderPromptCacheReadRate(
+  summary:
+    | Pick<
+        AiUsageSummary,
+        "promptCacheCreationInputTokens" | "promptCacheReadInputTokens" | "promptCacheReadRate"
+      >
+    | null
+    | undefined,
+): string {
+  const observedTokens =
+    (summary?.promptCacheCreationInputTokens ?? 0) + (summary?.promptCacheReadInputTokens ?? 0);
+  return observedTokens > 0 ? formatPercent(summary?.promptCacheReadRate ?? 0) : "—";
 }
 
 export function hasPerformanceMetrics(log: AiUsageRecord): boolean {
@@ -35,6 +56,7 @@ export function hasPerformanceMetrics(log: AiUsageRecord): boolean {
     log.upstreamBodyMs,
     log.firstChunkMs,
     log.firstTokenMs,
+    log.tokensPerSecond,
     log.requestBytes,
     log.responseBytes,
     log.streamChunks,
@@ -46,16 +68,25 @@ export function hasPerformanceMetrics(log: AiUsageRecord): boolean {
 }
 
 export function LatencySummary({ log, t }: { log: AiUsageRecord; t: TFunction }) {
-  const firstToken = log.firstTokenMs ?? log.firstChunkMs;
   return (
     <DataTableText className="block min-w-[110px] text-xs leading-5" muted numeric>
       <span className="block font-mono text-foreground">{formatDurationMs(log.latencyMs)}</span>
       <span className="block">
         {t("ai-logs.perf.ttfb-short")}: {formatDurationMs(log.upstreamTtfbMs)}
       </span>
-      {firstToken != null ? (
+      {log.firstChunkMs != null ? (
         <span className="block">
-          {t("ai-logs.perf.ttft-short")}: {formatDurationMs(firstToken)}
+          {t("ai-logs.perf.first-chunk-short")}: {formatDurationMs(log.firstChunkMs)}
+        </span>
+      ) : null}
+      {log.firstTokenMs != null ? (
+        <span className="block">
+          {t("ai-logs.perf.ttft-short")}: {formatDurationMs(log.firstTokenMs)}
+        </span>
+      ) : null}
+      {log.tokensPerSecond != null ? (
+        <span className="block">
+          {t("ai-logs.perf.tps-short")}: {formatTokensPerSecond(log.tokensPerSecond)} tok/s
         </span>
       ) : null}
     </DataTableText>
