@@ -17,6 +17,11 @@ export function extractTokenUsageFromUsageObject(
   const output = numericField(usage, "output_tokens");
   const cacheCreation = numericField(usage, "cache_creation_input_tokens") ?? 0;
   const cacheRead = numericField(usage, "cache_read_input_tokens") ?? 0;
+  const completionDetails = usage.completion_tokens_details as Record<string, unknown> | undefined;
+  const reasoningTokens =
+    typeof completionDetails?.reasoning_tokens === "number"
+      ? completionDetails.reasoning_tokens
+      : 0;
   const reportedTotal = numericField(usage, "total_tokens") ?? numericField(usage, "totalTokens");
 
   let inputTokens =
@@ -39,5 +44,6 @@ export function extractTokenUsageFromUsageObject(
     totalTokens: reportedTotal ?? inputTokens + outputTokens,
     cacheCreationInputTokens: cacheCreation || undefined,
     cacheReadInputTokens: cacheRead || undefined,
+    reasoningTokens: reasoningTokens || undefined,
   };
 }

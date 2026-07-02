@@ -69,6 +69,13 @@ export const aiStreamFirstChunkLatency = new Histogram({
   buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
 });
 
+export const aiStreamFirstTokenLatency = new Histogram({
+  name: "prismix_ai_stream_first_token_latency_seconds",
+  help: "Latency from stream start to first SSE frame carrying output content (true TTFT)",
+  labelNames: ["endpoint", "route"] as const,
+  buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+});
+
 export const aiStreamChunksTotal = new Counter({
   name: "prismix_ai_stream_chunks_total",
   help: "Total upstream chunks observed in AI streams",

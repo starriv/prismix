@@ -309,6 +309,7 @@ export async function billConsumer(p: BillConsumerParams): Promise<ConsumerBilli
     totalTokens: p.usage?.totalTokens ?? 0,
     cacheCreationInputTokens: p.usage?.cacheCreationInputTokens ?? 0,
     cacheReadInputTokens: p.usage?.cacheReadInputTokens ?? 0,
+    reasoningTokens: p.usage?.reasoningTokens ?? 0,
     estimatedCost: costStr,
     upstreamCost: removeTailingZero(upstreamCost, 6),
     markupPercent: p.consumer.markupPercent,
