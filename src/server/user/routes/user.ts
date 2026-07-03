@@ -16,6 +16,7 @@ import { createConsumerKeyBody, updateProfileBody } from "@/server/lib/body-sche
 import { decrypt, encrypt, generateConsumerApiKey } from "@/server/lib/crypto";
 import { log } from "@/server/lib/logger";
 import { ok } from "@/server/lib/response";
+import { parseUsageDays } from "@/server/lib/usage";
 import { parseBody, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { ensureUserAgent } from "@/server/lib/wallet";
 import { getUserSession } from "@/server/middleware/auth";
@@ -336,20 +337,20 @@ user.get("/usage/summary", async (c) => {
 // GET /usage/daily — daily trend for user (admin-compatible format)
 user.get("/usage/daily", async (c) => {
   const session = getUserSession(c);
-  const days = Math.min(Number(c.req.query("days") ?? 30), 90);
+  const days = parseUsageDays(c.req.query("days"));
   const daily = await aiUsageLogRepo.dailySummary(days, undefined, session.userId);
   return ok(c, daily);
 });
 
 user.get("/usage/error-overview", async (c) => {
   const session = getUserSession(c);
-  const days = Math.min(Number(c.req.query("days") ?? 30), 90);
+  const days = parseUsageDays(c.req.query("days"));
   return ok(c, await aiUsageLogRepo.errorOverview(days, session.userId));
 });
 
 user.get("/usage/error-daily", async (c) => {
   const session = getUserSession(c);
-  const days = Math.min(Number(c.req.query("days") ?? 30), 90);
+  const days = parseUsageDays(c.req.query("days"));
   return ok(c, await aiUsageLogRepo.errorDaily(days, session.userId));
 });
 

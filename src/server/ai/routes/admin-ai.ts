@@ -7,6 +7,7 @@
 import { Hono } from "hono";
 
 import { ok } from "@/server/lib/response";
+import { parseUsageDays } from "@/server/lib/usage";
 import { parseIntParam, parsePaginationLimit, parsePaginationOffset } from "@/server/lib/validate";
 import { getAdminSession } from "@/server/middleware/auth";
 import {
@@ -118,7 +119,7 @@ adminAi.get("/usage/recent", async (c) => {
 
 adminAi.get("/usage/daily", async (c) => {
   getAdminSession(c);
-  const days = Math.min(Number(c.req.query("days")) || 30, 90);
+  const days = parseUsageDays(c.req.query("days"));
   const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
   const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
   return ok(c, await aiUsageLogRepo.dailySummary(days, consumerKeyId, userId));
@@ -126,13 +127,13 @@ adminAi.get("/usage/daily", async (c) => {
 
 adminAi.get("/usage/error-overview", async (c) => {
   getAdminSession(c);
-  const days = Math.min(Number(c.req.query("days")) || 30, 90);
+  const days = parseUsageDays(c.req.query("days"));
   return ok(c, await aiUsageLogRepo.errorOverview(days));
 });
 
 adminAi.get("/usage/error-daily", async (c) => {
   getAdminSession(c);
-  const days = Math.min(Number(c.req.query("days")) || 30, 90);
+  const days = parseUsageDays(c.req.query("days"));
   return ok(c, await aiUsageLogRepo.errorDaily(days));
 });
 
