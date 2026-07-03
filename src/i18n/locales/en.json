@@ -2648,7 +2648,12 @@
       "rpm": "RPM (60s)",
       "tpm": "TPM (60s)",
       "rpm-hint": "Requests in the last 60 seconds",
-      "tpm-hint": "Tokens in the last 60 seconds"
+      "tpm-hint": "Tokens in the last 60 seconds",
+      "live-trend-title": "Live Throughput Trend",
+      "live-trend-desc": "Per-minute RPM / TPM / avg throughput over the last 60 minutes",
+      "trend-rpm": "RPM",
+      "trend-tpm": "TPM",
+      "trend-throughput": "Throughput (tok/s)"
     },
     "th": {
       "request-id": "Request ID",

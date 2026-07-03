@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -8,7 +8,13 @@ import { Activity, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
-import { useAiLogs, useAiRequestLog, useAiUsageSummary, useRelayKeyOptions } from "@/web/api/hooks";
+import {
+  useAiLiveTrend,
+  useAiLogs,
+  useAiRequestLog,
+  useAiUsageSummary,
+  useRelayKeyOptions,
+} from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
@@ -29,11 +35,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/web/components/ui/sheet";
+import { Skeleton } from "@/web/components/ui/skeleton";
 
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
 import { formatDurationMs, formatTokensPerSecond } from "./ai-logs/performance";
 import { formatTokens, StatCard } from "./ai-usage/helpers";
+
+const LiveTrendChart = lazy(() => import("@/web/pages/dashboard/live-trend-chart"));
 
 export default function AiLogsPage() {
   const { t, i18n } = useTranslation();
@@ -67,6 +76,11 @@ export default function AiLogsPage() {
   const LIVE_REFETCH_MS = 5_000;
   const { data: keys = [] } = useRelayKeyOptions();
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
+  const {
+    data: liveTrend = [],
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useAiLiveTrend(60, LIVE_REFETCH_MS);
   const {
     data: logsData,
     isLoading,
@@ -180,6 +194,10 @@ export default function AiLogsPage() {
             loading={summaryLoading}
           />
         </div>
+
+        <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
+          <LiveTrendChart data={liveTrend} loading={trendLoading} error={trendError} />
+        </Suspense>
 
         <div className="space-y-4">
           {/* Filter bar */}

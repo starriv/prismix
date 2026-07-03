@@ -2648,7 +2648,12 @@
       "rpm": "RPM (近 60 秒)",
       "tpm": "TPM (近 60 秒)",
       "rpm-hint": "近 60 秒请求数",
-      "tpm-hint": "近 60 秒 Token 数"
+      "tpm-hint": "近 60 秒 Token 数",
+      "live-trend-title": "实时吞吐趋势",
+      "live-trend-desc": "近 60 分钟每分钟 RPM / TPM / 平均吞吐",
+      "trend-rpm": "RPM",
+      "trend-tpm": "TPM",
+      "trend-throughput": "吞吐 (tok/s)"
     },
     "th": {
       "request-id": "请求 ID",

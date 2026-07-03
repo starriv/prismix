@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -9,6 +9,7 @@ import { Activity, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import {
   USER_LOG_PAGE_SIZE,
+  useUserLiveTrend,
   useUserLogs,
   useUserModels,
   useUserRequestLog,
@@ -26,11 +27,14 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
+import { Skeleton } from "@/web/components/ui/skeleton";
 import { formatDurationMs, formatTokensPerSecond } from "@/web/pages/ai-logs/performance";
 import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
 import { LogDetail } from "../ai-logs/log-detail";
 import { buildUserLogColumns } from "./log-columns";
+
+const LiveTrendChart = lazy(() => import("@/web/pages/dashboard/live-trend-chart"));
 
 const LIVE_REFETCH_MS = 5_000;
 const EMPTY_LOGS: AiUsageRecord[] = [];
@@ -62,6 +66,11 @@ export default function UserLogsPage() {
   const logs = logsData?.items ?? EMPTY_LOGS;
 
   const { data: summary, isLoading: summaryLoading } = useUserUsageSummary(LIVE_REFETCH_MS);
+  const {
+    data: liveTrend = [],
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useUserLiveTrend(60, LIVE_REFETCH_MS);
 
   // Derive model options from full catalog (not current page)
   const { data: modelCatalog } = useUserModels();
@@ -140,6 +149,10 @@ export default function UserLogsPage() {
             loading={summaryLoading}
           />
         </div>
+
+        <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
+          <LiveTrendChart data={liveTrend} loading={trendLoading} error={trendError} />
+        </Suspense>
 
         <Card>
           <CardHeader className="pb-3">
