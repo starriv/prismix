@@ -199,10 +199,11 @@ export function useDeleteUserKey() {
   });
 }
 
-export function useUserUsageSummary() {
+export function useUserUsageSummary(refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.userUsageSummary(),
     queryFn: () => userGet(API_USER_USAGE_SUMMARY, aiUsageSummarySchema),
+    refetchInterval,
   });
 }
 

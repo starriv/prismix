@@ -4,14 +4,16 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { Search } from "lucide-react";
+import { AlertTriangle, Clock3, Gauge, Search, Timer } from "lucide-react";
 
+import { formatPercent } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import {
   USER_LOG_PAGE_SIZE,
   useUserLogs,
   useUserModels,
   useUserRequestLog,
+  useUserUsageSummary,
 } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable, DataTableToolbar, DataTableViewOptions } from "@/web/components/data-table";
@@ -25,6 +27,8 @@ import {
   SelectValue,
 } from "@/web/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
+import { formatDurationMs, formatTokensPerSecond } from "@/web/pages/ai-logs/performance";
+import { StatCard } from "@/web/pages/ai-usage/helpers";
 
 import { LogDetail } from "../ai-logs/log-detail";
 import { buildUserLogColumns } from "./log-columns";
@@ -57,6 +61,8 @@ export default function UserLogsPage() {
   });
 
   const logs = logsData?.items ?? EMPTY_LOGS;
+
+  const { data: summary, isLoading: summaryLoading } = useUserUsageSummary(LIVE_REFETCH_MS);
 
   // Derive model options from full catalog (not current page)
   const { data: modelCatalog } = useUserModels();
@@ -99,6 +105,37 @@ export default function UserLogsPage() {
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={AlertTriangle}
+            label={t("ai-logs.stats.error-rate")}
+            value={formatPercent(summary?.errorRate ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Timer}
+            label={t("ai-logs.stats.p95-latency")}
+            value={formatDurationMs(summary?.p95LatencyMs ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Clock3}
+            label={t("ai-logs.stats.p95-ttfb")}
+            value={formatDurationMs(summary?.p95UpstreamTtfbMs ?? 0)}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Gauge}
+            label={t("ai-logs.stats.p95-throughput")}
+            value={
+              summary?.p95TokensPerSecond
+                ? `${formatTokensPerSecond(summary.p95TokensPerSecond)} tok/s`
+                : "-"
+            }
+            loading={summaryLoading}
+          />
+        </div>
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">{t("ai-logs.card-title")}</CardTitle>
