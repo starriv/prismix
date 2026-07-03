@@ -45,7 +45,7 @@ export function SidebarLayout({ sidebar, mobileSidebar, trailing }: SidebarLayou
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isMobile && (
-          <div className="flex items-center justify-between border-b bg-background px-4 py-3">
+          <div className="relative z-40 flex items-center justify-between border-b bg-background px-4 py-3">
             <Button
               variant="ghost"
               size="icon"
