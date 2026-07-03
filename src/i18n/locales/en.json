@@ -2650,7 +2650,7 @@
       "rpm-hint": "Requests in the last 60 seconds",
       "tpm-hint": "Tokens in the last 60 seconds",
       "live-trend-title": "Live Throughput Trend",
-      "live-trend-desc": "Per-minute RPM / TPM / avg throughput over the last 60 minutes",
+      "live-trend-desc": "Average per-minute RPM / TPM / throughput over the last 60 minutes",
       "trend-rpm": "RPM",
       "trend-tpm": "TPM",
       "trend-throughput": "Throughput (tok/s)"

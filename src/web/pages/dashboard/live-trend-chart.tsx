@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { format } from "date-fns";
-import { meanBy, sumBy } from "lodash-es";
+import { meanBy } from "lodash-es";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
 import type { AiLiveTrendRow } from "@/web/api/schemas";
@@ -49,8 +49,8 @@ export default function LiveTrendChart({
 
   const totals = useMemo(
     () => ({
-      rpm: sumBy(data, "rpm"),
-      tpm: sumBy(data, "tpm"),
+      rpm: data.length > 0 ? Math.round(meanBy(data, "rpm")) : 0,
+      tpm: data.length > 0 ? Math.round(meanBy(data, "tpm")) : 0,
       throughput: data.length > 0 ? Math.round(meanBy(data, "throughput")) : 0,
     }),
     [data],
@@ -71,11 +71,6 @@ export default function LiveTrendChart({
     },
     [],
   );
-
-  const formatTotal = (metric: TrendMetric, value: number): string => {
-    if (metric === "throughput") return value.toLocaleString();
-    return value.toLocaleString();
-  };
 
   return (
     <Card className="py-0">
@@ -108,7 +103,7 @@ export default function LiveTrendChart({
                   (loading || error) && "text-muted-foreground",
                 )}
               >
-                {loading || error ? "—" : formatTotal(key, totals[key])}
+                {loading || error ? "—" : totals[key].toLocaleString()}
               </span>
             </button>
           ))}
