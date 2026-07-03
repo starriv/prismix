@@ -167,7 +167,11 @@ export default function AiLogsPage() {
           <StatCard
             icon={Gauge}
             label={t("ai-logs.stats.p95-throughput")}
-            value={formatTokensPerSecond(summary?.p95TokensPerSecond ?? 0)}
+            value={
+              summary?.p95TokensPerSecond
+                ? `${formatTokensPerSecond(summary.p95TokensPerSecond)} tok/s`
+                : "-"
+            }
             loading={summaryLoading}
           />
         </div>
