@@ -13,6 +13,7 @@ import {
   lt,
   lte,
   or,
+  type SQL,
   sql,
   sum,
 } from "drizzle-orm";
@@ -886,7 +887,17 @@ export const aiUsageLogRepo = {
     // Identity-only WHERE for "live" RPM/TPM: same consumerKeyId/userId scope
     // but WITHOUT the from/to date range, so historical views still reflect
     // current traffic. NULL-safe (`TRUE` when no identity filters are set).
-    const identityWhere = buildConditions({ consumerKeyId, userId }) ?? sql`TRUE`;
+    //
+    // Uses raw `live.` column references (not Drizzle column objects) because
+    // this WHERE is interpolated inside `FROM ai_usage_logs AS live` subqueries.
+    // Drizzle column refs would resolve to the OUTER table (`ai_usage_logs`),
+    // which is illegal in an aggregate outer query (Postgres error 42803).
+    const liveIdentityParts: SQL[] = [];
+    if (consumerKeyId != null)
+      liveIdentityParts.push(sql`live."consumer_key_id" = ${consumerKeyId}`);
+    if (userId != null) liveIdentityParts.push(sql`live."user_id" = ${userId}`);
+    const identityWhere =
+      liveIdentityParts.length > 0 ? sql.join(liveIdentityParts, sql` AND `) : sql`TRUE`;
 
     const totalsRow = await queryOne<{
       totalRequests: number;
