@@ -354,6 +354,12 @@ user.get("/usage/error-daily", async (c) => {
   return ok(c, await aiUsageLogRepo.errorDaily(days, session.userId));
 });
 
+user.get("/usage/live-trend", async (c) => {
+  const session = getUserSession(c);
+  const minutes = Math.min(Math.max(Number(c.req.query("minutes")) || 60, 1), 180);
+  return ok(c, await aiUsageLogRepo.liveTrend(minutes, session.userId));
+});
+
 // ── Logs ─────────────────────────────────────────────────────────
 
 // GET /logs — AI request logs (paginated, filterable)

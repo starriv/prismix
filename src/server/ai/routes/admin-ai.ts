@@ -137,6 +137,14 @@ adminAi.get("/usage/error-daily", async (c) => {
   return ok(c, await aiUsageLogRepo.errorDaily(days));
 });
 
+adminAi.get("/usage/live-trend", async (c) => {
+  getAdminSession(c);
+  const minutes = Math.min(Math.max(Number(c.req.query("minutes")) || 60, 1), 180);
+  const consumerKeyId = parseIntParam(c.req.query("consumerKeyId")) ?? undefined;
+  const userId = await resolveUserIdParam(c.req.query("userId"), c.req.query("userUuid"));
+  return ok(c, await aiUsageLogRepo.liveTrend(minutes, userId, consumerKeyId));
+});
+
 adminAi.get("/usage/by-key", async (c) => {
   getAdminSession(c);
   const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
