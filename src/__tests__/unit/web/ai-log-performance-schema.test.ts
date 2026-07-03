@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { aiUsageRecordSchema, aiUsageSummarySchema } from "@/web/api/ai-schemas";
+import {
+  aiDailyUsageSchema,
+  aiUsageRecordSchema,
+  aiUsageSummarySchema,
+} from "@/web/api/ai-schemas";
 
 describe("ai log performance schemas", () => {
   it("parses legacy usage rows without performance fields", () => {
@@ -93,5 +97,41 @@ describe("ai log performance schemas", () => {
 
     expect(parsed.cacheEligibleRequests).toBe(5);
     expect(parsed.cacheHitRate).toBe(0.4);
+  });
+
+  it("defaults new daily usage token fields for old payloads", () => {
+    const parsed = aiDailyUsageSchema.parse({
+      date: "2026-07-03",
+      requests: 2,
+      totalTokens: 120,
+      estimatedCost: 0.01,
+    });
+
+    expect(parsed.inputTokens).toBe(0);
+    expect(parsed.outputTokens).toBe(0);
+    expect(parsed.cacheReadInputTokens).toBe(0);
+    expect(parsed.reasoningTokens).toBe(0);
+    expect(parsed.errorRate).toBe(0);
+  });
+
+  it("parses daily usage rows with token breakdown fields", () => {
+    const parsed = aiDailyUsageSchema.parse({
+      date: "2026-07-03",
+      requests: "4",
+      inputTokens: "1000",
+      outputTokens: "250",
+      totalTokens: "1250",
+      cacheCreationInputTokens: "100",
+      cacheReadInputTokens: "200",
+      reasoningTokens: "50",
+      estimatedCost: "0.0125",
+      errorCount: "1",
+      errorRate: "0.25",
+    });
+
+    expect(parsed.requests).toBe(4);
+    expect(parsed.inputTokens).toBe(1000);
+    expect(parsed.cacheCreationInputTokens).toBe(100);
+    expect(parsed.errorRate).toBe(0.25);
   });
 });

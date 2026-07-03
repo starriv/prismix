@@ -366,8 +366,15 @@ export type AiUsageSummary = z.infer<typeof aiUsageSummarySchema>;
 export const aiDailyUsageSchema = z.object({
   date: z.string(),
   requests: z.coerce.number(),
+  inputTokens: z.coerce.number().optional().default(0),
+  outputTokens: z.coerce.number().optional().default(0),
   totalTokens: z.coerce.number(),
+  cacheCreationInputTokens: z.coerce.number().optional().default(0),
+  cacheReadInputTokens: z.coerce.number().optional().default(0),
+  reasoningTokens: z.coerce.number().optional().default(0),
   estimatedCost: z.coerce.number(),
+  errorCount: z.coerce.number().optional().default(0),
+  errorRate: z.coerce.number().optional().default(0),
 });
 export type AiDailyUsage = z.infer<typeof aiDailyUsageSchema>;
 
