@@ -1,8 +1,10 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { type LucideIcon } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import { Skeleton } from "@/web/components/ui/skeleton";
 import { cn } from "@/web/shared/utils";
 
 interface StatCardProps {
@@ -11,6 +13,8 @@ interface StatCardProps {
   subtitle?: string;
   icon: LucideIcon;
   trend?: { value: string; positive: boolean };
+  loading?: boolean;
+  error?: boolean;
 }
 
 export const StatCard = memo(function StatCard({
@@ -19,7 +23,10 @@ export const StatCard = memo(function StatCard({
   subtitle,
   icon: Icon,
   trend,
+  loading = false,
+  error = false,
 }: StatCardProps) {
+  const { t } = useTranslation();
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -27,7 +34,16 @@ export const StatCard = memo(function StatCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tabular-nums">{value}</div>
+        {loading ? (
+          <Skeleton className="h-7 w-16" />
+        ) : (
+          <div
+            className={cn("text-2xl font-bold tabular-nums", error && "text-muted-foreground")}
+            title={error ? t("dash.ai.data-unavailable") : undefined}
+          >
+            {value}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-1">
           {trend && (
             <span

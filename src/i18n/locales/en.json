@@ -160,6 +160,7 @@
       "error-5xx-peak": "5xx Peak / Day",
       "last-30-days": "last 30 days",
       "no-peak": "No peak yet",
+      "data-unavailable": "Data unavailable",
       "top-models": "Top Models",
       "recent-empty": "No AI requests yet",
       "recent-empty-hint": "Send a request through the AI relay to see activity here.",

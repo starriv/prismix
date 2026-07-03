@@ -19,10 +19,22 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/web/components/ui/chart";
+import { Skeleton } from "@/web/components/ui/skeleton";
+import { cn } from "@/web/shared/utils";
 
 type ErrorMetric = "totalErrors" | "clientErrors" | "serverErrors";
 
-export default function ErrorTrendChart({ data }: { data: AiErrorDaily[] }) {
+interface ErrorTrendChartProps {
+  data: AiErrorDaily[];
+  loading?: boolean;
+  error?: boolean;
+}
+
+export default function ErrorTrendChart({
+  data,
+  loading = false,
+  error = false,
+}: ErrorTrendChartProps) {
   const { t } = useTranslation();
   const [activeMetric, setActiveMetric] = useState<ErrorMetric>("totalErrors");
   const chartConfig = useMemo(
@@ -83,49 +95,66 @@ export default function ErrorTrendChart({ data }: { data: AiErrorDaily[] }) {
               onClick={handleToggle(key)}
             >
               <span className="text-xs text-muted-foreground">{label}</span>
-              <span className="text-lg font-bold leading-none tabular-nums sm:text-3xl">
-                {totals[key].toLocaleString()}
+              <span
+                className={cn(
+                  "text-lg font-bold leading-none tabular-nums sm:text-3xl",
+                  (loading || error) && "text-muted-foreground",
+                )}
+              >
+                {loading || error ? "—" : totals[key].toLocaleString()}
               </span>
             </button>
           ))}
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:p-6">
-        <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
-          <AreaChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}>
-            <defs>
-              <linearGradient id="fill-error-active" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={`var(--color-${activeMetric})`} stopOpacity={0.35} />
-                <stop offset="95%" stopColor={`var(--color-${activeMetric})`} stopOpacity={0.03} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(_value, payload) => {
-                    const item = payload[0]?.payload as { date?: string } | undefined;
-                    return item?.date ? format(new Date(item.date), "yyyy-MM-dd") : "";
-                  }}
-                />
-              }
-            />
-            <Area
-              type="monotone"
-              dataKey={activeMetric}
-              stroke={`var(--color-${activeMetric})`}
-              fill="url(#fill-error-active)"
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ChartContainer>
+        {loading ? (
+          <Skeleton className="h-[280px] w-full" />
+        ) : error ? (
+          <div className="flex h-[280px] w-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">{t("dash.ai.data-unavailable")}</p>
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
+            <AreaChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}>
+              <defs>
+                <linearGradient id="fill-error-active" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={`var(--color-${activeMetric})`} stopOpacity={0.35} />
+                  <stop
+                    offset="95%"
+                    stopColor={`var(--color-${activeMetric})`}
+                    stopOpacity={0.03}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={32}
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(_value, payload) => {
+                      const item = payload[0]?.payload as { date?: string } | undefined;
+                      return item?.date ? format(new Date(item.date), "yyyy-MM-dd") : "";
+                    }}
+                  />
+                }
+              />
+              <Area
+                type="monotone"
+                dataKey={activeMetric}
+                stroke={`var(--color-${activeMetric})`}
+                fill="url(#fill-error-active)"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

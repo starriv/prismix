@@ -160,6 +160,7 @@
       "error-5xx-peak": "5xx 单日峰值",
       "last-30-days": "近 30 天",
       "no-peak": "暂无峰值",
+      "data-unavailable": "数据暂不可用",
       "top-models": "热门模型",
       "recent-empty": "暂无 AI 请求",
       "recent-empty-hint": "通过 AI 中继发送请求即可看到统计数据。",
