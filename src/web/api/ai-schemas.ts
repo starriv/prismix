@@ -381,13 +381,13 @@ export const aiDailyUsageSchema = z.object({
 export type AiDailyUsage = z.infer<typeof aiDailyUsageSchema>;
 
 export const aiErrorOverviewSchema = z.object({
-  total4xx: z.number(),
-  total5xx: z.number(),
-  last24h4xx: z.number(),
-  last24h5xx: z.number(),
-  peak4xx: z.number(),
+  total4xx: z.coerce.number(),
+  total5xx: z.coerce.number(),
+  last24h4xx: z.coerce.number(),
+  last24h5xx: z.coerce.number(),
+  peak4xx: z.coerce.number(),
   peak4xxDate: z.string().nullable(),
-  peak5xx: z.number(),
+  peak5xx: z.coerce.number(),
   peak5xxDate: z.string().nullable(),
 });
 export type AiErrorOverview = z.infer<typeof aiErrorOverviewSchema>;

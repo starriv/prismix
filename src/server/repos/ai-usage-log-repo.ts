@@ -1130,9 +1130,9 @@ export const aiUsageLogRepo = {
       total5xx: Number(totals?.total5xx ?? 0),
       last24h4xx: Number(totals?.last24h4xx ?? 0),
       last24h5xx: Number(totals?.last24h5xx ?? 0),
-      peak4xx: peak4xx.count,
+      peak4xx: Number(peak4xx.count),
       peak4xxDate: peak4xx.date,
-      peak5xx: peak5xx.count,
+      peak5xx: Number(peak5xx.count),
       peak5xxDate: peak5xx.date,
     };
   },
