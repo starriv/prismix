@@ -168,6 +168,7 @@ export const API_AI_USAGE_RECENT = "/api/admin/ai/usage/recent";
 export const API_AI_USAGE_DAILY = "/api/admin/ai/usage/daily";
 export const API_AI_ERROR_OVERVIEW = "/api/admin/ai/usage/error-overview";
 export const API_AI_ERROR_DAILY = "/api/admin/ai/usage/error-daily";
+export const API_AI_LIVE_TREND = "/api/admin/ai/usage/live-trend";
 export const API_AI_USAGE_BY_KEY = "/api/admin/ai/usage/by-key";
 export const apiAiUsageRequest = (requestId: string) => `/api/admin/ai/usage/request/${requestId}`;
 export const API_AI_REQUEST_LOGGING = "/api/admin/ai/settings/request-logging";
@@ -197,6 +198,7 @@ export const API_USER_USAGE_SUMMARY = "/api/user/usage/summary";
 export const API_USER_USAGE_DAILY = "/api/user/usage/daily";
 export const API_USER_ERROR_OVERVIEW = "/api/user/usage/error-overview";
 export const API_USER_ERROR_DAILY = "/api/user/usage/error-daily";
+export const API_USER_LIVE_TREND = "/api/user/usage/live-trend";
 export const API_USER_LOGS = "/api/user/logs";
 export const apiUserRequestLog = (requestId: string) => `/api/user/logs/request/${requestId}`;
 

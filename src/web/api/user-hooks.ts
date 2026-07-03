@@ -9,6 +9,7 @@ import {
   API_USER_ERROR_DAILY,
   API_USER_ERROR_OVERVIEW,
   API_USER_KEYS,
+  API_USER_LIVE_TREND,
   API_USER_LOGS,
   API_USER_MODELS,
   API_USER_PROFILE,
@@ -37,6 +38,7 @@ import {
   aiDailyUsageSchema,
   aiErrorDailySchema,
   aiErrorOverviewSchema,
+  aiLiveTrendRowSchema,
   aiRequestLogSchema,
   aiUsageRecordSchema,
   aiUsageSummarySchema,
@@ -226,6 +228,15 @@ export function useUserErrorDaily(days = 30, refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.userErrorDaily(days),
     queryFn: () => userGet(`${API_USER_ERROR_DAILY}?days=${days}`, z.array(aiErrorDailySchema)),
+    refetchInterval,
+  });
+}
+
+export function useUserLiveTrend(minutes = 60, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.userLiveTrend(minutes),
+    queryFn: () =>
+      userGet(`${API_USER_LIVE_TREND}?minutes=${minutes}`, z.array(aiLiveTrendRowSchema)),
     refetchInterval,
   });
 }

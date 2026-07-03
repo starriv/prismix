@@ -400,6 +400,14 @@ export const aiErrorDailySchema = z.object({
 });
 export type AiErrorDaily = z.infer<typeof aiErrorDailySchema>;
 
+export const aiLiveTrendRowSchema = z.object({
+  ts: z.string(),
+  rpm: z.coerce.number(),
+  tpm: z.coerce.number(),
+  throughput: z.coerce.number(),
+});
+export type AiLiveTrendRow = z.infer<typeof aiLiveTrendRowSchema>;
+
 export const aiUsageRecordSchema = z.object({
   id: z.number(),
   endpointCredentialId: z.number().nullable(),

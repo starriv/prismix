@@ -13,6 +13,7 @@ import {
   API_AI_ENDPOINTS_OVERVIEW,
   API_AI_ERROR_DAILY,
   API_AI_ERROR_OVERVIEW,
+  API_AI_LIVE_TREND,
   API_AI_MODELS,
   API_AI_MODELS_BATCH_DELETE,
   API_AI_REQUEST_LOGGING,
@@ -60,6 +61,7 @@ import {
   aiEndpointsOverviewSchema,
   aiErrorDailySchema,
   aiErrorOverviewSchema,
+  aiLiveTrendRowSchema,
   aiModelRouteSchema,
   aiModelSchema,
   aiRequestLogSchema,
@@ -904,6 +906,14 @@ export function useAiErrorDaily(days = 30, refetchInterval?: number | false) {
   return useQuery({
     queryKey: queryKeys.aiErrorDaily(days),
     queryFn: () => get(`${API_AI_ERROR_DAILY}?days=${days}`, z.array(aiErrorDailySchema)),
+    refetchInterval,
+  });
+}
+
+export function useAiLiveTrend(minutes = 60, refetchInterval?: number | false) {
+  return useQuery({
+    queryKey: queryKeys.aiLiveTrend(minutes),
+    queryFn: () => get(`${API_AI_LIVE_TREND}?minutes=${minutes}`, z.array(aiLiveTrendRowSchema)),
     refetchInterval,
   });
 }

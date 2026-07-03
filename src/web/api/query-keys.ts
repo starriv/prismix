@@ -160,6 +160,7 @@ export const queryKeys = {
   aiUsageDaily: (days: number) => ["app", "ai-usage-daily", days] as const,
   aiErrorOverview: (days: number) => ["app", "ai-error-overview", days] as const,
   aiErrorDaily: (days: number) => ["app", "ai-error-daily", days] as const,
+  aiLiveTrend: (minutes: number) => ["app", "ai-live-trend", minutes] as const,
   aiUsageByKey: () => ["app", "ai-usage-by-key"] as const,
   aiUsageSummaryByKey: (keyId: number) => ["app", "ai-usage-summary", keyId] as const,
   aiUsageRecentByKey: (keyId: number) => ["app", "ai-usage-recent", keyId] as const,
@@ -209,6 +210,7 @@ export const queryKeys = {
   userUsageDaily: (days: number) => ["user", "usage-daily", days] as const,
   userErrorOverview: (days: number) => ["user", "error-overview", days] as const,
   userErrorDaily: (days: number) => ["user", "error-daily", days] as const,
+  userLiveTrend: (minutes: number) => ["user", "live-trend", minutes] as const,
   userLogs: (params?: { modelId?: string; statusClass?: "4xx" | "5xx"; page?: number }) =>
     [
       "user",
