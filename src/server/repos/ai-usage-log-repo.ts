@@ -155,6 +155,17 @@ export interface UpstreamHourlyRow {
   avgLatencyMs: number;
 }
 
+export interface LiveTrendRow {
+  /** ISO timestamp for the start of the minute bucket (UTC). */
+  ts: string;
+  /** Requests in this minute (per-minute rate). */
+  rpm: number;
+  /** Total tokens processed in this minute. */
+  tpm: number;
+  /** Average tokens/sec across requests in this minute. */
+  throughput: number;
+}
+
 export interface UpstreamUsageOverviewRow {
   upstreamId: number;
   upstreamName: string | null;
@@ -196,6 +207,18 @@ export interface EndpointUsageOverviewRow {
 function floorToUtcHour(value: Date): Date {
   const date = new Date(value);
   date.setUTCMinutes(0, 0, 0);
+  return date;
+}
+
+function floorToUtcMinute(value: Date): Date {
+  const date = new Date(value);
+  date.setUTCSeconds(0, 0);
+  return date;
+}
+
+function addUtcMinutes(value: Date, minutes: number): Date {
+  const date = new Date(value);
+  date.setUTCMinutes(date.getUTCMinutes() + minutes);
   return date;
 }
 
@@ -424,6 +447,49 @@ export function buildErrorDailySeries(
         clientErrors: 0,
         serverErrors: 0,
         totalErrors: 0,
+      }
+    );
+  });
+}
+
+export function buildLiveTrendSeries(
+  rows: Array<{
+    minute: Date | string | null;
+    requests: number | string | null;
+    totalTokens: number | string | null;
+    avgTokensPerSecond: number | string | null;
+  }>,
+  bucketCount: number,
+  endMinute: Date,
+): LiveTrendRow[] {
+  const rowsByMinute = new Map<string, LiveTrendRow>(
+    rows.flatMap((row) => {
+      const minuteDate = parseDbTimestamp(row.minute);
+      if (!minuteDate) return [];
+
+      const ts = floorToUtcMinute(minuteDate).toISOString();
+      return [
+        [
+          ts,
+          {
+            ts,
+            rpm: Number(row.requests ?? 0),
+            tpm: Number(row.totalTokens ?? 0),
+            throughput: toNullableNumber(row.avgTokensPerSecond) ?? 0,
+          },
+        ] as const,
+      ];
+    }),
+  );
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const ts = addUtcMinutes(endMinute, -bucketCount + 1 + index).toISOString();
+    return (
+      rowsByMinute.get(ts) ?? {
+        ts,
+        rpm: 0,
+        tpm: 0,
+        throughput: 0,
       }
     );
   });
@@ -1168,6 +1234,46 @@ export const aiUsageLogRepo = {
     );
 
     return buildErrorDailySeries(rows, bucketCount, endDay);
+  },
+
+  /**
+   * Per-minute throughput trend for the live logs dashboard.
+   * Zero-fills missing minutes so the chart shows a continuous time axis.
+   */
+  async liveTrend(minutes = 60, userId?: number, consumerKeyId?: number): Promise<LiveTrendRow[]> {
+    const bucketCount = Math.max(Math.trunc(minutes), 1);
+    const now = new Date();
+    const endMinute = floorToUtcMinute(now);
+    const startMinute = addUtcMinutes(endMinute, -(bucketCount - 1));
+    const exclusiveEnd = addUtcMinutes(endMinute, 1);
+
+    const conditions = [
+      gte(aiUsageLogs.createdAt, startMinute),
+      lt(aiUsageLogs.createdAt, exclusiveEnd),
+      ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
+      ...(consumerKeyId != null ? [eq(aiUsageLogs.consumerKeyId, consumerKeyId)] : []),
+    ];
+
+    const rows = await queryAll<{
+      minute: Date | string | null;
+      requests: number | string | null;
+      totalTokens: number | string | null;
+      avgTokensPerSecond: number | string | null;
+    }>(
+      db
+        .select({
+          minute: sql<Date | string>`date_trunc('minute', ${aiUsageLogs.createdAt})`,
+          requests: count(),
+          totalTokens: sum(aiUsageLogs.totalTokens),
+          avgTokensPerSecond: sql<string>`AVG(${aiUsageLogs.tokensPerSecond})`,
+        })
+        .from(aiUsageLogs)
+        .where(and(...conditions))
+        .groupBy(sql`date_trunc('minute', ${aiUsageLogs.createdAt})`)
+        .orderBy(sql`date_trunc('minute', ${aiUsageLogs.createdAt})`),
+    );
+
+    return buildLiveTrendSeries(rows, bucketCount, endMinute);
   },
 
   /** Hourly usage breakdown for a single upstream (time-series chart). */
