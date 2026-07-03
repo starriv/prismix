@@ -7,6 +7,7 @@ import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
 
 import { formatPercent, removeTailingZero } from "@/shared/number";
 import {
+  useAiLiveTrend,
   useAiUsageByKey,
   useAiUsageDaily,
   useAiUsageSummary,
@@ -34,6 +35,7 @@ import {
 
 const AiUsageDetailPage = lazy(() => import("@/web/pages/ai-usage-detail"));
 const AiUsageUserDetailPage = lazy(() => import("@/web/pages/ai-usage-user-detail"));
+const LiveTrendChart = lazy(() => import("@/web/pages/dashboard/live-trend-chart"));
 
 const DailyTrendChart = lazy(() =>
   import("@/web/pages/ai-usage/charts").then((m) => ({
@@ -78,18 +80,24 @@ export default function AiUsagePage() {
 
 function AiUsageList() {
   const { t } = useTranslation();
-  const [usageDays, setUsageDays] = useState<number>(30);
+  const [usageDays, setUsageDays] = useState<number>(7);
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
   const { data: daily = [], isLoading: dailyLoading } = useAiUsageDaily(usageDays, LIVE_REFETCH_MS);
+  const {
+    data: liveTrend = [],
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useAiLiveTrend(60, LIVE_REFETCH_MS);
   const { data: byKeyData = [], isLoading: byKeyLoading } = useAiUsageByKey();
   const { data: relayKeys = [] } = useRelayKeyOptions();
 
-  // Build lookup map: consumerKeyId -> key info
   const keyMap = useMemo(() => keyBy(relayKeys, "id"), [relayKeys]);
   const dailyColumns = useMemo(() => buildAiUsageDailyColumns(t), [t]);
   const byKeyColumns = useMemo(() => buildAiUsageByKeyColumns({ keyMap, t }), [keyMap, t]);
   const byEndpointColumns = useMemo(() => buildAiUsageEndpointColumns(t), [t]);
   const byModelColumns = useMemo(() => buildAiUsageModelColumns(t), [t]);
+
+  const dailyDesc = useMemo(() => [...daily].reverse(), [daily]);
 
   return (
     <div>
@@ -181,6 +189,11 @@ function AiUsageList() {
           </Card>
         </div>
 
+        {/* Live Throughput Trend */}
+        <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
+          <LiveTrendChart data={liveTrend} loading={trendLoading} error={trendError} />
+        </Suspense>
+
         {/* Daily Breakdown */}
         <Card>
           <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
@@ -204,7 +217,7 @@ function AiUsageList() {
           <CardContent>
             <DataTable
               columns={dailyColumns}
-              data={daily}
+              data={dailyDesc}
               emptyText={t("ai-usage.detail.daily-empty")}
               getRowId={(row) => row.date}
               loading={dailyLoading}

@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
 
 import { formatPercent, removeTailingZero } from "@/shared/number";
-import { useUserUsageDaily, useUserUsageSummary } from "@/web/api/user-hooks";
+import { useUserLiveTrend, useUserUsageDaily, useUserUsageSummary } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
@@ -26,16 +26,25 @@ import {
   buildUserUsageModelColumns,
 } from "./usage-columns";
 
+const LiveTrendChart = lazy(() => import("@/web/pages/dashboard/live-trend-chart"));
+
 const USAGE_DAY_OPTIONS = [7, 30, 90] as const;
 
 export default function UserUsagePage() {
   const { t } = useTranslation();
-  const [usageDays, setUsageDays] = useState<number>(30);
+  const [usageDays, setUsageDays] = useState<number>(7);
   const { data: summary, isLoading: summaryLoading } = useUserUsageSummary();
   const { data: daily = [], isLoading: dailyLoading } = useUserUsageDaily(usageDays);
+  const {
+    data: liveTrend = [],
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useUserLiveTrend(60);
   const dailyColumns = useMemo(() => buildUserUsageDailyColumns(t), [t]);
   const endpointColumns = useMemo(() => buildUserUsageEndpointColumns(t), [t]);
   const modelColumns = useMemo(() => buildUserUsageModelColumns(t), [t]);
+
+  const dailyDesc = useMemo(() => [...daily].reverse(), [daily]);
 
   return (
     <div>
@@ -123,6 +132,11 @@ export default function UserUsagePage() {
           </Card>
         </div>
 
+        {/* Live Throughput Trend */}
+        <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
+          <LiveTrendChart data={liveTrend} loading={trendLoading} error={trendError} />
+        </Suspense>
+
         {/* Daily Breakdown */}
         <Card>
           <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
@@ -146,7 +160,7 @@ export default function UserUsagePage() {
           <CardContent>
             <DataTable
               columns={dailyColumns}
-              data={daily}
+              data={dailyDesc}
               emptyText={t("ai-usage.detail.daily-empty")}
               getRowId={(row) => row.date}
               loading={dailyLoading}
