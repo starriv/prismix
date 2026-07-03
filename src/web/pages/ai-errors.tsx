@@ -10,10 +10,12 @@ import { Skeleton } from "@/web/components/ui/skeleton";
 
 const ErrorTrendChart = lazy(() => import("@/web/pages/dashboard/error-trend-chart"));
 
+const LIVE_REFETCH_MS = 5_000;
+
 export default function AiErrorsPage() {
   const { t, i18n } = useTranslation();
-  const { data: errorOverview } = useAiErrorOverview(30);
-  const { data: errorDaily = [] } = useAiErrorDaily(30);
+  const { data: errorOverview } = useAiErrorOverview(30, LIVE_REFETCH_MS);
+  const { data: errorDaily = [] } = useAiErrorDaily(30, LIVE_REFETCH_MS);
 
   return (
     <div>

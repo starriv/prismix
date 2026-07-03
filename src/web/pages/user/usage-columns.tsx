@@ -35,7 +35,7 @@ export function buildUserUsageDailyColumns(t: TFunction): ColumnDef<AiDailyUsage
       header: t("ai-usage.th.input"),
       meta: {
         headerClassName: "w-[11%]",
-        ...dataTableMeta.right,
+        ...dataTableMeta.rightHiddenOnMobile,
       },
     },
     {
@@ -44,7 +44,7 @@ export function buildUserUsageDailyColumns(t: TFunction): ColumnDef<AiDailyUsage
       header: t("ai-usage.th.output"),
       meta: {
         headerClassName: "w-[11%]",
-        ...dataTableMeta.right,
+        ...dataTableMeta.rightHiddenOnMobile,
       },
     },
     {
