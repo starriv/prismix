@@ -265,4 +265,41 @@ describe("ai usage log repo error daily helpers", () => {
     expect(series.at(-1)?.date).toBe("2026-07-03");
     expect(series.every((row) => row.totalErrors === 0)).toBe(true);
   });
+
+  it("returns a single bucket when days=1 (startDay === endDay)", () => {
+    const series = buildErrorDailySeries(
+      [
+        {
+          date: "2026-07-03",
+          clientErrors: "2",
+          serverErrors: "1",
+          totalErrors: "3",
+        },
+      ],
+      1,
+      new Date("2026-07-03T23:59:59.000Z"),
+    );
+
+    expect(series).toEqual([
+      {
+        date: "2026-07-03",
+        clientErrors: 2,
+        serverErrors: 1,
+        totalErrors: 3,
+      },
+    ]);
+  });
+
+  it("fills all 7 buckets with zeros when rows are empty", () => {
+    const series = buildErrorDailySeries([], 7, new Date("2026-07-07T08:00:00.000Z"));
+
+    expect(series).toHaveLength(7);
+    expect(
+      series.every(
+        (row) => row.totalErrors === 0 && row.clientErrors === 0 && row.serverErrors === 0,
+      ),
+    ).toBe(true);
+    expect(series[0]?.date).toBe("2026-07-01");
+    expect(series.at(-1)?.date).toBe("2026-07-07");
+  });
 });

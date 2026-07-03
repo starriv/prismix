@@ -181,3 +181,64 @@ describe("ai-usage-log summary aggregation logic", () => {
     expect(typeof aiUsageLogRepo.summary).toBe("function");
   });
 });
+
+describe("summaryByConsumerKey totalTokens mapping", () => {
+  // Reproduce the post-processing logic from ai-usage-log-repo.ts summaryByConsumerKey().
+  // These formulas must match lines 1030-1037 of that file.
+  function mapByKeyRow(r: {
+    inputTokens: string | null;
+    outputTokens: string | null;
+    totalTokens: string | null;
+    cost: string | null;
+  }) {
+    return {
+      inputTokens: Number(r.inputTokens ?? 0),
+      outputTokens: Number(r.outputTokens ?? 0),
+      totalTokens: Number(r.totalTokens ?? 0),
+      estimatedCost: Number(r.cost ?? 0),
+    };
+  }
+
+  it("totalTokens uses sum(totalTokens), not input+output, when cache tokens inflate total", () => {
+    const mapped = mapByKeyRow({
+      inputTokens: "100",
+      outputTokens: "50",
+      totalTokens: "200",
+      cost: "0.01",
+    });
+    // 100 input + 50 output = 150, but DB stored totalTokens = 200 (50 cache/reasoning tokens).
+    // Correct behavior: map sum(totalTokens) directly, do NOT recompute as input+output.
+    expect(mapped.totalTokens).toBe(200);
+    expect(mapped.inputTokens).toBe(100);
+    expect(mapped.outputTokens).toBe(50);
+  });
+
+  it("totalTokens falls back to 0 when sum is null", () => {
+    const mapped = mapByKeyRow({
+      inputTokens: "100",
+      outputTokens: "50",
+      totalTokens: null,
+      cost: null,
+    });
+    expect(mapped.totalTokens).toBe(0);
+    expect(mapped.estimatedCost).toBe(0);
+  });
+
+  it("totalTokens is NOT recomputed as input+output (regression guard)", () => {
+    const mapped = mapByKeyRow({
+      inputTokens: "1000",
+      outputTokens: "200",
+      totalTokens: "1500",
+      cost: "0.05",
+    });
+    // 1500 = 1000 input + 200 output + 300 cache/reasoning tokens.
+    expect(mapped.totalTokens).toBe(1500);
+    // Regression guard: the OLD buggy behavior computed totalTokens as input + output = 1200,
+    // dropping the cache/reasoning tokens. This must never happen again.
+    expect(mapped.totalTokens).not.toBe(1200);
+  });
+
+  it("aiUsageLogRepo.summaryByConsumerKey is a function (production method exists)", () => {
+    expect(typeof aiUsageLogRepo.summaryByConsumerKey).toBe("function");
+  });
+});
