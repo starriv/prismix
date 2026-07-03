@@ -2586,15 +2586,20 @@
       "collapse": "收起"
     },
     "th": {
+      "date": "日期",
       "endpoint": "连接",
       "model": "模型",
       "upstream": "上游",
       "requests": "请求数",
       "input": "输入 Token",
       "output": "输出 Token",
+      "reasoning": "推理 Token",
+      "cache-read": "缓存读取",
+      "cache-write": "缓存写入",
       "total": "总 Token",
       "tokens": "Token",
       "cost": "预估费用",
+      "error-rate": "错误率",
       "latency": "延迟",
       "status": "状态",
       "time": "时间",
@@ -2613,8 +2618,13 @@
       "title": "用户用量: {{name}}",
       "back": "返回用量概览"
     },
+    "daily": {
+      "title": "每日明细",
+      "last-days": "近 {{days}} 天"
+    },
     "chart": {
       "daily-title": "每日趋势（近 30 天）",
+      "daily-title-days": "每日趋势（近 {{days}} 天）",
       "model-title": "模型 Token 分布"
     },
     "request-log": {

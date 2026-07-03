@@ -2586,15 +2586,20 @@
       "collapse": "Show less"
     },
     "th": {
+      "date": "Date",
       "endpoint": "Connection",
       "model": "Model",
       "upstream": "Upstream",
       "requests": "Requests",
       "input": "Input Tokens",
       "output": "Output Tokens",
+      "reasoning": "Reasoning Tokens",
+      "cache-read": "Cache Read",
+      "cache-write": "Cache Write",
       "total": "Total Tokens",
       "tokens": "Tokens",
       "cost": "Est. Cost",
+      "error-rate": "Error Rate",
       "latency": "Latency",
       "status": "Status",
       "time": "Time",
@@ -2613,8 +2618,13 @@
       "title": "User Usage: {{name}}",
       "back": "Back to Usage Overview"
     },
+    "daily": {
+      "title": "Daily Breakdown",
+      "last-days": "Last {{days}} days"
+    },
     "chart": {
       "daily-title": "Daily Trend (Last 30 Days)",
+      "daily-title-days": "Daily Trend (Last {{days}} Days)",
       "model-title": "Token Distribution by Model"
     },
     "request-log": {
