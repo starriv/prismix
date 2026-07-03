@@ -61,6 +61,45 @@ export const HEARTBEAT_INTERVAL_MS = 15_000;
 /** Maximum SSE buffer size before aborting (1 MB). */
 const MAX_BUFFER_SIZE = 1_048_576;
 
+/**
+ * Sanity cap for tokensPerSecond. Real LLM throughput ranges from ~30 tok/s
+ * (standard cloud GPU) to ~1500 tok/s (Cerebras/Groq LPU). Anything above
+ * 2000 tok/s indicates a measurement artifact — typically a thinking/reasoning
+ * model where the decode window (latencyMs - firstTokenLatencyMs) is tiny
+ * relative to the token count. Capped rather than nullified so the metric
+ * remains observable, but implausible values are clamped before persistence
+ * and aggregation (p95).
+ */
+const TPS_SANITY_CAP = 2000;
+
+/**
+ * Compute stream output throughput in tokens/sec.
+ *
+ * `visibleOutputTokens` excludes reasoning tokens when the upstream reports
+ * them separately (OpenAI o-series). Anthropic thinking models do not split
+ * reasoning tokens, so `reasoningTokens` is 0/undefined and the numerator
+ * keeps the full `outputTokens` — but `firstTokenLatencyMs` is set at the
+ * first thinking_delta (via isContentBearingDelta), so the decode window
+ * already covers the thinking phase, keeping numerator/denominator aligned.
+ *
+ * `decodeMs` is the wall time from first generated token to stream end.
+ * Capped at `TPS_SANITY_CAP` to suppress artifacts from tiny decode windows
+ * (e.g. thinking models where visible text streams in a few ms).
+ */
+export function computeStreamTokensPerSecond(
+  outputTokens: number | null | undefined,
+  reasoningTokens: number | null | undefined,
+  latencyMs: number,
+  firstTokenLatencyMs: number | null,
+): number | null {
+  if (firstTokenLatencyMs == null) return null;
+  const visible = Math.max(0, (outputTokens ?? 0) - (reasoningTokens ?? 0));
+  if (visible <= 0) return null;
+  const decodeMs = Math.max(0, latencyMs - firstTokenLatencyMs);
+  if (decodeMs <= 0) return null;
+  return Math.min((visible * 1000) / decodeMs, TPS_SANITY_CAP);
+}
+
 export type StreamAbortReason =
   | "completed"
   | "client_abort"
@@ -226,8 +265,15 @@ function isContentBearingDelta(dataLine: string): boolean {
 
   if (eventType === "content_block_delta") {
     const delta = obj.delta as Record<string, unknown> | undefined;
-    const text = delta?.text;
-    return typeof text === "string" && text.length > 0;
+    if (!delta) return false;
+    const text = delta.text;
+    if (typeof text === "string" && text.length > 0) return true;
+    // Anthropic extended thinking: reasoning tokens streamed as thinking_delta
+    // before the first visible text token. Counted here so firstTokenLatencyMs
+    // reflects the first generated token of any kind, keeping the decode window
+    // (latencyMs - firstTokenLatencyMs) aligned with the full output token count.
+    const thinking = delta.thinking;
+    return typeof thinking === "string" && thinking.length > 0;
   }
   if (
     eventType === "message_start" ||
@@ -571,15 +617,12 @@ export function forwardStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
-      const outputTokens = usage?.outputTokens ?? 0;
-      const decodeMs =
-        state.firstTokenLatencyMs != null
-          ? Math.max(0, latencyMs - state.firstTokenLatencyMs)
-          : null;
-      const tokensPerSecond =
-        decodeMs != null && decodeMs > 0 && outputTokens > 0
-          ? (outputTokens * 1000) / decodeMs
-          : null;
+      const tokensPerSecond = computeStreamTokensPerSecond(
+        usage?.outputTokens,
+        usage?.reasoningTokens,
+        latencyMs,
+        state.firstTokenLatencyMs,
+      );
       const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
         routeType: state.routeType,
         isStream: true,
@@ -852,15 +895,12 @@ export function forwardPassthroughStream(
 
       const latencyMs = Date.now() - meta.start;
       const rawResponse = captureResponse ? responseChunks.join("\n\n") : undefined;
-      const outputTokens = usage?.outputTokens ?? 0;
-      const decodeMs =
-        state.firstTokenLatencyMs != null
-          ? Math.max(0, latencyMs - state.firstTokenLatencyMs)
-          : null;
-      const tokensPerSecond =
-        decodeMs != null && decodeMs > 0 && outputTokens > 0
-          ? (outputTokens * 1000) / decodeMs
-          : null;
+      const tokensPerSecond = computeStreamTokensPerSecond(
+        usage?.outputTokens,
+        usage?.reasoningTokens,
+        latencyMs,
+        state.firstTokenLatencyMs,
+      );
       const streamMetrics = mergePerformanceMetrics(meta.performanceMetrics, {
         routeType: state.routeType,
         isStream: true,
@@ -878,7 +918,10 @@ export function forwardPassthroughStream(
         try {
           await onFinalize();
         } catch (err) {
-          log.gateway.error({ err, requestId: meta.requestId }, "Stream finalize callback failed");
+          log.gateway.error(
+            { err, requestId: meta.requestId },
+            "Passthrough stream finalize callback failed",
+          );
         }
       }
 

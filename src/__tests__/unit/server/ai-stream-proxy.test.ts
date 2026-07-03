@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  computeStreamTokensPerSecond,
   extractDataLine,
   extractPassthroughUsage,
   extractStreamUsageUniversal,
@@ -534,5 +535,46 @@ describe("SSE stream processing with OpenAI adapter", () => {
 
     const data2 = extractDataLine(r2.complete[1]!);
     expect(openaiAdapter.isStreamDone(data2!)).toBe(true);
+  });
+});
+
+// ── TPS calculation ────────────────────────────────────────────────────
+
+describe("computeStreamTokensPerSecond", () => {
+  it("returns null when firstTokenLatencyMs is null (no content token observed)", () => {
+    expect(computeStreamTokensPerSecond(100, 0, 2000, null)).toBeNull();
+  });
+
+  it("returns null when visible output tokens is zero", () => {
+    expect(computeStreamTokensPerSecond(0, 0, 2000, 1000)).toBeNull();
+  });
+
+  it("returns null when decode window is zero (TTFT == latency)", () => {
+    expect(computeStreamTokensPerSecond(500, 0, 1900, 1900)).toBeNull();
+  });
+
+  it("computes standard throughput for a non-thinking model", () => {
+    expect(computeStreamTokensPerSecond(800, 0, 12000, 2000)).toBeCloseTo(80, 1);
+  });
+
+  it("subtracts reasoningTokens from numerator (OpenAI o-series)", () => {
+    expect(computeStreamTokensPerSecond(1000, 600, 7000, 2000)).toBeCloseTo(80, 1);
+  });
+
+  it("keeps full outputTokens when reasoningTokens is undefined (Anthropic thinking)", () => {
+    expect(computeStreamTokensPerSecond(1800, undefined, 20000, 1500)).toBeCloseTo(97.3, 1);
+  });
+
+  it("clamps implausible values to TPS_SANITY_CAP (thinking model with tiny decode window)", () => {
+    const result = computeStreamTokensPerSecond(1872, 0, 1885, 1850);
+    expect(result).toBe(2000);
+  });
+
+  it("treats null outputTokens as zero and returns null", () => {
+    expect(computeStreamTokensPerSecond(null, null, 2000, 1000)).toBeNull();
+  });
+
+  it("handles negative reasoningTokens gracefully (clamped to zero visible)", () => {
+    expect(computeStreamTokensPerSecond(100, 150, 3000, 1000)).toBeNull();
   });
 });
