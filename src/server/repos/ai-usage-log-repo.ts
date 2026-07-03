@@ -863,8 +863,8 @@ export const aiUsageLogRepo = {
           // Live RPM/TPM via correlated subquery: scoped by identity only
           // (consumerKeyId/userId), NOT by from/to. This prevents historical
           // views from showing RPM/TPM = 0.
-          rpm: sql<string>`(SELECT COUNT(*) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."createdAt" >= NOW() - INTERVAL '1 minute')`,
-          tpm: sql<string>`(SELECT COALESCE(SUM(live."totalTokens"), 0) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."createdAt" >= NOW() - INTERVAL '1 minute')`,
+          rpm: sql<string>`(SELECT COUNT(*) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."created_at" >= NOW() - INTERVAL '1 minute')`,
+          tpm: sql<string>`(SELECT COALESCE(SUM(live."total_tokens"), 0) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."created_at" >= NOW() - INTERVAL '1 minute')`,
         })
         .from(aiUsageLogs)
         .where(where),
