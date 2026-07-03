@@ -54,6 +54,10 @@ export interface AiUsageSummary {
   p95UpstreamTtfbMs: number;
   avgTokensPerSecond: number;
   p95TokensPerSecond: number;
+  /** Requests in the last 60 seconds (live RPM metric). */
+  rpm: number;
+  /** Tokens in the last 60 seconds (live TPM metric). */
+  tpm: number;
   byEndpoint: Array<{
     endpointId: string;
     requests: number;
@@ -801,6 +805,11 @@ export const aiUsageLogRepo = {
     const where = buildConditions({ consumerKeyId, userId, from, to });
     const breakdownWhere = where ? and(where, liveEntityFilter()) : liveEntityFilter();
 
+    // Identity-only WHERE for "live" RPM/TPM: same consumerKeyId/userId scope
+    // but WITHOUT the from/to date range, so historical views still reflect
+    // current traffic. NULL-safe (`TRUE` when no identity filters are set).
+    const identityWhere = buildConditions({ consumerKeyId, userId }) ?? sql`TRUE`;
+
     const totalsRow = await queryOne<{
       totalRequests: number;
       totalInput: string | null;
@@ -818,6 +827,8 @@ export const aiUsageLogRepo = {
       p95UpstreamTtfbMs: string | null;
       avgTokensPerSecond: string | null;
       p95TokensPerSecond: string | null;
+      rpm: string | null;
+      tpm: string | null;
     }>(
       db
         .select({
@@ -837,6 +848,11 @@ export const aiUsageLogRepo = {
           p95UpstreamTtfbMs: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.upstreamTtfbMs}) FILTER (WHERE ${aiUsageLogs.upstreamTtfbMs} IS NOT NULL)`,
           avgTokensPerSecond: sql<string>`AVG(${aiUsageLogs.tokensPerSecond}) FILTER (WHERE ${aiUsageLogs.tokensPerSecond} IS NOT NULL)`,
           p95TokensPerSecond: sql<string>`percentile_cont(0.95) WITHIN GROUP (ORDER BY ${aiUsageLogs.tokensPerSecond}) FILTER (WHERE ${aiUsageLogs.tokensPerSecond} IS NOT NULL)`,
+          // Live RPM/TPM via correlated subquery: scoped by identity only
+          // (consumerKeyId/userId), NOT by from/to. This prevents historical
+          // views from showing RPM/TPM = 0.
+          rpm: sql<string>`(SELECT COUNT(*) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."createdAt" >= NOW() - INTERVAL '1 minute')`,
+          tpm: sql<string>`(SELECT COALESCE(SUM(live."totalTokens"), 0) FROM ${aiUsageLogs} AS live WHERE ${identityWhere} AND live."createdAt" >= NOW() - INTERVAL '1 minute')`,
         })
         .from(aiUsageLogs)
         .where(where),
@@ -922,6 +938,8 @@ export const aiUsageLogRepo = {
       p95UpstreamTtfbMs: Math.round(Number(totalsRow?.p95UpstreamTtfbMs ?? 0)),
       avgTokensPerSecond: Number(totalsRow?.avgTokensPerSecond ?? 0) || 0,
       p95TokensPerSecond: Number(totalsRow?.p95TokensPerSecond ?? 0) || 0,
+      rpm: Number(totalsRow?.rpm ?? 0),
+      tpm: Number(totalsRow?.tpm ?? 0),
       byEndpoint: byEndpoint.map((r) => ({
         endpointId: r.endpointId ?? "",
         requests: r.requests,

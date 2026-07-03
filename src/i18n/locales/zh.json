@@ -2643,7 +2643,11 @@
       "error-rate": "错误率",
       "p95-latency": "P95 耗时",
       "p95-ttfb": "P95 TTFB",
-      "p95-throughput": "P95 吞吐"
+      "p95-throughput": "P95 吞吐",
+      "rpm": "RPM (近 60 秒)",
+      "tpm": "TPM (近 60 秒)",
+      "rpm-hint": "近 60 秒请求数",
+      "tpm-hint": "近 60 秒 Token 数"
     },
     "th": {
       "request-id": "请求 ID",

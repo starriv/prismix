@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { AlertTriangle, Clock3, Gauge, Search, Timer } from "lucide-react";
+import { Activity, AlertTriangle, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
 import { formatPercent } from "@/shared/number";
@@ -34,7 +34,7 @@ import {
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
 import { formatDurationMs, formatTokensPerSecond } from "./ai-logs/performance";
-import { StatCard } from "./ai-usage/helpers";
+import { formatTokens, StatCard } from "./ai-usage/helpers";
 
 export default function AiLogsPage() {
   const { t, i18n } = useTranslation();
@@ -145,7 +145,7 @@ export default function AiLogsPage() {
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             icon={AlertTriangle}
             label={t("ai-logs.stats.error-rate")}
@@ -172,6 +172,18 @@ export default function AiLogsPage() {
                 ? `${formatTokensPerSecond(summary.p95TokensPerSecond)} tok/s`
                 : "-"
             }
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Activity}
+            label={t("ai-logs.stats.rpm")}
+            value={summary?.rpm ?? 0}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Zap}
+            label={t("ai-logs.stats.tpm")}
+            value={formatTokens(summary?.tpm ?? 0)}
             loading={summaryLoading}
           />
         </div>

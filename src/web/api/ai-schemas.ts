@@ -358,6 +358,8 @@ export const aiUsageSummarySchema = z.object({
   p95UpstreamTtfbMs: z.number().optional().default(0),
   avgTokensPerSecond: z.number().optional().default(0),
   p95TokensPerSecond: z.number().optional().default(0),
+  rpm: z.number().int().nonnegative().default(0),
+  tpm: z.number().int().nonnegative().default(0),
   byEndpoint: z.array(aiUsageBreakdownSchema),
   byModel: z.array(aiUsageBreakdownSchema.extend({ modelId: z.string() })),
 });

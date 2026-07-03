@@ -2643,7 +2643,11 @@
       "error-rate": "Error Rate",
       "p95-latency": "P95 Latency",
       "p95-ttfb": "P95 TTFB",
-      "p95-throughput": "P95 Throughput"
+      "p95-throughput": "P95 Throughput",
+      "rpm": "RPM (60s)",
+      "tpm": "TPM (60s)",
+      "rpm-hint": "Requests in the last 60 seconds",
+      "tpm-hint": "Tokens in the last 60 seconds"
     },
     "th": {
       "request-id": "Request ID",

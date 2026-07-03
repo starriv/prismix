@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { AlertTriangle, Clock3, Gauge, Search, Timer } from "lucide-react";
+import { Activity, AlertTriangle, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
 
 import { formatPercent } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
@@ -28,7 +28,7 @@ import {
 } from "@/web/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/web/components/ui/sheet";
 import { formatDurationMs, formatTokensPerSecond } from "@/web/pages/ai-logs/performance";
-import { StatCard } from "@/web/pages/ai-usage/helpers";
+import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
 import { LogDetail } from "../ai-logs/log-detail";
 import { buildUserLogColumns } from "./log-columns";
@@ -105,7 +105,7 @@ export default function UserLogsPage() {
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             icon={AlertTriangle}
             label={t("ai-logs.stats.error-rate")}
@@ -132,6 +132,18 @@ export default function UserLogsPage() {
                 ? `${formatTokensPerSecond(summary.p95TokensPerSecond)} tok/s`
                 : "-"
             }
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Activity}
+            label={t("ai-logs.stats.rpm")}
+            value={summary?.rpm ?? 0}
+            loading={summaryLoading}
+          />
+          <StatCard
+            icon={Zap}
+            label={t("ai-logs.stats.tpm")}
+            value={formatTokens(summary?.tpm ?? 0)}
             loading={summaryLoading}
           />
         </div>
