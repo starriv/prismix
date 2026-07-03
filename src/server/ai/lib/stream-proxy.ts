@@ -254,7 +254,7 @@ function observeFirstToken(
   );
 }
 
-function isContentBearingDelta(dataLine: string): boolean {
+export function isContentBearingDelta(dataLine: string): boolean {
   let obj: Record<string, unknown>;
   try {
     obj = JSON.parse(dataLine) as Record<string, unknown>;
@@ -294,8 +294,17 @@ function isContentBearingDelta(dataLine: string): boolean {
   const choices = obj.choices as Array<Record<string, unknown>> | undefined;
   if (choices && choices.length > 0) {
     const delta = choices[0].delta as Record<string, unknown> | undefined;
-    const content = delta?.content;
-    return typeof content === "string" && content.length > 0;
+    if (delta) {
+      const content = delta.content;
+      if (typeof content === "string" && content.length > 0) return true;
+      // GLM / DeepSeek / Qwen / SiliconFlow thinking models stream reasoning
+      // as delta.reasoning_content (OpenAI Chat extensions). Treated as
+      // content-bearing so firstTokenLatencyMs captures the first generated
+      // token of any kind, aligning the decode window with outputTokens.
+      const reasoningContent = delta.reasoning_content;
+      if (typeof reasoningContent === "string" && reasoningContent.length > 0) return true;
+    }
+    return false;
   }
 
   const candidates = obj.candidates as Array<Record<string, unknown>> | undefined;

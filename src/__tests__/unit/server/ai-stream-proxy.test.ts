@@ -10,6 +10,7 @@ import {
   extractDataLine,
   extractPassthroughUsage,
   extractStreamUsageUniversal,
+  isContentBearingDelta,
   splitSSEFrames,
 } from "@/server/ai/lib/stream-proxy";
 import { openaiAdapter } from "@/server/ai/protocol-adapters/openai";
@@ -576,5 +577,101 @@ describe("computeStreamTokensPerSecond", () => {
 
   it("handles negative reasoningTokens gracefully (clamped to zero visible)", () => {
     expect(computeStreamTokensPerSecond(100, 150, 3000, 1000)).toBeNull();
+  });
+});
+
+// ── isContentBearingDelta ──────────────────────────────────────────────
+
+describe("isContentBearingDelta", () => {
+  it("returns false for invalid JSON", () => {
+    expect(isContentBearingDelta("not json")).toBe(false);
+  });
+
+  it("returns true for OpenAI Chat delta with non-empty content", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { content: "hello" } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns false for OpenAI Chat delta with empty content string", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { content: "" } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(false);
+  });
+
+  it("returns false for OpenAI Chat delta with null content", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { content: null } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(false);
+  });
+
+  it("returns true for OpenAI Chat delta.reasoning_content (GLM/DeepSeek/Qwen)", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { reasoning_content: "Let me think..." } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns false for empty reasoning_content string", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { reasoning_content: "" } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(false);
+  });
+
+  it("returns true when both content and reasoning_content present", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { content: "answer", reasoning_content: "thought" } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns true for reasoning_content with null content (typical GLM pattern)", () => {
+    const data = JSON.stringify({
+      choices: [{ delta: { content: null, reasoning_content: "thinking" } }],
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns true for Anthropic content_block_delta with text", () => {
+    const data = JSON.stringify({
+      type: "content_block_delta",
+      delta: { type: "text_delta", text: "Hi" },
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns true for Anthropic content_block_delta with thinking", () => {
+    const data = JSON.stringify({
+      type: "content_block_delta",
+      delta: { type: "thinking_delta", thinking: "reasoning..." },
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns false for Anthropic message_start", () => {
+    const data = JSON.stringify({ type: "message_start" });
+    expect(isContentBearingDelta(data)).toBe(false);
+  });
+
+  it("returns false for Anthropic ping", () => {
+    const data = JSON.stringify({ type: "ping" });
+    expect(isContentBearingDelta(data)).toBe(false);
+  });
+
+  it("returns true for OpenAI Responses response.output_text.delta", () => {
+    const data = JSON.stringify({
+      type: "response.output_text.delta",
+      delta: "hello",
+    });
+    expect(isContentBearingDelta(data)).toBe(true);
+  });
+
+  it("returns false for OpenAI Responses response.created", () => {
+    const data = JSON.stringify({ type: "response.created" });
+    expect(isContentBearingDelta(data)).toBe(false);
   });
 });
