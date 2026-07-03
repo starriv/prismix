@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
@@ -15,11 +15,19 @@ import {
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { formatTokens, StatCard } from "@/web/pages/ai-usage/helpers";
 
 import {
   buildAiUsageByKeyColumns,
+  buildAiUsageDailyColumns,
   buildAiUsageEndpointColumns,
   buildAiUsageModelColumns,
 } from "./columns";
@@ -28,13 +36,19 @@ const AiUsageDetailPage = lazy(() => import("@/web/pages/ai-usage-detail"));
 const AiUsageUserDetailPage = lazy(() => import("@/web/pages/ai-usage-user-detail"));
 
 const DailyTrendChart = lazy(() =>
-  import("@/web/pages/ai-usage/charts").then((m) => ({ default: m.DailyTrendChart })),
+  import("@/web/pages/ai-usage/charts").then((m) => ({
+    default: m.DailyTrendChart,
+  })),
 );
 const ModelDistributionChart = lazy(() =>
-  import("@/web/pages/ai-usage/charts").then((m) => ({ default: m.ModelDistributionChart })),
+  import("@/web/pages/ai-usage/charts").then((m) => ({
+    default: m.ModelDistributionChart,
+  })),
 );
 
 const LIVE_REFETCH_MS = 5_000;
+
+const USAGE_DAY_OPTIONS = [7, 30, 90] as const;
 
 export default function AiUsagePage() {
   const [searchParams] = useSearchParams();
@@ -64,13 +78,15 @@ export default function AiUsagePage() {
 
 function AiUsageList() {
   const { t } = useTranslation();
+  const [usageDays, setUsageDays] = useState<number>(30);
   const { data: summary, isLoading: summaryLoading } = useAiUsageSummary(LIVE_REFETCH_MS);
-  const { data: daily = [], isLoading: dailyLoading } = useAiUsageDaily(30, LIVE_REFETCH_MS);
+  const { data: daily = [], isLoading: dailyLoading } = useAiUsageDaily(usageDays, LIVE_REFETCH_MS);
   const { data: byKeyData = [], isLoading: byKeyLoading } = useAiUsageByKey();
   const { data: relayKeys = [] } = useRelayKeyOptions();
 
   // Build lookup map: consumerKeyId -> key info
   const keyMap = useMemo(() => keyBy(relayKeys, "id"), [relayKeys]);
+  const dailyColumns = useMemo(() => buildAiUsageDailyColumns(t), [t]);
   const byKeyColumns = useMemo(() => buildAiUsageByKeyColumns({ keyMap, t }), [keyMap, t]);
   const byEndpointColumns = useMemo(() => buildAiUsageEndpointColumns(t), [t]);
   const byModelColumns = useMemo(() => buildAiUsageModelColumns(t), [t]);
@@ -125,7 +141,9 @@ function AiUsageList() {
           {/* Daily Usage Trend */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("ai-usage.chart.daily-title")}</CardTitle>
+              <CardTitle className="text-sm">
+                {t("ai-usage.chart.daily-title-days", { days: usageDays })}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {dailyLoading ? (
@@ -162,6 +180,39 @@ function AiUsageList() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Daily Breakdown */}
+        <Card>
+          <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-sm">{t("ai-usage.daily.title")}</CardTitle>
+            <Select
+              value={String(usageDays)}
+              onValueChange={(value) => setUsageDays(Number(value))}
+            >
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {USAGE_DAY_OPTIONS.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {t("ai-usage.daily.last-days", { days })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={dailyColumns}
+              data={daily}
+              emptyText={t("ai-usage.detail.daily-empty")}
+              getRowId={(row) => row.date}
+              loading={dailyLoading}
+              showPagination={false}
+              tableClassName="min-w-[980px]"
+            />
+          </CardContent>
+        </Card>
 
         {/* By Consumer Key */}
         {byKeyLoading ? (

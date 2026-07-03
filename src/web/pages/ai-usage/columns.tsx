@@ -2,8 +2,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
 import { ArrowRight } from "lucide-react";
 
-import { removeTailingZero } from "@/shared/number";
+import { formatPercent, removeTailingZero } from "@/shared/number";
 import type {
+  AiDailyUsage,
   AiUsageByKey,
   AiUsageRecord,
   AiUsageSummary,
@@ -19,6 +20,137 @@ import { formatTokens, StatusBadge } from "./helpers";
 type KeyMap = Record<number, RelayKeyOption | undefined>;
 type EndpointRow = AiUsageSummary["byEndpoint"][number];
 type ModelRow = AiUsageSummary["byModel"][number];
+
+export function buildAiUsageDailyColumns(t: TFunction): ColumnDef<AiDailyUsage>[] {
+  return [
+    {
+      accessorKey: "date",
+      cell: ({ row }) => <DataTableText nowrap>{row.original.date.slice(0, 10)}</DataTableText>,
+      header: t("ai-usage.th.date"),
+      meta: {
+        headerClassName: "w-[12%]",
+      },
+    },
+    {
+      accessorKey: "requests",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {row.original.requests}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.requests"),
+      meta: {
+        headerClassName: "w-[10%]",
+        ...dataTableMeta.right,
+      },
+    },
+    {
+      accessorKey: "inputTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.inputTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.input"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+    {
+      accessorKey: "outputTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.outputTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.output"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+    {
+      accessorKey: "reasoningTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.reasoningTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.reasoning"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+    {
+      accessorKey: "cacheReadInputTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.cacheReadInputTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.cache-read"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+    {
+      accessorKey: "cacheCreationInputTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.cacheCreationInputTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.cache-write"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+    {
+      accessorKey: "totalTokens",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatTokens(row.original.totalTokens)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.total"),
+      meta: {
+        headerClassName: "w-[11%]",
+        ...dataTableMeta.right,
+      },
+    },
+    {
+      accessorKey: "estimatedCost",
+      cell: ({ row }) => (
+        <DataTableText
+          mono
+          numeric
+        >{`$${removeTailingZero(row.original.estimatedCost, 4)}`}</DataTableText>
+      ),
+      header: t("ai-usage.th.cost"),
+      meta: {
+        headerClassName: "w-[12%]",
+        ...dataTableMeta.right,
+      },
+    },
+    {
+      accessorKey: "errorRate",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatPercent(row.original.errorRate)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.error-rate"),
+      meta: {
+        headerClassName: "w-[10%]",
+        ...dataTableMeta.rightHiddenOnMobile,
+      },
+    },
+  ];
+}
 
 export function buildAiUsageByKeyColumns({
   keyMap,
