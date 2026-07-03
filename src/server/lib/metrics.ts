@@ -119,6 +119,24 @@ export const aiUpstreamConcurrencyWaitDuration = new Histogram({
   buckets: [0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60],
 });
 
+export const upstreamRateLimitRemainingRequests = new Gauge({
+  name: "prismix_ai_upstream_rate_limit_remaining_requests",
+  help: "Remaining requests in the current upstream rate-limit window, as reported by the provider. -1 = not reported.",
+  labelNames: ["credentialId", "provider"] as const,
+});
+
+export const upstreamRateLimitRemainingTokens = new Gauge({
+  name: "prismix_ai_upstream_rate_limit_remaining_tokens",
+  help: "Remaining tokens in the current upstream rate-limit window, as reported by the provider. -1 = not reported.",
+  labelNames: ["credentialId", "provider"] as const,
+});
+
+export const upstreamCooldownActive = new Gauge({
+  name: "prismix_ai_upstream_cooldown_active",
+  help: "1 if the credential is in provider-requested cooldown (Retry-After), 0 otherwise.",
+  labelNames: ["credentialId", "provider"] as const,
+});
+
 // ── Queue metrics ───────────────────────────────────────────────────
 
 export const queueDepth = new Gauge({

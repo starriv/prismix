@@ -7,6 +7,7 @@
  */
 import { buildOpenAiCompatibleUrl } from "../lib/openai-compatible-url";
 import { extractTokenUsageFromUsageObject } from "../lib/token-usage";
+import { parseGoDuration, type UpstreamQuotaSnapshot } from "../lib/upstream-rate-limits";
 import type {
   BuildUrlOptions,
   OpenAIChatBody,
@@ -23,6 +24,51 @@ function extractUsageFromObject(body: unknown): TokenUsage | null {
 
 function usesMaxCompletionTokens(model: string): boolean {
   return /^(?:gpt-5|o[134])(?:[.-]|$)/.test(model);
+}
+
+function parseNonNegativeInt(raw: string | null): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Parse `x-ratelimit-*` headers for the OpenAI family.
+ *
+ * Reset values are Go `time.Duration` strings (e.g. `"1s"`, `"6m0s"`); the
+ * absolute reset epoch is computed as `Date.now() + parseGoDuration(header)`.
+ */
+export function parseOpenAiRateLimitHeaders(
+  headers: Headers,
+): Partial<UpstreamQuotaSnapshot> | null {
+  const limitRequests = parseNonNegativeInt(headers.get("x-ratelimit-limit-requests"));
+  const limitTokens = parseNonNegativeInt(headers.get("x-ratelimit-limit-tokens"));
+  const remainingRequests = parseNonNegativeInt(headers.get("x-ratelimit-remaining-requests"));
+  const remainingTokens = parseNonNegativeInt(headers.get("x-ratelimit-remaining-tokens"));
+
+  const resetRequestsDuration = parseGoDuration(headers.get("x-ratelimit-reset-requests"));
+  const resetTokensDuration = parseGoDuration(headers.get("x-ratelimit-reset-tokens"));
+  const now = Date.now();
+  const resetRequestsMs = resetRequestsDuration == null ? null : now + resetRequestsDuration;
+  const resetTokensMs = resetTokensDuration == null ? null : now + resetTokensDuration;
+
+  const hasAny =
+    limitRequests !== null ||
+    limitTokens !== null ||
+    remainingRequests !== null ||
+    remainingTokens !== null ||
+    resetRequestsMs !== null ||
+    resetTokensMs !== null;
+  if (!hasAny) return null;
+
+  return {
+    remainingRequests,
+    remainingTokens,
+    limitRequests,
+    limitTokens,
+    resetRequestsMs,
+    resetTokensMs,
+  };
 }
 
 export const openaiAdapter: ProtocolAdapter = {
@@ -70,4 +116,6 @@ export const openaiAdapter: ProtocolAdapter = {
   buildUrl(baseUrl: string, _opts: BuildUrlOptions): string {
     return buildOpenAiCompatibleUrl(baseUrl, "chat/completions");
   },
+
+  parseRateLimitHeaders: parseOpenAiRateLimitHeaders,
 };

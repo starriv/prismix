@@ -4,6 +4,7 @@
  * Each adapter handles request/response format conversion between the
  * OpenAI-compatible relay input and the upstream protocol format.
  */
+import type { UpstreamQuotaSnapshot } from "../lib/upstream-rate-limits";
 
 // ── Token usage ──────────────────────────────────────────────────────
 
@@ -86,6 +87,22 @@ export interface ProtocolAdapter {
 
   /** Build the upstream request URL from the endpoint/upstream base URL. */
   buildUrl(baseUrl: string, opts: BuildUrlOptions): string;
+
+  /**
+   * Parse rate-limit headers from an upstream response.
+   *
+   * Returns `null` if the provider does not expose rate-limit headers (e.g.
+   * Bedrock) or if the response is missing them. For providers that embed
+   * quota in the error body (Gemini), pass the parsed error body as the
+   * second argument.
+   *
+   * The returned partial is merged with credential identity by
+   * `captureQuotaSnapshot` to produce a full `UpstreamQuotaSnapshot`.
+   */
+  parseRateLimitHeaders?(
+    headers: Headers,
+    errorBody?: unknown,
+  ): Partial<UpstreamQuotaSnapshot> | null;
 }
 
 /** Options passed to buildUrl for model-dependent URL construction. */

@@ -53,6 +53,11 @@ import {
   toConcurrencyLastError,
   type UpstreamConcurrencyLease,
 } from "../lib/upstream-concurrency";
+import {
+  captureErrorQuota,
+  captureQuotaFromResponse,
+  filterAndSortByQuota,
+} from "../lib/upstream-quota-capture";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { BEDROCK_STREAMING_SUPPORTED } from "../protocol-adapters/bedrock";
 import { getAdapter } from "../protocol-adapters/registry";
@@ -206,7 +211,15 @@ relay.post("/v1/chat/completions", async (c) => {
     );
     if (attempts.length === 0) continue;
 
-    for (const attempt of attempts) {
+    // Per-candidate filtering: each model route has different endpoints/credentials.
+    // Global filtering would mix credentials across routes — not desired.
+    const sortedAttempts = await filterAndSortByQuota(
+      attempts,
+      (a) => a.keyMeta.endpointCredentialId,
+      (a) => a.adapter.format,
+    );
+
+    for (const attempt of sortedAttempts) {
       if (totalAttempts >= MAX_UPSTREAM_ATTEMPTS) break;
       totalAttempts++;
 
@@ -322,6 +335,7 @@ relay.post("/v1/chat/completions", async (c) => {
             { endpoint: candidate.endpoint.endpointId, route: "chat" },
           );
           probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
+          captureQuotaFromResponse(adapter, keyMeta.endpointCredentialId, upstreamRes);
           if (upstreamRes.ok) {
             const streamConcurrencyLease = concurrencyLease;
             releaseInFinally = false;
@@ -353,6 +367,7 @@ relay.post("/v1/chat/completions", async (c) => {
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
             markCredentialFailure(keyMeta.endpointCredentialId);
             const errBody = await upstreamRes.text().catch(() => "");
+            await captureErrorQuota(adapter, keyMeta.endpointCredentialId, upstreamRes, errBody);
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             lastResourceDownAlert = {
               route: "admin-chat",
@@ -447,10 +462,13 @@ relay.post("/v1/chat/completions", async (c) => {
           continue;
         }
 
+        captureQuotaFromResponse(adapter, keyMeta.endpointCredentialId, upstreamRes);
+
         if (!upstreamRes.ok) {
           const errBody = await upstreamRes.text().catch(() => "");
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
             markCredentialFailure(keyMeta.endpointCredentialId);
+            await captureErrorQuota(adapter, keyMeta.endpointCredentialId, upstreamRes, errBody);
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             lastResourceDownAlert = {
               route: "admin-chat",
@@ -697,6 +715,7 @@ relay.all("/v1/*", async (c) => {
     queueTimeoutMs: number;
   }
 
+  const passthroughAdapter = getAdapter(endpoint.apiFormat);
   const resolvedAttempts: ResolvedPassthroughAttempt[] = [];
   const serializedBody = JSON.stringify(body);
 
@@ -750,14 +769,20 @@ relay.all("/v1/*", async (c) => {
     );
   }
 
+  const sortedPassthroughAttempts = await filterAndSortByQuota(
+    resolvedAttempts,
+    (a) => a.endpointCredentialId,
+    () => endpoint.apiFormat,
+  );
+
   const passthroughHeaders = extractPassthroughHeaders(c);
   const isStreaming = body.stream === true;
   probe.set({ isStream: isStreaming, cacheStatus: "bypass" });
   let lastError: { status: number; message: string } | null = null;
-  let selected = resolvedAttempts[0];
+  let selected = sortedPassthroughAttempts[0];
 
-  for (let idx = 0; idx < resolvedAttempts.length && idx < MAX_UPSTREAM_ATTEMPTS; idx++) {
-    selected = resolvedAttempts[idx];
+  for (let idx = 0; idx < sortedPassthroughAttempts.length && idx < MAX_UPSTREAM_ATTEMPTS; idx++) {
+    selected = sortedPassthroughAttempts[idx];
 
     const meta: StreamRelayMeta = {
       endpointCredentialId: selected.endpointCredentialId,
@@ -827,6 +852,10 @@ relay.all("/v1/*", async (c) => {
       );
       probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
 
+      if (passthroughAdapter) {
+        captureQuotaFromResponse(passthroughAdapter, selected.endpointCredentialId, upstreamRes);
+      }
+
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
         const streamConcurrencyLease = concurrencyLease;
         releaseInFinally = false;
@@ -854,6 +883,14 @@ relay.all("/v1/*", async (c) => {
       if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
         markCredentialFailure(selected.endpointCredentialId);
         const errBody = await upstreamRes.text().catch(() => "");
+        if (passthroughAdapter) {
+          await captureErrorQuota(
+            passthroughAdapter,
+            selected.endpointCredentialId,
+            upstreamRes,
+            errBody,
+          );
+        }
         lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
         continue;
       }

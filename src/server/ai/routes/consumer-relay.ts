@@ -81,6 +81,11 @@ import {
   toConcurrencyLastError,
   type UpstreamConcurrencyLease,
 } from "../lib/upstream-concurrency";
+import {
+  captureErrorQuota,
+  captureQuotaFromResponse,
+  filterAndSortByQuota,
+} from "../lib/upstream-quota-capture";
 import { MAX_UPSTREAM_ATTEMPTS, resolveUpstreamCandidates } from "../lib/upstream-routing";
 import { type ConsumerSession, getConsumerSession } from "../middleware/consumer-key-auth";
 import { BEDROCK_STREAMING_SUPPORTED } from "../protocol-adapters/bedrock";
@@ -849,8 +854,15 @@ async function handleCanonicalChatCompletions(
     );
   }
 
+  // Apply cooldown filter + quota-aware sort (Phase B-2 + B-3)
+  const sortedUpstreams = await filterAndSortByQuota(
+    resolvedUpstreams,
+    (a) => a.endpointCredentialId,
+    (a) => a.adapter?.format ?? "",
+  );
+
   // Start with first candidate; fallback to next on retryable failures
-  let selected = resolvedUpstreams[0];
+  let selected = sortedUpstreams[0];
 
   // -- 7b. Check if request logging is enabled --
   const logEnabled = await isRequestLoggingEnabled();
@@ -884,8 +896,8 @@ async function handleCanonicalChatCompletions(
   // Try each resolved upstream in order; on retryable failure, advance to next.
   let lastError: { status: number; message: string } | null = null;
 
-  for (let uIdx = 0; uIdx < resolvedUpstreams.length && uIdx < MAX_UPSTREAM_ATTEMPTS; uIdx++) {
-    selected = resolvedUpstreams[uIdx];
+  for (let uIdx = 0; uIdx < sortedUpstreams.length && uIdx < MAX_UPSTREAM_ATTEMPTS; uIdx++) {
+    selected = sortedUpstreams[uIdx];
 
     // Create fresh meta per iteration — shared reference would race with async stream callbacks
     const meta: StreamRelayMeta = {
@@ -1026,10 +1038,21 @@ async function handleCanonicalChatCompletions(
           },
         );
         probe.set({ upstreamTtfbMs: probe.since(upstreamStart) });
+        if (selected.adapter) {
+          captureQuotaFromResponse(selected.adapter, selected.endpointCredentialId, upstreamRes);
+        }
         if (!upstreamRes.ok) {
           if (RETRYABLE_STATUS.has(upstreamRes.status)) {
             markCredentialFailure(selected.endpointCredentialId);
             const errBody = await upstreamRes.text().catch(() => "");
+            if (selected.adapter) {
+              await captureErrorQuota(
+                selected.adapter,
+                selected.endpointCredentialId,
+                upstreamRes,
+                errBody,
+              );
+            }
             lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
             continue; // try next upstream
           }
@@ -1174,10 +1197,22 @@ async function handleCanonicalChatCompletions(
         continue; // try next upstream
       }
 
+      if (selected.adapter) {
+        captureQuotaFromResponse(selected.adapter, selected.endpointCredentialId, upstreamRes);
+      }
+
       if (!upstreamRes.ok) {
         if (RETRYABLE_STATUS.has(upstreamRes.status)) {
           markCredentialFailure(selected.endpointCredentialId);
           const errBody = await upstreamRes.text().catch(() => "");
+          if (selected.adapter) {
+            await captureErrorQuota(
+              selected.adapter,
+              selected.endpointCredentialId,
+              upstreamRes,
+              errBody,
+            );
+          }
           lastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
           continue; // try next upstream
         }
@@ -1539,6 +1574,7 @@ async function handlePassthrough(
     serializedBody: string;
     concurrencyLimit: number | null;
     queueTimeoutMs: number;
+    adapter: ReturnType<typeof getAdapter>;
   }
   const resolvedPtUpstreams: ResolvedPtUpstream[] = [];
 
@@ -1548,6 +1584,7 @@ async function handlePassthrough(
       continue;
     }
 
+    const ptAdapter = getAdapter(endpoint.apiFormat);
     const endpointModelId = route.endpointModelId ?? routeModel.modelId;
 
     for (const upstream of await resolveUpstreamCandidates(endpoint)) {
@@ -1580,6 +1617,7 @@ async function handlePassthrough(
           serializedBody: effectiveBody,
           concurrencyLimit: upstream.concurrencyLimit,
           queueTimeoutMs: upstream.queueTimeoutMs,
+          adapter: ptAdapter,
         });
       } catch {
         continue;
@@ -1599,6 +1637,12 @@ async function handlePassthrough(
       { modelId },
     );
   }
+
+  const sortedPtUpstreams = await filterAndSortByQuota(
+    resolvedPtUpstreams,
+    (a) => a.endpointCredentialId,
+    (a) => a.adapter?.format ?? "",
+  );
 
   if (!ptIsFreeModel) {
     const ptPreflightLimit = await checkConsumerSpendingLimits(consumer);
@@ -1629,11 +1673,11 @@ async function handlePassthrough(
 
   const ptLogEnabled = await isRequestLoggingEnabled();
 
-  let ptSelected = resolvedPtUpstreams[0];
+  let ptSelected = sortedPtUpstreams[0];
   let ptLastError: { status: number; message: string } | null = null;
 
-  for (let pIdx = 0; pIdx < resolvedPtUpstreams.length && pIdx < MAX_UPSTREAM_ATTEMPTS; pIdx++) {
-    ptSelected = resolvedPtUpstreams[pIdx];
+  for (let pIdx = 0; pIdx < sortedPtUpstreams.length && pIdx < MAX_UPSTREAM_ATTEMPTS; pIdx++) {
+    ptSelected = sortedPtUpstreams[pIdx];
 
     const meta: StreamRelayMeta = {
       endpointCredentialId: ptSelected.endpointCredentialId,
@@ -1703,6 +1747,10 @@ async function handlePassthrough(
       );
       ptProbe.set({ upstreamTtfbMs: ptProbe.since(upstreamStart) });
 
+      if (ptSelected.adapter) {
+        captureQuotaFromResponse(ptSelected.adapter, ptSelected.endpointCredentialId, upstreamRes);
+      }
+
       // ── Streaming passthrough — parse SSE frames for usage + billing ──
       if (isStreaming && upstreamRes.ok && upstreamRes.body) {
         const billPt = ptSelected; // capture for closure
@@ -1765,6 +1813,14 @@ async function handlePassthrough(
       if (!upstreamRes.ok && RETRYABLE_STATUS.has(upstreamRes.status)) {
         markCredentialFailure(ptSelected.endpointCredentialId);
         const errBody = await upstreamRes.text().catch(() => "");
+        if (ptSelected.adapter) {
+          await captureErrorQuota(
+            ptSelected.adapter,
+            ptSelected.endpointCredentialId,
+            upstreamRes,
+            errBody,
+          );
+        }
         ptLastError = { status: upstreamRes.status, message: errBody.slice(0, 1000) };
         continue;
       }

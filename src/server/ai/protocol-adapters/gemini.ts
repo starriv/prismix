@@ -8,10 +8,15 @@
  * - Streaming: JSON chunks with candidates, no [DONE] signal (stream ends on reader done)
  * - URL: model-dependent (/models/{model}:generateContent or :streamGenerateContent)
  */
-import crypto from "crypto";
+import { randomUUID } from "node:crypto";
 
 import { match } from "ts-pattern";
 
+import {
+  parseGoDuration,
+  parseRfc3339ToEpochMs,
+  type UpstreamQuotaSnapshot,
+} from "../lib/upstream-rate-limits";
 import type {
   BuildUrlOptions,
   OpenAIChatBody,
@@ -41,6 +46,10 @@ interface GeminiResponse {
 }
 
 // ── Finish reason mapping ────────────────────────────────────────────
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function mapFinishReason(reason: string | undefined): string | null {
   if (!reason) return null;
@@ -135,7 +144,7 @@ export const geminiAdapter: ProtocolAdapter = {
     const outputTokens = usage?.candidatesTokenCount ?? 0;
 
     return {
-      id: `gemini-${crypto.randomUUID()}`,
+      id: `gemini-${randomUUID()}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model: res.modelVersion ?? "",
@@ -222,5 +231,64 @@ export const geminiAdapter: ProtocolAdapter = {
   // The stream-proxy while loop (line 112) already handles this correctly.
   isStreamDone(_eventData: string): boolean {
     return false;
+  },
+
+  /**
+   * Gemini does not expose rate-limit headers on success responses. On 429,
+   * the error body carries `quotaResetDelay` (Go duration) and
+   * `quotaResetTimeStamp` (RFC 3339) inside `error.details[].metadata`.
+   *
+   * The `errorBody` argument must be the parsed JSON of the 429 response.
+   */
+  parseRateLimitHeaders(
+    _headers: Headers,
+    errorBody?: unknown,
+  ): Partial<UpstreamQuotaSnapshot> | null {
+    if (!errorBody) return null;
+
+    const errObj = (errorBody as Record<string, unknown> | null)?.error as
+      | Record<string, unknown>
+      | undefined;
+    const details = errObj?.details;
+    if (!Array.isArray(details)) return null;
+
+    let quotaResetDelayMs: number | null = null;
+    let resetRequestsMs: number | null = null;
+
+    for (const detail of details) {
+      if (!isRecord(detail)) continue;
+      const metadata = detail.metadata;
+      if (!isRecord(metadata)) continue;
+
+      if (typeof metadata.quotaResetDelay === "string" && quotaResetDelayMs === null) {
+        quotaResetDelayMs = parseGoDuration(metadata.quotaResetDelay);
+      }
+      if (typeof metadata.quotaResetTimeStamp === "string" && resetRequestsMs === null) {
+        resetRequestsMs = parseRfc3339ToEpochMs(metadata.quotaResetTimeStamp);
+      }
+    }
+
+    // Prefer the explicit quotaResetDelay for retryAfterMs. If only
+    // quotaResetTimeStamp is present (and is in the future), derive
+    // retryAfterMs from it so markCooldown still fires.
+    let retryAfterMs = quotaResetDelayMs;
+    if (retryAfterMs === null && resetRequestsMs !== null) {
+      const delta = resetRequestsMs - Date.now();
+      if (delta > 0) {
+        retryAfterMs = delta;
+      }
+    }
+
+    if (retryAfterMs === null && resetRequestsMs === null) return null;
+
+    return {
+      remainingRequests: null,
+      remainingTokens: null,
+      limitRequests: null,
+      limitTokens: null,
+      resetRequestsMs,
+      resetTokensMs: null,
+      retryAfterMs,
+    };
   },
 };

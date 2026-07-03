@@ -9,6 +9,7 @@
  */
 import { match } from "ts-pattern";
 
+import { parseRfc3339ToEpochMs, type UpstreamQuotaSnapshot } from "../lib/upstream-rate-limits";
 import type {
   BuildUrlOptions,
   OpenAIChatBody,
@@ -197,6 +198,64 @@ function mapMessages(messages: OpenAIChatBody["messages"]) {
     if (message.role === "tool") return mapToolResultMessage(message);
     return message;
   });
+}
+
+function parseNonNegativeInt(raw: string | null): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+const MIN_FORWARD_RESET_MS = 1000;
+
+/**
+ * Parse `anthropic-ratelimit-*` headers + `retry-after`.
+ *
+ * Reset values are RFC 3339 absolute timestamps (NOT Go durations). The
+ * `tokens-*` headers are the binding limit per provider docs — do NOT sum
+ * input + output. Past timestamps (clock skew) are clamped to a 1s forward
+ * window.
+ */
+export function parseAnthropicRateLimitHeaders(
+  headers: Headers,
+): Partial<UpstreamQuotaSnapshot> | null {
+  const limitRequests = parseNonNegativeInt(headers.get("anthropic-ratelimit-requests-limit"));
+  const limitTokens = parseNonNegativeInt(headers.get("anthropic-ratelimit-tokens-limit"));
+  const remainingRequests = parseNonNegativeInt(
+    headers.get("anthropic-ratelimit-requests-remaining"),
+  );
+  const remainingTokens = parseNonNegativeInt(headers.get("anthropic-ratelimit-tokens-remaining"));
+
+  const requestsResetRaw = parseRfc3339ToEpochMs(headers.get("anthropic-ratelimit-requests-reset"));
+  const tokensResetRaw = parseRfc3339ToEpochMs(headers.get("anthropic-ratelimit-tokens-reset"));
+  const now = Date.now();
+  const resetRequestsMs =
+    requestsResetRaw == null ? null : Math.max(requestsResetRaw, now + MIN_FORWARD_RESET_MS);
+  const resetTokensMs =
+    tokensResetRaw == null ? null : Math.max(tokensResetRaw, now + MIN_FORWARD_RESET_MS);
+
+  const retryAfterSec = parseNonNegativeInt(headers.get("retry-after"));
+  const retryAfterMs = retryAfterSec == null ? null : retryAfterSec * 1000;
+
+  const hasAny =
+    limitRequests !== null ||
+    limitTokens !== null ||
+    remainingRequests !== null ||
+    remainingTokens !== null ||
+    resetRequestsMs !== null ||
+    resetTokensMs !== null ||
+    retryAfterMs !== null;
+  if (!hasAny) return null;
+
+  return {
+    remainingRequests,
+    remainingTokens,
+    limitRequests,
+    limitTokens,
+    resetRequestsMs,
+    resetTokensMs,
+    retryAfterMs,
+  };
 }
 
 // ── Adapter ──────────────────────────────────────────────────────────
@@ -470,4 +529,6 @@ export const anthropicAdapter: ProtocolAdapter = {
       return false;
     }
   },
+
+  parseRateLimitHeaders: parseAnthropicRateLimitHeaders,
 };

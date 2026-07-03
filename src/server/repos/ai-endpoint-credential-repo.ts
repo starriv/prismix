@@ -7,6 +7,7 @@
  */
 import { and, count, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
+import { clampCooldownMs, type UpstreamQuotaSnapshot } from "@/server/ai/lib/upstream-rate-limits";
 import {
   aiCredentials,
   type AiEndpointCredential,
@@ -18,6 +19,40 @@ import {
   queryOne,
   returningOne,
 } from "@/server/db";
+import { getRedis } from "@/server/lib/redis";
+
+// ── Upstream quota + cooldown Redis keys (Phase B) ───────────────────
+// Sibling module `upstream-concurrency.ts` uses the `ai:` prefix namespace;
+// we follow the same convention. (`prismix:` is reserved for events/pub-sub.)
+
+const QUOTA_KEY_PREFIX = "ai:upstream-quota:";
+const COOLDOWN_KEY_PREFIX = "ai:upstream-cooldown:";
+
+const QUOTA_TTL_MIN_MS = 5_000;
+const QUOTA_TTL_MAX_MS = 300_000;
+const QUOTA_TTL_DEFAULT_MS = 60_000;
+
+function quotaKey(credentialId: string): string {
+  return `${QUOTA_KEY_PREFIX}${credentialId}`;
+}
+
+function cooldownKey(credentialId: string): string {
+  return `${COOLDOWN_KEY_PREFIX}${credentialId}`;
+}
+
+function resolveQuotaTtlMs(snapshot: UpstreamQuotaSnapshot): number {
+  const now = Date.now();
+  const candidates: number[] = [];
+  if (snapshot.resetRequestsMs !== null && snapshot.resetRequestsMs > now) {
+    candidates.push(snapshot.resetRequestsMs - now);
+  }
+  if (snapshot.resetTokensMs !== null && snapshot.resetTokensMs > now) {
+    candidates.push(snapshot.resetTokensMs - now);
+  }
+  if (candidates.length === 0) return QUOTA_TTL_DEFAULT_MS;
+  const maxReset = Math.max(...candidates);
+  return Math.min(Math.max(maxReset, QUOTA_TTL_MIN_MS), QUOTA_TTL_MAX_MS);
+}
 
 export interface EndpointCredential extends AiEndpointCredential {
   credentialName: string;
@@ -451,5 +486,42 @@ export const aiEndpointCredentialRepo = {
         totalCredentials: Number(row.totalCredentials ?? 0),
         enabledCredentials: Number(row.enabledCredentials ?? 0),
       }));
+  },
+
+  // ── Upstream quota snapshot + cooldown (Redis-backed) ────────────────
+  //
+  // These methods ONLY touch Redis. Prometheus gauges are set synchronously
+  // at the call site (`upstream-quota-capture.ts`) to avoid double writes
+  // and to keep repo methods pure (Redis-only side effect).
+  //
+  // Errors propagate — callers wrap with `.catch()` (see capture* helpers).
+
+  async updateQuotaSnapshot(snapshot: UpstreamQuotaSnapshot): Promise<void> {
+    const ttlMs = resolveQuotaTtlMs(snapshot);
+    await getRedis().set(quotaKey(snapshot.credentialId), JSON.stringify(snapshot), "PX", ttlMs);
+  },
+
+  async getQuotaSnapshot(credentialId: string): Promise<UpstreamQuotaSnapshot | null> {
+    const raw = await getRedis().get(quotaKey(credentialId));
+    if (raw == null) return null;
+    return JSON.parse(raw) as UpstreamQuotaSnapshot;
+  },
+
+  async markCooldown(credentialId: string, _provider: string, ms: number): Promise<void> {
+    const clampedMs = clampCooldownMs(ms);
+    // `NX`: only set if not exists. We never shorten an existing cooldown.
+    // A new 429 with a shorter retry-after won't override a longer one in
+    // flight — safety first. If the key already exists, SET returns null
+    // and we silently skip.
+    await getRedis().set(cooldownKey(credentialId), "1", "PX", clampedMs, "NX");
+  },
+
+  async clearCooldown(credentialId: string, _provider: string): Promise<void> {
+    await getRedis().del(cooldownKey(credentialId));
+  },
+
+  async isCoolingDown(credentialId: string, _provider: string): Promise<boolean> {
+    const exists = await getRedis().exists(cooldownKey(credentialId));
+    return exists > 0;
   },
 };
