@@ -4,9 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { Activity, AlertTriangle, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
+import { Activity, Clock3, Gauge, Search, Timer, Zap } from "lucide-react";
 
-import { formatPercent } from "@/shared/number";
 import type { AiUsageRecord } from "@/web/api/schemas";
 import {
   USER_LOG_PAGE_SIZE,
@@ -105,13 +104,7 @@ export default function UserLogsPage() {
       <Header title={t("ai-logs.title")} description={t("ai-logs.desc")} />
 
       <div className="p-4 md:p-8 space-y-6">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <StatCard
-            icon={AlertTriangle}
-            label={t("ai-logs.stats.error-rate")}
-            value={formatPercent(summary?.errorRate)}
-            loading={summaryLoading}
-          />
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <StatCard
             icon={Timer}
             label={t("ai-logs.stats.p95-latency")}
