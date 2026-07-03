@@ -29,6 +29,7 @@ import {
   queryAll,
   queryOne,
 } from "@/server/db";
+import { normalizeDayCount } from "@/server/lib/usage";
 
 export interface AiUsageSummary {
   totalRequests: number;
@@ -75,8 +76,15 @@ export interface AiUsageSummary {
 export interface DailyUsageRow {
   date: string;
   requests: number;
+  inputTokens: number;
+  outputTokens: number;
   totalTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  reasoningTokens: number;
   estimatedCost: number;
+  errorCount: number;
+  errorRate: number;
 }
 
 export interface ConsumerKeyUsageRow {
@@ -187,10 +195,26 @@ function floorToUtcHour(value: Date): Date {
   return date;
 }
 
+function floorToUtcDay(value: Date): Date {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
 function addUtcHours(value: Date, hours: number): Date {
   const date = new Date(value);
   date.setUTCHours(date.getUTCHours() + hours);
   return date;
+}
+
+function addUtcDays(value: Date, days: number): Date {
+  const date = new Date(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date;
+}
+
+function formatUtcDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
 }
 
 export function parseDbTimestamp(value: Date | number | string | null | undefined): Date | null {
@@ -276,6 +300,114 @@ export function buildUpstreamHourlySeries(
         clientErrors: 0,
         serverErrors: 0,
         avgLatencyMs: 0,
+      }
+    );
+  });
+}
+
+export function buildDailyUsageSeries(
+  rows: Array<{
+    date: Date | string | null;
+    requests: number | string | null;
+    inputTokens: number | string | null;
+    outputTokens: number | string | null;
+    totalTokens: number | string | null;
+    cacheCreationInputTokens: number | string | null;
+    cacheReadInputTokens: number | string | null;
+    reasoningTokens: number | string | null;
+    estimatedCost: number | string | null;
+    errorCount: number | string | null;
+  }>,
+  days: number,
+  now = new Date(),
+): DailyUsageRow[] {
+  const bucketCount = normalizeDayCount(days);
+  const endDay = floorToUtcDay(now);
+  const startDay = addUtcDays(endDay, -(bucketCount - 1));
+
+  const rowsByDate = new Map<string, DailyUsageRow>(
+    rows.flatMap((row) => {
+      const date = parseDbTimestamp(row.date);
+      if (!date) return [];
+
+      const requests = Number(row.requests ?? 0);
+      const errorCount = Number(row.errorCount ?? 0);
+      const normalized: DailyUsageRow = {
+        date: formatUtcDate(floorToUtcDay(date)),
+        requests,
+        inputTokens: Number(row.inputTokens ?? 0),
+        outputTokens: Number(row.outputTokens ?? 0),
+        totalTokens: Number(row.totalTokens ?? 0),
+        cacheCreationInputTokens: Number(row.cacheCreationInputTokens ?? 0),
+        cacheReadInputTokens: Number(row.cacheReadInputTokens ?? 0),
+        reasoningTokens: Number(row.reasoningTokens ?? 0),
+        estimatedCost: Number(row.estimatedCost ?? 0),
+        errorCount,
+        errorRate: requests > 0 ? errorCount / requests : 0,
+      };
+
+      return [[normalized.date, normalized] as const];
+    }),
+  );
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const date = formatUtcDate(addUtcDays(startDay, index));
+    return (
+      rowsByDate.get(date) ?? {
+        date,
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        reasoningTokens: 0,
+        estimatedCost: 0,
+        errorCount: 0,
+        errorRate: 0,
+      }
+    );
+  });
+}
+
+export function buildErrorDailySeries(
+  rows: Array<{
+    date: Date | string | null;
+    clientErrors: number | string | null;
+    serverErrors: number | string | null;
+    totalErrors: number | string | null;
+  }>,
+  days: number,
+  now = new Date(),
+): ErrorDailyRow[] {
+  const bucketCount = normalizeDayCount(days);
+  const endDay = floorToUtcDay(now);
+  const startDay = addUtcDays(endDay, -(bucketCount - 1));
+
+  const rowsByDate = new Map<string, ErrorDailyRow>(
+    rows.flatMap((row) => {
+      const date = parseDbTimestamp(row.date);
+      if (!date) return [];
+
+      const normalized: ErrorDailyRow = {
+        date: formatUtcDate(floorToUtcDay(date)),
+        clientErrors: Number(row.clientErrors ?? 0),
+        serverErrors: Number(row.serverErrors ?? 0),
+        totalErrors: Number(row.totalErrors ?? 0),
+      };
+
+      return [[normalized.date, normalized] as const];
+    }),
+  );
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const date = formatUtcDate(addUtcDays(startDay, index));
+    return (
+      rowsByDate.get(date) ?? {
+        date,
+        clientErrors: 0,
+        serverErrors: 0,
+        totalErrors: 0,
       }
     );
   });
@@ -812,7 +944,14 @@ export const aiUsageLogRepo = {
 
   /** Daily aggregated usage for time-series chart. */
   async dailySummary(days = 30, consumerKeyId?: number, userId?: number): Promise<DailyUsageRow[]> {
-    const conditions = [gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`)];
+    const bucketCount = normalizeDayCount(days);
+    const endDay = floorToUtcDay(new Date());
+    const startDay = addUtcDays(endDay, -(bucketCount - 1));
+    const exclusiveEnd = addUtcDays(endDay, 1);
+    const conditions = [
+      gte(aiUsageLogs.createdAt, startDay),
+      lt(aiUsageLogs.createdAt, exclusiveEnd),
+    ];
     if (consumerKeyId != null) {
       conditions.push(eq(aiUsageLogs.consumerKeyId, consumerKeyId));
     }
@@ -820,19 +959,38 @@ export const aiUsageLogRepo = {
       conditions.push(eq(aiUsageLogs.userId, userId));
     }
 
-    return queryAll<DailyUsageRow>(
+    const rows = await queryAll<{
+      date: string;
+      requests: number;
+      inputTokens: string | null;
+      outputTokens: string | null;
+      totalTokens: string | null;
+      cacheCreationInputTokens: string | null;
+      cacheReadInputTokens: string | null;
+      reasoningTokens: string | null;
+      estimatedCost: string | null;
+      errorCount: string | null;
+    }>(
       db
         .select({
-          date: sql<string>`date_trunc('day', ${aiUsageLogs.createdAt})::text`,
+          date: sql<string>`date_trunc('day', ${aiUsageLogs.createdAt})::date::text`,
           requests: count(),
-          totalTokens: sql<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)`,
-          estimatedCost: sql<number>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)`,
+          inputTokens: sum(aiUsageLogs.inputTokens),
+          outputTokens: sum(aiUsageLogs.outputTokens),
+          totalTokens: sum(aiUsageLogs.totalTokens),
+          cacheCreationInputTokens: sum(aiUsageLogs.cacheCreationInputTokens),
+          cacheReadInputTokens: sum(aiUsageLogs.cacheReadInputTokens),
+          reasoningTokens: sum(aiUsageLogs.reasoningTokens),
+          estimatedCost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)::text`,
+          errorCount: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 OR ${aiUsageLogs.statusCode} = 0)`,
         })
         .from(aiUsageLogs)
         .where(and(...conditions))
         .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
         .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
     );
+
+    return buildDailyUsageSeries(rows, bucketCount, endDay);
   },
 
   /** Per-consumer-key aggregated usage for the overview "By Key" table. */
@@ -851,6 +1009,7 @@ export const aiUsageLogRepo = {
       requests: number;
       inputTokens: string | null;
       outputTokens: string | null;
+      totalTokens: string | null;
       cost: string | null;
     }>(
       db
@@ -859,6 +1018,7 @@ export const aiUsageLogRepo = {
           requests: count(),
           inputTokens: sum(aiUsageLogs.inputTokens),
           outputTokens: sum(aiUsageLogs.outputTokens),
+          totalTokens: sum(aiUsageLogs.totalTokens),
           cost: sql<string>`COALESCE(SUM(CAST(${aiUsageLogs.estimatedCost} AS NUMERIC)), 0)`,
         })
         .from(aiUsageLogs)
@@ -872,12 +1032,16 @@ export const aiUsageLogRepo = {
       requests: r.requests,
       inputTokens: Number(r.inputTokens ?? 0),
       outputTokens: Number(r.outputTokens ?? 0),
-      totalTokens: Number(r.inputTokens ?? 0) + Number(r.outputTokens ?? 0),
+      totalTokens: Number(r.totalTokens ?? 0),
       estimatedCost: Number(r.cost ?? 0),
     }));
   },
 
   async errorOverview(days = 30, userId?: number): Promise<ErrorOverview> {
+    const bucketCount = normalizeDayCount(days);
+    const endDay = floorToUtcDay(new Date());
+    const startDay = addUtcDays(endDay, -(bucketCount - 1));
+    const exclusiveEnd = addUtcDays(endDay, 1);
     const where = userId != null ? eq(aiUsageLogs.userId, userId) : undefined;
     const totals = await queryOne<{
       total4xx: string | null;
@@ -887,8 +1051,8 @@ export const aiUsageLogRepo = {
     }>(
       db
         .select({
-          total4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= NOW() - make_interval(days => ${days}))`,
-          total5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= NOW() - make_interval(days => ${days}))`,
+          total4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= ${startDay} AND ${aiUsageLogs.createdAt} < ${exclusiveEnd})`,
+          total5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= ${startDay} AND ${aiUsageLogs.createdAt} < ${exclusiveEnd})`,
           last24h4xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 500 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
           last24h5xx: sql<string>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 500 AND ${aiUsageLogs.statusCode} < 600 AND ${aiUsageLogs.createdAt} >= NOW() - interval '24 hours')`,
         })
@@ -910,7 +1074,8 @@ export const aiUsageLogRepo = {
         .from(aiUsageLogs)
         .where(
           and(
-            gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`),
+            gte(aiUsageLogs.createdAt, startDay),
+            lt(aiUsageLogs.createdAt, exclusiveEnd),
             ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
           ),
         )
@@ -942,7 +1107,22 @@ export const aiUsageLogRepo = {
   },
 
   async errorDaily(days = 30, userId?: number): Promise<ErrorDailyRow[]> {
-    return queryAll<ErrorDailyRow>(
+    const bucketCount = normalizeDayCount(days);
+    const endDay = floorToUtcDay(new Date());
+    const startDay = addUtcDays(endDay, -(bucketCount - 1));
+    const exclusiveEnd = addUtcDays(endDay, 1);
+    const conditions = [
+      gte(aiUsageLogs.createdAt, startDay),
+      lt(aiUsageLogs.createdAt, exclusiveEnd),
+      ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
+    ];
+
+    const rows = await queryAll<{
+      date: string;
+      clientErrors: number | string | null;
+      serverErrors: number | string | null;
+      totalErrors: number | string | null;
+    }>(
       db
         .select({
           date: sql<string>`date_trunc('day', ${aiUsageLogs.createdAt})::date::text`,
@@ -951,15 +1131,12 @@ export const aiUsageLogRepo = {
           totalErrors: sql<number>`COUNT(*) FILTER (WHERE ${aiUsageLogs.statusCode} >= 400 AND ${aiUsageLogs.statusCode} < 600)`,
         })
         .from(aiUsageLogs)
-        .where(
-          and(
-            gte(aiUsageLogs.createdAt, sql`NOW() - make_interval(days => ${days})`),
-            ...(userId != null ? [eq(aiUsageLogs.userId, userId)] : []),
-          ),
-        )
+        .where(and(...conditions))
         .groupBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`)
         .orderBy(sql`date_trunc('day', ${aiUsageLogs.createdAt})`),
     );
+
+    return buildErrorDailySeries(rows, bucketCount, endDay);
   },
 
   /** Hourly usage breakdown for a single upstream (time-series chart). */
