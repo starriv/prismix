@@ -63,14 +63,15 @@ const MAX_BUFFER_SIZE = 1_048_576;
 
 /**
  * Sanity cap for tokensPerSecond. Real LLM throughput ranges from ~30 tok/s
- * (standard cloud GPU) to ~1500 tok/s (Cerebras/Groq LPU). Anything above
- * 2000 tok/s indicates a measurement artifact — typically a thinking/reasoning
- * model where the decode window (latencyMs - firstTokenLatencyMs) is tiny
- * relative to the token count. Capped rather than nullified so the metric
- * remains observable, but implausible values are clamped before persistence
- * and aggregation (p95).
+ * (standard cloud GPU) to ~3000 tok/s (thinking models batch-emitting
+ * reasoning tokens, or Cerebras/Groq LPU). Anything above 5000 tok/s
+ * indicates a measurement artifact — typically a thinking/reasoning model
+ * where the decode window (latencyMs - firstTokenLatencyMs) is tiny relative
+ * to the token count. Capped rather than nullified so the metric remains
+ * observable, but implausible values are clamped before persistence and
+ * aggregation (p95).
  */
-const TPS_SANITY_CAP = 2000;
+const TPS_SANITY_CAP = 5000;
 
 /**
  * Compute stream output throughput in tokens/sec.

@@ -568,7 +568,7 @@ describe("computeStreamTokensPerSecond", () => {
 
   it("clamps implausible values to TPS_SANITY_CAP (thinking model with tiny decode window)", () => {
     const result = computeStreamTokensPerSecond(1872, 0, 1885, 1850);
-    expect(result).toBe(2000);
+    expect(result).toBe(5000);
   });
 
   it("treats null outputTokens as zero and returns null", () => {
