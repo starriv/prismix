@@ -74,7 +74,9 @@ function AiGatewayDashboard() {
         />
         <StatCard
           title={t("dash.ai.error-rate")}
-          value={summary ? `${removeTailingZero(summary.errorRate * 100, 1)}%` : "0%"}
+          value={
+            summary?.errorRate != null ? `${removeTailingZero(summary.errorRate * 100, 1)}%` : "--"
+          }
           subtitle={t("dash.ai.all-time")}
           icon={PercentCircle}
         />

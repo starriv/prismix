@@ -109,26 +109,26 @@ export default function UserLogsPage() {
           <StatCard
             icon={AlertTriangle}
             label={t("ai-logs.stats.error-rate")}
-            value={formatPercent(summary?.errorRate ?? 0)}
+            value={formatPercent(summary?.errorRate)}
             loading={summaryLoading}
           />
           <StatCard
             icon={Timer}
             label={t("ai-logs.stats.p95-latency")}
-            value={formatDurationMs(summary?.p95LatencyMs ?? 0)}
+            value={formatDurationMs(summary?.p95LatencyMs)}
             loading={summaryLoading}
           />
           <StatCard
             icon={Clock3}
             label={t("ai-logs.stats.p95-ttfb")}
-            value={formatDurationMs(summary?.p95UpstreamTtfbMs ?? 0)}
+            value={formatDurationMs(summary?.p95UpstreamTtfbMs)}
             loading={summaryLoading}
           />
           <StatCard
             icon={Gauge}
             label={t("ai-logs.stats.p95-throughput")}
             value={
-              summary?.p95TokensPerSecond
+              summary?.p95TokensPerSecond != null
                 ? `${formatTokensPerSecond(summary.p95TokensPerSecond)} tok/s`
                 : "-"
             }

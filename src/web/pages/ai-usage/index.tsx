@@ -131,7 +131,7 @@ function AiUsageList() {
           <StatCard
             icon={AlertTriangle}
             label={t("ai-usage.stats.error-rate")}
-            value={formatPercent(summary?.errorRate ?? 0)}
+            value={formatPercent(summary?.errorRate)}
             loading={summaryLoading}
           />
         </div>

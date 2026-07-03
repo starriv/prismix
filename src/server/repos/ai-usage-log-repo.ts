@@ -38,25 +38,25 @@ export interface AiUsageSummary {
   totalTokens: number;
   totalEstimatedCost: number;
   errorCount: number;
-  errorRate: number;
+  errorRate: number | null;
   cacheHits: number;
   cacheMisses: number;
   cacheBypasses: number;
   cacheEligibleRequests: number;
-  cacheHitRate: number;
+  cacheHitRate: number | null;
   promptCacheCreationInputTokens: number;
   promptCacheReadInputTokens: number;
-  promptCacheCreationRate: number;
-  promptCacheReadRate: number;
-  avgLatencyMs: number;
-  p95LatencyMs: number;
-  avgUpstreamTtfbMs: number;
-  p95UpstreamTtfbMs: number;
-  avgTokensPerSecond: number;
-  p95TokensPerSecond: number;
-  /** Requests in the last 60 seconds (live RPM metric). */
+  promptCacheCreationRate: number | null;
+  promptCacheReadRate: number | null;
+  avgLatencyMs: number | null;
+  p95LatencyMs: number | null;
+  avgUpstreamTtfbMs: number | null;
+  p95UpstreamTtfbMs: number | null;
+  avgTokensPerSecond: number | null;
+  p95TokensPerSecond: number | null;
+  /** 0 is a valid live value (no traffic in the last 60s), not "no data". */
   rpm: number;
-  /** Tokens in the last 60 seconds (live TPM metric). */
+  /** 0 is a valid live value (no traffic in the last 60s), not "no data". */
   tpm: number;
   byEndpoint: Array<{
     endpointId: string;
@@ -197,6 +197,18 @@ function floorToUtcHour(value: Date): Date {
   const date = new Date(value);
   date.setUTCMinutes(0, 0, 0);
   return date;
+}
+
+function toNullableInt(value: string | number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function toNullableNumber(value: string | number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function floorToUtcDay(value: Date): Date {
@@ -921,23 +933,24 @@ export const aiUsageLogRepo = {
       totalTokens: totalInputTokens + totalOutputTokens,
       totalEstimatedCost,
       errorCount,
-      errorRate: totalRequests > 0 ? errorCount / totalRequests : 0,
+      errorRate: totalRequests > 0 ? errorCount / totalRequests : null,
       cacheHits,
       cacheMisses,
       cacheBypasses,
       cacheEligibleRequests,
-      cacheHitRate: cacheEligibleRequests > 0 ? cacheHits / cacheEligibleRequests : 0,
+      cacheHitRate: cacheEligibleRequests > 0 ? cacheHits / cacheEligibleRequests : null,
       promptCacheCreationInputTokens,
       promptCacheReadInputTokens,
       promptCacheCreationRate:
-        totalInputTokens > 0 ? promptCacheCreationInputTokens / totalInputTokens : 0,
-      promptCacheReadRate: totalInputTokens > 0 ? promptCacheReadInputTokens / totalInputTokens : 0,
-      avgLatencyMs: Math.round(Number(totalsRow?.avgLatencyMs ?? 0)),
-      p95LatencyMs: Math.round(Number(totalsRow?.p95LatencyMs ?? 0)),
-      avgUpstreamTtfbMs: Math.round(Number(totalsRow?.avgUpstreamTtfbMs ?? 0)),
-      p95UpstreamTtfbMs: Math.round(Number(totalsRow?.p95UpstreamTtfbMs ?? 0)),
-      avgTokensPerSecond: Number(totalsRow?.avgTokensPerSecond ?? 0) || 0,
-      p95TokensPerSecond: Number(totalsRow?.p95TokensPerSecond ?? 0) || 0,
+        totalInputTokens > 0 ? promptCacheCreationInputTokens / totalInputTokens : null,
+      promptCacheReadRate:
+        totalInputTokens > 0 ? promptCacheReadInputTokens / totalInputTokens : null,
+      avgLatencyMs: toNullableInt(totalsRow?.avgLatencyMs),
+      p95LatencyMs: toNullableInt(totalsRow?.p95LatencyMs),
+      avgUpstreamTtfbMs: toNullableInt(totalsRow?.avgUpstreamTtfbMs),
+      p95UpstreamTtfbMs: toNullableInt(totalsRow?.p95UpstreamTtfbMs),
+      avgTokensPerSecond: toNullableNumber(totalsRow?.avgTokensPerSecond),
+      p95TokensPerSecond: toNullableNumber(totalsRow?.p95TokensPerSecond),
       rpm: Number(totalsRow?.rpm ?? 0),
       tpm: Number(totalsRow?.tpm ?? 0),
       byEndpoint: byEndpoint.map((r) => ({

@@ -17,19 +17,19 @@ function computeSummaryRates(raw: {
 }) {
   const cacheEligibleRequests = raw.cacheHits + raw.cacheMisses;
   return {
-    errorRate: raw.totalRequests > 0 ? raw.errorCount / raw.totalRequests : 0,
+    errorRate: raw.totalRequests > 0 ? raw.errorCount / raw.totalRequests : null,
     cacheEligibleRequests,
-    cacheHitRate: cacheEligibleRequests > 0 ? raw.cacheHits / cacheEligibleRequests : 0,
+    cacheHitRate: cacheEligibleRequests > 0 ? raw.cacheHits / cacheEligibleRequests : null,
     promptCacheCreationRate:
-      raw.totalInputTokens > 0 ? raw.promptCacheCreationInputTokens / raw.totalInputTokens : 0,
+      raw.totalInputTokens > 0 ? raw.promptCacheCreationInputTokens / raw.totalInputTokens : null,
     promptCacheReadRate:
-      raw.totalInputTokens > 0 ? raw.promptCacheReadInputTokens / raw.totalInputTokens : 0,
+      raw.totalInputTokens > 0 ? raw.promptCacheReadInputTokens / raw.totalInputTokens : null,
     totalTokens: raw.totalInputTokens + raw.totalOutputTokens,
   };
 }
 
 describe("ai-usage-log summary aggregation logic", () => {
-  it("returns 0 rates for empty table (no NaN)", () => {
+  it("returns null rates for empty table (no misleading zeros)", () => {
     const result = computeSummaryRates({
       totalRequests: 0,
       totalInputTokens: 0,
@@ -41,11 +41,11 @@ describe("ai-usage-log summary aggregation logic", () => {
       promptCacheCreationInputTokens: 0,
       promptCacheReadInputTokens: 0,
     });
-    expect(result.errorRate).toBe(0);
-    expect(result.cacheHitRate).toBe(0);
+    expect(result.errorRate).toBeNull();
+    expect(result.cacheHitRate).toBeNull();
     expect(result.cacheEligibleRequests).toBe(0);
-    expect(result.promptCacheCreationRate).toBe(0);
-    expect(result.promptCacheReadRate).toBe(0);
+    expect(result.promptCacheCreationRate).toBeNull();
+    expect(result.promptCacheReadRate).toBeNull();
     expect(result.totalTokens).toBe(0);
   });
 
@@ -108,7 +108,7 @@ describe("ai-usage-log summary aggregation logic", () => {
       promptCacheCreationInputTokens: 0,
       promptCacheReadInputTokens: 0,
     });
-    expect(result.cacheHitRate).toBe(0);
+    expect(result.cacheHitRate).toBeNull();
     expect(result.cacheEligibleRequests).toBe(0);
   });
 
@@ -131,7 +131,7 @@ describe("ai-usage-log summary aggregation logic", () => {
     expect(result.totalTokens).toBe(1500);
   });
 
-  it("zero totalInputTokens yields 0 prompt cache rates (no NaN)", () => {
+  it("zero totalInputTokens yields null prompt cache rates (no NaN)", () => {
     const result = computeSummaryRates({
       totalRequests: 5,
       totalInputTokens: 0,
@@ -143,8 +143,8 @@ describe("ai-usage-log summary aggregation logic", () => {
       promptCacheCreationInputTokens: 50,
       promptCacheReadInputTokens: 30,
     });
-    expect(result.promptCacheCreationRate).toBe(0);
-    expect(result.promptCacheReadRate).toBe(0);
+    expect(result.promptCacheCreationRate).toBeNull();
+    expect(result.promptCacheReadRate).toBeNull();
   });
 
   it("errorRate = errorCount / totalRequests", () => {

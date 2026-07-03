@@ -71,10 +71,10 @@ describe("ai log performance schemas", () => {
       byModel: [],
     });
 
-    expect(parsed.cacheHitRate).toBe(0);
+    expect(parsed.cacheHitRate).toBeNull();
     expect(parsed.cacheEligibleRequests).toBe(0);
-    expect(parsed.p95LatencyMs).toBe(0);
-    expect(parsed.promptCacheReadRate).toBe(0);
+    expect(parsed.p95LatencyMs).toBeNull();
+    expect(parsed.promptCacheReadRate).toBeNull();
   });
 
   it("parses aggregate cache denominator fields", () => {
