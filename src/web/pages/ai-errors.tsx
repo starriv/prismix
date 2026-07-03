@@ -14,8 +14,26 @@ const LIVE_REFETCH_MS = 5_000;
 
 export default function AiErrorsPage() {
   const { t, i18n } = useTranslation();
-  const { data: errorOverview } = useAiErrorOverview(30, LIVE_REFETCH_MS);
-  const { data: errorDaily = [] } = useAiErrorDaily(30, LIVE_REFETCH_MS);
+  const overviewQuery = useAiErrorOverview(30, LIVE_REFETCH_MS);
+  const dailyQuery = useAiErrorDaily(30, LIVE_REFETCH_MS);
+
+  const overview = overviewQuery.data;
+  const daily = dailyQuery.data ?? [];
+  const overviewLoading = overviewQuery.isLoading;
+  const overviewError = overviewQuery.isError && !overview;
+  const dailyLoading = dailyQuery.isLoading;
+  const dailyError = dailyQuery.isError && !dailyQuery.data;
+
+  const peakSubtitle = (dateStr: string | null | undefined): string | undefined => {
+    if (overviewLoading || overviewError) return undefined;
+    return dateStr ? new Date(dateStr).toLocaleDateString(i18n.language) : t("dash.ai.no-peak");
+  };
+
+  const statValue = (n: number): string =>
+    overview ? n.toLocaleString() : overviewError ? "—" : "0";
+
+  const statSubtitle = (fallback: string): string | undefined =>
+    overviewLoading || overviewError ? undefined : fallback;
 
   return (
     <div>
@@ -25,40 +43,40 @@ export default function AiErrorsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title={t("dash.ai.error-4xx")}
-            value={errorOverview ? errorOverview.total4xx.toLocaleString() : "0"}
-            subtitle={t("dash.ai.last-30-days")}
+            value={statValue(overview?.total4xx ?? 0)}
+            subtitle={statSubtitle(t("dash.ai.last-30-days"))}
             icon={TriangleAlert}
+            loading={overviewLoading}
+            error={overviewError}
           />
           <StatCard
             title={t("dash.ai.error-5xx")}
-            value={errorOverview ? errorOverview.total5xx.toLocaleString() : "0"}
-            subtitle={t("dash.ai.last-30-days")}
+            value={statValue(overview?.total5xx ?? 0)}
+            subtitle={statSubtitle(t("dash.ai.last-30-days"))}
             icon={ServerCrash}
+            loading={overviewLoading}
+            error={overviewError}
           />
           <StatCard
             title={t("dash.ai.error-4xx-peak")}
-            value={errorOverview ? errorOverview.peak4xx.toLocaleString() : "0"}
-            subtitle={
-              errorOverview?.peak4xxDate
-                ? new Date(errorOverview.peak4xxDate).toLocaleDateString(i18n.language)
-                : t("dash.ai.no-peak")
-            }
+            value={statValue(overview?.peak4xx ?? 0)}
+            subtitle={peakSubtitle(overview?.peak4xxDate)}
             icon={AlertTriangle}
+            loading={overviewLoading}
+            error={overviewError}
           />
           <StatCard
             title={t("dash.ai.error-5xx-peak")}
-            value={errorOverview ? errorOverview.peak5xx.toLocaleString() : "0"}
-            subtitle={
-              errorOverview?.peak5xxDate
-                ? new Date(errorOverview.peak5xxDate).toLocaleDateString(i18n.language)
-                : t("dash.ai.no-peak")
-            }
+            value={statValue(overview?.peak5xx ?? 0)}
+            subtitle={peakSubtitle(overview?.peak5xxDate)}
             icon={AlertTriangle}
+            loading={overviewLoading}
+            error={overviewError}
           />
         </div>
 
         <Suspense fallback={<Skeleton className="h-[340px] w-full" />}>
-          <ErrorTrendChart data={errorDaily} />
+          <ErrorTrendChart data={daily} loading={dailyLoading} error={dailyError} />
         </Suspense>
       </div>
     </div>
