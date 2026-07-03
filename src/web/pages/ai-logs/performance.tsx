@@ -1,6 +1,5 @@
 import type { TFunction } from "i18next";
 
-import { formatPercent } from "@/shared/number";
 import type { AiUsageRecord, AiUsageSummary } from "@/web/api/schemas";
 import { DataTableText } from "@/web/components/data-table";
 
@@ -23,28 +22,6 @@ export function formatTokensPerSecond(value: number | null | undefined): string 
   if (value < 1) return value.toFixed(2);
   if (value < 100) return value.toFixed(1);
   return Math.round(value).toString();
-}
-
-export function formatGatewayCacheHitRate(
-  summary: Pick<AiUsageSummary, "cacheEligibleRequests" | "cacheHitRate"> | null | undefined,
-): string {
-  return (summary?.cacheEligibleRequests ?? 0) > 0
-    ? formatPercent(summary?.cacheHitRate ?? 0)
-    : "—";
-}
-
-export function formatProviderPromptCacheReadRate(
-  summary:
-    | Pick<
-        AiUsageSummary,
-        "promptCacheCreationInputTokens" | "promptCacheReadInputTokens" | "promptCacheReadRate"
-      >
-    | null
-    | undefined,
-): string {
-  const observedTokens =
-    (summary?.promptCacheCreationInputTokens ?? 0) + (summary?.promptCacheReadInputTokens ?? 0);
-  return observedTokens > 0 ? formatPercent(summary?.promptCacheReadRate ?? 0) : "—";
 }
 
 export function hasPerformanceMetrics(log: AiUsageRecord): boolean {

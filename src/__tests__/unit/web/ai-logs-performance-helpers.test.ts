@@ -6,8 +6,6 @@ import { buildPerformanceDetailRows } from "@/web/pages/ai-logs/log-detail";
 import {
   formatBytes,
   formatDurationMs,
-  formatGatewayCacheHitRate,
-  formatProviderPromptCacheReadRate,
   hasPerformanceMetrics,
 } from "@/web/pages/ai-logs/performance";
 
@@ -67,40 +65,6 @@ describe("formatBytes", () => {
   it("formats MB", () => {
     expect(formatBytes(1048576)).toBe("1MB");
     expect(formatBytes(1572864)).toBe("1.5MB");
-  });
-});
-
-describe("formatGatewayCacheHitRate", () => {
-  it("returns an unavailable marker when there are no cache-eligible requests", () => {
-    expect(formatGatewayCacheHitRate(null)).toBe("—");
-    expect(formatGatewayCacheHitRate({ cacheEligibleRequests: 0, cacheHitRate: 0 })).toBe("—");
-  });
-
-  it("formats hit rate when hit/miss denominator exists", () => {
-    expect(formatGatewayCacheHitRate({ cacheEligibleRequests: 10, cacheHitRate: 0.4 })).toBe("40%");
-  });
-});
-
-describe("formatProviderPromptCacheReadRate", () => {
-  it("returns unavailable when no provider cache tokens were observed", () => {
-    expect(formatProviderPromptCacheReadRate(null)).toBe("—");
-    expect(
-      formatProviderPromptCacheReadRate({
-        promptCacheCreationInputTokens: 0,
-        promptCacheReadInputTokens: 0,
-        promptCacheReadRate: 0,
-      }),
-    ).toBe("—");
-  });
-
-  it("formats zero read rate when provider cache token fields were observed through writes", () => {
-    expect(
-      formatProviderPromptCacheReadRate({
-        promptCacheCreationInputTokens: 100,
-        promptCacheReadInputTokens: 0,
-        promptCacheReadRate: 0,
-      }),
-    ).toBe("0%");
   });
 });
 

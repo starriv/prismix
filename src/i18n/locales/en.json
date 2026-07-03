@@ -2630,10 +2630,10 @@
     "live": "Live",
     "table-empty": "No AI logs found",
     "stats": {
-      "cache-hit-rate": "Gateway Cache Hit Rate",
+      "error-rate": "Error Rate",
       "p95-latency": "P95 Latency",
       "p95-ttfb": "P95 TTFB",
-      "prompt-cache-read": "Provider Cache Read"
+      "p95-throughput": "P95 Throughput"
     },
     "th": {
       "request-id": "Request ID",

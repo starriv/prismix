@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
 import { functionalUpdate } from "@tanstack/react-table";
 import { sortBy } from "lodash-es";
-import { Clock3, Database, Gauge, Search, Timer } from "lucide-react";
+import { AlertTriangle, Clock3, Gauge, Search, Timer } from "lucide-react";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 
+import { formatPercent } from "@/shared/number";
 import { DEFAULT_PAGE_SIZE } from "@/web/api/constants";
 import { useAiLogs, useAiRequestLog, useAiUsageSummary, useRelayKeyOptions } from "@/web/api/hooks";
 import type { AiUsageRecord } from "@/web/api/schemas";
@@ -32,11 +33,7 @@ import {
 
 import { buildLogColumns } from "./ai-logs/log-columns";
 import { LogDetail } from "./ai-logs/log-detail";
-import {
-  formatDurationMs,
-  formatGatewayCacheHitRate,
-  formatProviderPromptCacheReadRate,
-} from "./ai-logs/performance";
+import { formatDurationMs, formatTokensPerSecond } from "./ai-logs/performance";
 import { StatCard } from "./ai-usage/helpers";
 
 export default function AiLogsPage() {
@@ -131,8 +128,6 @@ export default function AiLogsPage() {
   }, [setAppliedKey, setAppliedModel, setAppliedRequestId, setAppliedStatus, setPage]);
 
   const columns = useMemo(() => buildLogColumns(t, i18n.language), [t, i18n.language]);
-  const cacheHitRateValue = formatGatewayCacheHitRate(summary);
-  const promptCacheReadRateValue = formatProviderPromptCacheReadRate(summary);
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex: page, pageSize: DEFAULT_PAGE_SIZE }),
     [page],
@@ -152,9 +147,9 @@ export default function AiLogsPage() {
       <div className="p-4 md:p-8 space-y-6">
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatCard
-            icon={Database}
-            label={t("ai-logs.stats.cache-hit-rate")}
-            value={cacheHitRateValue}
+            icon={AlertTriangle}
+            label={t("ai-logs.stats.error-rate")}
+            value={formatPercent(summary?.errorRate ?? 0)}
             loading={summaryLoading}
           />
           <StatCard
@@ -171,8 +166,8 @@ export default function AiLogsPage() {
           />
           <StatCard
             icon={Gauge}
-            label={t("ai-logs.stats.prompt-cache-read")}
-            value={promptCacheReadRateValue}
+            label={t("ai-logs.stats.p95-throughput")}
+            value={formatTokensPerSecond(summary?.p95TokensPerSecond ?? 0)}
             loading={summaryLoading}
           />
         </div>
