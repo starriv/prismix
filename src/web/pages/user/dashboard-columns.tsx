@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
 
+import { formatPercent } from "@/shared/number";
 import type { AiDailyUsage, AiUsageRecord } from "@/web/api/schemas";
 import { dataTableMeta, DataTableRelativeTime, DataTableText } from "@/web/components/data-table";
 import { StatusBadge } from "@/web/pages/ai-usage/helpers";
@@ -21,8 +22,20 @@ export function buildUserDashboardDailyColumns(t: TFunction): ColumnDef<AiDailyU
       meta: dataTableMeta.right,
     },
     {
+      accessorKey: "inputTokens",
+      cell: ({ row }) => <UserTokenText value={row.original.inputTokens} />,
+      header: t("ai-usage.th.input"),
+      meta: dataTableMeta.rightHiddenOnMobile,
+    },
+    {
+      accessorKey: "outputTokens",
+      cell: ({ row }) => <UserTokenText value={row.original.outputTokens} />,
+      header: t("ai-usage.th.output"),
+      meta: dataTableMeta.rightHiddenOnMobile,
+    },
+    {
       accessorKey: "totalTokens",
-      cell: ({ row }) => <UserCountText value={Number(row.original.totalTokens)} />,
+      cell: ({ row }) => <UserTokenText value={row.original.totalTokens} />,
       header: t("user.usage.th.tokens"),
       meta: dataTableMeta.right,
     },
@@ -31,6 +44,16 @@ export function buildUserDashboardDailyColumns(t: TFunction): ColumnDef<AiDailyU
       cell: ({ row }) => <UserCurrencyText value={row.original.estimatedCost} />,
       header: t("user.usage.th.spend"),
       meta: dataTableMeta.right,
+    },
+    {
+      accessorKey: "errorRate",
+      cell: ({ row }) => (
+        <DataTableText mono numeric>
+          {formatPercent(row.original.errorRate)}
+        </DataTableText>
+      ),
+      header: t("ai-usage.th.error-rate"),
+      meta: dataTableMeta.rightHiddenOnMobile,
     },
   ];
 }
