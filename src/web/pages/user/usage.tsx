@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AlertTriangle, BarChart3, Cpu, DollarSign, Zap } from "lucide-react";
@@ -8,17 +8,32 @@ import { useUserUsageDaily, useUserUsageSummary } from "@/web/api/user-hooks";
 import { Header } from "@/web/components/dashboard/header";
 import { DataTable } from "@/web/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/web/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/web/components/ui/select";
 import { Skeleton } from "@/web/components/ui/skeleton";
 import { DailyTrendChart, ModelDistributionChart } from "@/web/pages/ai-usage/charts";
 import { StatCard } from "@/web/pages/ai-usage/helpers";
 
 import { formatUserTokens } from "./table-helpers";
-import { buildUserUsageEndpointColumns, buildUserUsageModelColumns } from "./usage-columns";
+import {
+  buildUserUsageDailyColumns,
+  buildUserUsageEndpointColumns,
+  buildUserUsageModelColumns,
+} from "./usage-columns";
+
+const USAGE_DAY_OPTIONS = [7, 30, 90] as const;
 
 export default function UserUsagePage() {
   const { t } = useTranslation();
+  const [usageDays, setUsageDays] = useState<number>(30);
   const { data: summary, isLoading: summaryLoading } = useUserUsageSummary();
-  const { data: daily = [], isLoading: dailyLoading } = useUserUsageDaily(30);
+  const { data: daily = [], isLoading: dailyLoading } = useUserUsageDaily(usageDays);
+  const dailyColumns = useMemo(() => buildUserUsageDailyColumns(t), [t]);
   const endpointColumns = useMemo(() => buildUserUsageEndpointColumns(t), [t]);
   const modelColumns = useMemo(() => buildUserUsageModelColumns(t), [t]);
 
@@ -72,7 +87,9 @@ export default function UserUsagePage() {
           {/* Daily Usage Trend */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("ai-usage.chart.daily-title")}</CardTitle>
+              <CardTitle className="text-sm">
+                {t("ai-usage.chart.daily-title-days", { days: usageDays })}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {dailyLoading ? (
@@ -105,6 +122,39 @@ export default function UserUsagePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Daily Breakdown */}
+        <Card>
+          <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-sm">{t("ai-usage.daily.title")}</CardTitle>
+            <Select
+              value={String(usageDays)}
+              onValueChange={(value) => setUsageDays(Number(value))}
+            >
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {USAGE_DAY_OPTIONS.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {t("ai-usage.daily.last-days", { days })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={dailyColumns}
+              data={daily}
+              emptyText={t("ai-usage.detail.daily-empty")}
+              getRowId={(row) => row.date}
+              loading={dailyLoading}
+              showPagination={false}
+              tableClassName="min-w-[980px]"
+            />
+          </CardContent>
+        </Card>
 
         {/* By Endpoint */}
         {summary && summary.byEndpoint.length > 0 && (
