@@ -50,6 +50,9 @@ export function createApiClient(config: ApiClientConfig) {
   }
 
   function getToken(): string | null {
+    // Another tab may have refreshed or cleared the session. Always reconcile
+    // the in-memory value before issuing a request.
+    tokenCache = localStorage.getItem(tokenKey);
     return tokenCache;
   }
 
@@ -63,6 +66,7 @@ export function createApiClient(config: ApiClientConfig) {
   }
 
   function getRefreshToken(): string | null {
+    refreshCache = localStorage.getItem(refreshTokenKey);
     return refreshCache;
   }
 
@@ -89,7 +93,13 @@ export function createApiClient(config: ApiClientConfig) {
 
   let refreshPromise: Promise<string | null> | null = null;
 
-  async function attemptRefresh(): Promise<string | null> {
+  async function attemptRefresh(failedToken?: string | null): Promise<string | null> {
+    // A different tab may have completed refresh while this tab was waiting
+    // for the cross-tab lock. Reuse its access token instead of consuming the
+    // newly rotated single-use refresh token again.
+    const currentToken = getToken();
+    if (failedToken && currentToken && currentToken !== failedToken) return currentToken;
+
     const rt = getRefreshToken();
     if (!rt) return null;
 
@@ -109,9 +119,19 @@ export function createApiClient(config: ApiClientConfig) {
     }
   }
 
-  function doRefresh(): Promise<string | null> {
+  const refreshLockName = `prismix-auth-refresh:${refreshTokenKey}`;
+
+  async function lockedRefresh(failedToken?: string | null): Promise<string | null> {
+    if (typeof navigator === "undefined" || !navigator.locks) {
+      return attemptRefresh(failedToken);
+    }
+
+    return navigator.locks.request(refreshLockName, () => attemptRefresh(failedToken));
+  }
+
+  function doRefresh(failedToken?: string | null): Promise<string | null> {
     if (!refreshPromise) {
-      refreshPromise = attemptRefresh().finally(() => {
+      refreshPromise = lockedRefresh(failedToken).finally(() => {
         refreshPromise = null;
       });
     }
@@ -128,7 +148,7 @@ export function createApiClient(config: ApiClientConfig) {
     const res = await fetch(url, { ...init, headers });
 
     if (res.status === 401) {
-      const newToken = await doRefresh();
+      const newToken = await doRefresh(token);
       if (newToken) {
         const retryHeaders = new Headers(init?.headers);
         retryHeaders.set("Authorization", `Bearer ${newToken}`);
@@ -199,7 +219,7 @@ export function createApiClient(config: ApiClientConfig) {
     });
 
     if (res.status === 401) {
-      const newToken = await doRefresh();
+      const newToken = await doRefresh(token);
       if (newToken) {
         const retryRes = await fetch(url, {
           method: "POST",
