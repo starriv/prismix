@@ -213,6 +213,35 @@ describe("admin ai model discovery with upstream-scoped credentials", () => {
     });
   });
 
+  it("does not expose an upstream 401 as an admin authentication failure", async () => {
+    mockFindAnyEnabledByEndpoint.mockResolvedValue({
+      id: 123,
+      endpointId: 7,
+      upstreamId: null,
+      encryptedKey: "encrypted",
+    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "invalid_api_key" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const res = await app.request("http://localhost/endpoints/7/discover-models");
+    const json = (await res.json()) as {
+      error: string;
+      upstreamStatus: number;
+      detail: string;
+    };
+
+    expect(res.status).toBe(502);
+    expect(json).toEqual({
+      error: "Upstream returned 401",
+      upstreamStatus: 401,
+      detail: JSON.stringify({ error: "invalid_api_key" }),
+    });
+  });
+
   it("discovers official models with a reusable supplier credential when the endpoint pool is empty", async () => {
     mockFindEndpointById.mockResolvedValue({
       id: 7,

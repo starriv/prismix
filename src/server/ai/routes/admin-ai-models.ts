@@ -153,8 +153,12 @@ router.get("/endpoints/:id/discover-models", async (c) => {
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       return c.json(
-        { error: `Upstream returned ${res.status}`, detail: body.slice(0, 1000) },
-        res.status as 400,
+        {
+          error: `Upstream returned ${res.status}`,
+          upstreamStatus: res.status,
+          detail: body.slice(0, 1000),
+        },
+        502,
       );
     }
 
