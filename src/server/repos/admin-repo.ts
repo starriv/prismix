@@ -1,7 +1,7 @@
 /**
  * Admin repository — CRUD for the `admins` table.
  */
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 
 import {
   type Admin,
@@ -21,7 +21,12 @@ export const adminRepo = {
   },
 
   async findByAddress(address: string): Promise<Admin | undefined> {
-    return queryOne(db.select().from(admins).where(eq(admins.address, address.toLowerCase())));
+    return queryOne(
+      db
+        .select()
+        .from(admins)
+        .where(sql`lower(${admins.address}) = ${address.toLowerCase()}`),
+    );
   },
 
   async findAll(): Promise<Admin[]> {
@@ -29,7 +34,12 @@ export const adminRepo = {
   },
 
   async create(data: NewAdmin): Promise<Admin> {
-    return returningOne(db.insert(admins).values(data));
+    return returningOne(
+      db.insert(admins).values({
+        ...data,
+        address: data.address?.toLowerCase() ?? null,
+      }),
+    );
   },
 
   async delete(id: number): Promise<void> {
@@ -48,7 +58,13 @@ export const adminRepo = {
       const row = await tx.select({ total: count() }).from(admins);
       const total = row?.[0]?.total ?? 0;
       if (total > 0) return null;
-      const rows = await tx.insert(admins).values(data).returning();
+      const rows = await tx
+        .insert(admins)
+        .values({
+          ...data,
+          address: data.address?.toLowerCase() ?? null,
+        })
+        .returning();
       return (rows[0] ?? rows) as Admin;
     });
   },

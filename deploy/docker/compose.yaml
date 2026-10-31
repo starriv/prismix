@@ -1,0 +1,117 @@
+# Prismix self-hosted stack: app + PostgreSQL + Redis + Cloudflare Tunnel.
+# The image is built by GitHub Actions and pulled from GHCR.
+#
+# Required .env next to this file (root 0600):
+#   POSTGRES_PASSWORD=...
+#   REDIS_PASSWORD=...
+#   IMAGE_TAG=sha-xxxxxxx   # or latest
+#
+# The app env file is readable by the container at /etc/prismix/prismix.env
+# and must contain the production secrets (JWT_SECRET, ENCRYPTION_*, etc.).
+# DATABASE_URL/REDIS_URL are overridden here to point at the compose services.
+
+name: prismix
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: prismix
+      POSTGRES_USER: prismix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prismix -d prismix"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      environment:
+        REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  prismix:
+    image: ghcr.io/starriv/prismix:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ${PRISMIX_ENV_FILE:-/etc/prismix/prismix.env}
+    environment:
+      NODE_ENV: production
+      PORT: "3403"
+      ROLE: all
+      DATABASE_URL: postgresql://prismix:${POSTGRES_PASSWORD}@postgres:5432/prismix
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    ports:
+      - "127.0.0.1:3403:3403"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3403/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    user: "0:0"
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --config
+      - /etc/cloudflared/docker.yml
+      - run
+    volumes:
+      - /etc/cloudflared:/etc/cloudflared:ro
+    depends_on:
+      prismix:
+        condition: service_healthy
+    mem_limit: 96m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  pg-data:
+  redis-data:

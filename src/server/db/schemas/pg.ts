@@ -37,20 +37,27 @@ export const users = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [uniqueIndex("users_uuid_unique").on(t.uuid)],
+  (t) => [
+    uniqueIndex("users_uuid_unique").on(t.uuid),
+    uniqueIndex("users_address_ci_unique").on(sql`lower(${t.address})`),
+  ],
 );
 
 // ── Admins ────────────────────────────────────────────────────────────
 
-export const admins = pgTable("admins", {
-  id: serial("id").primaryKey(),
-  address: text("address").unique(), // optional — Web2 admins have no wallet
-  name: text("name").notNull(),
-  email: text("email"), // optional — OAuth / credentials bring this
-  createdAt: timestamp("created_at")
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const admins = pgTable(
+  "admins",
+  {
+    id: serial("id").primaryKey(),
+    address: text("address").unique(), // optional — Web2 admins have no wallet
+    name: text("name").notNull(),
+    email: text("email"), // optional — OAuth / credentials bring this
+    createdAt: timestamp("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("admins_address_ci_unique").on(sql`lower(${t.address})`)],
+);
 
 // ── Pay agents (wallet agents for AI billing) ────────────────────────
 
@@ -209,6 +216,9 @@ export const identities = pgTable(
   },
   (t) => [
     unique().on(t.provider, t.providerAccountId, t.userRole),
+    uniqueIndex("identities_siwe_account_role_ci_unique")
+      .on(sql`lower(${t.providerAccountId})`, t.userRole)
+      .where(sql`${t.provider} = 'siwe'`),
     index("idx_identities_user").on(t.userId, t.userRole),
     index("idx_identities_provider").on(t.provider, t.providerAccountId),
   ],

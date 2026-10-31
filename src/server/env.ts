@@ -4,7 +4,7 @@ import { z } from "zod";
 // Validates process.env at import time so misconfiguration is caught
 // immediately on startup. Env vars are loaded before this module runs:
 //   dev  → tsx --env-file=.env.local  (loads file before any code)
-//   prod → platform injects env vars  (Railway, Docker, etc.)
+//   prod → platform injects env vars  (Docker, etc.)
 
 const envSchema = z.object({
   // Required in all environments

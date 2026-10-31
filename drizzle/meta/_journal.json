@@ -162,6 +162,13 @@
       "when": 1783020715893,
       "tag": "0022_add_tps_and_reasoning_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788144768031,
+      "tag": "0023_case_insensitive_wallet_addresses",
+      "breakpoints": true
     }
   ]
 }

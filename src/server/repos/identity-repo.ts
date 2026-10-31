@@ -4,7 +4,7 @@
  * Maps auth providers (siwe, credentials, google, github) to users.
  * A single user can have multiple linked identities.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import {
   db,
@@ -23,6 +23,12 @@ export const identityRepo = {
     providerAccountId: string,
     userRole: string = "user",
   ): Promise<Identity | undefined> {
+    const normalizedAccountId = providerAccountId.toLowerCase();
+    const accountCondition =
+      provider === "siwe"
+        ? sql`lower(${identities.providerAccountId}) = ${normalizedAccountId}`
+        : eq(identities.providerAccountId, normalizedAccountId);
+
     return queryOne(
       db
         .select()
@@ -30,7 +36,7 @@ export const identityRepo = {
         .where(
           and(
             eq(identities.provider, provider),
-            eq(identities.providerAccountId, providerAccountId.toLowerCase()),
+            accountCondition,
             eq(identities.userRole, userRole),
           ),
         ),
@@ -57,7 +63,12 @@ export const identityRepo = {
   },
 
   async create(data: NewIdentity): Promise<Identity> {
-    return returningOne(db.insert(identities).values(data));
+    return returningOne(
+      db.insert(identities).values({
+        ...data,
+        providerAccountId: data.providerAccountId.toLowerCase(),
+      }),
+    );
   },
 
   async deleteByUserId(userId: number, userRole: string = "user"): Promise<void> {

@@ -21,7 +21,7 @@ const health = new Hono();
 
 // ── GET /health — combined liveness + readiness ─────────────────────
 // Returns 200 when DB and Redis are reachable, 503 otherwise.
-// Used by Railway healthcheckPath / Docker HEALTHCHECK.
+// Used by Docker HEALTHCHECK.
 
 health.get("/health", async (c) => {
   let dbOk = false;

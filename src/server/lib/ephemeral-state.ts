@@ -2,7 +2,7 @@
  * Short-lived auth state backed by Redis.
  *
  * These values bridge multi-request login flows (SIWE nonce, OAuth state,
- * one-time exchange codes). They must be readable across Railway replicas.
+ * one-time exchange codes). They must be readable across replicas.
  */
 import { getRedis } from "./redis";
 

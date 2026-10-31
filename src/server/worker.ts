@@ -22,8 +22,8 @@ import { env } from "./env";
 if (env.ROLE !== "worker") {
   throw new Error(
     `ROLE=${String(env.ROLE)} must be "worker" for the worker entry point. ` +
-      `Set ROLE=worker (Railway worker service env var) or use pnpm start with ROLE=worker. ` +
-      `This guard prevents the worker process from silently running as API after Railpack bakes the root railway.toml startCommand into the image CMD.`,
+      `Set ROLE=worker or use pnpm start with ROLE=worker. ` +
+      `This guard prevents the worker process from silently running as API when a shared start command is baked into the image CMD.`,
   );
 }
 

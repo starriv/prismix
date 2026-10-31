@@ -1,7 +1,7 @@
 /**
  * User repository — CRUD for the `users` table.
  */
-import { and, count, desc, eq, ilike } from "drizzle-orm";
+import { and, count, desc, eq, ilike, sql } from "drizzle-orm";
 
 import {
   db,
@@ -48,7 +48,12 @@ export const userRepo = {
   },
 
   async findByAddress(address: string): Promise<User | undefined> {
-    return queryOne(db.select().from(users).where(eq(users.address, address.toLowerCase())));
+    return queryOne(
+      db
+        .select()
+        .from(users)
+        .where(sql`lower(${users.address}) = ${address.toLowerCase()}`),
+    );
   },
 
   async findByAgentId(agentId: number): Promise<User | undefined> {
@@ -64,14 +69,21 @@ export const userRepo = {
   },
 
   async create(data: NewUser): Promise<User> {
-    return returningOne(db.insert(users).values(data));
+    return returningOne(
+      db.insert(users).values({
+        ...data,
+        address: data.address?.toLowerCase() ?? null,
+      }),
+    );
   },
 
   async update(id: number, data: Partial<NewUser>): Promise<User | undefined> {
+    const normalized =
+      data.address === undefined ? data : { ...data, address: data.address?.toLowerCase() ?? null };
     return returningOne(
       db
         .update(users)
-        .set({ ...data, updatedAt: new Date() })
+        .set({ ...normalized, updatedAt: new Date() })
         .where(eq(users.id, id)),
     );
   },
