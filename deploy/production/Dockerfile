@@ -23,7 +23,11 @@ RUN HUSKY=0 pnpm build
 
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml ./
-RUN HUSKY=0 pnpm install --prod --frozen-lockfile
+# `prepare: husky` is a devDependency command; skip lifecycle scripts during
+# the production install, then rebuild only the native module we need.
+RUN HUSKY=0 pnpm install --prod --frozen-lockfile --ignore-scripts \
+ && pnpm rebuild argon2 \
+ && node -e "import('argon2').then(async m=>{await m.hash('ci');console.log('argon2 ok')}).catch(e=>{console.error(e);process.exit(1)})"
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
